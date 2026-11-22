@@ -10,6 +10,9 @@ import global_state
 import source_startup
 
 fn main() {
+	$if !managed_native ? && !test {
+		$compile_warn('Run `make` from the repository root to build Witty and its native dependencies.')
+	}
 	source_startup.prepare()
 	mut state := global_state.get_state_mut()
 	state.init() or {

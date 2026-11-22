@@ -5,9 +5,11 @@
 // the same output without depending on source files at runtime.
 module help_strings
 
-import cli
-import configpkg
-import input
+// Build-time inputs come from the pinned records. Importing their runtime
+// consumers would bring in the renderer and its native libraries.
+const config_records = $embed_file('../configpkg/config_help.txt').to_string()
+const action_records = $embed_file('../cli/cli_action_help.txt').to_string()
+const keybind_records = $embed_file('../input/keybind_action_help.txt').to_string()
 
 // HelpEntry represents a single documented configuration field or action.
 pub struct HelpEntry {
@@ -34,14 +36,14 @@ pub:
 // gen_config returns the generated public Config field documentation.
 pub fn gen_config() ConfigHelp {
 	return ConfigHelp{
-		entries: generated_help_entries(configpkg.generated_config_help_data(), '\x1e').filter(!it.name.starts_with('_'))
+		entries: generated_help_entries(config_records, '\x1e').filter(!it.name.starts_with('_'))
 	}
 }
 
 // gen_actions returns the generated documentation from every CLI action run
 // function, in source enum order.
 pub fn gen_actions() ActionHelp {
-	parsed := generated_help_entries(cli.generated_action_help_data(), '@@')
+	parsed := generated_help_entries(action_records, '@@')
 	// The source reflects Action's enum order. The retained generated input
 	// records predate a show-face/crash-report ordering correction.
 	mut entries := []HelpEntry{}
@@ -58,7 +60,7 @@ pub fn gen_actions() ActionHelp {
 // gen_keybind_actions returns the generated Binding.Action union docs.
 pub fn gen_keybind_actions() KeybindActionHelp {
 	return KeybindActionHelp{
-		entries: generated_help_entries(input.generated_action_help_data(), '@@')
+		entries: generated_help_entries(keybind_records, '@@')
 	}
 }
 

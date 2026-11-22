@@ -34,8 +34,6 @@ pub fn (d Driver) install_benchmarks() ! {
 // artifacts are independent of whether the runtime produces an app or library.
 pub fn (d Driver) install() ! {
 	d.build_vt()!
-	d.install_docs()!
-	if d.cfg.emit_webdata { d.install_webdata()! }
 	if d.cfg.emit_bench { d.install_benchmarks()! }
 	if d.cfg.emit_helpgen { d.install_help_generator()! }
 	if d.cfg.emit_unicode_table_gen { d.install_unicode_generators()! }
@@ -56,6 +54,9 @@ pub fn (d Driver) install() ! {
 		d.install_file(static_, 'lib/libghostty.a')!
 		d.install_file(os.join_path(d.cfg.root, 'include', 'ghostty.h'), 'include/ghostty.h')!
 	}
+	// The documentation host tool imports the runtime and links its native archives.
+	d.install_docs()!
+	if d.cfg.emit_webdata { d.install_webdata()! }
 	if d.cfg.target.darwin() {
 		if d.cfg.emit_xcframework {
 			d.build_xcframework(false)!

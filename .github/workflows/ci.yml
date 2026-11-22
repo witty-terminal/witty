@@ -97,6 +97,10 @@ jobs:
         run: bash .github/scripts/install-v.sh
       - name: Check
         run: v -check .
+      - name: Verify standalone help generation
+        run: |
+          v -path "$PWD|@vlib|@vmodules" run tools/helpgen > "$RUNNER_TEMP/helpgen.zig"
+          test -s "$RUNNER_TEMP/helpgen.zig"
       - name: Build
         run: bash .github/scripts/ci-build.sh install
       - name: Package release

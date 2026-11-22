@@ -7,9 +7,15 @@ A translated fork of Ghostty
 
 ## Building on Linux
 
-Use the V revision and Linux dependencies specified in CI. [CI workflow](.github/workflows/ci.yml)
+Install `make`, the V revision pinned in CI, and the Linux dependencies listed in the CI workflow. [V compiler setup](.github/scripts/install-v.sh) · [Linux dependencies](.github/workflows/ci.yml)
 
-From the repository root, run the build driver.
+Run this command from the repository root.
+
+```sh
+make
+```
+
+The build driver creates `.witty-build/native/libglslang.a` and the other native dependencies before compiling Witty. If `v .` reports that `libglslang.a` is missing, use `make` or run the build driver directly with the following command.
 
 ```sh
 VFLAGS='-cc clang' v -path "$PWD|@vlib|@vmodules" run tools/build install
