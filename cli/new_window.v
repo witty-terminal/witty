@@ -6,7 +6,7 @@ import diagnostics
 pub struct NewWindowOptions {
 pub mut:
 	class       ?string
-	arguments   ?[]string @[cli_internal]
+	arguments   ?[]string @['cli_internal']
 	diagnostics diagnostics.DiagnosticList
 }
 

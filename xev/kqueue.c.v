@@ -2159,15 +2159,15 @@ $if macos || ios || freebsd {
 		// Otherwise, we have to call the kevent64 variant.
 		nchanges := cast_c_int(changelist_len) or { return new_error(.overflow) }
 		nevents := cast_c_int(eventlist_len) or { return new_error(.overflow) }
+		c_timeout := unsafe { &C.timespec(timeout) }
 		for {
 			mut rc := int(0)
 			$if freebsd {
 				// This is std.posix.kevent's native Kevent branch. Its retry/error
 				// switch is identical to the source kevent64 branch below.
-				rc = C.kevent(kq, changelist, nchanges, eventlist, nevents, &C.timespec(timeout))
+				rc = C.kevent(kq, changelist, nchanges, eventlist, nevents, c_timeout)
 			} $else {
-				rc = C.kevent64(kq, changelist, nchanges, eventlist, nevents, 0,
-					&C.timespec(timeout))
+				rc = C.kevent64(kq, changelist, nchanges, eventlist, nevents, 0, c_timeout)
 			}
 			match posix_errno(rc) {
 				0 { return uint(rc) }

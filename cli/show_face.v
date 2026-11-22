@@ -8,7 +8,7 @@ import font
 
 pub struct ShowFaceOptions {
 pub mut:
-	cp           ?u32 @[cli_u21]
+	cp           ?u32 @['cli_u21']
 	string_      ?string
 	style        font.Style = .regular
 	presentation ?font.Presentation

@@ -651,7 +651,7 @@ pub fn posix_close(fd int) {
 // Translation of std.posix.clock_gettime.
 pub fn posix_clock_gettime(clock_id int) !Timespec {
 	mut tp := Timespec{}
-	rc := C.clock_gettime(clock_id, &C.timespec(&tp))
+	rc := C.clock_gettime(clock_id, unsafe { &C.timespec(&tp) })
 	match posix_errno(rc) {
 		0 { return tp }
 		C.EFAULT { posix_unreachable() }

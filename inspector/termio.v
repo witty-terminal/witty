@@ -260,6 +260,8 @@ fn vt_action_metadata(action terminal.ParserAction) map[string]string {
 	if action is osc.Command {
 		cmd := action as osc.Command
 		$for variant in osc.Command.variants {
+			// V's unused-variable check misses comptime variants used in type guards.
+			_ = variant.typ
 			if cmd is variant { encode_metadata(mut result, cmd) }
 		}
 	}

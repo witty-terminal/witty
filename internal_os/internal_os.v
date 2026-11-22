@@ -568,7 +568,7 @@ fn home_unix() !HomeResult {
 	}
 
 	// If all else fails, have the shell tell us...
-	run := os.execute('/bin/sh -c "cd && pwd"')
+	run := os.exec(['/bin/sh', '-c', 'cd && pwd'])
 	if run.exit_code == -1 {
 		return error(run.output)
 	}

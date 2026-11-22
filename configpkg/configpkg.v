@@ -11095,8 +11095,8 @@ pub fn WindowDecoration.parse_cli(input ?string) !WindowDecoration {
 // struct (renamed to avoid colliding with the existing `Theme` enum).
 pub struct ThemePair {
 pub mut:
-	light string @[cli_required]
-	dark  string @[cli_required]
+	light string @['cli_required']
+	dark  string @['cli_required']
 }
 
 pub fn (mut t ThemePair) parse_cli(input ?string) ! {

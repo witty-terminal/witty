@@ -272,7 +272,7 @@ pub fn (mut self DBus) deinit() {
 // error_message extracts the human-readable message from a GError, or a
 // placeholder when unavailable.
 fn error_message(err GError) string {
-	e := &C.GError(err)
+	e := unsafe { &C.GError(err) }
 	if isnil(e.message) {
 		return '(unknown)'
 	}

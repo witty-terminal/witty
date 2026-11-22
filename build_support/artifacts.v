@@ -254,6 +254,10 @@ fn (d Driver) link_library(object string, output string, deps NativeDeps, vt boo
 	} else if d.cfg.target.os == 'windows' {
 		command << '-Wl,--export-all-symbols'
 	}
+	if d.cfg.strip {
+		// Keep the shared library's public symbols available to callers.
+		command << if d.cfg.target.darwin() { '-Wl,-x' } else { '-Wl,--strip-all' }
+	}
 	command << deps.archives
 	command << deps.link_flags
 	command << d.runtime_archive()!
