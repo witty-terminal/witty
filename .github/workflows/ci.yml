@@ -55,6 +55,16 @@ jobs:
             printf '%s\n' "$libraries"
             exit 1
           fi
+          if [[ -n "$RELEASE_TAG" ]]; then
+            smoke_dir=$(mktemp -d "$RUNNER_TEMP/witty-app-smoke.XXXXXX")
+            app="${exe%/Contents/MacOS/*}"
+            ditto "$app" "$smoke_dir/${app##*/}"
+            cd "$smoke_dir"
+            # Debug builds can fall back to reading assets by absolute source path.
+            trap 'if [[ -d "$smoke_dir/checkout" ]]; then mv "$smoke_dir/checkout" "$GITHUB_WORKSPACE"; fi' EXIT
+            mv "$GITHUB_WORKSPACE" "$smoke_dir/checkout"
+            "./${app##*/}/Contents/MacOS/${exe##*/}" --version
+          fi
       - name: Package release
         if: inputs.release_tag != ''
         run: tar -czf "$RUNNER_TEMP/witty-macos-universal.tar.gz" -C "$RUNNER_TEMP" witty
