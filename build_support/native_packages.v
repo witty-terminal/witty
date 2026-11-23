@@ -37,10 +37,7 @@ pub fn (d Driver) native_package(name string) !string {
 	path := d.cache_path('deps', name)
 	if !os.exists(os.join_path(path, '.source-checksum')) {
 		os.mkdir_all(path)!
-		// tar runs from the repo root; relative paths keep GNU tar (Git for
-		// Windows) from reading a `D:` drive prefix as a remote host.
-		checked_process(d.cfg.root, ['tar', 'xf', repo_relative(d.cfg.root, archive),
-			'--strip-components=1', '-C', repo_relative(d.cfg.root, path)])!
+		d.extract_archive(archive, path)!
 		os.write_file(os.join_path(path, '.source-checksum'), spec.sha256)!
 	}
 	return path
@@ -314,4 +311,46 @@ pub fn (d Driver) build_fontconfig(options NativeCompileOptions) !string {
 fn repo_relative(root string, path string) string {
 	prefix := root.trim_right('/\\') + os.path_separator
 	return if path.starts_with(prefix) { path[prefix.len..] } else { path }
+}
+
+// tar arguments on every platform: repo-relative (see above) and always
+// forward-slashed, since MSYS tar rejects `\` separators.
+fn tar_relative(root string, path string) string {
+	return repo_relative(root, path).replace('\\', '/')
+}
+
+// MSYS tar (Git for Windows) without symlink privilege materializes
+// symlinks as copies of their targets, so a link whose target appears
+// later in the archive fails with `Cannot create symlink`. Real symlinks
+// (Linux, macOS, Developer-Mode Windows) never hit this. Repeating the
+// extraction resolves previously missing targets; only symlink-ordering
+// failures are retried, anything else aborts immediately.
+fn (d Driver) extract_archive(archive string, dest string) ! {
+	command := ['tar', 'xf', tar_relative(d.cfg.root, archive), '--strip-components=1', '-C',
+		tar_relative(d.cfg.root, dest)]
+	for attempt in 0 .. 8 {
+		result := run_process(d.cfg.root, command)!
+		if result.exit_code == 0 {
+			return
+		}
+		if attempt == 7 {
+			return error('tar failed: ${result.output}')
+		}
+		mut retryable := false
+		for line in result.output.split_into_lines() {
+			trimmed := line.trim_space()
+			if trimmed == '' || trimmed.contains('Exiting with failure status') {
+				continue
+			}
+			if trimmed.contains('Cannot create symlink') {
+				retryable = true
+				continue
+			}
+			return error('tar failed: ${result.output}')
+		}
+		if !retryable {
+			return error('tar failed: ${result.output}')
+		}
+	}
+	return error('tar failed after 8 passes')
 }

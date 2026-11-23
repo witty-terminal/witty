@@ -34,7 +34,8 @@ pub fn (d Driver) build_distribution(check bool) !string {
 	if check {
 		extract := d.cache_path('dist', 'check')
 		os.mkdir_all(extract)!
-		checked_process(d.cfg.root, ['tar', 'xvzf', output, '-C', extract])!
+		checked_process(d.cfg.root, ['tar', 'xvzf', tar_relative(d.cfg.root, output),
+			'-C', tar_relative(d.cfg.root, extract)])!
 		root := os.join_path(extract, 'ghostty-${d.cfg.version}')
 		for destination, _ in resources {
 			if !os.exists(os.join_path(root, destination)) {
