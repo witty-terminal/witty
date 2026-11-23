@@ -20,9 +20,19 @@ fn compiler_argument(value string) string {
 
 pub fn (d Driver) v_arguments(artifact Artifact, deps NativeDeps) ![]string {
 	module_path := d.compiler_module_path()!
-	mut args := [d.cfg.compiler, '-path', module_path, '-cc', if d.cfg.target.wasm() { os.getenv_opt('EMCC') or { 'emcc' } } else { os.getenv_opt('CC') or { 'clang' } },
+	cc := if d.cfg.target.wasm() { os.getenv_opt('EMCC') or { 'emcc' } } else { os.getenv_opt('CC') or { 'clang' } }
+	mut args := [d.cfg.compiler, '-path', module_path, '-cc', cc,
 		'-d', 'managed_native']
 	args << d.cfg.options(artifact)!
+	// V represents `?`*T payloads with a fixed pointer type, so taking the
+	// address of a narrower pointee (e.g. `?&TiffTagId`, an enum over u16)
+	// emits an incompatible-pointer-types diagnostic. Newer Clang promotes
+	// that diagnostic to an error while older toolchains only warned. Keep
+	// the historical warning behavior; V's own build silences the same
+	// diagnostic. Only clang/gcc-family drivers accept -W flags.
+	if cc.contains('clang') || cc.contains('gcc') || cc.contains('emcc') {
+		args << ['-cflags', compiler_argument('-Wno-incompatible-pointer-types')]
+	}
 	for define in deps.defines {
 		args << ['-d', define]
 	}
