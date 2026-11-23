@@ -19,6 +19,53 @@ static int compare_frames(const struct dirent **a, const struct dirent **b) {
     return strcmp((*a)->d_name, (*b)->d_name);
 }
 
+#ifdef _WIN32
+// MinGW-w64's dirent.h provides opendir/readdir but no scandir, so the
+// Windows host build cannot use the POSIX original. Implement the small
+// subset used here (filter + sort) on top of opendir/readdir.
+static int scandir(const char *dir, struct dirent ***namelist,
+    int (*filter)(const struct dirent *),
+    int (*compar)(const struct dirent **, const struct dirent **)) {
+    DIR *d = opendir(dir);
+    if (!d) {
+        return -1;
+    }
+    struct dirent **entries = NULL;
+    size_t count = 0;
+    size_t capacity = 0;
+    struct dirent *entry;
+    while ((entry = readdir(d)) != NULL) {
+        if (filter && !filter(entry)) {
+            continue;
+        }
+        if (count == capacity) {
+            size_t grown = capacity == 0 ? 16 : capacity * 2;
+            struct dirent **resized = realloc(entries, grown * sizeof(*resized));
+            if (!resized) {
+                closedir(d);
+                return -1;
+            }
+            entries = resized;
+            capacity = grown;
+        }
+        struct dirent *copy = malloc(sizeof(*copy));
+        if (!copy) {
+            closedir(d);
+            return -1;
+        }
+        *copy = *entry;
+        entries[count++] = copy;
+    }
+    closedir(d);
+    if (compar) {
+        qsort(entries, count, sizeof(*entries),
+            (int (*)(const void *, const void *))compar);
+    }
+    *namelist = entries;
+    return (int)count;
+}
+#endif
+
 static char *read_file(const char *path, size_t *out_size) {
     FILE *f = fopen(path, "rb");
     if (!f) {
