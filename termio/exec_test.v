@@ -131,11 +131,12 @@ fn test_add_executable_to_path_appends_once() {
 	mut env := {
 		'PATH': ['/usr/bin', '/bin'].join(os.path_delimiter)
 	}
-	add_executable_to_path(mut env, '/opt/ghostty/bin/ghostty', false)
+	add_executable_to_path(mut env, '/opt/ghostty/bin/witty', false)
 	assert env['GHOSTTY_BIN_DIR'] == '/opt/ghostty/bin'
+	assert env['GHOSTTY_BIN_NAME'] == 'witty'
 	assert env['PATH'] == ['/usr/bin', '/bin', '/opt/ghostty/bin'].join(os.path_delimiter)
 
-	add_executable_to_path(mut env, '/opt/ghostty/bin/ghostty', false)
+	add_executable_to_path(mut env, '/opt/ghostty/bin/witty', false)
 	assert env['PATH'] == ['/usr/bin', '/bin', '/opt/ghostty/bin'].join(os.path_delimiter)
 }
 
@@ -145,6 +146,7 @@ fn test_add_executable_to_path_skips_flatpak_sandbox_binary() {
 	}
 	add_executable_to_path(mut env, '/app/bin/ghostty', true)
 	assert 'GHOSTTY_BIN_DIR' !in env
+	assert 'GHOSTTY_BIN_NAME' !in env
 	assert env['PATH'] == ['/usr/bin', '/bin'].join(os.path_delimiter)
 }
 

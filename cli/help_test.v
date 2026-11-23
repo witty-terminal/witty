@@ -4,7 +4,9 @@ import cli_args
 
 fn test_help_output_matches_source_text_and_action_enum() {
 	help := help_output()
-	assert help.starts_with('Usage: ghostty [+action] [options]\n\n')
+	command := $if linux { 'witty' } $else { 'ghostty' }
+	assert help.starts_with('Usage: ${command} [+action] [options]\n\n')
+	assert help.contains('`${command} -e top`')
 	assert help.contains('Run the Ghostty terminal emulator or a specific helper action.\n')
 	assert help.contains('  +list-actions\n')
 	assert help.ends_with('where `<action>` is one of actions listed above.\n')

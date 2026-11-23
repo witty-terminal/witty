@@ -21,4 +21,4 @@ Witty builds its bundled glslang shader compiler into `.witty-build/native/libgl
 VFLAGS='-cc clang' v -path "$PWD|@vlib|@vmodules" run tools/build install
 ```
 
-Run the installed application with `./v-out/bin/ghostty`.
+Run the installed application with `./v-out/bin/witty`.

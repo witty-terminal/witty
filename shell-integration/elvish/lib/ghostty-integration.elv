@@ -99,7 +99,11 @@
       }
 
       if (not-eq $ssh-hostname "") {
-        var ghostty = $E:GHOSTTY_BIN_DIR/"ghostty"
+        var bin-name = "ghostty"
+        if (has-env GHOSTTY_BIN_NAME) {
+          set bin-name = $E:GHOSTTY_BIN_NAME
+        }
+        var ghostty = $E:GHOSTTY_BIN_DIR/$bin-name
         var ssh-target = $ssh-user"@"$ssh-hostname
 
         # Check if terminfo is already cached

@@ -1,5 +1,6 @@
 module build_support
 
+import buildcfg
 import os
 
 pub struct Driver {
@@ -97,24 +98,38 @@ pub fn (d Driver) install_resources() ! {
 	if d.cfg.emit_themes {
 		d.install_tree(os.join_path(d.cfg.root, 'build_assets', 'themes'), 'share/ghostty/themes', ['.md'])!
 	}
+	linux := d.cfg.target.os == 'linux'
+	command := if linux { buildcfg.linux_executable_name } else { 'ghostty' }
 	for action, destination in {
-		'fish': 'share/fish/vendor_completions.d/ghostty.fish'
-		'zsh': 'share/zsh/site-functions/_ghostty'
-		'bash': 'share/bash-completion/completions/ghostty.bash'
-		'sublime': 'share/bat/syntaxes/ghostty.sublime-syntax'
+		'fish': 'share/fish/vendor_completions.d/${command}.fish'
+		'zsh': 'share/zsh/site-functions/_${command}'
+		'bash': 'share/bash-completion/completions/${command}.bash'
 	} {
-		d.install_text(destination, checked_process(d.cfg.root, [tool, '+${action}'])!)!
+		mut text := checked_process(d.cfg.root, [tool, '+${action}'])!
+		if linux {
+			text = match action {
+				'fish' { text.replace('complete -c ghostty ', 'complete -c ${command} ').replace('(ghostty +', '(${command} +') }
+				'zsh' { text.replace('#compdef ghostty', '#compdef ${command}').replace('_ghostty', '_${command}').replace('(ghostty +', '(${command} +') }
+				else { text.replace('-F _ghostty ghostty', '-F _${command} ${command}').replace('_ghostty()', '_${command}()') }
+			}
+		}
+		d.install_text(destination, text)!
 	}
+	d.install_text('share/bat/syntaxes/ghostty.sublime-syntax',
+		checked_process(d.cfg.root, [tool, '+sublime'])!)!
 	for action, relative in {
 		'vim-syntax': 'syntax/ghostty.vim'
 		'vim-ftdetect': 'ftdetect/ghostty.vim'
 		'vim-ftplugin': 'ftplugin/ghostty.vim'
 		'vim-compiler': 'compiler/ghostty.vim'
 	} {
-		text := checked_process(d.cfg.root, [tool, '+${action}'])!
+		mut text := checked_process(d.cfg.root, [tool, '+${action}'])!
+		if linux && action == 'vim-compiler' {
+			text = text.replace('makeprg=ghostty', 'makeprg=${command}')
+		}
 		for editor in ['share/vim/vimfiles', 'share/nvim/site'] { d.install_text('${editor}/${relative}', text)! }
 	}
-	if d.cfg.target.os == 'linux' { d.install_linux_resources()! }
+	if linux { d.install_linux_resources()! }
 }
 
 fn (d Driver) install_linux_resources() ! {
@@ -132,7 +147,7 @@ fn (d Driver) install_linux_resources() ! {
 	for source, destination in templates {
 		text := os.read_file(os.join_path(d.cfg.root, 'build_assets', 'dist', 'linux', source))!
 		d.install_text(destination, text.replace('@NAME@', name).replace('@APPID@', app_id)
-			.replace('@GHOSTTY@', os.join_path(d.cfg.prefix, 'bin', 'ghostty')))!
+			.replace('@GHOSTTY@', os.join_path(d.cfg.prefix, 'bin', buildcfg.linux_executable_name)))!
 	}
 	for source, destination in {
 		'ghostty_dolphin.desktop': 'share/kio/servicemenus/com.mitchellh.ghostty.desktop'

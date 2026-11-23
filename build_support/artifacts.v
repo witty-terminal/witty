@@ -1,5 +1,6 @@
 module build_support
 
+import buildcfg
 import os
 
 // Breakpad owns the Mach exception handler, which the collector only needs in
@@ -224,10 +225,10 @@ pub fn (d Driver) build_executable(deps NativeDeps) !string {
 			'-o', resource])!
 		args << ['-ldflags', '-Xlinker ' + compiler_argument(resource), '-ldflags', '-Wl,--subsystem,windows']
 	}
-	output := d.cache_path('artifacts', 'ghostty' + if d.cfg.target.os == 'windows' {
-		'.exe'
-	} else {
-		''
+	output := d.cache_path('artifacts', match d.cfg.target.os {
+		'linux' { buildcfg.linux_executable_name }
+		'windows' { 'ghostty.exe' }
+		else { 'ghostty' }
 	})
 	os.mkdir_all(os.dir(output))!
 	args << ['-o', output, d.cfg.root]

@@ -1,5 +1,6 @@
 module cli
 
+import buildcfg
 import cli_args
 import global_state
 
@@ -25,7 +26,8 @@ pub fn run_help(args []string) !int {
 // help_output is the translated cli/help.zig help text. The action list is
 // generated from the same enum used by action detection.
 pub fn help_output() string {
-	mut output := 'Usage: ghostty [+action] [options]\n\n'
+	command := buildcfg.cli_command
+	mut output := 'Usage: ${command} [+action] [options]\n\n'
 	output += 'Run the Ghostty terminal emulator or a specific helper action.\n\n'
 	output += 'If no `+action` is specified, run the Ghostty terminal emulator.\n'
 	output += 'All configuration keys are available as command line options.\n'
@@ -37,7 +39,7 @@ pub fn help_output() string {
 	output += 'the list of configuration options from the command line.\n\n'
 	output += 'A special command line argument `-e <command>` can be used to run\n'
 	output += 'the specific command inside the terminal emulator. For example,\n'
-	output += '`ghostty -e top` will run the `top` command inside the terminal.\n\n'
+	output += '`${command} -e top` will run the `top` command inside the terminal.\n\n'
 	output += 'On macOS, launching the terminal emulator from the CLI is not\n'
 	output += 'supported and only actions are supported. Use `open -na Ghostty.app`\n'
 	output += 'instead, or `open -na ghostty.app --args --foo=bar --baz=quz` to pass\n'

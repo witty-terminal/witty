@@ -22,7 +22,7 @@ from gi.repository import Nautilus, GObject, Gio
 
 def open_in_ghostty_activated(_menu, paths):
     for path in paths:
-        cmd = ['ghostty', f'--working-directory={path}', '--gtk-single-instance=false']
+        cmd = ['witty', f'--working-directory={path}', '--gtk-single-instance=false']
         Gio.Subprocess.new(cmd, Gio.SubprocessFlags.NONE)
 
 

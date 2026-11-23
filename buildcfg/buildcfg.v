@@ -3,6 +3,9 @@ module buildcfg
 
 import build_meta
 
+pub const linux_executable_name = 'witty'
+pub const cli_command = $if linux { linux_executable_name } $else { 'ghostty' }
+
 // ReleaseChannel determines the release channel for this build.
 pub enum ReleaseChannel as u8 {
 	// Tip/nightly release (built from latest source)

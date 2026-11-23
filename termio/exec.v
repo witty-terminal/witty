@@ -605,6 +605,7 @@ fn add_executable_to_path(mut env map[string]string, executable string, flatpak 
 	// We always set this so that if the shell overwrites the path scripts
 	// still have a way to find the Ghostty binary when running in Ghostty.
 	env['GHOSTTY_BIN_DIR'] = exe_dir
+	env['GHOSTTY_BIN_NAME'] = os.base(executable)
 
 	// Append so that Ghostty is the last priority in PATH, avoiding a duplicate
 	// entry when the executable directory is already present.

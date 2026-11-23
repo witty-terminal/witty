@@ -108,6 +108,10 @@ jobs:
           test -s "$RUNNER_TEMP/ghostty.vim"
       - name: Build
         run: bash .github/scripts/ci-build.sh install
+      - name: Verify installed executable
+        run: |
+          test ! -e "$RUNNER_TEMP/witty/bin/ghostty"
+          "$RUNNER_TEMP/witty/bin/witty" --version
       - name: Package release
         if: inputs.release_tag != ''
         run: tar -czf "$RUNNER_TEMP/witty-linux-x86_64.tar.gz" -C "$RUNNER_TEMP" witty
