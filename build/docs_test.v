@@ -1,20 +1,21 @@
 module build
 
 import crypto.sha256
+import build_meta
 import help_strings
 
-fn test_web_document_generators_match_pinned_ghostty() {
+fn test_web_document_generators_match_witty_output() {
 	cases := {
-		'web-commands':    [gen_web_actions(), '5523d7df4988f80b08dd18cc3e5baea13ccbb4ef91c97305eba2502a72680d32']
-		'web-config':      [gen_web_config(), '8c8df9149f7cb59eaf273df8a6caccea4309ae9c82702640b82c1160163f8a46']
-		'web-actions':     [gen_web_keybind_actions(), '79f8761fc73e57f1fc81f135ccc851ae50d456f1905c5a981f0f2c67d485b132']
-		'man-actions':     [gen_actions(), 'e559dbdb6d1605c710d7770e3eaa530ab75628709eaba9c9a9e84cf0810b5918']
-		'man-config-cli':  [gen_config(true), '3d1dc316e8170046540c7bdf643429e45991d5d971c325ef6151c697174768a2']
-		'man-config':      [gen_config(false), '1ebe9b0f736f8efcca4bfacadec41178131f2092622cd9725c6b06a4fa4c2977']
-		'man-keybinds':    [gen_keybind_actions(), 'a5f4e7271397a48f60be1f59935a8b232c3d36f4bfb2222ee470a193b962ecba']
-		'ghostty-1':       [ghostty_1(), '052c3ef42226c4fbdb5ead524d07d3971d2bde8acd2b4cbccd12a4a1c02006dd']
-		'ghostty-5':       [ghostty_5(), '20a1a77fb75d78aeba481c7bcb35dd29e9794976d9bb0726e68313d6ca1cf8aa']
-		'config-help-data': [$embed_file('../configpkg/config_help.txt').to_string(), '2148b788168cd9d5eb3d7619f3f2f730100aa699c606ad8233c9140f34257360']
+		'web-commands':    [gen_web_actions(), 'a5da01589b15e75fc82ccedde1e3d9511a1e1a55226e5fdb77ee71ff9a3678f6']
+		'web-config':      [gen_web_config(), '2ca54afd943547e986c3e524f345be9d8e539a3cb588a884aede7a6f0342217e']
+		'web-actions':     [gen_web_keybind_actions(), 'fe104cf9f20eba4a901876aed55e1d4b799b5d6a2278c595acfecd03b72f439a']
+		'man-actions':     [gen_actions(), '793568947ae07a3255c9e446ef77ec77516af117b415dde63cb2c21bc49abe29']
+		'man-config-cli':  [gen_config(true), 'c60df6e46aa1fe1835d78bbc770b0c71b967969abd8e1c2806879835b39193b3']
+		'man-config':      [gen_config(false), '874fa5a9e97edcbba9d0ed62d1c2f58dff9d0fe41723be43b757ef10a0d8d43a']
+		'man-keybinds':    [gen_keybind_actions(), '6fdc46e91e30076cae69dce7d7e2c7afdfa75dacea68412b51330fd6dd2c0463']
+		'witty-1':       [witty_1(), '44e8f209fc88d11a08365fe4568888893d16c502f300599801150c5210770c79']
+		'witty-5':       [witty_5(), '5baa2c7479437d504587eb366ce8fe9daad16359a3f7d565fe51c0eeb89c5a71']
+		'config-help-data': [$embed_file('../configpkg/config_help.txt').to_string(), 'd0732bc3e84e62e291eacf631a38a69dadfa2db32f686588b0b847abf47e4b2a']
 	}
 	for name, values in cases {
 		actual := sha256.sum(values[0].bytes()).hex()
@@ -41,18 +42,18 @@ fn test_manpage_generators_cover_all_translated_records() {
 	assert keybinds.contains('**`ignore`**')
 	assert keybinds.contains('**`crash`**')
 
-	page_1 := ghostty_1()
-	page_5 := ghostty_5()
-	assert page_1.starts_with('% GHOSTTY(1) Version 1.3.0-main+6c0e02d')
-	assert page_1.ends_with('**ghostty(5)**\n')
-	assert page_5.starts_with('% GHOSTTY(5) Version 1.3.0-main+6c0e02d')
-	assert page_5.ends_with('**ghostty(1)**\n')
+	page_1 := witty_1()
+	page_5 := witty_5()
+	assert page_1.starts_with('% WITTY(1) Version ${build_meta.version_string}')
+	assert page_1.ends_with('**witty(5)**\n')
+	assert page_5.starts_with('% WITTY(5) Version ${build_meta.version_string}')
+	assert page_5.ends_with('**witty(1)**\n')
 }
 
 fn test_web_config_rewrites_code_and_callout_blocks() {
 	result := gen_web_config()
 	assert result.contains('## `font-family-bold`\n## `font-family-italic`\n')
-	assert result.contains('```\nghostty +list-fonts\n```')
+	assert result.contains('```\nwitty +list-fonts\n```')
 	assert result.contains('<Note>\n')
 	assert result.contains('</Note>\n')
 	assert result.contains('<Warning>\n')

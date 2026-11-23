@@ -28,7 +28,7 @@ pub fn (mut self Surface) gobj() &SurfaceWidget {
 
 // core returns the core.Surface for this apprt surface. Mirrors `Surface.core`.
 //
-// In Zig this asserts non-optional because libghostty should only call this
+// In Zig this asserts non-optional because libwitty should only call this
 // for initialized surfaces.
 pub fn (mut self Surface) core() &core.Surface {
 	return self.surface.core() or { panic('initialized GTK surface has no core surface') }

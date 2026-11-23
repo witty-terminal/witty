@@ -7,7 +7,7 @@ import os
 #flag -I @VMODROOT/internal_os
 #include "i18n_shims.h"
 
-const ghostty_gettext_domain = 'com.mitchellh.ghostty'
+const ghostty_gettext_domain = 'com.alexander.witty'
 
 // Supported application locales. The order is significant: callers with
 // incomplete locale information use the first matching language.

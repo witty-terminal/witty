@@ -14,10 +14,10 @@ pub fn format_keybind_actions(source string, markdown bool, show_docs bool) stri
 	if markdown {
 		out.write_string('---\n')
 		out.write_string('title: Keybinding Action Reference\n')
-		out.write_string('description: Reference of all Ghostty keybinding actions.\n')
+		out.write_string('description: Reference of all Witty keybinding actions.\n')
 		out.write_string('editOnGithubLink: https://github.com/ghostty-org/ghostty/edit/main/src/input/Binding.zig\n')
 		out.write_string('---\n\n')
-		out.write_string('This is a reference of all Ghostty keybinding actions.\n\n')
+		out.write_string('This is a reference of all Witty keybinding actions.\n\n')
 	}
 
 	mut pending_docs := []string{}

@@ -186,7 +186,7 @@ fn test_edit_config_target_creates_parent_directory() {
 	defer {
 		os.rmdir_all(dir) or {}
 	}
-	path := os.join_path(dir, 'ghostty', 'config.ghostty')
+	path := os.join_path(dir, 'witty', 'config.witty')
 	ensure_config_parent(path)!
 	assert os.is_dir(os.dir(path))
 }

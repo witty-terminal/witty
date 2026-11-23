@@ -489,8 +489,8 @@ fn test_i18n_resource_parent_matches_source_path_semantics() {
 	assert i18n_share_dir('resources/') == none
 	assert i18n_share_dir('/') == none
 	assert i18n_share_dir('/resources')? == '/'
-	assert i18n_share_dir('/usr/share/ghostty')? == '/usr/share'
-	assert i18n_share_dir('/usr/share/ghostty///')? == '/usr/share'
+	assert i18n_share_dir('/usr/share/witty')? == '/usr/share'
+	assert i18n_share_dir('/usr/share/witty///')? == '/usr/share'
 	assert i18n_share_dir('./resources')? == '.'
 
 	$if !windows {

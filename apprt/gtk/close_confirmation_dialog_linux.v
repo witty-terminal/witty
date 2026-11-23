@@ -32,7 +32,7 @@ pub enum CloseTarget as i32 {
 // title returns the dialog heading for this target. Mirrors `Target.title`.
 pub fn (t CloseTarget) title() string {
 	return match t {
-		.app { i18n_('Quit Ghostty?') }
+		.app { i18n_('Quit Witty?') }
 		.tab { i18n_('Close Tab?') }
 		.window { i18n_('Close Window?') }
 		.surface { i18n_('Close Split?') }

@@ -928,7 +928,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 	}
 
 	$if compiled_metallib ? {
-		const metal_shader_library = $embed_file('../.witty-build/native/ghostty.metallib').to_bytes()
+		const metal_shader_library = $embed_file('../.witty-build/native/witty.metallib').to_bytes()
 	}
 
 	// MetalShaders manages the Metal shader library and all pipelines.

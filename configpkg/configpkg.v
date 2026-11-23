@@ -23,7 +23,7 @@ const default_quick_terminal_autohide = $if macos { true } $else { false }
 const default_font_size = $if macos { f32(13) } $else { f32(12) }
 const config_template = $embed_file('config-template').to_string()
 
-// --- Original Ghostty Comments Start: src/config/Config.zig
+// --- Original Witty Comments Start: src/config/Config.zig
 //
 // Source: /Users/alexander/code/3rd/ghostty/src/config/Config.zig
 //
@@ -37,39 +37,39 @@ const config_template = $embed_file('config-template').to_string()
 // manual.](https://pandoc.org/MANUAL.html#pandocs-markdown)
 // We do this instead of importing all of terminal/main.zig to
 // limit the dependency graph. This is important because some things
-// like the `ghostty-build-data` binary depend on the Config but don't
+// like the `witty-build-data` binary depend on the Config but don't
 // want to include all the other stuff.
 // Used on Unixes for some defaults.
-// Ghostty 1.1 introduced background-blur support for Linux which
+// Witty 1.1 introduced background-blur support for Linux which
 // doesn't support a specific radius value. The renaming is to let
 // one field be used for both platforms (macOS retained the ability
 // to set a radius).
-// Ghostty 1.2 renamed all our adw options to gtk because we now have
+// Witty 1.2 renamed all our adw options to gtk because we now have
 // a hard dependency on libadwaita.
-// Ghostty 1.2 removed the `hidden` value from `gtk-tabs-location` and
+// Witty 1.2 removed the `hidden` value from `gtk-tabs-location` and
 // moved it to `window-show-tab-bar`.
-// Ghostty 1.2 lets you set `cell-foreground` and `cell-background`
+// Witty 1.2 lets you set `cell-foreground` and `cell-background`
 // to match the cell foreground and background colors, respectively.
 // This can be used with `cursor-color` and `cursor-text` to recreate
 // this behavior. This applies to selection too.
-// Ghostty 1.2 merged `bold-is-bright` into the new `bold-color`
+// Witty 1.2 merged `bold-is-bright` into the new `bold-color`
 // by setting the value to "bright".
-// Ghostty 1.2 removed the "desktop" option and renamed it to "detect".
+// Witty 1.2 removed the "desktop" option and renamed it to "detect".
 // The semantics also changed slightly but this is the correct mapping.
-// Ghostty 1.3 rename the "window" option to "new-window".
+// Witty 1.3 rename the "window" option to "new-window".
 // See: https://github.com/ghostty-org/ghostty/pull/9764
 // The font families to use.
 //
 // You can generate the list of valid values using the CLI:
 //
-//     ghostty +list-fonts
+//     witty +list-fonts
 //
 // This configuration can be repeated multiple times to specify preferred
 // fallback fonts when the requested codepoint is not available in the primary
 // font. This is particularly useful for multiple languages, symbolic fonts,
 // etc.
 //
-// Notes on emoji specifically: On macOS, Ghostty by default will always use
+// Notes on emoji specifically: On macOS, Witty by default will always use
 // Apple Color Emoji and on Linux will always use Noto Emoji. You can
 // override this behavior by specifying a font family here that contains
 // emoji glyphs.
@@ -77,15 +77,15 @@ const config_template = $embed_file('config-template').to_string()
 // The specific styles (bold, italic, bold italic) do not need to be
 // explicitly set. If a style is not set, then the regular style (font-family)
 // will be searched for stylistic variants. If a stylistic variant is not
-// found, Ghostty will use the regular style. This prevents falling back to a
+// found, Witty will use the regular style. This prevents falling back to a
 // different font family just to get a style such as bold. This also applies
 // if you explicitly specify a font family for a style. For example, if you
-// set `font-family-bold = FooBar` and "FooBar" cannot be found, Ghostty will
+// set `font-family-bold = FooBar` and "FooBar" cannot be found, Witty will
 // use whatever font is set for `font-family` for the bold style.
 //
 // Finally, some styles may be synthesized if they are not supported.
 // For example, if a font does not have an italic style and no alternative
-// italic font is specified, Ghostty will synthesize an italic style by
+// italic font is specified, Witty will synthesize an italic style by
 // applying a slant to the regular style. If you want to disable these
 // synthesized styles then you can use the `font-style` configurations
 // as documented below.
@@ -118,10 +118,10 @@ const config_template = $embed_file('config-template').to_string()
 // These are only valid if its corresponding font-family is also specified. If
 // no font-family is specified, then the font-style is ignored unless you're
 // disabling the font style.
-// Control whether Ghostty should synthesize a style if the requested style is
+// Control whether Witty should synthesize a style if the requested style is
 // not available in the specified font-family.
 //
-// Ghostty can synthesize bold, italic, and bold italic styles if the font
+// Witty can synthesize bold, italic, and bold italic styles if the font
 // does not have a specific style. For bold, this is done by drawing an
 // outline around the glyph of varying thickness. For italic, this is done by
 // applying a slant to the glyph. For bold italic, both of these are applied.
@@ -161,7 +161,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 // The syntax is fairly loose, but invalid settings will be silently ignored.
 //
-// The font feature will apply to all fonts rendered by Ghostty. A future
+// The font feature will apply to all fonts rendered by Witty. A future
 // enhancement will allow targeting specific faces.
 //
 // To disable programming ligatures, use `-calt` since this is the typical
@@ -265,8 +265,8 @@ const config_template = $embed_file('config-template').to_string()
 // "!" is at the end of one run and "=" is at the start of the next run,
 // then the ligature will not be formed.
 //
-// Ghostty breaks runs at certain points to improve readability or usability.
-// For example, Ghostty by default will break runs under the cursor so that
+// Witty breaks runs at certain points to improve readability or usability.
+// For example, Witty by default will break runs under the cursor so that
 // text editing can see the individual characters rather than a ligature.
 // This configuration lets you configure this behavior.
 //
@@ -396,7 +396,7 @@ const config_template = $embed_file('config-template').to_string()
 // explicitly disable flags you don't want. You can also use `true` or `false`
 // to turn all flags on or off.
 //
-// This configuration only applies to Ghostty builds that use FreeType.
+// This configuration only applies to Witty builds that use FreeType.
 // This is usually the case only for Linux builds. macOS uses CoreText
 // and does not have an equivalent configuration.
 //
@@ -414,17 +414,17 @@ const config_template = $embed_file('config-template').to_string()
 //   * `autohint` - Enable the freetype auto-hinter. Enabled by default.
 //
 //   * `light` - Use a light hinting style, better preserving glyph shapes.
-//     This is the most common setting in GTK apps and therefore also Ghostty's
+//     This is the most common setting in GTK apps and therefore also Witty's
 //     default. This has no effect if `monochrome` is enabled. Enabled by
 //     default.
 //
 // Example: `hinting`, `no-hinting`, `force-autohint`, `no-force-autohint`
 // A theme to use. This can be a built-in theme name, a custom theme
-// name, or an absolute path to a custom theme file. Ghostty also supports
+// name, or an absolute path to a custom theme file. Witty also supports
 // specifying a different theme to use for light and dark mode. Each
 // option is documented below.
 //
-// If the theme is an absolute pathname, Ghostty will attempt to load that
+// If the theme is an absolute pathname, Witty will attempt to load that
 // file as a theme. If that file does not exist or is inaccessible, an error
 // will be logged and no other directories will be searched.
 //
@@ -433,20 +433,20 @@ const config_template = $embed_file('config-template').to_string()
 // systems with case-sensitive filesystems. It is an error for a theme name to
 // include path separators unless it is an absolute pathname.
 //
-// The first directory is the `themes` subdirectory of your Ghostty
-// configuration directory. This is `$XDG_CONFIG_HOME/ghostty/themes` or
-// `~/.config/ghostty/themes`.
+// The first directory is the `themes` subdirectory of your Witty
+// configuration directory. This is `$XDG_CONFIG_HOME/witty/themes` or
+// `~/.config/witty/themes`.
 //
-// The second directory is the `themes` subdirectory of the Ghostty resources
-// directory. Ghostty ships with a multitude of themes that will be installed
+// The second directory is the `themes` subdirectory of the Witty resources
+// directory. Witty ships with a multitude of themes that will be installed
 // into this directory. On macOS, this list is in the
-// `Ghostty.app/Contents/Resources/ghostty/themes` directory. On Linux, this
-// list is in the `share/ghostty/themes` directory (wherever you installed the
-// Ghostty "share" directory.
+// `Witty.app/Contents/Resources/witty/themes` directory. On Linux, this
+// list is in the `share/witty/themes` directory (wherever you installed the
+// Witty "share" directory.
 //
-// To see a list of available themes, run `ghostty +list-themes`.
+// To see a list of available themes, run `witty +list-themes`.
 //
-// A theme file is simply another Ghostty configuration file. They share
+// A theme file is simply another Witty configuration file. They share
 // the same syntax and same configuration options. A theme can set any valid
 // configuration option so please do not use a theme file from an untrusted
 // source. The built-in themes are audited to only set safe configuration
@@ -454,7 +454,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 // Some options cannot be set within theme files. The reason these are not
 // supported should be self-evident. A theme file cannot set `theme` or
-// `config-file`. At the time of writing this, Ghostty will not show any
+// `config-file`. At the time of writing this, Witty will not show any
 // warnings or errors if you set these options in a theme file but they will
 // be silently ignored.
 //
@@ -483,11 +483,11 @@ const config_template = $embed_file('config-template').to_string()
 //
 // The background image is currently per-terminal, not per-window. If
 // you are a heavy split user, the background image will be repeated across
-// splits. A future improvement to Ghostty will address this.
+// splits. A future improvement to Witty will address this.
 //
 // WARNING: Background images are currently duplicated in VRAM per-terminal.
 // For sufficiently large images, this could lead to a large increase in
-// memory usage (specifically VRAM usage). A future Ghostty improvement
+// memory usage (specifically VRAM usage). A future Witty improvement
 // will resolve this by sharing image textures across terminals.
 //
 // Available since: 1.2.0
@@ -682,7 +682,7 @@ const config_template = $embed_file('config-template').to_string()
 // If this is not set, the cursor blinks by default. Note that this is not the
 // same as a "true" value, as noted below.
 //
-// If this is not set at all (`null`), then Ghostty will respect DEC Mode 12
+// If this is not set at all (`null`), then Witty will respect DEC Mode 12
 // (AT&T cursor blink) as an alternate approach to turning blinking on/off. If
 // this is set to any value other than null, DEC mode 12 will be ignored but
 // `DECSCUSR` will still be respected.
@@ -723,7 +723,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 // - `keystroke` If set, scroll the surface to the bottom when the user
 //   presses a key that results in data being sent to the PTY (basically
-//   anything but modifiers or keybinds that are processed by Ghostty).
+//   anything but modifiers or keybinds that are processed by Witty).
 //
 // - `output` If set, scroll the surface to the bottom if there is new data
 //   to display. (Currently unimplemented.)
@@ -770,7 +770,7 @@ const config_template = $embed_file('config-template').to_string()
 // only for scrolling with the specific type of devices. These can be
 // comma-separated to set both types of multipliers at the same time, e.g.
 // `precision:0.1,discrete:3`. If no prefix is used, the multiplier applies
-// to all scrolling devices. Specifying a prefix was introduced in Ghostty
+// to all scrolling devices. Specifying a prefix was introduced in Witty
 // 1.2.1.
 //
 // The value will be clamped to [0.01, 10,000]. Both of these are extreme
@@ -785,7 +785,7 @@ const config_template = $embed_file('config-template').to_string()
 // fullscreen. This is because the background becomes gray and it can cause
 // widgets to show through which isn't generally desirable.
 //
-// On macOS, changing this configuration requires restarting Ghostty completely.
+// On macOS, changing this configuration requires restarting Witty completely.
 // Applies background opacity to cells with an explicit background color
 // set.
 //
@@ -834,7 +834,7 @@ const config_template = $embed_file('config-template').to_string()
 // "Blur" plugin. If disabled, enable it by ticking the checkbox to the left.
 // Then click on the "Configure" button and there will be two sliders that
 // allow you to set background blur and noise intensities for all apps,
-// including Ghostty.
+// including Witty.
 //
 // All other Linux desktop environments are as of now unsupported. Users may
 // need to set environment-specific settings and/or install third-party plugins
@@ -860,7 +860,7 @@ const config_template = $embed_file('config-template').to_string()
 // Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 //
 // Available since: 1.1.0
-// Control when Ghostty preserves a zoomed split. Under normal circumstances,
+// Control when Witty preserves a zoomed split. Under normal circumstances,
 // any operation that changes focus or layout of the split tree in a window
 // will unzoom any zoomed split. This configuration allows you to control
 // this behavior.
@@ -920,14 +920,14 @@ const config_template = $embed_file('config-template').to_string()
 //
 // This command will be used for all new terminal surfaces, i.e. new windows,
 // tabs, etc. If you want to run a command only for the first terminal surface
-// created when Ghostty starts, use the `initial-command` configuration.
+// created when Witty starts, use the `initial-command` configuration.
 //
-// Ghostty supports the common `-e` flag for executing a command with
-// arguments. For example, `ghostty -e fish --with --custom --args`.
+// Witty supports the common `-e` flag for executing a command with
+// arguments. For example, `witty -e fish --with --custom --args`.
 // This flag sets the `initial-command` configuration, see that for more
 // information.
 // This is the same as "command", but only applies to the first terminal
-// surface created when Ghostty starts. Subsequent terminal surfaces will use
+// surface created when Witty starts. Subsequent terminal surfaces will use
 // the `command` configuration.
 //
 // After the first terminal surface is created (or closed), there is no
@@ -935,19 +935,19 @@ const config_template = $embed_file('config-template').to_string()
 // this at runtime works but will only affect the next terminal surface
 // if it is the first one ever created.
 //
-// If you're using the `ghostty` CLI there is also a shortcut to set this
-// with arguments directly: you can use the `-e` flag. For example: `ghostty -e
+// If you're using the `witty` CLI there is also a shortcut to set this
+// with arguments directly: you can use the `-e` flag. For example: `witty -e
 // fish --with --custom --args`. The `-e` flag automatically forces some
 // other behaviors as well:
 //
 //   * Disables shell expansion since the input is expected to already
 //     be shell-expanded by the upstream (e.g. the shell used to type in
-//     the `ghostty -e` command).
+//     the `witty -e` command).
 //
 //   * `gtk-single-instance=false` - This ensures that a new instance is
 //     launched and the CLI args are respected.
 //
-//   * `quit-after-last-window-closed=true` - This ensures that the Ghostty
+//   * `quit-after-last-window-closed=true` - This ensures that the Witty
 //     process will exit when the command exits. Additionally, the
 //     `quit-after-last-window-closed-delay` is unset.
 //
@@ -1054,11 +1054,11 @@ const config_template = $embed_file('config-template').to_string()
 // will result in `foo=baz` being passed to the launched commands.
 //
 // These environment variables will override any existing environment
-// variables set by Ghostty. For example, if you set `GHOSTTY_RESOURCES_DIR`
-// then the value you set here will override the value Ghostty typically
+// variables set by Witty. For example, if you set `GHOSTTY_RESOURCES_DIR`
+// then the value you set here will override the value Witty typically
 // automatically injects.
 //
-// These environment variables _will not_ be passed to commands run by Ghostty
+// These environment variables _will not_ be passed to commands run by Witty
 // for other purposes, like `open` or `xdg-open` used to open URLs in your
 // browser.
 //
@@ -1190,8 +1190,8 @@ const config_template = $embed_file('config-template').to_string()
 // On macOS, this setting does not work if window-decoration is set to
 // "none", because native fullscreen on macOS requires window decorations
 // to be set.
-// The title Ghostty will use for the window. This will force the title of the
-// window to be this title at all times and Ghostty will ignore any set title
+// The title Witty will use for the window. This will force the title of the
+// window to be this title at all times and Witty will ignore any set title
 // escape sequences programs (such as Neovim) may send.
 //
 // If you want a blank title, set this to one or more spaces by quoting
@@ -1208,39 +1208,39 @@ const config_template = $embed_file('config-template').to_string()
 //
 // This controls the class field of the `WM_CLASS` X11 property (when running
 // under X11), the Wayland application ID (when running under Wayland), and the
-// bus name that Ghostty uses to connect to DBus.
+// bus name that Witty uses to connect to DBus.
 //
 // Note that changing this value between invocations will create new, separate
-// instances, of Ghostty when running with `gtk-single-instance=true`. See that
+// instances, of Witty when running with `gtk-single-instance=true`. See that
 // option for more details.
 //
-// Changing this value may break launching Ghostty from `.desktop` files, via
-// DBus activation, or systemd user services as the system is expecting Ghostty
+// Changing this value may break launching Witty from `.desktop` files, via
+// DBus activation, or systemd user services as the system is expecting Witty
 // to connect to DBus using the default `class` when it is launched.
 //
 // The class name must follow the requirements defined [in the GTK
 // documentation](https://docs.gtk.org/gio/type_func.Application.id_is_valid.html).
 //
-// The default is `com.mitchellh.ghostty`.
+// The default is `com.alexander.witty`.
 //
 // This only affects GTK builds.
 // This controls the instance name field of the `WM_CLASS` X11 property when
 // running under X11. It has no effect otherwise.
 //
-// The default is `ghostty`.
+// The default is `witty`.
 //
 // This only affects GTK builds.
 // The directory to change to after starting the command.
 //
 // This setting is secondary to the `window-inherit-working-directory`
-// setting. If a previous Ghostty terminal exists in the same process,
+// setting. If a previous Witty terminal exists in the same process,
 // `window-inherit-working-directory` will take precedence. Otherwise, this
 // setting will be used. Typically, this setting is used only for the first
 // window.
 //
 // The default is `inherit` except in special scenarios listed next. On macOS,
-// if Ghostty can detect it is launched from launchd (double-clicked) or
-// `open`, then it defaults to `home`. On Linux with GTK, if Ghostty can detect
+// if Witty can detect it is launched from launchd (double-clicked) or
+// `open`, then it defaults to `home`. On Linux with GTK, if Witty can detect
 // it was launched from a desktop launcher, then it defaults to `home`.
 //
 // The value of this must be an absolute value or one of the special values
@@ -1251,7 +1251,7 @@ const config_template = $embed_file('config-template').to_string()
 //   * `inherit` - The working directory of the launching process.
 // Key bindings. The format is `trigger=action`. Duplicate triggers will
 // overwrite previously set values. The list of actions is available in
-// the documentation or using the `ghostty +list-actions` command.
+// the documentation or using the `witty +list-actions` command.
 //
 // Trigger: `+`-separated list of keys and modifiers. Example: `ctrl+a`,
 // `ctrl+shift+b`, `up`.
@@ -1300,7 +1300,7 @@ const config_template = $embed_file('config-template').to_string()
 // The special key `catch_all` can be used to match any key that is not
 // otherwise bound. This can be combined with modifiers, for example
 // `ctrl+catch_all` will match any key pressed with `ctrl` that is not
-// otherwise bound. When looking up a binding, Ghostty first tries to match
+// otherwise bound. When looking up a binding, Witty first tries to match
 // `catch_all` with modifiers. If no match is found and the event has
 // modifiers, it falls back to `catch_all` without modifiers.
 //
@@ -1311,7 +1311,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 // Note: The fn or "globe" key on keyboards are not supported as a
 // modifier. This is a limitation of the operating systems and GUI toolkits
-// that Ghostty uses.
+// that Witty uses.
 //
 // Some additional notes for triggers:
 //
@@ -1329,13 +1329,13 @@ const config_template = $embed_file('config-template').to_string()
 // is sometimes called a leader key, a key chord, a key table, etc. There
 // is no hardcoded limit on the number of parts in a sequence.
 //
-// Warning: If you define a sequence as a CLI argument to `ghostty`,
+// Warning: If you define a sequence as a CLI argument to `witty`,
 // you probably have to quote the keybind since `>` is a special character
-// in most shells. Example: ghostty --keybind='ctrl+a>n=new_window'
+// in most shells. Example: witty --keybind='ctrl+a>n=new_window'
 //
 // A trigger sequence has some special handling:
 //
-//   * Ghostty will wait an indefinite amount of time for the next key in
+//   * Witty will wait an indefinite amount of time for the next key in
 //     the sequence. There is no way to specify a timeout. The only way to
 //     force the output of a prefix key is to assign another keybind to
 //     specifically output that key (e.g. `ctrl+a>ctrl+a=text:foo`) or
@@ -1382,7 +1382,7 @@ const config_template = $embed_file('config-template').to_string()
 //     e.g. `text:\x15` sends Ctrl-U.
 //
 //   * All other actions can be found in the documentation or by using the
-//     `ghostty +list-actions` command.
+//     `witty +list-actions` command.
 //
 // Some notes for the action:
 //
@@ -1413,10 +1413,10 @@ const config_template = $embed_file('config-template').to_string()
 //
 //  * `global:`
 //
-//    Make the keybind global. By default, keybinds only work within Ghostty
+//    Make the keybind global. By default, keybinds only work within Witty
 //    and under the right conditions (application focused, sometimes terminal
 //    focused, etc.). If you want a keybind to work globally across your system
-//    (e.g. even when Ghostty is not focused), specify this prefix.
+//    (e.g. even when Witty is not focused), specify this prefix.
 //    This prefix implies `all:`.
 //
 //    Note: this does not work in all environments; see the additional notes
@@ -1441,7 +1441,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 //    Only consume the input if the action is able to be performed.
 //    For example, the `copy_to_clipboard` action will only consume the input
-//    if there is a selection to copy. If there is no selection, Ghostty
+//    if there is a selection to copy. If there is no selection, Witty
 //    behaves as if the keybind was not set. This has no effect with `global:`
 //    or `all:`-prefixed keybinds. For key sequences, this will reset the
 //    sequence if the action is not performable (acting identically to not
@@ -1467,8 +1467,8 @@ const config_template = $embed_file('config-template').to_string()
 // Note: `global:` is only supported on macOS and certain Linux platforms.
 //
 // On macOS, this feature requires accessibility permissions to be granted
-// to Ghostty. When a `global:` keybind is specified and Ghostty is launched
-// or reloaded, Ghostty will attempt to request these permissions.
+// to Witty. When a `global:` keybind is specified and Witty is launched
+// or reloaded, Witty will attempt to request these permissions.
 // If the permissions are not granted, the keybind will not work. On macOS,
 // you can find these permissions in System Preferences -> Privacy & Security
 // -> Accessibility.
@@ -1526,7 +1526,7 @@ const config_template = $embed_file('config-template').to_string()
 // Chains with key sequences apply to the most recent binding in the
 // sequence.
 //
-// Chained keybinds are available since Ghostty 1.3.0.
+// Chained keybinds are available since Witty 1.3.0.
 //
 // ## Key Tables
 //
@@ -1574,8 +1574,8 @@ const config_template = $embed_file('config-template').to_string()
 //   * Prefixes like `global:` work within tables:
 //     `foo/global:ctrl+a=new_window`.
 //
-// Key tables are available since Ghostty 1.3.0.
-// Remap modifier keys within Ghostty. This allows you to swap or reassign
+// Key tables are available since Witty 1.3.0.
+// Remap modifier keys within Witty. This allows you to swap or reassign
 // modifier keys at the application level without affecting system-wide
 // settings.
 //
@@ -1583,10 +1583,10 @@ const config_template = $embed_file('config-template').to_string()
 // You can use generic names like `ctrl`, `alt`, `shift`, `super` (macOS:
 // `cmd`/`command`) or sided names like `left_ctrl`, `right_alt`, etc.
 //
-// This will NOT change keyboard layout or key encodings outside of Ghostty.
+// This will NOT change keyboard layout or key encodings outside of Witty.
 // For example, on macOS, `option+a` may still produce `å` even if `option` is
 // remapped to `ctrl`. Desktop environments usually handle key layout long
-// before Ghostty receives the key events.
+// before Witty receives the key events.
 //
 // Example:
 //
@@ -1603,7 +1603,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 // * This affects both keybind matching and terminal input encoding.
 //   This does NOT impact keyboard layout or how keys are interpreted
-//   prior to Ghostty receiving them. For example, `option+a` on macOS
+//   prior to Witty receiving them. For example, `option+a` on macOS
 //   may still produce `å` even if `option` is remapped to `ctrl`.
 //
 // * Generic modifiers (e.g. `ctrl`) match both left and right physical keys.
@@ -1614,7 +1614,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 // * On macOS, bindings in the main menu will trigger before any remapping
 //   is done. This is because macOS itself handles menu activation and
-//   this happens before Ghostty receives the key event. To workaround
+//   this happens before Witty receives the key event. To workaround
 //   this, you should unbind the menu items and rebind them using your
 //   desired modifier.
 //
@@ -1712,7 +1712,7 @@ const config_template = $embed_file('config-template').to_string()
 // configuration `font-size` will be used.
 // Configure a preference for window decorations. This setting specifies
 // a _preference_; the actual OS, desktop environment, window manager, etc.
-// may override this preference. Ghostty will do its best to respect this
+// may override this preference. Witty will do its best to respect this
 // preference but it may not always be possible.
 //
 // Valid values:
@@ -1727,7 +1727,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 //    Automatically decide to use either client-side or server-side
 //    decorations based on the detected preferences of the current OS and
-//    desktop environment. This option usually makes Ghostty look the most
+//    desktop environment. This option usually makes Witty look the most
 //    "native" for your desktop.
 //
 //  * `client`
@@ -1788,13 +1788,13 @@ const config_template = $embed_file('config-template').to_string()
 //   * `system` - Use the system theme.
 //   * `light` - Use the light theme regardless of system theme.
 //   * `dark` - Use the dark theme regardless of system theme.
-//   * `ghostty` - Use the background and foreground colors specified in the
-//     Ghostty configuration. This is only supported on Linux builds.
+//   * `witty` - Use the background and foreground colors specified in the
+//     Witty configuration. This is only supported on Linux builds.
 //
 // On macOS, if `macos-titlebar-style` is `tabs` or `transparent`, the window theme will be
 // automatically set based on the luminosity of the terminal background color.
 // This only applies to terminal windows. This setting will still apply to
-// non-terminal windows within Ghostty.
+// non-terminal windows within Witty.
 //
 // This is currently only supported on macOS and Linux.
 // The color space to use when interpreting terminal colors. "Terminal colors"
@@ -1817,7 +1817,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 // Note that the window manager may put limits on the size or override the
 // size. For example, a tiling window manager may force the window to be a
-// certain size to fit within the grid. There is nothing Ghostty will do about
+// certain size to fit within the grid. There is nothing Witty will do about
 // this, but it will make an effort.
 //
 // Sizes larger than the screen size will be clamped to the screen size.
@@ -1840,7 +1840,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 // Note that the window manager may put limits on the position or override
 // the position. For example, a tiling window manager may force the window
-// to be a certain position to fit within the grid. There is nothing Ghostty
+// to be a certain position to fit within the grid. There is nothing Witty
 // will do about this, but it will make an effort.
 //
 // Also note that negative values are also up to the operating system and
@@ -1870,18 +1870,18 @@ const config_template = $embed_file('config-template').to_string()
 //
 //   * `never` will never save window state.
 //
-//   * `always` will always save window state whenever Ghostty is exited.
+//   * `always` will always save window state whenever Witty is exited.
 //
-// If you change this value to `never` while Ghostty is not running, the next
-// Ghostty launch will NOT restore the window state.
+// If you change this value to `never` while Witty is not running, the next
+// Witty launch will NOT restore the window state.
 //
-// If you change this value to `default` while Ghostty is not running and the
-// previous exit saved state, the next Ghostty launch will still restore the
-// window state. This is because Ghostty cannot know if the previous exit was
+// If you change this value to `default` while Witty is not running and the
+// previous exit saved state, the next Witty launch will still restore the
+// window state. This is because Witty cannot know if the previous exit was
 // due to a forced save or not (macOS doesn't provide this information).
 //
-// If you change this value so that window state is saved while Ghostty is not
-// running, the previous window state will not be restored because Ghostty only
+// If you change this value so that window state is saved while Witty is not
+// running, the previous window state will not be restored because Witty only
 // saves state on exit if this is enabled.
 //
 // The default value is `default`.
@@ -1918,12 +1918,12 @@ const config_template = $embed_file('config-template').to_string()
 //
 // Currently only supported on Linux (GTK).
 // Background color for the window titlebar. This only takes effect if
-// window-theme is set to ghostty. Currently only supported in the GTK app
+// window-theme is set to witty. Currently only supported in the GTK app
 // runtime.
 //
 // Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 // Foreground color for the window titlebar. This only takes effect if
-// window-theme is set to ghostty. Currently only supported in the GTK app
+// window-theme is set to witty. Currently only supported in the GTK app
 // runtime.
 //
 // Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
@@ -2080,10 +2080,10 @@ const config_template = $embed_file('config-template').to_string()
 // nested `config-file` value.
 // When this is true, the default configuration file paths will be loaded.
 // The default configuration file paths are currently only the XDG
-// config path ($XDG_CONFIG_HOME/ghostty/config.ghostty).
+// config path ($XDG_CONFIG_HOME/witty/config.witty).
 //
 // If this is false, the default configuration paths will not be loaded.
-// This is targeted directly at using Ghostty from the CLI in a way
+// This is targeted directly at using Witty from the CLI in a way
 // that minimizes external effects.
 //
 // This is a CLI-only configuration. Setting this in a configuration file
@@ -2101,10 +2101,10 @@ const config_template = $embed_file('config-template').to_string()
 // a macOS application. On Linux, this defaults to `true` since that is
 // generally expected behavior.
 //
-// On Linux, if this is `true`, Ghostty can delay quitting fully until a
+// On Linux, if this is `true`, Witty can delay quitting fully until a
 // configurable amount of time has passed after the last window is closed.
 // See the documentation of `quit-after-last-window-closed-delay`.
-// Controls how long Ghostty will stay running after the last open surface has
+// Controls how long Witty will stay running after the last open surface has
 // been closed. This only has an effect if `quit-after-last-window-closed` is
 // also set to `true`.
 //
@@ -2139,14 +2139,14 @@ const config_template = $embed_file('config-template').to_string()
 // value larger than this will be clamped to the maximum value.
 //
 // By default `quit-after-last-window-closed-delay` is unset and
-// Ghostty will quit immediately after the last window is closed if
+// Witty will quit immediately after the last window is closed if
 // `quit-after-last-window-closed` is `true`.
 //
 // Only implemented on Linux.
-// This controls whether an initial window is created when Ghostty
+// This controls whether an initial window is created when Witty
 // is run. Note that if `quit-after-last-window-closed` is `true` and
 // `quit-after-last-window-closed-delay` is set, setting `initial-window` to
-// `false` will mean that Ghostty will quit after the configured delay if no
+// `false` will mean that Witty will quit after the configured delay if no
 // window is ever created. Only implemented on Linux and macOS.
 // The duration that undo operations remain available. After this
 // time, the operation will be removed from the undo stack and
@@ -2206,7 +2206,7 @@ const config_template = $embed_file('config-template').to_string()
 //   * `right` - Terminal appears at the right of the screen.
 //   * `center` - Terminal appears at the center of the screen.
 //
-// On macOS, changing this configuration requires restarting Ghostty
+// On macOS, changing this configuration requires restarting Witty
 // completely.
 //
 // Note: There is no default keybind for toggling the quick terminal.
@@ -2274,7 +2274,7 @@ const config_template = $embed_file('config-template').to_string()
 //  * `main` - The screen that the operating system recommends as the main
 //    screen. On macOS, this is the screen that is currently receiving
 //    keyboard input. This screen is defined by the operating system and
-//    not chosen by Ghostty.
+//    not chosen by Witty.
 //
 //  * `mouse` - The screen that the mouse is currently hovered over.
 //
@@ -2391,14 +2391,14 @@ const config_template = $embed_file('config-template').to_string()
 //   * `title` - Set the window title via shell integration.
 //
 //   * `ssh-env` - Enable SSH environment variable compatibility. Automatically
-//     converts TERM from `xterm-ghostty` to `xterm-256color` when connecting to
+//     converts TERM from `xterm-witty` to `xterm-256color` when connecting to
 //     remote hosts and propagates COLORTERM, TERM_PROGRAM, and TERM_PROGRAM_VERSION.
 //     Whether or not these variables will be accepted by the remote host(s) will
 //     depend on whether or not the variables are allowed in their sshd_config.
 //     (Available since: 1.2.0)
 //
 //   * `ssh-terminfo` - Enable automatic terminfo installation on remote hosts.
-//     Attempts to install Ghostty's terminfo entry using `infocmp` and `tic` when
+//     Attempts to install Witty's terminfo entry using `infocmp` and `tic` when
 //     connecting to hosts that lack it. Requires `infocmp` to be available locally
 //     and `tic` to be available on remote hosts. Once terminfo is installed on a
 //     remote host, it will be automatically "cached" to avoid repeat installations.
@@ -2406,14 +2406,14 @@ const config_template = $embed_file('config-template').to_string()
 //     cache manually using various arguments.
 //     (Available since: 1.2.0)
 //
-//   * `path` - Add Ghostty's binary directory to PATH. This ensures the `ghostty`
+//   * `path` - Add Witty's binary directory to PATH. This ensures the `witty`
 //     command is available in the shell even if shell init scripts reset PATH.
 //     This is particularly useful on macOS where PATH is often overridden by
 //     system scripts. The directory is only added if not already present.
 //
 // SSH features work independently and can be combined for optimal experience:
-// when both `ssh-env` and `ssh-terminfo` are enabled, Ghostty will install its
-// terminfo on remote hosts and use `xterm-ghostty` as TERM, falling back to
+// when both `ssh-env` and `ssh-terminfo` are enabled, Witty will install its
+// terminfo on remote hosts and use `xterm-witty` as TERM, falling back to
 // `xterm-256color` with environment variables if terminfo installation fails.
 // Custom entries into the command palette.
 //
@@ -2436,7 +2436,7 @@ const config_template = $embed_file('config-template').to_string()
 // command-palette-entry = title:Reset Font Style, action:csi:0m
 // command-palette-entry = title:Crash on Main Thread,description:Causes a crash on the main (UI) thread.,action:crash:main
 // command-palette-entry = title:Focus Split: Right,description:"Focus the split to the right, if it exists.",action:goto_split:right
-// command-palette-entry = title:"Ghostty",description:"Add a little Ghostty to your terminal.",action:"text:\xf0\x9f\x91\xbb"
+// command-palette-entry = title:"Witty",description:"Add a little Witty to your terminal.",action:"text:\xf0\x9f\x91\xbb"
 // ```
 //
 // By default, the command palette is preloaded with most actions that might
@@ -2450,7 +2450,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 // Available since: 1.2.0
 // Sets the reporting format for OSC sequences that request color information.
-// Ghostty currently supports OSC 10 (foreground), OSC 11 (background), and
+// Witty currently supports OSC 10 (foreground), OSC 11 (background), and
 // OSC 4 (256 color palette) queries, and by default the reported values
 // are scaled-up RGB values, where each component are 16 bits. This is how
 // most terminals report these values. However, some legacy applications may
@@ -2475,13 +2475,13 @@ const config_template = $embed_file('config-template').to_string()
 // Custom shaders to run after the default shaders. This is a file path
 // to a GLSL-syntax shader for all platforms.
 //
-// Warning: Invalid shaders can cause Ghostty to become unusable such as by
+// Warning: Invalid shaders can cause Witty to become unusable such as by
 // causing the window to be completely black. If this happens, you can
 // unset this configuration to disable the shader.
 //
 // Custom shader support is based on and compatible with the Shadertoy shaders.
 // Shaders should specify a `mainImage` function and the available uniforms
-// largely match Shadertoy, with some caveats and Ghostty-specific extensions.
+// largely match Shadertoy, with some caveats and Witty-specific extensions.
 //
 // The uniform values available to shaders are as follows:
 //
@@ -2514,7 +2514,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 //  * `float iSampleRate` - Sample rate for audio. (N/A)
 //
-// Ghostty-specific extensions:
+// Witty-specific extensions:
 //
 //  * `vec4 iCurrentCursor` - Info about the terminal cursor.
 //
@@ -2616,7 +2616,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 //  * `attention` *(enabled by default)*
 //
-//    Request the user's attention when Ghostty is unfocused, until it has
+//    Request the user's attention when Witty is unfocused, until it has
 //    received focus again. On macOS, this will bounce the app icon in the
 //    dock once. On Linux, the behavior depends on the desktop environment
 //    and/or the window manager/compositor:
@@ -2625,7 +2625,7 @@ const config_template = $embed_file('config-template').to_string()
 //      highlighted;
 //
 //    - On GNOME, you may receive a notification that, when clicked, would
-//      bring the Ghostty window into focus;
+//      bring the Witty window into focus;
 //
 //    - On Sway, the window may be decorated with a distinctly colored border;
 //
@@ -2659,7 +2659,7 @@ const config_template = $embed_file('config-template').to_string()
 // (GTK only)
 //
 // Available since: 1.2.0
-// Control the in-app notifications that Ghostty shows.
+// Control the in-app notifications that Witty shows.
 //
 // On Linux (GTK), in-app notifications show up as toasts. Toasts appear
 // overlaid on top of the terminal window. They are used to show information
@@ -2767,7 +2767,7 @@ const config_template = $embed_file('config-template').to_string()
 // When "hidden", the top titlebar area can no longer be used for dragging
 // the window. To drag the window, you can use option+click on the resizable
 // areas of the frame to drag the window. This is a standard macOS behavior
-// and not something Ghostty enables.
+// and not something Witty enables.
 //
 // The default value is "transparent". This is an opinionated choice
 // but its one I think is the most aesthetically pleasing and works in
@@ -2794,7 +2794,7 @@ const config_template = $embed_file('config-template').to_string()
 // usually `cd` to a different directory, open a different file in an
 // editor, etc.
 // Controls the windowing behavior when dropping a file or folder
-// onto the Ghostty icon in the macOS dock.
+// onto the Witty icon in the macOS dock.
 //
 // Valid values are:
 //
@@ -2861,12 +2861,12 @@ const config_template = $embed_file('config-template').to_string()
 // will no longer be automatic. This is a limitation of macOS.
 //
 // Available since: 1.2.0
-// If true, Ghostty on macOS will automatically enable the "Secure Input"
+// If true, Witty on macOS will automatically enable the "Secure Input"
 // feature when it detects that a password prompt is being displayed.
 //
 // "Secure Input" is a macOS security feature that prevents applications from
 // reading keyboard events. This can always be enabled manually using the
-// `Ghostty > Secure Keyboard Entry` menu item.
+// `Witty > Secure Keyboard Entry` menu item.
 //
 // Note that automatic password prompt detection is based on heuristics
 // and may not always work as expected. Specifically, it does not work
@@ -2877,7 +2877,7 @@ const config_template = $embed_file('config-template').to_string()
 // with legitimate accessibility software (or software that uses the
 // accessibility APIs), since secure input prevents any application from
 // reading keyboard events.
-// If true, Ghostty will show a graphical indication when secure input is
+// If true, Witty will show a graphical indication when secure input is
 // enabled. This indication is generally recommended to know when secure input
 // is enabled.
 //
@@ -2896,13 +2896,13 @@ const config_template = $embed_file('config-template').to_string()
 //
 // Valid values:
 //
-//  * `official` - Use the official Ghostty icon.
+//  * `official` - Use the official Witty icon.
 //  * `blueprint`, `chalkboard`, `microchip`, `glass`, `holographic`,
-//    `paper`, `retro`, `xray` - Official variants of the Ghostty icon
+//    `paper`, `retro`, `xray` - Official variants of the Witty icon
 //    hand-created by artists (no AI).
 //  * `custom` - Use a completely custom icon. The location must be specified
 //    using the additional `macos-custom-icon` configuration
-//  * `custom-style` - Use the official Ghostty icon but with custom
+//  * `custom-style` - Use the official Witty icon but with custom
 //    styles applied to various layers. The custom styles must be
 //    specified using the additional `macos-icon`-prefixed configurations.
 //    The `macos-icon-ghost-color` and `macos-icon-screen-color`
@@ -2921,7 +2921,7 @@ const config_template = $embed_file('config-template').to_string()
 // The absolute path to the custom icon file.
 // Supported formats include PNG, JPEG, and ICNS.
 //
-// Defaults to `~/.config/ghostty/Ghostty.icns`
+// Defaults to `~/.config/witty/Witty.icns`
 // The material to use for the frame of the macOS app icon.
 //
 // Valid values:
@@ -2949,10 +2949,10 @@ const config_template = $embed_file('config-template').to_string()
 //
 // Note: This configuration is required when `macos-icon` is set to
 // `custom-style`.
-// Whether macOS Shortcuts are allowed to control Ghostty.
+// Whether macOS Shortcuts are allowed to control Witty.
 //
-// Ghostty exposes a number of actions that allow Shortcuts to
-// control and interact with Ghostty. This includes creating new
+// Witty exposes a number of actions that allow Shortcuts to
+// control and interact with Witty. This includes creating new
 // terminals, sending text to terminals, running commands, invoking
 // any keybind action, etc.
 //
@@ -2962,13 +2962,13 @@ const config_template = $embed_file('config-template').to_string()
 //
 // Valid values are:
 //
-// * `ask` - Ask the user whether for permission. Ghostty will remember
+// * `ask` - Ask the user whether for permission. Witty will remember
 //   this choice and never ask again. This is similar to other macOS
 //   permissions such as microphone access, camera access, etc.
 //
-// * `allow` - Allow Shortcuts to control Ghostty without asking.
+// * `allow` - Allow Shortcuts to control Witty without asking.
 //
-// * `deny` - Deny Shortcuts from controlling Ghostty.
+// * `deny` - Deny Shortcuts from controlling Witty.
 //
 // Available since: 1.2.0
 // Put every surface (tab, split, window) into a dedicated Linux cgroup.
@@ -2976,25 +2976,25 @@ const config_template = $embed_file('config-template').to_string()
 // This makes it so that resource management can be done on a per-surface
 // granularity. For example, if a shell program is using too much memory,
 // only that shell will be killed by the oom monitor instead of the entire
-// Ghostty process. Similarly, if a shell program is using too much CPU,
+// Witty process. Similarly, if a shell program is using too much CPU,
 // only that surface will be CPU-throttled.
 //
 // This will cause startup times to be slower (a hundred milliseconds or so),
 // so the default value is "single-instance." In single-instance mode, only
-// one instance of Ghostty is running (see gtk-single-instance) so the startup
-// time is a one-time cost. Additionally, single instance Ghostty is much
+// one instance of Witty is running (see gtk-single-instance) so the startup
+// time is a one-time cost. Additionally, single instance Witty is much
 // more likely to have many windows, tabs, etc. so cgroup isolation is a
 // big benefit.
 //
 // This feature requires systemd. If systemd is unavailable, cgroup
-// initialization will fail. By default, this will not prevent Ghostty
+// initialization will fail. By default, this will not prevent Witty
 // from working (see linux-cgroup-hard-fail).
 //
 // Valid values are:
 //
 //   * `never` - Never use cgroups.
 //   * `always` - Always use cgroups.
-//   * `single-instance` - Enable cgroups only for Ghostty instances launched
+//   * `single-instance` - Enable cgroups only for Witty instances launched
 //     as single-instance applications (see gtk-single-instance).
 // Memory limit for any individual terminal process (tab, split, window,
 // etc.) in bytes. If this is unset then no memory limit will be set.
@@ -3011,11 +3011,11 @@ const config_template = $embed_file('config-template').to_string()
 // If this is false, then any cgroup initialization (for linux-cgroup)
 // will be allowed to fail and the failure is ignored. This is useful if
 // you view cgroup isolation as a "nice to have" and not a critical resource
-// management feature, because Ghostty startup will not fail if cgroup APIs
+// management feature, because Witty startup will not fail if cgroup APIs
 // fail.
 //
 // If this is true, then any cgroup initialization failure will cause
-// Ghostty to exit or new surfaces to not be created.
+// Witty to exit or new surfaces to not be created.
 //
 // Note: This currently only affects cgroup initialization. Subprocesses
 // must always be able to move themselves into an isolated cgroup.
@@ -3023,21 +3023,21 @@ const config_template = $embed_file('config-template').to_string()
 // debug builds, `false` for all others.
 //
 // Available since: 1.1.0
-// If `true`, the Ghostty GTK application will run in single-instance mode:
-// each new `ghostty` process launched will result in a new window if there is
+// If `true`, the Witty GTK application will run in single-instance mode:
+// each new `witty` process launched will result in a new window if there is
 // already a running process.
 //
-// If `false`, each new ghostty process will launch a separate application.
+// If `false`, each new witty process will launch a separate application.
 //
-// If `detect`, Ghostty will assume true (single instance) unless one of
+// If `detect`, Witty will assume true (single instance) unless one of
 // the following scenarios is found:
 //
 // 1. TERM_PROGRAM environment variable is a non-empty value. In this
-// case, we assume Ghostty is being launched from a graphical terminal
+// case, we assume Witty is being launched from a graphical terminal
 // session and you want a dedicated instance.
 //
 // 2. Any CLI arguments exist. In this case, we assume you are passing
-// custom Ghostty configuration. Single instance mode inherits the
+// custom Witty configuration. Single instance mode inherits the
 // configuration from when it was launched, so we must disable single
 // instance to load the new configuration.
 //
@@ -3049,7 +3049,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 // The default value is `detect`.
 //
-// Note that debug builds of Ghostty have a separate single-instance ID
+// Note that debug builds of Witty have a separate single-instance ID
 // so you can test single instance without conflicting with release builds.
 // When enabled, the full GTK titlebar is displayed instead of your window
 // manager's simple titlebar. The behavior of this option will vary with your
@@ -3090,7 +3090,7 @@ const config_template = $embed_file('config-template').to_string()
 // `tabs` title bar can be used to drag the window around.
 //
 // The default style is `native`.
-// If `true` (default), then the Ghostty GTK tabs will be "wide." Wide tabs
+// If `true` (default), then the Witty GTK tabs will be "wide." Wide tabs
 // are the new typical Gnome style where tabs fill their available space.
 // If you set this to `false` then tabs will only take up space they need,
 // which is the old style.
@@ -3102,9 +3102,9 @@ const config_template = $embed_file('config-template').to_string()
 //   * https://docs.gtk.org/gtk4/css-properties.html - A comprehensive list
 //     of supported CSS properties.
 //
-// Launch Ghostty with `env GTK_DEBUG=interactive ghostty` to tweak Ghostty's
+// Launch Witty with `env GTK_DEBUG=interactive witty` to tweak Witty's
 // CSS in real time using the GTK Inspector. Errors in your CSS files would
-// also be reported in the terminal you started Ghostty from. See
+// also be reported in the terminal you started Witty from. See
 // https://developer.gnome.org/documentation/tools/inspector.html for more
 // information about the GTK Inspector.
 //
@@ -3129,21 +3129,21 @@ const config_template = $embed_file('config-template').to_string()
 // for bold text. For example, if the text is red, then the bold will
 // use the bright red color. The terminal palette is set with `palette`
 // but can also be overridden by the terminal application itself using
-// escape sequences such as OSC 4. (Since Ghostty 1.2.0, the previous
+// escape sequences such as OSC 4. (Since Witty 1.2.0, the previous
 // configuration `bold-is-bright` is deprecated and replaced by this
 // usage).
 //
-// Available since Ghostty 1.2.0.
+// Available since Witty 1.2.0.
 // The opacity level (opposite of transparency) of the faint text. A value of
 // 1 is fully opaque and a value of 0 is fully transparent. A value less than 0
 // or greater than 1 will be clamped to the nearest valid value.
 //
-// Available since Ghostty 1.2.0.
+// Available since Witty 1.2.0.
 // This will be used to set the `TERM` environment variable.
 // HACK: We set this with an `xterm` prefix because vim uses that to enable key
 // protocols (specifically this will enable `modifyOtherKeys`), among other
 // features. An option exists in vim to modify this: `:set
-// keyprotocol=ghostty:kitty`, however a bug in the implementation prevents it
+// keyprotocol=witty:kitty`, however a bug in the implementation prevents it
 // from working properly. https://github.com/vim/vim/pull/13211 fixes this.
 // String to send when we receive `ENQ` (`0x05`) from the command that we are
 // running. Defaults to an empty string if not set.
@@ -3166,7 +3166,7 @@ const config_template = $embed_file('config-template').to_string()
 //   * `epoll` - Use the `epoll` API
 //   * `io_uring` - Use the `io_uring` API
 //
-// If the selected backend is not available on the platform, Ghostty will
+// If the selected backend is not available on the platform, Witty will
 // fall back to an automatically chosen backend that is available.
 //
 // Changing this value requires a full application restart to take effect.
@@ -3175,13 +3175,13 @@ const config_template = $embed_file('config-template').to_string()
 // where we have multiple options. On macOS, we always use `kqueue`.
 //
 // Available since: 1.2.0
-// Control the auto-update functionality of Ghostty. This is only supported
+// Control the auto-update functionality of Witty. This is only supported
 // on macOS currently, since Linux builds are distributed via package
-// managers that are not centrally controlled by Ghostty.
+// managers that are not centrally controlled by Witty.
 //
 // Checking or downloading an update does not send any information to
 // the project beyond standard network information mandated by the
-// underlying protocols. To put it another way: Ghostty doesn't explicitly
+// underlying protocols. To put it another way: Witty doesn't explicitly
 // add any tracking to the update process. The update process works by
 // downloading information about the latest version and comparing it
 // client-side to the current version.
@@ -3201,9 +3201,9 @@ const config_template = $embed_file('config-template').to_string()
 // The release channel to use for auto-updates.
 //
 // The default value of this matches the release channel of the currently
-// running Ghostty version. If you download a pre-release version of Ghostty
+// running Witty version. If you download a pre-release version of Witty
 // then this will be set to `tip` and you will receive pre-release updates.
-// If you download a stable version of Ghostty then this will be set to
+// If you download a stable version of Witty then this will be set to
 // `stable` and you will receive stable updates.
 //
 // Valid values are:
@@ -3215,7 +3215,7 @@ const config_template = $embed_file('config-template').to_string()
 //    will likely have more bugs than the stable channel.
 //
 // Changing this configuration requires a full restart of
-// Ghostty to take effect.
+// Witty to take effect.
 //
 // This only works on macOS since only macOS has an auto-update feature.
 // This is set by the CLI parser for deinit.
@@ -3228,7 +3228,7 @@ const config_template = $embed_file('config-template').to_string()
 // The steps we can use to reload the configuration after it has been loaded
 // without reopening the files. This is used in very specific cases such
 // as loadTheme which has more details on why.
-// Set to true if Ghostty was executed as xdg-terminal-exec on Linux.
+// Set to true if Witty was executed as xdg-terminal-exec on Linux.
 // Load the configuration according to the default rules:
 //
 //   1. Defaults
@@ -3257,13 +3257,13 @@ const config_template = $embed_file('config-template').to_string()
 //
 // Returns the action that was taken.
 // Load configurations from the default configuration files. The default
-// configuration file is at `$XDG_CONFIG_HOME/ghostty/config.ghostty`.
+// configuration file is at `$XDG_CONFIG_HOME/witty/config.witty`.
 //
 // On macOS, `$HOME/Library/Application Support/$CFBundleIdentifier/`
 // is also loaded.
 //
 // The legacy `config` file (without extension) is first loaded,
-// then `config.ghostty`.
+// then `config.witty`.
 // Load XDG first
 // On macOS load the app support directory as well
 // If both files are not found, then we create a template file.
@@ -3386,7 +3386,7 @@ const config_template = $embed_file('config-template').to_string()
 // If we have different light vs dark mode themes, disable
 // window-theme = auto since that breaks it.
 // This setting doesn't make sense with different light/dark themes
-// because it'll force the theme based on the Ghostty theme.
+// because it'll force the theme based on the Witty theme.
 // Mark that we use a conditional theme
 // Used for a variety of defaults. See the function docs as well the
 // specific variable use sites for more details.
@@ -3426,7 +3426,7 @@ const config_template = $embed_file('config-template').to_string()
 // If URLs are disabled, cut off the first link. The first link is
 // always the URL matcher.
 // We warn when the quit-after-last-window-closed-delay is set to a very
-// short value because it can cause Ghostty to quit before the first
+// short value because it can cause Witty to quit before the first
 // window is even shown.
 // We can't set this as a struct default because our config is
 // loaded in environments where a build config isn't available.
@@ -3486,7 +3486,7 @@ const config_template = $embed_file('config-template').to_string()
 // Get the field at comptime
 // This yields a key for every changed field between old and new.
 // This runs a heuristic to determine if we are likely running
-// Ghostty in a CLI environment. We need this to change some behaviors.
+// Witty in a CLI environment. We need this to change some behaviors.
 // We should keep the set of behaviors that depend on this as small
 // as possible because magic sucks, but each place is well documented.
 // Windows has its own problems, just ignore it for now since
@@ -3535,13 +3535,13 @@ const config_template = $embed_file('config-template').to_string()
 // steps such as expanding relative paths.
 // Valid values for confirm-close-surface
 // c_int because it needs to be extern compatible
-// If this is changed, you must also update ghostty.h
+// If this is changed, you must also update witty.h
 // Valid values for custom-shader-animation
 // c_int because it needs to be extern compatible
-// If this is changed, you must also update ghostty.h
+// If this is changed, you must also update witty.h
 // Valid values for macos-non-native-fullscreen
 // c_int because it needs to be extern compatible
-// If this is changed, you must also update ghostty.h
+// If this is changed, you must also update witty.h
 // Color represents a color using RGB.
 //
 // This is a packed struct so that the C API to read color values just
@@ -3677,7 +3677,7 @@ const config_template = $embed_file('config-template').to_string()
 // to allow us to lookup performable keybinds
 // conditionally.
 // Important: this must be the LAST binding set so that the
-// libghostty trigger API returns this one for the action,
+// libwitty trigger API returns this one for the action,
 // so that things like the macOS tab bar key equivalent label
 // work properly.
 // See comment above with the numeric goto_tab
@@ -3845,7 +3845,7 @@ const config_template = $embed_file('config-template').to_string()
 // See macos-hidden
 // See macos-icon
 //
-// Note: future versions of Ghostty can support a custom icon with
+// Note: future versions of Witty can support a custom icon with
 // path by changing this to a tagged union, which doesn't change our
 // format at all.
 // See macos-icon-frame
@@ -3882,10 +3882,10 @@ const config_template = $embed_file('config-template').to_string()
 // See background-image-fit
 // See freetype-load-flag
 // The defaults here at the time of writing this match the defaults
-// for Freetype itself. Ghostty hasn't made any opinionated changes
+// for Freetype itself. Witty hasn't made any opinionated changes
 // to these defaults. (Strictly speaking, `light` isn't FreeType's
 // own default, but appears to be the effective default with most
-// Fontconfig-aware software using FreeType, so until Ghostty
+// Fontconfig-aware software using FreeType, so until Witty
 // implements Fontconfig support we default to `light`.)
 // See linux-cgroup
 // See async-backend
@@ -3959,7 +3959,7 @@ const config_template = $embed_file('config-template').to_string()
 // We need to test this BEFORE finalize, because finalize will
 // convert our detect to a real value.
 //
-// --- Original Ghostty Comments End: src/config/Config.zig
+// --- Original Witty Comments End: src/config/Config.zig
 
 // Config represents the full ghostty configuration.
 pub struct Config {
@@ -4000,7 +4000,7 @@ pub mut:
 	working_directory              ?string
 	env                            RepeatableStringMap
 	input                          RepeatableReadableIO
-	term                           string = 'xterm-ghostty'
+	term                           string = 'xterm-witty'
 	shell_integration              ShellIntegration = .detect
 	shell_integration_features     ShellIntegrationFeatures
 	link_previews                  LinkPreviews = .true_
@@ -4168,11 +4168,11 @@ pub mut:
 	quick_terminal_size     QuickTerminalSize
 	// Wayland layer-shell configuration for the quick terminal.
 	gtk_quick_terminal_layer     QuickTerminalLayer = .top
-	gtk_quick_terminal_namespace string = 'ghostty-quick-terminal'
+	gtk_quick_terminal_namespace string = 'witty-quick-terminal'
 	// Platform-specific quick-terminal presentation behavior.
 	quick_terminal_screen             QuickTerminalScreen = .main
 	quick_terminal_animation_duration f64 = 0.2
-	// Automatically hide a quick terminal when it loses focus. Ghostty defaults
+	// Automatically hide a quick terminal when it loses focus. Witty defaults
 	// this on for macOS and off for Linux/BSD.
 	quick_terminal_autohide               bool = default_quick_terminal_autohide
 	quick_terminal_space_behavior         QuickTerminalSpaceBehavior = .move
@@ -4185,7 +4185,7 @@ pub mut:
 	click_repeat_interval u32
 	// Whether the image storage limit is enabled and its size in bytes.
 	image_storage_limit u32 = 320 * 1000 * 1000
-	// Whether Ghostty may quit after the last window is closed.
+	// Whether Witty may quit after the last window is closed.
 	quit_after_last_window_closed bool = default_quit_after_last_window_closed
 	// Optional delay before quitting after the last window closes.
 	quit_after_last_window_closed_delay ?Duration
@@ -5046,7 +5046,7 @@ pub fn (mut k Keybinds) init() {
 	}
 }
 
-// ConfigChangeResult preserves Ghostty's error-union-of-optional return in V,
+// ConfigChangeResult preserves Witty's error-union-of-optional return in V,
 // which cannot directly express !?Config. value == none means the conditional
 // change is irrelevant; replay and finalization errors are still returned.
 pub struct ConfigChangeResult {
@@ -5073,7 +5073,7 @@ pub fn (c Config) change_conditional_state(state ConditionalState) !ConfigChange
 }
 
 pub fn (mut c Config) deinit() {
-	// Ghostty releases the arena that owns all configuration allocations and
+	// Witty releases the arena that owns all configuration allocations and
 	// then invalidates the struct. V's GC owns those allocations, so replacing
 	// the value drops every retained reference and leaves a valid empty config.
 	c = Config{}
@@ -5645,7 +5645,7 @@ pub mut:
 	items_c []inputpkg.CCommand
 }
 
-// init installs Ghostty's built-in command palette entries.
+// init installs Witty's built-in command palette entries.
 pub fn (mut r RepeatableCommand) init() {
 	r.items = []inputpkg.Command{cap: inputpkg.command_defaults.len}
 	for item in inputpkg.command_defaults {
@@ -5784,7 +5784,7 @@ pub fn (p Path) len() int {
 	}
 }
 
-// PathParseResult preserves Ghostty's error-union-of-optional return in V,
+// PathParseResult preserves Witty's error-union-of-optional return in V,
 // which cannot directly express !?Path. value == none is the empty input.
 pub struct PathParseResult {
 pub:
@@ -5901,7 +5901,7 @@ pub fn (mut p Path) expand(base string, mut diagnostics []Diagnostic) ! {
 		return error_with_code('not a directory', C.ENOTDIR)
 	}
 	joined := os.join_path(base, path)
-	// Ghostty asks the directory for a real path first, preserving canonical
+	// Witty asks the directory for a real path first, preserving canonical
 	// symlink resolution for existing entries. A missing entry falls back to
 	// lexical path resolution so configuration may name files created later.
 	_ := os.stat(joined) or {
@@ -5984,7 +5984,7 @@ pub fn SelectionWordChars.defaults() SelectionWordChars {
 pub fn (mut s SelectionWordChars) parse_cli(value ?string) ! {
 	input_value := value or { return perr(ParseError.value_required) }
 	if !validate.utf8_string(input_value) {
-		// Ghostty retains only the mandatory null boundary for invalid UTF-8.
+		// Witty retains only the mandatory null boundary for invalid UTF-8.
 		s.codepoints = [u32(0)]
 		return
 	}
@@ -6253,7 +6253,7 @@ pub fn (m RepeatableClipboardCodepointMap) equal(other RepeatableClipboardCodepo
 	return m.map.equal(other.map)
 }
 
-// format_entry returns the exact values passed to Ghostty's entry formatter.
+// format_entry returns the exact values passed to Witty's entry formatter.
 pub fn (m RepeatableClipboardCodepointMap) format_entry() []string {
 	if m.map.list.len == 0 {
 		return ['']
@@ -6773,7 +6773,7 @@ pub fn (config SplitPreserveZoom) format_entry() string {
 }
 
 // BellFeatures controls the system, audio, attention, title, and border bell
-// effects. The defaults match Ghostty's packed struct.
+// effects. The defaults match Witty's packed struct.
 pub struct BellFeatures {
 	value u8 = 0x0c
 }
@@ -6817,7 +6817,7 @@ pub fn (config BellFeatures) format_entry() string {
 }
 
 // AppNotifications controls the two GTK in-app toast categories. Defaults
-// match Ghostty's packed struct, where both notification kinds are enabled.
+// match Witty's packed struct, where both notification kinds are enabled.
 pub struct AppNotifications {
 	value u8 = 0x03
 }
@@ -7148,7 +7148,7 @@ pub enum WindowTheme as u8 {
 	system
 	light
 	dark
-	ghostty
+	witty
 }
 
 // RightClickAction controls the action taken on right-click.
@@ -7325,7 +7325,7 @@ pub mut:
 	value [256]ColorRGB
 }
 
-// default_palette returns Ghostty's canonical 256-color palette.
+// default_palette returns Witty's canonical 256-color palette.
 pub fn Palette.default_palette() Palette {
 	mut p := Palette{}
 	for i in 0 .. 256 {
@@ -7391,7 +7391,7 @@ struct ReplayDiagnostic {
 
 struct ReplayCommand {}
 
-// ReplayStep records configuration input in source order. Ghostty rebuilds a
+// ReplayStep records configuration input in source order. Witty rebuilds a
 // configuration from these steps after loading a theme so that the theme is a
 // base layer and every user option—including repeatable options—retains its
 // normal parser semantics.
@@ -7464,7 +7464,7 @@ fn (mut self ReplayIterator) next() ?string {
 	return none
 }
 
-// load loads configuration using Ghostty's default-file order, command-line
+// load loads configuration using Witty's default-file order, command-line
 // arguments, recursively referenced files, and finalization order.
 pub fn Config.load() !Config {
 	$if linux || freebsd {
@@ -7519,20 +7519,26 @@ pub fn Config.load_args(args []string) !Config {
 }
 
 // load_default_files reads the platform's default configuration paths in the
-// same order as Ghostty's Config.loadDefaultFiles. If no default file exists,
-// it creates Ghostty's commented starter template at the preferred location.
+// same order as Witty's Config.loadDefaultFiles. If no default file exists,
+// it creates Witty's commented starter template at the preferred location.
 pub fn (mut c Config) load_default_files() ! {
 	legacy_xdg_path := legacy_default_xdg_path()!
+	previous_xdg_path := previous_default_xdg_path()!
 	xdg_path := default_xdg_path()!
 	legacy_xdg_action := c.load_optional_file(legacy_xdg_path)
+	previous_xdg_action := c.load_optional_file(previous_xdg_path)
 	preferred_xdg_action := c.load_optional_file(xdg_path)
-	xdg_loaded := legacy_xdg_action != .not_found || preferred_xdg_action != .not_found
+	xdg_loaded := legacy_xdg_action != .not_found || previous_xdg_action != .not_found
+		|| preferred_xdg_action != .not_found
 	$if macos {
 		legacy_app_support_path := legacy_default_app_support_path()!
-		app_support_path := preferred_app_support_path()!
+		previous_app_support_path := previous_default_app_support_path()!
+		app_support_path := default_app_support_path()!
 		legacy_app_support_action := c.load_optional_file(legacy_app_support_path)
+		previous_app_support_action := c.load_optional_file(previous_app_support_path)
 		preferred_app_support_action := c.load_optional_file(app_support_path)
 		app_support_loaded := legacy_app_support_action != .not_found
+			|| previous_app_support_action != .not_found
 			|| preferred_app_support_action != .not_found
 		if !app_support_loaded && !xdg_loaded {
 			write_config_template(app_support_path) or {}
@@ -7551,7 +7557,7 @@ pub enum OptionalFileAction as u8 {
 }
 
 // load_optional_file ignores file errors and reports the action taken. As in
-// Ghostty, an existing unreadable path is distinct from a missing path so it
+// Witty, an existing unreadable path is distinct from a missing path so it
 // suppresses creation of a replacement template.
 pub fn (mut c Config) load_optional_file(path string) OptionalFileAction {
 	c.load_file(path) or {
@@ -7586,7 +7592,7 @@ pub fn (mut c Config) load_cli_argv(argv []string) ! {
 	c.load_cli_args(if argv.len > 1 { argv[1..] } else { []string{} })!
 }
 
-// load_cli_args applies Ghostty's `--key=value` configuration syntax and the
+// load_cli_args applies Witty's `--key=value` configuration syntax and the
 // special `-e command...` tail. Paths declared here resolve against cwd.
 pub fn (mut c Config) load_cli_args(args []string) ! {
 	c.config_default_files = true
@@ -7857,7 +7863,7 @@ fn (mut c Config) add_replay_diagnostic_entry(diagnostic Diagnostic) {
 }
 
 // load_string parses config file contents from an in-memory string. This is
-// the reader-based half of Ghostty's loadReader, minus the OS file handling.
+// the reader-based half of Witty's loadReader, minus the OS file handling.
 pub fn (mut c Config) load_string(content string) {
 	c.load_string_with_path(content, '')
 }
@@ -7935,11 +7941,11 @@ fn clone_replay_steps(steps []ReplayStep) []ReplayStep {
 }
 
 // apply_kv applies a single `key = value` pair to the config. Keys use the
-// hyphenated Ghostty spelling. Unknown keys are ignored (matching Ghostty's
+// hyphenated Witty spelling. Unknown keys are ignored (matching Witty's
 // behavior of not failing on unknown options). Invalid values are recorded
 // as diagnostics.
 fn (mut c Config) apply_kv(key string, value string) {
-	// Ghostty's reflected CLI parser handles an explicitly empty value before
+	// Witty's reflected CLI parser handles an explicitly empty value before
 	// any type-specific parser: it resets the field to its declared default.
 	// Keep this centralized so every Config field has the same behavior rather
 	// than duplicating subtly different empty handling in each match arm.
@@ -8061,7 +8067,7 @@ fn (mut c Config) apply_kv(key string, value string) {
 				'system' { .system }
 				'light' { .light }
 				'dark' { .dark }
-				'ghostty' { .ghostty }
+				'witty', 'ghostty' { .witty }
 				else {
 					c.invalid_config_value(key, value)
 					return
@@ -9043,7 +9049,7 @@ fn (mut c Config) apply_kv(key string, value string) {
 		// Config.zig. They run at parse time and remap deprecated options to
 		// their modern equivalents.
 		'background-blur-radius' {
-			// Ghostty 1.1 renamed this field to background-blur. The generic
+			// Witty 1.1 renamed this field to background-blur. The generic
 			// renamed-field handler parses the value using the replacement
 			// field's type, including resetting an explicitly empty value to the
 			// replacement field's declared default.
@@ -9061,7 +9067,7 @@ fn (mut c Config) apply_kv(key string, value string) {
 			}
 		}
 		'adw-toolbar-style' {
-			// Ghostty 1.2 renamed the libadwaita-prefixed option to its GTK
+			// Witty 1.2 renamed the libadwaita-prefixed option to its GTK
 			// spelling.
 			c.gtk_toolbar_style = match value {
 				'' { .raised }
@@ -9077,7 +9083,7 @@ fn (mut c Config) apply_kv(key string, value string) {
 			}
 		}
 		'cursor-invert-fg-bg' {
-			// Ghostty 1.2 removed cursor-invert-fg-bg in favor of setting
+			// Witty 1.2 removed cursor-invert-fg-bg in favor of setting
 			// cursor-color/cursor-text to the cell colors.
 			set := parse_bool_opt(if value.len == 0 { 't' } else { value }) or {
 				c.diagnostics << Diagnostic{
@@ -9103,7 +9109,7 @@ fn (mut c Config) apply_kv(key string, value string) {
 			}
 		}
 		'bold-is-bright' {
-			// Ghostty 1.2 merged bold-is-bright into bold-color = bright.
+			// Witty 1.2 merged bold-is-bright into bold-color = bright.
 			set := parse_bool_opt(if value.len == 0 { 't' } else { value }) or {
 				c.diagnostics << Diagnostic{
 					message: '${key}: unknown field'
@@ -9163,7 +9169,7 @@ fn (mut c Config) apply_kv(key string, value string) {
 			}
 		}
 		'macos-dock-drop-behavior' {
-			// Ghostty 1.3 renamed the "window" option to "new-window".
+			// Witty 1.3 renamed the "window" option to "new-window".
 			if value.len == 0 {
 				c.macos_dock_drop_behavior = .new_tab
 			} else if value == 'window' {
@@ -9327,7 +9333,7 @@ fn (mut c Config) apply_kv(key string, value string) {
 			}
 		}
 		'gtk-single-instance' {
-			// Ghostty 1.2 kept `desktop` as a compatibility value that finalize
+			// Witty 1.2 kept `desktop` as a compatibility value that finalize
 			// later converts. Before finalize it remains `detect`.
 			match value {
 				'desktop', 'detect' {
@@ -9354,7 +9360,7 @@ fn (mut c Config) apply_kv(key string, value string) {
 					c.gtk_tabs_location = .bottom
 				}
 				'hidden' {
-					// Ghostty 1.2 removed this enum value and its compatibility
+					// Witty 1.2 removed this enum value and its compatibility
 					// handler maps it to the replacement setting.
 					c.window_show_tab_bar = .never
 				}
@@ -9388,7 +9394,7 @@ fn (mut c Config) apply_kv(key string, value string) {
 		else {
 			// Config's reflected CLI parser reports unknown fields as a
 			// diagnostic. Platform-specific fields are still present in Config,
-			// so silently accepting a misspelling would diverge from Ghostty and
+			// so silently accepting a misspelling would diverge from Witty and
 			// make `+validate-config` incorrectly succeed.
 			c.diagnostics << Diagnostic{
 				message: '${key}: unknown field'
@@ -9464,7 +9470,7 @@ fn is_config_key(key string) bool {
 // path. Config.default_config represents the source-level field defaults,
 // including platform-dependent values and types whose Zig defaults are backed
 // by static data. Internal bookkeeping fields are deliberately excluded from
-// reflected config lookup, just like Ghostty's underscore-prefixed fields.
+// reflected config lookup, just like Witty's underscore-prefixed fields.
 fn (mut c Config) reset_empty_config_value(key string) bool {
 	// RepeatableLink has no usable parser yet in the pinned source, but an empty
 	// value is accepted by the generic reset path and restores its field default
@@ -9989,7 +9995,7 @@ pub fn (mut c Config) finalize() ! {
 
 	// Prevent setting TERM to an empty string.
 	if c.term.len == 0 {
-		c.term = 'xterm-ghostty'
+		c.term = 'xterm-witty'
 	}
 
 	// The default working directory depends on whether this looks like a CLI
@@ -10000,7 +10006,7 @@ pub fn (mut c Config) finalize() ! {
 	}
 	wd_home := wd == 'home'
 
-	// Shell and passwd lookup are deliberately skipped in tests in Ghostty.
+	// Shell and passwd lookup are deliberately skipped in tests in Witty.
 	$if !test {
 		if c.command == none || wd_home {
 			if c.command == none && !internal_os.is_flatpak() && probable_cli {
@@ -10077,7 +10083,7 @@ pub fn (mut c Config) finalize() ! {
 		c.link.links = c.link.links[1..].clone()
 	}
 
-	// Ghostty only clamps faint opacity at configuration finalization.
+	// Witty only clamps faint opacity at configuration finalization.
 	c.faint_opacity = clamp_f64(c.faint_opacity, 0.0, 1.0)
 
 	// Minimum window size.
@@ -10095,7 +10101,7 @@ pub fn (mut c Config) finalize() ! {
 	}
 
 	// Sided mappings must be ordered before their unsided counterparts so
-	// matching produces the same first-match result as Ghostty.
+	// matching produces the same first-match result as Witty.
 	c.key_remap.finalize()
 }
 
@@ -10119,7 +10125,7 @@ fn probable_cli_environment() bool {
 }
 
 // load_theme resolves the configured `theme`, loads it into a fresh default
-// configuration, and replays every prior input over it. This is Ghostty's
+// configuration, and replays every prior input over it. This is Witty's
 // replay model and preserves parser semantics for scalars and repeatable
 // values alike:
 //
@@ -10271,9 +10277,11 @@ fn editable_config_path_candidates() ![]string {
 	mut paths := []string{}
 	$if macos {
 		paths << default_app_support_path()!
+		paths << previous_default_app_support_path()!
 		paths << legacy_default_app_support_path()!
 	}
 	paths << default_xdg_path()!
+	paths << previous_default_xdg_path()!
 	paths << legacy_default_xdg_path()!
 	return paths
 }
@@ -10296,14 +10304,20 @@ fn ensure_editable_config_path(path string) ! {
 	create_config_file(path)!
 }
 
-// default_xdg_path returns Ghostty's current XDG configuration path.
+// default_xdg_path returns Witty's current XDG configuration path.
 pub fn default_xdg_path() !string {
+	return internal_os.config(internal_os.Options{
+		subdir: os.join_path('witty', 'config.witty')
+	})
+}
+
+fn previous_default_xdg_path() !string {
 	return internal_os.config(internal_os.Options{
 		subdir: os.join_path('ghostty', 'config.ghostty')
 	})
 }
 
-// legacy_default_xdg_path returns Ghostty's pre-1.3 XDG configuration path.
+// legacy_default_xdg_path returns Witty's pre-1.3 XDG configuration path.
 pub fn legacy_default_xdg_path() !string {
 	return internal_os.config(internal_os.Options{
 		subdir: os.join_path('ghostty', 'config')
@@ -10318,29 +10332,38 @@ pub fn preferred_xdg_path() !string {
 		file.close()
 		return path
 	}
-	legacy := legacy_default_xdg_path()!
-	if mut file := open(legacy) {
-		file.close()
-		return legacy
+	for fallback in [previous_default_xdg_path()!, legacy_default_xdg_path()!] {
+		if mut file := open(fallback) {
+			file.close()
+			return fallback
+		}
 	}
 	return path
 }
 
-// default_app_support_path returns Ghostty's current macOS Application
+// default_app_support_path returns Witty's current macOS Application
 // Support configuration path.
 pub fn default_app_support_path() !string {
 	$if macos {
-		return internal_os.app_support_dir('config.ghostty')
+		return internal_os.app_support_dir('config.witty')
 	} $else {
 		return error('Application Support is only available on macOS')
 	}
 }
 
-// legacy_default_app_support_path returns Ghostty's pre-1.3 macOS
+// legacy_default_app_support_path returns Witty's pre-1.3 macOS
 // Application Support configuration path.
 pub fn legacy_default_app_support_path() !string {
 	$if macos {
-		return internal_os.app_support_dir('config')
+		return internal_os.previous_app_support_dir('config')
+	} $else {
+		return error('Application Support is only available on macOS')
+	}
+}
+
+fn previous_default_app_support_path() !string {
+	$if macos {
+		return internal_os.previous_app_support_dir('config.ghostty')
 	} $else {
 		return error('Application Support is only available on macOS')
 	}
@@ -10354,10 +10377,11 @@ pub fn preferred_app_support_path() !string {
 		file.close()
 		return path
 	}
-	legacy := legacy_default_app_support_path()!
-	if mut file := open(legacy) {
-		file.close()
-		return legacy
+	for fallback in [previous_default_app_support_path()!, legacy_default_app_support_path()!] {
+		if mut file := open(fallback) {
+			file.close()
+			return fallback
+		}
 	}
 	return path
 }
@@ -10433,7 +10457,7 @@ pub fn open(path string) !os.File {
 // Ghostty config value-type parsers (translated from Config.zig)
 // ============================================================
 
-// ParseError enumerates the error cases used by Ghostty's `parseCLI`
+// ParseError enumerates the error cases used by Witty's `parseCLI`
 // functions. Each parser returns one of these (as an error value whose `code()`
 // is the enum value) on failure, so tests can assert on the specific error
 // kind, mirroring Zig's error set.
@@ -10515,7 +10539,7 @@ struct DurationUnit {
 	factor u64
 }
 
-// duration_units mirrors Ghostty's `Duration.units`. Order matters: the first
+// duration_units mirrors Witty's `Duration.units`. Order matters: the first
 // matching factor is the default unit used for formatting.
 const duration_units = [
 	DurationUnit{'y', u64(365) * 24 * 60 * 60 * 1_000_000_000},
@@ -10716,7 +10740,7 @@ fn parse_u32(s string) ?u32 {
 // ------------------------------------------------------------
 
 // RepeatableStringList is a string value that can be repeated to accumulate a
-// list of strings. Mirrors Ghostty's `RepeatableString`.
+// list of strings. Mirrors Witty's `RepeatableString`.
 pub struct RepeatableStringList {
 pub mut:
 	list           []string
@@ -11041,7 +11065,7 @@ pub fn background_blur_parse_cli(input ?string) !BackgroundBlur {
 	}
 }
 
-// parse_bool_opt parses Ghostty's accepted boolean spellings.
+// parse_bool_opt parses Witty's accepted boolean spellings.
 fn parse_bool_opt(v string) ?bool {
 	return match v {
 		'1', 't', 'T', 'true' { true }
@@ -11091,7 +11115,7 @@ pub fn WindowDecoration.parse_cli(input ?string) !WindowDecoration {
 // ThemePair (light/dark theme parsing)
 // ------------------------------------------------------------
 
-// ThemePair holds a light and dark theme name. Mirrors Ghostty's `Theme`
+// ThemePair holds a light and dark theme name. Mirrors Witty's `Theme`
 // struct (renamed to avoid colliding with the existing `Theme` enum).
 pub struct ThemePair {
 pub mut:

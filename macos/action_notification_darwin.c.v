@@ -24,8 +24,8 @@ fn C.witty_action_notification_dispatch(object voidptr, completion voidptr, call
 fn C.witty_action_notification_delivery_free(delivery &C.witty_action_notification_delivery)
 fn C.witty_action_sheet(alert voidptr, window voidptr, callback voidptr, context voidptr)
 
-const notification_category = 'com.mitchellh.ghostty.userNotification'
-const notification_show = 'com.mitchellh.ghostty.userNotification.Show'
+const notification_category = 'com.alexander.witty.userNotification'
+const notification_show = 'com.alexander.witty.userNotification.Show'
 
 @[heap]
 struct NativeNotificationJob {

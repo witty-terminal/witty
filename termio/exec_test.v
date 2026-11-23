@@ -122,7 +122,7 @@ fn test_subprocess_init_basic() {
 	if env := sub.env {
 		assert env['TERM'] == 'xterm-256color'
 		assert env['COLORTERM'] == 'truecolor'
-		assert env['TERM_PROGRAM'] == 'ghostty'
+		assert env['TERM_PROGRAM'] == 'witty'
 		assert env['TERM_PROGRAM_VERSION'] == build_meta.version_string
 	}
 }
@@ -144,7 +144,7 @@ fn test_add_executable_to_path_skips_flatpak_sandbox_binary() {
 	mut env := {
 		'PATH': ['/usr/bin', '/bin'].join(os.path_delimiter)
 	}
-	add_executable_to_path(mut env, '/app/bin/ghostty', true)
+	add_executable_to_path(mut env, '/app/bin/witty', true)
 	assert 'GHOSTTY_BIN_DIR' !in env
 	assert 'GHOSTTY_BIN_NAME' !in env
 	assert env['PATH'] == ['/usr/bin', '/bin'].join(os.path_delimiter)
@@ -152,7 +152,7 @@ fn test_add_executable_to_path_skips_flatpak_sandbox_binary() {
 
 fn test_subprocess_init_with_resources() {
 	sub := Subprocess.init(ExecConfig{
-		term:          'xterm-ghostty'
+		term:          'xterm-witty'
 		resources_dir: '/tmp/ghostty-resources'
 	}) or {
 		assert false, 'should succeed'
@@ -160,7 +160,7 @@ fn test_subprocess_init_with_resources() {
 	}
 
 	if env := sub.env {
-		assert env['TERM'] == 'xterm-ghostty'
+		assert env['TERM'] == 'xterm-witty'
 		assert env['GHOSTTY_RESOURCES_DIR'] == '/tmp/ghostty-resources'
 	}
 }

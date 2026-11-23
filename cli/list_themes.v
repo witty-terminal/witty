@@ -522,7 +522,7 @@ pub fn (mut self Preview) run() ! {
 	loop.start()!
 	defer { loop.deinit() }
 	tty.write(vx.enter_alt_screen())!
-	tty.write(vx.set_title('👻 Ghostty Theme Preview 👻'))!
+	tty.write(vx.set_title('👻 Witty Theme Preview 👻'))!
 	vx.query_terminal(mut tty, 1_000_000_000)!
 	tty.write(vx.set_mouse_mode(true))!
 	if vx.caps.color_scheme_updates {
@@ -615,7 +615,7 @@ fn resolve_auto_theme_path() !string {
 		return error('no default config path')
 	}
 	base_dir := os.dir(main_cfg_path)
-	return os.join_path(base_dir, 'auto', 'theme.ghostty')
+	return os.join_path(base_dir, 'auto', 'theme.witty')
 }
 
 // write_auto_theme_file writes a theme = <name> line to the auto theme config file.
@@ -674,16 +674,16 @@ pub fn should_include_theme(theme_filter ColorScheme, theme_config configpkg.Con
 // Two different directories will be searched for themes.
 //
 // The first directory is the `themes` subdirectory of your Ghostty
-// configuration directory. This is `$XDG_CONFIG_HOME/ghostty/themes` or
-// `~/.config/ghostty/themes`.
+// configuration directory. This is `$XDG_CONFIG_HOME/witty/themes` or
+// `~/.config/witty/themes`.
 //
 // The second directory is the `themes` subdirectory of the Ghostty resources
 // directory. Ghostty ships with a multitude of themes that will be installed
 // into this directory. On macOS, this directory is the
-// `Ghostty.app/Contents/Resources/ghostty/themes`. On Linux, this directory
-// is the `share/ghostty/themes` (wherever you installed the Ghostty "share"
+// `Witty.app/Contents/Resources/witty/themes`. On Linux, this directory
+// is the `share/witty/themes` (wherever you installed the Ghostty "share"
 // directory). If you're running Ghostty from the source, this is the
-// `zig-out/share/ghostty/themes` directory.
+// `zig-out/share/witty/themes` directory.
 //
 // You can also set the `GHOSTTY_RESOURCES_DIR` environment variable to point
 // to the resources directory.
@@ -701,7 +701,7 @@ pub fn run_list_themes(args []string) !int {
 
 	resources_dir := global_state.get_state().resources_dir.app()
 	if resources_dir == none {
-		eprintln('Could not find the Ghostty resources directory. Please ensure that Ghostty is installed correctly.')
+		eprintln('Could not find the Witty resources directory. Please ensure that Witty is installed correctly.')
 	}
 
 	mut count := 0

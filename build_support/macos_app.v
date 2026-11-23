@@ -16,7 +16,7 @@ pub fn (d Driver) write_macos_plist(output string) ! {
 	all_settings := json2.decode[map[string]map[string]string](
 		os.read_file(os.join_path(asset_root, 'project-plist-settings.json'))!)!
 	settings := all_settings[configuration].clone()
-	text := os.read_file(os.join_path(asset_root, 'Ghostty-Info.plist'))!
+	text := os.read_file(os.join_path(asset_root, 'Witty-Info.plist'))!
 	os.mkdir_all(os.dir(output))!
 	os.write_file(output, text.replace('\x24(INFOPLIST_KEY_CFBundleDisplayName)', settings['CFBundleDisplayName']))!
 	mut generated := settings.clone()
@@ -24,7 +24,7 @@ pub fn (d Driver) write_macos_plist(output string) ! {
 	generated['CFBundleShortVersionString'] = settings['MARKETING_VERSION']
 	generated['CFBundleVersion'] = settings['CURRENT_PROJECT_VERSION']
 	generated['CFBundleExecutable'] = settings['EXECUTABLE_NAME']
-	generated['CFBundleName'] = 'Ghostty'
+	generated['CFBundleName'] = 'Witty'
 	generated['CFBundlePackageType'] = 'APPL'
 	generated['CFBundleInfoDictionaryVersion'] = '6.0'
 	generated['LSMinimumSystemVersion'] = '13.0'
@@ -55,7 +55,7 @@ fn (d Driver) build_macos_app_with_framework(native_only bool, framework_ready b
 	// are emitted separately by the installation graph.
 	d.install_text('share/man/.placeholder', 'emit-docs not true so no man pages')!
 	configuration := d.macos_configuration()
-	app := os.join_path(d.cfg.root, 'macos', 'build', configuration, 'Ghostty.app')
+	app := os.join_path(d.cfg.root, 'macos', 'build', configuration, 'Witty.app')
 	contents := os.join_path(app, 'Contents')
 	if os.exists(app) { os.rmdir_all(app)! }
 	for directory in ['MacOS', 'Resources', 'Frameworks'] { os.mkdir_all(os.join_path(contents, directory))! }
@@ -65,12 +65,12 @@ fn (d Driver) build_macos_app_with_framework(native_only bool, framework_ready b
 		selected := Driver{cfg: d.cfg.retarget(Target{arch: architecture, os: 'macos', minimum: '13.0'})}
 		deps := selected.build_native_dependencies(false)!
 		executable := selected.build_executable(deps)!
-		copy := d.cache_path('macos', architecture, 'ghostty')
+		copy := d.cache_path('macos', architecture, 'witty')
 		os.mkdir_all(os.dir(copy))!
 		os.cp(executable, copy)!
 		executable_slices << copy
 	}
-	binary := os.join_path(contents, 'MacOS', 'ghostty')
+	binary := os.join_path(contents, 'MacOS', 'witty')
 	if executable_slices.len == 1 { os.cp(executable_slices[0], binary)! }
 	else {
 		mut command := ['lipo', '-create']
@@ -85,19 +85,21 @@ fn (d Driver) build_macos_app_with_framework(native_only bool, framework_ready b
 	if path := os.getenv_opt('PATH') { environment['PATH'] = path }
 	// Preserve Xcodebuild's empty external environment (PATH alone survives).
 	checked_process_env(d.cfg.root, ['xcrun', 'actool', '--compile', os.join_path(contents, 'Resources'),
-		'--platform', 'macosx', '--minimum-deployment-target', '13.0', '--app-icon', 'Ghostty',
+		'--platform', 'macosx', '--minimum-deployment-target', '13.0',
 		'--accent-color', 'AccentColor', '--output-partial-info-plist', d.cache_path('macos', 'assets.plist'),
-		os.join_path(asset_root, 'Assets.xcassets'), os.join_path(asset_root, 'Ghostty.icon')], environment, true)!
+		os.join_path(asset_root, 'Assets.xcassets')], environment, true)!
 	asset_plist := d.cache_path('macos', 'assets.plist')
 	checked_process(d.cfg.root, ['/usr/libexec/PlistBuddy', '-c', 'Merge ' + asset_plist, info])!
-	for resource in ['bat', 'fish', 'ghostty', 'locale', 'man', 'nvim', 'terminfo', 'vim', 'zsh', 'bash-completion'] {
+	os.cp(os.join_path(d.cfg.root, 'Witty.app', 'Contents', 'Resources', 'Witty.icns'),
+		os.join_path(contents, 'Resources', 'Witty.icns'))!
+	for resource in ['bat', 'fish', 'witty', 'locale', 'man', 'nvim', 'terminfo', 'vim', 'zsh', 'bash-completion'] {
 		path := os.join_path(d.cfg.prefix, 'share', resource)
 		if os.exists(path) { checked_process(d.cfg.root, ['cp', '-R', path, os.join_path(contents, 'Resources')])! }
 	}
 	sparkle := d.build_sparkle()!
 	checked_process(d.cfg.root, ['cp', '-R', sparkle, os.join_path(contents, 'Frameworks')])!
 	checked_process(d.cfg.root, ['codesign', '--force', '--deep', '--sign', '-', '--options', 'runtime',
-		'--entitlements', os.join_path(asset_root, 'Ghostty${configuration}.entitlements'), app])!
+		'--entitlements', os.join_path(asset_root, 'Witty${configuration}.entitlements'), app])!
 	checked_process(d.cfg.root, ['dsymutil', binary, '-o', app + '.dSYM'])!
 	return app
 }
@@ -106,7 +108,7 @@ pub fn (d Driver) run_macos_app() ! {
 	app := d.build_macos_app(true)!
 	checked_process(d.cfg.root, ['/usr/libexec/PlistBuddy', '-c', 'Add :NSQuitAlwaysKeepsWindows bool false',
 		os.join_path(app, 'Contents', 'Info.plist')])!
-	mut args := [os.join_path(app, 'Contents', 'MacOS', 'ghostty')]
+	mut args := [os.join_path(app, 'Contents', 'MacOS', 'witty')]
 	args << d.cfg.run_args
 	run_foreground(d.cfg.root, args, {'GHOSTTY_LOG': 'stderr,macos', 'GHOSTTY_MAC_LAUNCH_SOURCE': 'zig_run'})!
 }

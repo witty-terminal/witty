@@ -28,8 +28,8 @@ pub fn run_help(args []string) !int {
 pub fn help_output() string {
 	command := buildcfg.cli_command
 	mut output := 'Usage: ${command} [+action] [options]\n\n'
-	output += 'Run the Ghostty terminal emulator or a specific helper action.\n\n'
-	output += 'If no `+action` is specified, run the Ghostty terminal emulator.\n'
+	output += 'Run the Witty terminal emulator or a specific helper action.\n\n'
+	output += 'If no `+action` is specified, run the Witty terminal emulator.\n'
 	output += 'All configuration keys are available as command line options.\n'
 	output += 'To specify a configuration key, use the `--<key>=<value>` syntax\n'
 	output += "where key and value are the same format you'd put into a configuration\n"
@@ -41,8 +41,8 @@ pub fn help_output() string {
 	output += 'the specific command inside the terminal emulator. For example,\n'
 	output += '`${command} -e top` will run the `top` command inside the terminal.\n\n'
 	output += 'On macOS, launching the terminal emulator from the CLI is not\n'
-	output += 'supported and only actions are supported. Use `open -na Ghostty.app`\n'
-	output += 'instead, or `open -na ghostty.app --args --foo=bar --baz=quz` to pass\n'
+	output += 'supported and only actions are supported. Use `open -na Witty.app`\n'
+	output += 'instead, or `open -na Witty.app --args --foo=bar --baz=quz` to pass\n'
 	output += 'arguments.\n\n'
 	output += 'Available actions:\n\n'
 	for action in global_state.actions() {

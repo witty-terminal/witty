@@ -226,10 +226,10 @@ fn command_palette_native_instance_init(obj voidptr, _ voidptr) {
 		voidptr(command_palette_row_activated_cb))
 	C.gtk_builder_set_scope(builder, scope)
 	object_unref(GObject(scope))
-	C.gtk_builder_set_translation_domain(builder, c'com.mitchellh.ghostty')
+	C.gtk_builder_set_translation_domain(builder, c'com.alexander.witty')
 	mut failure := voidptr(unsafe { nil })
 	if C.gtk_builder_add_from_resource(builder,
-		c'/com/mitchellh/ghostty/ui/1.5/command-palette.ui', &failure) == 0 {
+		c'/com/alexander/witty/ui/1.5/command-palette.ui', &failure) == 0 {
 		message := error_message(GError(failure)).clone()
 		if !isnil(failure) { C.g_error_free(failure) }
 		object_unref(GObject(builder))

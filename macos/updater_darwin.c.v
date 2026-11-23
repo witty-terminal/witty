@@ -259,6 +259,7 @@ fn register_update_driver() ObjId {
 pub fn start_native_updater(cfg NativeUpdateConfig) ! {
 	if g_update_controller != unsafe { nil } { sync_native_updater_config(cfg); return }
 	host := msg_id(get_class('NSBundle'), 'mainBundle')
+	if is_nil(update_feed_url(nil_obj(), sel(''), nil_obj())) { return }
 	if is_nil(get_class('SPUUpdater')) {
 		frameworks := objc_utf8_string(msg_id(host, 'privateFrameworksPath'))
 		mut path := os.join_path(frameworks, 'Sparkle.framework')
@@ -310,17 +311,17 @@ fn update_show_checking(_self ObjId, _cmd Sel, cancellation ObjId) {
 }
 fn update_release_notes(version string, current_commit string) (string, string) {
 	semver := C.witty_update_regex(nsstring(version), nsstring(r'^\d+\.\d+\.\d+$'))
-	if !is_nil(semver) { return 'https://ghostty.org/docs/install/release-notes/${version.replace('.', '-')}', 'View Release Notes' }
+	if !is_nil(semver) { return 'https://github.com/witty-terminal/witty/releases/tag/v${version}', 'View Release Notes' }
 	hash := C.witty_update_regex(nsstring(version), nsstring('[0-9a-f]{7,40}'))
 	if is_nil(hash) { return '', '' }
 	new_hash := objc_utf8_string(hash)
-	if current_commit.len > 0 { return 'https://github.com/ghostty-org/ghostty/compare/${current_commit}...${new_hash}', 'Changes Since This Tip Release' }
-	return 'https://github.com/ghostty-org/ghostty/commit/${new_hash}', 'View GitHub Commit'
+	if current_commit.len > 0 { return 'https://github.com/witty-terminal/witty/compare/${current_commit}...${new_hash}', 'Changes Since This Tip Release' }
+	return 'https://github.com/witty-terminal/witty/commit/${new_hash}', 'View GitHub Commit'
 }
 fn update_show_found(_self ObjId, _cmd Sel, item ObjId, state ObjId, reply ObjId) {
 	version := objc_utf8_string(msg_id(item, 'displayVersionString'))
 	info := msg_id(msg_id(get_class('NSBundle'), 'mainBundle'), 'infoDictionary')
-	commit := objc_utf8_string(msg_id1(info, 'objectForKey:', nsstring('GhosttyCommit')))
+	commit := objc_utf8_string(msg_id1(info, 'objectForKey:', nsstring('WittyCommit')))
 	url, label := update_release_notes(version, commit)
 	g_update_controller.set_state(UpdateState{kind: .update_available, version: version, object: voidptr(item),
 		release_notes_url: url, release_notes_label: label, reply: UpdateCallback{call: update_native_choice, context: voidptr(reply)}})
@@ -384,7 +385,8 @@ fn update_dismiss_installation(_self ObjId, _cmd Sel) {
 	msg_void(g_update_controller.standard, 'dismissUpdateInstallation')
 }
 fn update_feed_url(_self ObjId, _cmd Sel, _updater ObjId) ObjId {
-	return nsstring(if g_update_controller.channel == 'tip' { 'https://tip.files.ghostty.org/appcast.xml' } else { 'https://release.files.ghostty.org/appcast.xml' })
+	host := msg_id(get_class('NSBundle'), 'mainBundle')
+	return msg_id1(host, 'objectForInfoDictionaryKey:', nsstring('SUFeedURL'))
 }
 fn update_install_on_quit(_self ObjId, _cmd Sel, _updater ObjId, _item ObjId, immediate ObjId) bool {
 	g_update_controller.set_state(UpdateState{kind: .installing, auto_update: true,
@@ -591,7 +593,7 @@ fn (mut controller NativeUpdateController) build_popover() {
 	msg_void(label, 'release')
 	mut description := if state.kind == .error { state.error_description } else { state.description() }
 	if state.kind in [.checking, .downloading, .extracting] { description = '' }
-	if state.kind == .permission_request { description = 'Ghostty can automatically check for updates in the background.' }
+	if state.kind == .permission_request { description = 'Witty can automatically check for updates in the background.' }
 	if state.kind == .installing { description = 'The update is ready. Please restart the application to complete the installation.' }
 	if state.kind == .update_available {
 		description = 'Version: ${state.version}'

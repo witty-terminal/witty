@@ -83,7 +83,7 @@ const clipboard_confirmation_dialog_ui = '<?xml version="1.0" encoding="UTF-8"?>
     <signal name="notify::blur" handler="notify_blur"/>
     <signal name="notify::request" handler="notify_request"/>
     <property name="heading" translatable="yes">Authorize Clipboard Access</property>
-    <property name="body">If you see this text, there is a bug in Ghostty. Please report it.</property>
+    <property name="body">If you see this text, there is a bug in Witty. Please report it.</property>
     <responses>
       <response id="cancel" translatable="yes" appearance="suggested">Deny</response>
       <response id="ok" translatable="yes" appearance="destructive">Allow</response>

@@ -319,7 +319,7 @@ pub fn (mut self GlobalState) init_args(args []string) ! {
 
 	// Output the source's startup metadata after logging and backend selection
 	// are initialized, but before any subsystem initialization can fail.
-	log.info('ghostty version=${build_meta.version_string}')
+	log.info('witty version=${build_meta.version_string}')
 	optimize := buildcfg.mode_string
 	runtime := $if app_runtime_none ? { 'none' } $else $if app_runtime_gtk ? { 'gtk' } $else $if linux || freebsd { 'gtk' } $else { 'none' }
 	renderer_backend := $if renderer_opengl ? { 'opengl' } $else $if renderer_metal ? { 'metal' } $else $if renderer_webgl ? { 'webgl' } $else $if macos || ios {
@@ -329,7 +329,7 @@ pub fn (mut self GlobalState) init_args(args []string) ! {
 	} $else {
 		'opengl'
 	}
-	log.info('ghostty build optimize=${optimize}')
+	log.info('witty build optimize=${optimize}')
 	log.info('runtime=${runtime}')
 	font_backend := font.Backend.selected_()
 	log.info('font_backend=${font_backend}')

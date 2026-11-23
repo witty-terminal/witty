@@ -92,11 +92,11 @@ fn test_theme_list_element_sorting() {
 // Test ThemeListElement to_uri
 fn test_theme_list_element_to_uri() {
 	theme := ThemeListElement{
-		path:  '/home/user/.config/ghostty/themes/Dracula'
+		path:  '/home/user/.config/witty/themes/Dracula'
 		theme: 'Dracula'
 	}
 	uri := theme.to_uri()
-	assert uri == 'file:///home/user/.config/ghostty/themes/Dracula'
+	assert uri == 'file:///home/user/.config/witty/themes/Dracula'
 	spaced := ThemeListElement{
 		path: '/home/user/My Themes/Dracula'
 	}.to_uri()

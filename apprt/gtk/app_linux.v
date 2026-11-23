@@ -24,16 +24,16 @@ pub const must_draw_from_app_thread = true
 // Ghostty selects between a "-debug" and release ID based on the build mode.
 // We mirror that using V's `-prod` compile flag.
 pub const application_id = $if prod {
-	'com.mitchellh.ghostty'
+	'com.alexander.witty'
 } $else {
-	'com.mitchellh.ghostty-debug'
+	'com.alexander.witty-debug'
 }
 
 // object_path is the GTK object path, likewise selected by build mode.
 pub const object_path = $if prod {
-	'/com/mitchellh/ghostty'
+	'/com/alexander/witty'
 } $else {
-	'/com/mitchellh/ghostty_debug'
+	'/com/alexander/witty_debug'
 }
 
 // The GObject `Application` class is the canonical entrypoint that wraps a

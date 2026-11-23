@@ -5,9 +5,9 @@ module terminfo
 fn test_xtgettcap_map() {
 	src := Source{
 		names: [
-			'ghostty',
-			'xterm-ghostty',
-			'Ghostty',
+			'witty',
+			'xterm-witty',
+			'Witty',
 		]
 		capabilities: [
 			Capability{ name: 'am', value: CapabilityValueBoolean{} },
@@ -30,9 +30,9 @@ fn test_xtgettcap_map() {
 fn test_encode() {
 	src := Source{
 		names: [
-			'ghostty',
-			'xterm-ghostty',
-			'Ghostty',
+			'witty',
+			'xterm-witty',
+			'Witty',
 		]
 		capabilities: [
 			Capability{ name: 'am', value: CapabilityValueBoolean{} },
@@ -42,30 +42,30 @@ fn test_encode() {
 		]
 	}
 
-	expected := 'ghostty|xterm-ghostty|Ghostty,\n' + '\tam,\n' + '\tccc@,\n' +
+	expected := 'witty|xterm-witty|Witty,\n' + '\tam,\n' + '\tccc@,\n' +
 		'\tcolors#256,\n' + '\tbel=^G,\n'
 	assert src.encode() == expected
 }
 
-// The translated entry must keep the source's names, ordering and size.
-fn test_ghostty_terminfo_entry_matches_source() {
+// The Witty entry renames the terminal while retaining the source capabilities.
+fn test_witty_terminfo_entry() {
 	assert sizeof(CapabilityValueTag) == 1
 	assert u8(CapabilityValueTag.canceled) == 0
 	assert u8(CapabilityValueTag.boolean) == 1
 	assert u8(CapabilityValueTag.numeric) == 2
 	assert u8(CapabilityValueTag.string) == 3
-	assert ghostty.names == ['xterm-ghostty', 'ghostty', 'Ghostty']
-	assert ghostty.capabilities.len == 268
+	assert witty.names == ['xterm-witty', 'witty', 'Witty']
+	assert witty.capabilities.len == 268
 
 	// Spot-check one of each value kind, in source order.
-	assert ghostty.capabilities[0].name == 'am'
-	assert ghostty.capabilities[0].value is CapabilityValueBoolean
-	assert ghostty.capabilities[0].value.tag() == .boolean
+	assert witty.capabilities[0].name == 'am'
+	assert witty.capabilities[0].value.tag() == .boolean
+	assert witty.capabilities[0].value is CapabilityValueBoolean
 
 	mut numeric_count := 0
 	mut string_count := 0
 	mut boolean_count := 0
-	for cap in ghostty.capabilities {
+	for cap in witty.capabilities {
 		match cap.value {
 			CapabilityValueNumeric { numeric_count++ }
 			CapabilityValueString { string_count++ }
@@ -78,7 +78,7 @@ fn test_ghostty_terminfo_entry_matches_source() {
 	assert string_count == 248
 
 	// The encoded entry starts with the name line and the first capability.
-	encoded := ghostty.encode()
-	assert encoded.starts_with('xterm-ghostty|ghostty|Ghostty,\n\tam,\n')
+	encoded := witty.encode()
+	assert encoded.starts_with('xterm-witty|witty|Witty,\n\tam,\n')
 	assert encoded.ends_with(',\n')
 }

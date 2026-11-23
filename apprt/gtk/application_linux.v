@@ -27,7 +27,7 @@ import xev
 //     private storage points at `Application`.
 //   * Its startup/activate/dispose/finalize virtual methods and read-only
 //     `config` object property are installed on the native class.
-//   * The core `App` (libghostty `CoreApp`) is `core.App`, held directly.
+//   * The core `App` (libwitty `CoreApp`) is `core.App`, held directly.
 //     Method SIGNATURES are kept faithful; the pure logic (config env setup,
 //     single-instance/app-id resolution, action map, quit timer, quit flow) is
 //     translated directly.
@@ -384,7 +384,7 @@ mut:
 	// The apprt App. Mirrors `Private.rt_app`.
 	rt_app &App = unsafe { nil }
 
-	// The libghostty App instance. Mirrors `Private.core_app`.
+	// The libwitty App instance. Mirrors `Private.core_app`.
 	core_app &core.App = unsafe { nil }
 
 	// The core configuration retained by the translated runtime bridge.
@@ -571,7 +571,7 @@ pub fn Application.new(rt_app &App, core_app &core.App) !&Application {
 		winproto:         winproto
 		css_provider:     css_provider
 	}
-	obj := C.g_object_new(ghostty_application_get_type(), c'application-id', &char(app_id.str), c'flags', GApplicationFlags(app_flags), c'resource-base-path', c'/com/mitchellh/ghostty', &char(unsafe { nil }))
+	obj := C.g_object_new(ghostty_application_get_type(), c'application-id', &char(app_id.str), c'flags', GApplicationFlags(app_flags), c'resource-base-path', c'/com/alexander/witty', &char(unsafe { nil }))
 	if isnil(obj) {
 		self.deinit()
 		return error('failed to create AdwApplication')
@@ -686,7 +686,7 @@ pub fn (mut self Application) unref() {
 // --- Run loop -------------------------------------------------------------
 
 // run runs the application. This replaces `gio.Application.run` so we can
-// tightly integrate the event loop with libghostty. Mirrors `Application.run`.
+// tightly integrate the event loop with libwitty. Mirrors `Application.run`.
 pub fn (mut self Application) run() ! {
 	// Acquire the default main context for the application.
 	ctx := C.g_main_context_default()
@@ -1036,7 +1036,7 @@ fn application_runtime_css(config &configpkg.Config, gtk_416 bool) string {
 		css += '.surface .bell-overlay {\n  border-color: color-mix(\n    in srgb,\n    var(--accent-color),\n    transparent 50%\n  );\n}\n\n'
 		css += '/*\n * Splits\n */\n\n'
 		css += '.window .split paned > separator {\n  background-color: color-mix(\n    in srgb,\n    var(--window-bg-color),\n    transparent 0%\n  );\n}\n\n'
-		if config.window_theme == .ghostty {
+		if config.window_theme == .witty {
 			css += ':root {\n'
 			css += '  --ghostty-fg: rgb(${foreground.r},${foreground.g},${foreground.b});\n'
 			css += '  --ghostty-bg: rgb(${background.r},${background.g},${background.b});\n'
@@ -1048,7 +1048,7 @@ fn application_runtime_css(config &configpkg.Config, gtk_416 bool) string {
 			css += 'windowhandle {\n  background-color: var(--headerbar-bg-color);\n  color: var(--headerbar-fg-color);\n}\n'
 			css += 'windowhandle:backdrop {\n background-color: var(--headerbar-backdrop-color);\n}\n'
 		}
-	} else if config.window_theme == .ghostty {
+	} else if config.window_theme == .witty {
 		css += 'windowhandle {\n  background-color: rgb(${background.r},${background.g},${background.b});\n'
 		css += '  color: rgb(${foreground.r},${foreground.g},${foreground.b});\n}\n'
 		css += 'windowhandle:backdrop {\n background-color: oklab(from rgb(${background.r},${background.g},${background.b}) calc(l * 0.9) a b / alpha);\n}\n'
@@ -1317,7 +1317,7 @@ fn (mut self Application) startup_style_manager() {
 
 	// Compute the initial color scheme from the window theme config.
 	scheme := match self.config.window_theme {
-		.auto, .ghostty {
+		.auto, .witty {
 			// Choose light/dark from the perceived luminance of the background.
 			if perceived_luminance(self.config.background) > 0.5 {
 				AdwColorScheme.prefer_light
@@ -2293,7 +2293,7 @@ fn (self &Application) send_desktop_notification(title string, body string) {
 	if isnil(self.obj) {
 		return
 	}
-	actual_title := if title.len == 0 { 'Ghostty' } else { title }
+	actual_title := if title.len == 0 { 'Witty' } else { title }
 	notification := C.g_notification_new(&char(actual_title.str))
 	if isnil(notification) {
 		return
@@ -2302,7 +2302,7 @@ fn (self &Application) send_desktop_notification(title string, body string) {
 		object_unref(GObject(notification))
 	}
 	C.g_notification_set_body(notification, &char(body.str))
-	icon := C.g_themed_icon_new(c'com.mitchellh.ghostty')
+	icon := C.g_themed_icon_new(c'com.alexander.witty')
 	if !isnil(icon) {
 		C.g_notification_set_icon(notification, icon)
 		object_unref(GObject(icon))

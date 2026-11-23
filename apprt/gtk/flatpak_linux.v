@@ -33,7 +33,7 @@ pub fn resources_dir() internal_os.ResourcesDir {
 	if buildcfg.flatpak && internal_os.is_flatpak() {
 		// Inside the sandbox the app resources live at a fixed path.
 		mut result := internal_os.ResourcesDir{
-			app_path: '/app/share/ghostty'
+			app_path: '/app/share/witty'
 		}
 
 		key_file := C.g_key_file_new()
@@ -55,7 +55,7 @@ pub fn resources_dir() internal_os.ResourcesDir {
 		app_dir := unsafe { cstring_to_vstring(app_dir_c) }
 		g_free_mem(app_dir_c)
 
-		result.host_path = '${app_dir}/share/ghostty'
+		result.host_path = '${app_dir}/share/witty'
 		return result
 	}
 

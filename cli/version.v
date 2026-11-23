@@ -20,9 +20,9 @@ pub fn run_version() !int {
 fn version_output(tty bool) string {
 	mut header := ''
 	if tty && build_meta.commit_hash.len > 0 {
-		header += '\x1b]8;;https://github.com/ghostty-org/ghostty/commit/${build_meta.commit_hash}\x1b\\'
+		header += '\x1b]8;;https://github.com/witty-terminal/witty/commit/${build_meta.commit_hash}\x1b\\'
 	}
-	header += 'Ghostty ${build_meta.version_string}\n\n'
+	header += 'Witty ${build_meta.version_string}\n\n'
 	if tty && build_meta.commit_hash.len > 0 {
 		header += '\x1b]8;;\x1b\\'
 	}

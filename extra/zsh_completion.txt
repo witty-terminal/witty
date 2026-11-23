@@ -1,13 +1,13 @@
-#compdef ghostty
+#compdef witty
 
 _fonts () {
-  local font_list=$(ghostty +list-fonts | grep -Z '^[A-Z]')
+  local font_list=$(witty +list-fonts | grep -Z '^[A-Z]')
   local fonts=(${(f)font_list})
   _describe -t fonts 'fonts' fonts
 }
 
 _themes() {
-  local theme_list=$(ghostty +list-themes | sed -E 's/^(.*) \(.*$/\1/')
+  local theme_list=$(witty +list-themes | sed -E 's/^(.*) \(.*$/\1/')
   local themes=(${(f)theme_list})
   _describe -t themes 'themes' themes
 }
@@ -122,7 +122,7 @@ _config() {
     "--window-decoration=-:::(auto client server none)" \
     "--window-title-font-family=-:::( )" \
     "--window-subtitle=-:::(false working-directory)" \
-    "--window-theme=-:::(auto system light dark ghostty)" \
+    "--window-theme=-:::(auto system light dark witty)" \
     "--window-colorspace=-:::(srgb display-p3)" \
     "--window-height=-:::( )" \
     "--window-width=-:::( )" \
@@ -215,7 +215,7 @@ _config() {
 
 }
 
-_ghostty() {
+_witty() {
   typeset -A opt_args
   local context state line
   local opt=('-e' '--help' '--version')
@@ -329,4 +329,4 @@ _ghostty() {
   esac
 }
 
-_ghostty "$@"
+_witty "$@"

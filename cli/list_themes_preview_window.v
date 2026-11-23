@@ -389,14 +389,14 @@ pub fn (mut self Preview) draw_preview_window(win vaxis.Window, x_off int) ! {
 	self.put_window_preview_segment(pane, x_off, next_row + 21, x_off + 2, right, height,
 		'───────┴${'─'.repeat(max_int(width - 10, 0))}', color238)
 	self.put_window_preview_segments(pane, x_off, next_row + 22, x_off + 2, right, sample_bottom, [
-		PreviewSegment{ text: 'ghostty ', style: color6 },
+		PreviewSegment{ text: 'witty ', style: color6 },
 		PreviewSegment{ text: 'on ', style: standard },
 		PreviewSegment{ text: ' main ', style: color4 },
 		PreviewSegment{ text: '[+] ', style: color1 },
 		PreviewSegment{ text: 'via ', style: standard },
 		PreviewSegment{ text: ' v0.13.0 ', style: color3 },
 		PreviewSegment{ text: 'via ', style: standard },
-		PreviewSegment{ text: '  impure (ghostty-env)', style: color4 },
+		PreviewSegment{ text: '  impure (witty-env)', style: color4 },
 	])
 	self.put_window_preview_segments(pane, x_off, next_row + 23, x_off + 2, right, sample_bottom, [
 		PreviewSegment{ text: '✦ ', style: color4 },

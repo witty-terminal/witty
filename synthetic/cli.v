@@ -6,7 +6,7 @@ import os
 import rand
 import time
 
-// Action is the set of generators exposed by ghostty-gen.
+// Action is the set of generators exposed by witty-gen.
 pub enum Action as u8 {
 	ascii
 	osc
@@ -62,7 +62,7 @@ fn check_ascii_alphabet(byte u8) bool {
 // ascii is every printable ASCII byte except space, matching Ascii.zig.
 pub const ascii = generate_alphabet(check_ascii_alphabet)
 
-// main is the ghostty-gen process entry point.
+// main is the witty-gen process entry point.
 pub fn main() ! {
 	detected := detect_action(os.args)!
 	action := detected.action or { return error('NoAction') }

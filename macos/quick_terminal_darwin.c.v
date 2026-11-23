@@ -247,7 +247,7 @@ pub fn quick_terminal(config NativeQuickConfig, create QuickTerminalCreateCallba
 	view := create_terminal_view(objc_rect(0, 0, 800, 400))
 	msg_void1(window, 'setContentView:', view)
 	msg_void_bool(window, 'setRestorable:', false)
-	msg_void1(window, 'setIdentifier:', nsstring('com.mitchellh.ghostty.quickTerminal'))
+	msg_void1(window, 'setIdentifier:', nsstring('com.alexander.witty.quickTerminal'))
 	msg_void1(window, 'setAccessibilitySubrole:', nsstring('AXFloatingWindow'))
 	msg_void_bool(window, 'setReleasedWhenClosed:', false)
 	msg_void_u64(window, 'setCollectionBehavior:', u64(1 << 6) | u64(1 << 8) | if config.remain_on_space { u64(1 << 1) } else { u64(1) })

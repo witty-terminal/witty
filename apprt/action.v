@@ -23,7 +23,7 @@ pub:
 }
 
 // ActionKey identifies the type of action. The order matters because it maps
-// directly to the libghostty C enum. For ABI compatibility, new actions should
+// directly to the libwitty C enum. For ABI compatibility, new actions should
 // be added to the end.
 // Sync with: ghostty_action_tag_e
 pub enum ActionKey as i32 {
@@ -450,7 +450,7 @@ pub enum ColorKind as i32 {
 pub struct ReloadConfig {
 pub:
 	// A soft reload means that the configuration doesn't need to be
-	// read off disk, but libghostty needs the full config again so call
+	// read off disk, but libwitty needs the full config again so call
 	// updateConfig with it.
 	soft bool
 }
@@ -476,7 +476,7 @@ pub:
 pub type OpenUrlKind = openurl.Kind
 
 // CloseTabMode controls which tab(s) to close.
-// Sync with ghostty_action_close_tab_mode_e in ghostty.h
+// Sync with ghostty_action_close_tab_mode_e in witty.h
 pub enum CloseTabMode as i32 {
 	// Close the current tab.
 	this

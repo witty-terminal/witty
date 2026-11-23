@@ -664,7 +664,7 @@ fn action_key_info(self ObjId, _cmd Sel, _sender ObjId) {
 fn action_secure_info(self ObjId, _cmd Sel, _sender ObjId) {
 	if mut state := action_owner_state(self) {
 		state.show_popover(state.secure_badge, 'Secure Input',
-			'Secure Input is active. Secure Input is a macOS security feature that prevents applications from reading keyboard events. This is enabled automatically whenever Ghostty detects a password prompt in the terminal, or at all times if `Ghostty > Secure Keyboard Entry` is active.',
+			'Secure Input is active. Secure Input is a macOS security feature that prevents applications from reading keyboard events. This is enabled automatically whenever Witty detects a password prompt in the terminal, or at all times if `Witty > Secure Keyboard Entry` is active.',
 			false)
 	}
 }

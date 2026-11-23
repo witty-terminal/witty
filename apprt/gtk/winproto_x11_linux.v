@@ -188,7 +188,7 @@ fn X11App.init(gdk_display GdkDisplay, app_id string, config &configpkg.Config) 
 	xlib_display := C.gdk_x11_display_get_xdisplay(gdk_display)
 
 	// Select the program name used to derive the WM_CLASS instance name.
-	default_program_name := $if prod { 'ghostty' } $else { 'ghostty-debug' }
+	default_program_name := $if prod { 'witty' } $else { 'witty-debug' }
 	x11_program_name := config.x11_instance_name or { default_program_name }
 
 	// Set the X11 window class property (WM_CLASS). g_set_prgname supplies

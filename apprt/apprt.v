@@ -25,7 +25,7 @@ import log
 //   runtime.v  - Runtime enum
 //   none.v     - "none" runtime stubs
 //   browser.v  - Browser (WASM) runtime stubs
-//   embedded.v - Embedded runtime (macOS / libghostty)
+//   embedded.v - Embedded runtime (macOS / libwitty)
 
 pub type RuntimeAppActionFn = fn (voidptr, RuntimeAction) !bool
 
@@ -947,7 +947,7 @@ pub fn (s SurfaceSizeInfo) grid() GridSizeInfo {
 }
 
 // CoreSurfaceSnapshot is the small set of core state exposed directly by the
-// libghostty ABI. The opaque bridge refreshes this after mutating operations.
+// libwitty ABI. The opaque bridge refreshes this after mutating operations.
 pub struct CoreSurfaceSnapshot {
 pub:
 	child_exited bool

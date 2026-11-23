@@ -1,9 +1,9 @@
 module cli
 
 fn test_new_window_options_parse_class_and_command() {
-	opts := parse_new_window_options(['--font-size=14', '--class=com.example.Ghostty', '-e', 'bash',
+	opts := parse_new_window_options(['--font-size=14', '--class=com.example.Witty', '-e', 'bash',
 		'-c', 'echo hello'])!
-	assert opts.class or { '' } == 'com.example.Ghostty'
+	assert opts.class or { '' } == 'com.example.Witty'
 	assert opts.arguments or { []string{} } == ['bash', '-c', 'echo hello']
 }
 

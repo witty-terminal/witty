@@ -8,7 +8,7 @@ OS returns a result whose output is absent; tool failures return an error.
 
 The production Metal build must call this helper before compiling the renderer,
 then pass `-d compiled_metallib`. The output is
-`.witty-build/native/ghostty.metallib` (with intermediate `ghostty.ir`).
+`.witty-build/native/witty.metallib` (with intermediate `witty.ir`).
 The renderer embeds that data and calls `newLibraryWithData:error:` through
 libdispatch data. Direct compiler invocations without the prerequisite return
 `MetalShaderLibraryNotBuilt` when loading the built-in library.

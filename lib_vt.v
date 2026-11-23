@@ -1,6 +1,6 @@
 // Translated from Ghostty's lib_vt.zig
 //
-// This is the public API of the ghostty-vt module.
+// This is the public API of the witty-vt module.
 //
 // WARNING: The API is not guaranteed to be stable.
 //

@@ -132,7 +132,7 @@ fn create_scope(dbus GDBusConnection, pid_ int) ! {
 	pid := u32(pid_)
 
 	// The unit name needs to be unique; use the pid.
-	name := 'app-ghostty-transient-${pid}.scope'
+	name := 'app-witty-transient-${pid}.scope'
 
 	builder_type := C.g_variant_type_new(c'(ssa(sv)a(sa(sv)))')
 	defer {

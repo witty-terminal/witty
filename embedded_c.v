@@ -1,6 +1,6 @@
 // C ABI adapters for Ghostty's embedded application and surface runtime.
 // The internal apprt types remain idiomatic V; the structs in this file mirror
-// include/ghostty.h at the pinned source revision byte-for-byte.
+// include/witty.h at the pinned source revision byte-for-byte.
 
 module main
 

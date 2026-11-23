@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
-#include <ghostty/vt.h>
+#include <witty/vt.h>
 
 int main() {
   // Test safe paste data

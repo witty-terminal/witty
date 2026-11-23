@@ -1,7 +1,7 @@
 // Native C ABI exported by Ghostty's lib_vt.zig.
 //
 // These wrappers deliberately keep opaque handles as void pointers at the V
-// boundary. Their exported signatures match the public ghostty/vt headers;
+// boundary. Their exported signatures match the public witty/vt headers;
 // all behavior delegates to the translated terminal_c implementation.
 
 module main

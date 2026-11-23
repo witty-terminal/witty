@@ -1108,7 +1108,7 @@ fn test_child_exited_abnormal_terminal_fallback() {
 	surf.child_exited_handler(apprt.ChildExited{ runtime_ms: 100, exit_code: 127 })
 	mut terminal_state := surf.renderer_state.terminal_
 	text := terminal_state.plain_string() or { panic(err) }
-	assert text.contains('Ghostty failed to launch the requested command:')
+	assert text.contains('Witty failed to launch the requested command:')
 	assert text.contains('missing-command --flag')
 	assert text.contains('Runtime: 100 ms')
 	$if !macos {
@@ -1138,7 +1138,7 @@ fn test_child_exited_retains_u64_runtime() ! {
 	mut terminal_state := surf.renderer_state.terminal_
 	text := terminal_state.plain_string() or { panic(err) }
 	assert text.contains('Process exited. Press any key to close the terminal.')
-	assert !text.contains('Ghostty failed to launch the requested command:')
+	assert !text.contains('Witty failed to launch the requested command:')
 	assert !terminal_state.modes.get(.cursor_visible)
 	assert !surface_runtime.closed
 }

@@ -11,7 +11,7 @@ static int witty_clipboard_alerts;
 static NSString* witty_clipboard_prompt;
 static NSString* witty_clipboard_before_prompt;
 static id witty_clipboard_named(id self, SEL command, NSString* name) {
-    if ([name isEqualToString:@"com.mitchellh.ghostty.selection"])
+    if ([name isEqualToString:@"com.wittyterminal.witty.selection"])
         return witty_clipboard_board;
     return ((id (*)(id, SEL, id))witty_clipboard_original_named)(self, command, name);
 }

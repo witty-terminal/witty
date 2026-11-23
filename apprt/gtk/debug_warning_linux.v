@@ -28,7 +28,7 @@ const debug_warning_ui_banner = '<?xml version="1.0" encoding="UTF-8"?>
   <template class="GhosttyDebugWarning" parent="AdwBin">
     <child>
       <object class="AdwBanner">
-        <property name="title" translatable="yes">⚠️ You\'re running a debug build of Ghostty! Performance will be degraded.</property>
+        <property name="title" translatable="yes">⚠️ You\'re running a debug build of Witty! Performance will be degraded.</property>
         <property name="revealed">true</property>
       </object>
     </child>
@@ -43,7 +43,7 @@ const debug_warning_ui_label = '<?xml version="1.0" encoding="UTF-8"?>
     <property name="orientation">1</property>
     <child>
       <object class="GtkLabel">
-        <property name="label" translatable="yes">⚠️ You\'re running a debug build of Ghostty! Performance will be degraded.</property>
+        <property name="label" translatable="yes">⚠️ You\'re running a debug build of Witty! Performance will be degraded.</property>
         <property name="margin-top">10</property>
         <property name="margin-bottom">10</property>
       </object>

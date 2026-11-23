@@ -2,7 +2,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include <ghostty/vt.h>
+#include <witty/vt.h>
 
 int main() {
   GhosttyKeyEncoder encoder;

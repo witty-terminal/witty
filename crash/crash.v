@@ -93,7 +93,7 @@ pub:
 pub fn default_dir() !Dir {
 	return Dir{
 		path: internal_os.state(internal_os.Options{
-			subdir: 'ghostty/crash'
+			subdir: 'witty/crash'
 		})!
 	}
 }

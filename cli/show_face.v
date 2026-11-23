@@ -164,7 +164,7 @@ fn show_face_lookup(mut grid font.SharedGrid, cp u32, style font.Style, presenta
 		return none
 	}
 	if _ := value.index.special() {
-		output << "U+${cp:02X} « ${display} » is handled by Ghostty's internal sprites."
+		output << "U+${cp:02X} « ${display} » is handled by Witty's internal sprites."
 		return none
 	}
 	mut name_buf := []u8{len: 1024}

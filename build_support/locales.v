@@ -17,14 +17,14 @@ pub fn (d Driver) install_locales() ! {
 		text := checked_process(d.cfg.root, ['msgfmt', '-o', '-', os.join_path('po', '${locale}.po')])!
 		// Preserve the source's trimRight character-set operation on FreeBSD.
 		target_locale := if d.cfg.target.os == 'freebsd' { locale.trim_right('.UTF-8') } else { locale }
-		d.install_text('share/locale/${target_locale}/LC_MESSAGES/com.mitchellh.ghostty.mo', text)!
+		d.install_text('share/locale/${target_locale}/LC_MESSAGES/com.alexander.witty.mo', text)!
 	}
 }
 
 pub fn (d Driver) update_translations() ! {
 	if !d.cfg.i18n { return error('cannot update translations when i18n is disabled') }
 	mut args := ['xgettext', '--language=C', '--from-code=UTF-8', '--add-comments=Translators',
-		'--keyword=_', '--keyword=C_:1c,2', '--package-name=com.mitchellh.ghostty',
+		'--keyword=_', '--keyword=C_:1c,2', '--package-name=com.alexander.witty',
 		'--msgid-bugs-address=m@mitchellh.com', '--copyright-holder="Mitchell Hashimoto, Ghostty contributors"', '-o', '-']
 	// Input paths must be relative to the checkout, and source files sorted,
 	// because extraction locations become part of the committed catalogs.
@@ -35,7 +35,7 @@ pub fn (d Driver) update_translations() ! {
 	sources.sort()
 	for path in sources { args << path[d.cfg.root.len + 1..] }
 	pot := checked_process(d.cfg.root, args)!
-	output := d.cache_path('i18n', 'com.mitchellh.ghostty.pot')
+	output := d.cache_path('i18n', 'com.alexander.witty.pot')
 	os.mkdir_all(os.dir(output))!
 	os.write_file(output, pot)!
 	// Generate all outputs before updating source files, like the source's
@@ -45,6 +45,6 @@ pub fn (d Driver) update_translations() ! {
 		path := os.join_path('po', '${locale}.po')
 		merged[path] = checked_process(d.cfg.root, ['msgmerge', '--quiet', '--no-fuzzy-matching', path, output])!
 	}
-	os.write_file(os.join_path(d.cfg.root, 'po', 'com.mitchellh.ghostty.pot'), pot)!
+	os.write_file(os.join_path(d.cfg.root, 'po', 'com.alexander.witty.pot'), pot)!
 	for path, text in merged { os.write_file(os.join_path(d.cfg.root, path), text)! }
 }

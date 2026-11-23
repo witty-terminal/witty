@@ -75,12 +75,12 @@ fn test_original_update_state_text_equality_and_cancel_rules() {
 
 fn test_original_release_note_regex_order_and_urls() {
 	url, label := update_release_notes('1.3.0', 'deadbeef')
-	assert url == 'https://ghostty.org/docs/install/release-notes/1-3-0'
+	assert url == 'https://github.com/witty-terminal/witty/releases/tag/v1.3.0'
 	assert label == 'View Release Notes'
 	compare, _ := update_release_notes('1.3.0+abcdef123', 'deadbeef')
-	assert compare == 'https://github.com/ghostty-org/ghostty/compare/deadbeef...abcdef123'
+	assert compare == 'https://github.com/witty-terminal/witty/compare/deadbeef...abcdef123'
 	commit, _ := update_release_notes('tip-abcdef123', '')
-	assert commit == 'https://github.com/ghostty-org/ghostty/commit/abcdef123'
+	assert commit == 'https://github.com/witty-terminal/witty/commit/abcdef123'
 	missing, _ := update_release_notes('unversioned', '')
 	assert missing == ''
 }
@@ -165,25 +165,10 @@ fn test_permission_reply_publishes_idle_before_native_response() {
 	msg_void(response, 'release')
 }
 
-fn test_real_sparkle_updater_constructor_config_and_menu_consumers() {
-	app_init()
-	audit_load_sparkle()
+fn test_native_updater_requires_a_bundle_feed() {
+	assert is_nil(update_feed_url(nil_obj(), sel(''), nil_obj()))
 	start_native_updater(NativeUpdateConfig{auto_update: 0})!
-	defer { stop_native_updater() }
-	assert msg_bool1(g_update_controller.updater, 'isKindOfClass:', get_class('SPUUpdater'))
-	assert msg_bool1(g_update_controller.driver, 'conformsToProtocol:', get_protocol('SPUUserDriver'))
-	assert msg_bool1(g_update_controller.driver, 'conformsToProtocol:', get_protocol('SPUUpdaterDelegate'))
-	assert !msg_bool(g_update_controller.updater, 'automaticallyChecksForUpdates')
-	assert !msg_bool(g_update_controller.updater, 'automaticallyDownloadsUpdates')
-	assert objc_utf8_string(update_feed_url(nil_obj(), sel(''), nil_obj())) == 'https://release.files.ghostty.org/appcast.xml'
-	sync_native_updater_config(NativeUpdateConfig{auto_update: 0, channel: 'tip'})
-	assert objc_utf8_string(update_feed_url(nil_obj(), sel(''), nil_obj())) == 'https://tip.files.ghostty.org/appcast.xml'
-	if os.getenv('WITTY_UPDATER_TEST_BUNDLE') == '1' { assert g_update_controller.state.kind == .idle }
-	menu := msg_id(msg_id_u64(msg_id(shared_app(), 'mainMenu'), 'itemAtIndex:', 0), 'submenu')
-	item := msg_id_u64(menu, 'itemAtIndex:', msg_u64(menu, 'numberOfItems') - 1)
-	assert objc_utf8_string(msg_id(item, 'title')) == 'Check for Updates…'
-	assert msg_id(item, 'target') == g_update_controller.driver
-	assert update_validate_menu(g_update_controller.driver, sel(''), item) == msg_bool(g_update_controller.updater, 'canCheckForUpdates')
+	assert g_update_controller == unsafe { nil }
 }
 
 fn test_source_weak_callbacks_cannot_modify_replacement_controller() {

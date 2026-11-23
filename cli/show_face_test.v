@@ -53,7 +53,7 @@ fn test_show_face_resolves_embedded_face_and_sprites() {
 
 	sprite := show_face(['--cp=0x2500', '--config-default-files=false'])!
 	assert sprite.code == 0
-	assert sprite.output.contains("handled by Ghostty's internal sprites")
+	assert sprite.output.contains("handled by Witty's internal sprites")
 }
 
 fn test_show_face_formats_config_diagnostics() {

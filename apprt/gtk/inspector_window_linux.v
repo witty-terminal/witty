@@ -242,14 +242,14 @@ pub fn new_inspector_window(mut surface SurfaceWidget) &InspectorWindow {
 	inspector.owner = self
 	surface.inspector = self
 
-	C.gtk_window_set_title(GtkWindow(obj), c'Ghostty: Terminal Inspector')
+	C.gtk_window_set_title(GtkWindow(obj), c'Witty: Terminal Inspector')
 	C.gtk_window_set_icon_name(GtkWindow(obj), &char(application_id.str))
 	C.gtk_window_set_default_size(GtkWindow(obj), 1000, 600)
 	C.gtk_widget_add_css_class(GtkWidget(obj), c'inspector')
 
 	toolbar := C.adw_toolbar_view_new()
 	header := C.adw_header_bar_new()
-	title := C.adw_window_title_new(c'Ghostty: Terminal Inspector', c'')
+	title := C.adw_window_title_new(c'Witty: Terminal Inspector', c'')
 	C.adw_header_bar_set_title_widget(header, title)
 	C.adw_toolbar_view_add_top_bar(toolbar, header)
 

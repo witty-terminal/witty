@@ -5,8 +5,8 @@ import help_strings
 fn test_vim_syntax_lists_every_config_key() {
 	out := syntax()
 	assert out.starts_with('" Vim syntax file\n')
-	assert out.contains('let b:current_syntax = \'ghostty\'')
-	assert out.contains('syn keyword ghosttyConfigKeyword')
+	assert out.contains('let b:current_syntax = \'witty\'')
+	assert out.contains('syn keyword wittyConfigKeyword')
 
 	// Every config key appears as a continuation-line keyword, in order.
 	mut idx := 0
@@ -24,18 +24,18 @@ fn test_vim_syntax_lists_every_config_key() {
 
 fn test_vim_static_files_are_carried_over() {
 	assert ftdetect.starts_with('" Vim filetype detect file\n')
-	assert ftdetect.contains('setf ghostty')
+	assert ftdetect.contains('setf witty')
 	assert ftplugin.contains('let b:did_ftplugin = 1')
 	assert ftplugin.contains('setlocal commentstring=#\\ %s')
-	assert compiler.contains('let current_compiler = "ghostty"')
+	assert compiler.contains('let current_compiler = "witty"')
 	assert compiler.contains('CompilerSet errorformat=%f:%l:%m,%m')
 }
 
 fn test_sublime_syntax_alternates_every_config_key() {
 	out := sublime_syntax()
 	assert out.starts_with('%YAML 1.2\n')
-	assert out.contains('scope: source.ghostty')
-	assert out.ends_with('scope: keyword.other.ghostty\n')
+	assert out.contains('scope: source.witty')
+	assert out.ends_with('scope: keyword.other.witty\n')
 
 	// The keyword alternation is every key joined by '|', in order.
 	start := out.index('- match: \'\\b(') or {

@@ -227,7 +227,7 @@ fn test_stream_handler_xtversion_uses_build_version() ! {
 	assert ctx.mailbox.spsc.queue.len() == 1
 	msg := ctx.mailbox.spsc.queue.pop() or { panic('expected XTVERSION response') }
 	assert msg.kind() == .write_small
-	assert (msg as WriteSmall).slice().bytestr() == '\x1bP>|ghostty ${build_meta.version_string}\x1b\\'
+	assert (msg as WriteSmall).slice().bytestr() == '\x1bP>|witty ${build_meta.version_string}\x1b\\'
 }
 
 fn test_stream_handler_request_mode_uses_dec_protocol_value() ! {

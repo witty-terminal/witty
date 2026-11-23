@@ -7,7 +7,7 @@ fn startup_error_message(err IError) string {
 		return 'Error: multiple CLI actions specified. You must specify only one\naction starting with the `+` character.'
 	}
 	if err.msg().starts_with('invalid action:') {
-		return "Error: unknown CLI action specified. CLI actions are specified with\nthe '+' character.\n\nAll valid CLI actions can be listed with `ghostty +help`"
+		return "Error: unknown CLI action specified. CLI actions are specified with\nthe '+' character.\n\nAll valid CLI actions can be listed with `witty +help`"
 	}
 	return 'invalid CLI invocation err=${err}'
 }

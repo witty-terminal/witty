@@ -8,7 +8,7 @@ fn (d Driver) xcframework_slice(target Target, name string) !string {
 	selected := Driver{cfg: d.cfg.retarget(target)}
 	deps := selected.build_native_dependencies(false)!
 	library := selected.build_library(deps, true)!
-	output := d.cache_path('xcframework', name, 'libghostty.a')
+	output := d.cache_path('xcframework', name, 'libwitty.a')
 	os.mkdir_all(os.dir(output))!
 	os.cp(library, output)!
 	return output
@@ -30,7 +30,7 @@ fn (d Driver) build_xcframework_slices(native_only bool, include_ios bool) !stri
 	} else {
 		arm := d.xcframework_slice(Target{...macos_target, arch: 'aarch64'}, 'macos-arm64')!
 		x86 := d.xcframework_slice(Target{...macos_target, arch: 'x86_64'}, 'macos-x86_64')!
-		universal := d.cache_path('xcframework', 'macos-universal', 'libghostty.a')
+		universal := d.cache_path('xcframework', 'macos-universal', 'libwitty.a')
 		os.mkdir_all(os.dir(universal))!
 		checked_process(d.cfg.root, ['lipo', '-create', arm, x86, '-output', universal])!
 		libraries << universal
@@ -41,7 +41,7 @@ fn (d Driver) build_xcframework_slices(native_only bool, include_ios bool) !stri
 				abi: 'simulator', cpu: 'apple_a17'}, 'ios-simulator-arm64')!
 		}
 	}
-	output := os.join_path(d.cfg.root, 'macos', 'GhosttyKit.xcframework')
+	output := os.join_path(d.cfg.root, 'macos', 'WittyKit.xcframework')
 	if os.exists(output) { os.rmdir_all(output)! }
 	mut command := ['xcodebuild', '-create-xcframework']
 	for library in libraries {

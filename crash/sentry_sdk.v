@@ -141,7 +141,7 @@ fn sentry_init_thread_internal() ! {
 			if os.getenv_opt('XDG_CACHE_HOME') == none { cache = internal_os.cache_dir('sentry')! }
 		}
 		if cache.len == 0 {
-			cache = internal_os.cache(internal_os.Options{ subdir: 'ghostty/sentry' })!
+			cache = internal_os.cache(internal_os.Options{ subdir: 'witty/sentry' })!
 		}
 		C.sentry_options_set_database_path_n(opts, &char(cache.str), uint(cache.len))
 		if buildcfg.slow_runtime_safety { C.sentry_options_set_debug(opts, 1) }
@@ -239,7 +239,7 @@ fn sentry_transport_send_internal(envelope voidptr) ! {
 		C.sentry_uuid_as_string(&uuid, &char(name.data))
 		dir := default_dir()!
 		os.mkdir_all(dir.path)!
-		path := os.join_path(dir.path, name[..36].bytestr() + '.ghosttycrash')
+		path := os.join_path(dir.path, name[..36].bytestr() + '.wittycrash')
 		mut file := os.create(path)!
 		defer { file.close() }
 		mut writer := source_file_writer.FileWriter.init(file.fd, 4096)

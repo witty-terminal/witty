@@ -228,7 +228,7 @@ pub fn (d Driver) build_simd(options NativeCompileOptions) ![]string {
 	flags << '-std=c++17'
 	if d.cfg.target.arch == 'x86_64' { flags << ['-DHWY_DISABLED_TARGETS=472', '-Wno-psabi'] }
 	mut result := [
-		d.compile_native('ghostty-simd', root, ['simd/base64.cpp', 'simd/codepoint_width.cpp',
+		d.compile_native('witty-simd', root, ['simd/base64.cpp', 'simd/codepoint_width.cpp',
 			'simd/index_of.cpp', 'simd/vt.cpp'], options, flags)!,
 	]
 	if !d.cfg.system_libraries['simdutf'] {

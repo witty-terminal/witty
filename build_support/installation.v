@@ -5,11 +5,11 @@ import os
 
 fn (d Driver) prepare_gtk_resources() ! {
 	if d.cfg.app_runtime != 'gtk' { return }
-	distributed := os.join_path(d.cfg.root, 'apprt', 'gtk', 'ghostty_resources.c')
+	distributed := os.join_path(d.cfg.root, 'apprt', 'gtk', 'witty_resources.c')
 	if !os.exists(os.join_path(d.cfg.root, '.git')) && os.exists(distributed) {
 		output := d.cache_path('gtk')
 		os.mkdir_all(output)!
-		for name in ['ghostty_resources.c', 'ghostty_resources.h'] {
+		for name in ['witty_resources.c', 'witty_resources.h'] {
 			os.cp(os.join_path(d.cfg.root, 'apprt', 'gtk', name), os.join_path(output, name))!
 		}
 		return
@@ -21,7 +21,7 @@ fn (d Driver) prepare_gtk_resources() ! {
 pub fn (d Driver) install_benchmarks() ! {
 	selected := Driver{cfg: Config{...d.cfg, mode: .release_fast}}
 	deps := selected.build_native_dependencies(false)!
-	for name, folder in {'ghostty-gen': 'tools/gen', 'ghostty-bench': 'tools/bench'} {
+	for name, folder in {'witty-gen': 'tools/gen', 'witty-bench': 'tools/bench'} {
 		output := d.cache_path('artifacts', name + if d.cfg.target.os == 'windows' { '.exe' } else { '' })
 		mut command := selected.v_arguments(.exe, deps)!
 		command << ['-o', output, os.join_path(d.cfg.root, folder)]
@@ -49,10 +49,10 @@ pub fn (d Driver) install() ! {
 	} else if !d.cfg.target.darwin() {
 		deps := d.build_native_dependencies(false)!
 		shared_library := d.build_library(deps, false)!
-		d.install_file(shared_library, 'lib/libghostty.so')!
+		d.install_file(shared_library, 'lib/libwitty.so')!
 		static_ := d.build_library(deps, true)!
-		d.install_file(static_, 'lib/libghostty.a')!
-		d.install_file(os.join_path(d.cfg.root, 'include', 'ghostty.h'), 'include/ghostty.h')!
+		d.install_file(static_, 'lib/libwitty.a')!
+		d.install_file(os.join_path(d.cfg.root, 'include', 'witty.h'), 'include/witty.h')!
 	}
 	d.install_docs()!
 	if d.cfg.emit_webdata { d.install_webdata()! }

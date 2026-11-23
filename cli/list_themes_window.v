@@ -197,19 +197,19 @@ fn preview_help_entries() []HelpEntry {
 
 fn preview_save_instructions(theme string) []string {
 	return [
-		'To apply this theme, add the following line to your Ghostty configuration:',
+		'To apply this theme, add the following line to your Witty configuration:',
 		'',
 		'theme = ${theme}',
 		'',
 		'Save the configuration file and then reload it to apply the new theme.',
 		'',
 		"Or press 'w' to write an auto theme file to your system's preferred default config path.",
-		'Then add the following line to your Ghostty configuration and reload:',
+		'Then add the following line to your Witty configuration and reload:',
 		'',
-		'config-file = ?auto/theme.ghostty',
+		'config-file = ?auto/theme.witty',
 		'',
-		'For more details on configuration and themes, visit the Ghostty documentation:',
+		'For more information, see the Witty repository:',
 		'',
-		'https://ghostty.org/docs/config/reference',
+		'https://github.com/witty-terminal/witty',
 	]
 }

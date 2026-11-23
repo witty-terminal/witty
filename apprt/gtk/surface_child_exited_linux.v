@@ -115,7 +115,7 @@ fn child_exited_apply_data(obj voidptr) {
 	priv := surface_child_exited_priv(obj)
 	if isnil(priv.data) {
 		// Not localized on purpose (matches the Zig original).
-		C.adw_banner_set_title(priv.banner, c'This is a bug in Ghostty. Please report it.')
+		C.adw_banner_set_title(priv.banner, c'This is a bug in Witty. Please report it.')
 		return
 	}
 	data := unsafe { &C.GhosttyApprtChildExited(priv.data) }
@@ -147,7 +147,7 @@ pub fn (self &SurfaceChildExited) close_button_clicked() {
 // with a bound `banner` child + notify_data/clicked callbacks, the `data`
 // property, the `close-request` signal, and dispose/finalize vfuncs. The
 // pre-1.3 variant registers only `close-request`; `set_data` immediately emits
-// it so libghostty falls back to its text exit message.
+// it so libwitty falls back to its text exit message.
 
 // Ghostty's ui/1.3/surface-child-exited.blp as blueprint-compiler 0.16.0 emits it
 // (without the generated-file header). Ghostty compiles it into its
@@ -167,7 +167,7 @@ const surface_child_exited_ui = '<?xml version="1.0" encoding="UTF-8"?>
           <object class="AdwBanner" id="banner">
             <signal name="button-clicked" handler="clicked"/>
             <property name="revealed">true</property>
-            <property name="title">This is a bug in Ghostty. Please report it.</property>
+            <property name="title">This is a bug in Witty. Please report it.</property>
             <property name="button-label" translatable="yes">Close</property>
             <property name="halign">0</property>
             <property name="valign">2</property>

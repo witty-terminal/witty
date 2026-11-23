@@ -29,7 +29,7 @@ fn test_generated_action_help_covers_source_action_enum() {
 
 fn test_action_help_matches_generated_source_text() {
 	list_actions := action_help_output('list-actions') or { panic('missing list-actions help') }
-	assert list_actions == 'The `list-actions` command is used to list all the available keybind\n' + 'actions for Ghostty. These are distinct from the CLI Actions which can\n' + 'be listed via `+help`\n\n' + 'Flags:\n\n' + '  * `--docs`: will print out the documentation for each action.\n\n'
+	assert list_actions == 'The `list-actions` command is used to list all the available keybind\n' + 'actions for Witty. These are distinct from the CLI Actions which can\n' + 'be listed via `+help`\n\n' + 'Flags:\n\n' + '  * `--docs`: will print out the documentation for each action.\n\n'
 
 	new_window := action_help_output('new-window') or { panic('missing new-window help') }
 	assert new_window.contains('Any arguments after this will be interpreted as a command to\n')

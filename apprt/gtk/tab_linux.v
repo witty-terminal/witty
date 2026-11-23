@@ -662,7 +662,7 @@ pub fn (mut self Tab) action_previous_page() {
 // title, else the config title, else a default; a zoom/bell prefix is added
 // per config.
 pub fn (self &Tab) computed_title(config_ &Config, terminal_ ?string, override_ ?string, zoomed bool, bell_ringing bool) string {
-	default_title := 'Ghostty'
+	default_title := 'Witty'
 
 	// The plain title: override, else terminal, else config title, else default.
 	plain := if o := override_ {

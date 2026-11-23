@@ -18,7 +18,7 @@ import global_state
 import internal_os
 import log
 
-// Install the runtime-neutral bridge used by the embedded/libghostty API.
+// Install the runtime-neutral bridge used by the embedded/libwitty API.
 // This keeps apprt free of a circular dependency while ensuring its C-facing
 // CoreApp/CoreSurface wrappers use the canonical translated implementations.
 fn init() {
@@ -194,7 +194,7 @@ pub fn ghostty_info() Info {
 	}
 }
 
-// ghostty_translate: Translate a string maintained by libghostty into the
+// ghostty_translate: Translate a string maintained by libwitty into the
 // current application language. This will return the same string (same pointer)
 // if no translation is found, so the pointer must be stable through
 // the function call.

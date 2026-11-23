@@ -3,7 +3,7 @@ The build driver translates Ghostty `6c0e02d1138d5376e4ac2f5e311b225494514a97` `
 ```sh
 WITTY_V_COMPILER=/path/to/v
 VEXE="$WITTY_V_COMPILER" "$WITTY_V_COMPILER" -path 'repo|@vlib|@vmodules' run tools/build --help
-VEXE="$WITTY_V_COMPILER" "$WITTY_V_COMPILER" -path 'repo|@vlib|@vmodules' run tools/build install --prefix /tmp/ghostty-v-install
+VEXE="$WITTY_V_COMPILER" "$WITTY_V_COMPILER" -path 'repo|@vlib|@vmodules' run tools/build install --prefix /tmp/witty-install
 VEXE="$WITTY_V_COMPILER" "$WITTY_V_COMPILER" -path 'repo|@vlib|@vmodules' run tools/build test-lib-vt -Dtest-filter=key_event
 ```
 
@@ -22,7 +22,7 @@ The verified compiler for this port is V 0.5.2. Native dependency builds use str
 | GhosttyXcodebuild and project bundle settings | macos_app.v, pinned build_assets/macos |
 | install, run, tests and Valgrind graph | installation.v, testing.v, tools/build |
 
-V has one executable per test file. The driver compiles and runs the selected source test set with the original Debug/baseline/strip/frame/unwind choices, propagates filters and failures, and can install those artifacts under bin/ghostty-tests. Native macOS contract tests are part of this translated test set; the original Swift XCTest compiler invocation is replaced by V compilation.
+V has one executable per test file. The driver compiles and runs the selected source test set with the original Debug/baseline/strip/frame/unwind choices, propagates filters and failures, and can install those artifacts under bin/witty-tests. Native macOS contract tests are part of this translated test set; the original Swift XCTest compiler invocation is replaced by V compilation.
 
 The macOS application compiler step builds the translated V AppKit host. The source resource folders, original plist/entitlements/assets, Debug versus ReleaseLocal settings, universal/native architectures, frameworks, signing, copy operations and run environment are retained. It does not compile the original Swift application. Asset catalogs, Metal libraries and XCFramework packaging require the original Apple SDK/Xcode tools; unavailable tools fail the actual build step.
 

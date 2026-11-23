@@ -4,7 +4,7 @@ import strings
 
 // Developer note: this is in src/terminal and not src/renderer because
 // the goal is that this remains generic to multiple renderers. This can
-// aid specifically with libghostty-vt with converting terminal state to
+// aid specifically with libwitty-vt with converting terminal state to
 // a renderable form.
 //
 // Translated from Ghostty's render.zig.

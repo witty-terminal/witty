@@ -9,7 +9,7 @@ import diagnostics
 // defines the priority of theme search (from top to bottom).
 pub enum Location as u8 {
 	user      // XDG config dir
-	resources // Ghostty resources dir
+	resources // Witty resources dir
 }
 
 // Returns the directory for the given theme based on this location type.
@@ -21,7 +21,7 @@ pub fn (l Location) dir() ?string {
 	match l {
 		.user {
 			return internal_os.config(internal_os.Options{
-				subdir: os.join_path('ghostty', 'themes')
+				subdir: os.join_path('witty', 'themes')
 			}) or { none }
 		}
 		.resources {
@@ -57,11 +57,19 @@ pub fn LocationIterator.new() LocationIterator {
 }
 
 pub fn (mut self LocationIterator) next() ?LocationEntry {
-	locations := [Location.user, Location.resources]
+	locations := [Location.user, Location.user, Location.resources]
 	for self.i < uint(locations.len) {
 		loc := locations[int(self.i)]
 		self.i += 1
-		d := loc.dir() or { continue }
+		d := if self.i == 2 {
+			legacy := internal_os.config(internal_os.Options{
+				subdir: os.join_path('ghostty', 'themes')
+			}) or { continue }
+			if !os.is_dir(legacy) { continue }
+			legacy
+		} else {
+			loc.dir() or { continue }
+		}
 		return LocationEntry{
 			location: loc
 			dir:      d
@@ -116,7 +124,12 @@ pub fn open(theme string, mut diags diagnostics.DiagnosticList) ?OpenResult {
 	mut it := LocationIterator.new()
 	for {
 		location := it.next() or { break }
-		path := os.join_path(location.dir, theme)
+		filename := if location.location == .resources && theme == 'Ghostty Default Style Dark' {
+			'Witty Default Style Dark'
+		} else {
+			theme
+		}
+		path := os.join_path(location.dir, filename)
 		mut file := os.open(path) or {
 			if err.code() == int(C.ENOENT) {
 				continue

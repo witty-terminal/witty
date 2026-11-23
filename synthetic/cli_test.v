@@ -19,14 +19,14 @@ fn (mut writer TestFixedWriter) write(data []u8) !int {
 }
 
 fn test_synthetic_action_detection() {
-	assert detect_action(['ghostty-gen', '+osc'])!.action? == .osc
-	assert detect_action(['ghostty-gen', '--style=parser'])!.action == none
-	if _ := detect_action(['ghostty-gen', '+osc', '+utf8']) {
+	assert detect_action(['witty-gen', '+osc'])!.action? == .osc
+	assert detect_action(['witty-gen', '--style=parser'])!.action == none
+	if _ := detect_action(['witty-gen', '+osc', '+utf8']) {
 		assert false, 'expected multiple actions to fail'
 	} else {
 		assert err.msg() == 'multiple actions'
 	}
-	if _ := detect_action(['ghostty-gen', '+unknown']) {
+	if _ := detect_action(['witty-gen', '+unknown']) {
 		assert false, 'expected invalid action to fail'
 	} else {
 		assert err.msg() == 'invalid action: unknown'

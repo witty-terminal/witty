@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
-#include <ghostty/vt.h>
+#include <witty/vt.h>
 
 int main() {
   // Create parser

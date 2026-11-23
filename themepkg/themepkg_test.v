@@ -25,11 +25,11 @@ fn test_location_user_uses_translated_xdg_resolution() {
 	}
 
 	os.setenv('XDG_CONFIG_HOME', '/tmp/witty-theme-xdg', true)
-	assert Location.user.dir() or { '' } == os.join_path('/tmp/witty-theme-xdg', 'ghostty', 'themes')
+	assert Location.user.dir() or { '' } == os.join_path('/tmp/witty-theme-xdg', 'witty', 'themes')
 
 	os.unsetenv('XDG_CONFIG_HOME')
 	os.setenv('HOME', '/tmp/witty-theme-home/', true)
-	assert Location.user.dir() or { '' } == os.join_path('/tmp/witty-theme-home/', '.config', 'ghostty', 'themes')
+	assert Location.user.dir() or { '' } == os.join_path('/tmp/witty-theme-home/', '.config', 'witty', 'themes')
 }
 
 fn test_location_iterator_order_and_reset() {
@@ -47,7 +47,7 @@ fn test_location_iterator_order_and_reset() {
 	assert sizeof(LocationIterator) == sizeof(uint)
 	first := it.next() or { panic('missing user theme location') }
 	assert first.location == .user
-	assert first.dir == os.join_path('/tmp/witty-theme-iterator', 'ghostty', 'themes')
+	assert first.dir == os.join_path('/tmp/witty-theme-iterator', 'witty', 'themes')
 	it.reset()
 	assert (it.next() or { panic('missing reset user theme location') }).location == .user
 }
@@ -79,7 +79,7 @@ fn test_open_absolute_theme_and_diagnostics() ! {
 
 fn test_open_named_theme_uses_location_order_and_reports_attempts() ! {
 	dir := os.join_path(os.temp_dir(), 'witty-theme-named-${os.getpid()}')
-	theme_dir := os.join_path(dir, 'ghostty', 'themes')
+	theme_dir := os.join_path(dir, 'witty', 'themes')
 	os.rmdir_all(dir) or {}
 	os.mkdir_all(theme_dir)!
 	defer {

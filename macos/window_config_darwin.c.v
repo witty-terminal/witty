@@ -35,7 +35,7 @@ mut:
 	tahoe_title_view ObjId
 	tahoe_title_views []ObjId
 	tahoe_title_labels []ObjId
-	tahoe_title string = '👻 Ghostty'
+	tahoe_title string = '👻 Witty'
 	tahoe_title_font ObjId
 	tahoe_has_tab_bar bool
 	tahoe_main bool = true

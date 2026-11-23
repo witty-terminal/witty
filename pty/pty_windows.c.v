@@ -56,7 +56,7 @@ pub fn Pty.open(size Winsize) !Pty {
 	mut counter := unsafe { pipe_name_counter }
 	// The native atomic_fetch_add returns the old value, like Zig fetchAdd.
 	serial := C.atomic_fetch_add_u32(&counter.value, 1)
-	path := '\\\\.\\pipe\\LOCAL\\ghostty-pty-${C.GetCurrentProcessId()}-${serial}'
+	path := '\\\\.\\pipe\\LOCAL\\witty-pty-${C.GetCurrentProcessId()}-${serial}'
 	assert path.len < 128
 	path_w := path.to_wide()
 	attributes := C.SECURITY_ATTRIBUTES{

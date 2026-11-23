@@ -4,7 +4,7 @@ import macos
 
 fn benchmark_signpost_begin(ptr voidptr) BenchmarkSignpost {
 	macos.signpost_init()
-	log := macos.OSLog.create('com.mitchellh.ghostty', macos.signpost_category_points_of_interest)
+	log := macos.OSLog.create('com.alexander.witty', macos.signpost_category_points_of_interest)
 	if isnil(log) {
 		return BenchmarkSignpost{}
 	}

@@ -1,6 +1,6 @@
 module core
 
-// Runtime bridge for the embedded/libghostty application runtime.
+// Runtime bridge for the embedded/libwitty application runtime.
 //
 // The canonical core package imports apprt for its platform boundary, so V
 // cannot also import core from apprt. Ghostty solves this selection at Zig

@@ -1,4 +1,4 @@
-The four C fixtures are byte-identical to `example/*/src/main.c` at Ghostty
+The four C fixtures are adapted from `example/*/src/main.c` at Ghostty
 `6c0e02d1138d5376e4ac2f5e311b225494514a97`. They exercise the actual exported
 library and V runtime initialization from a C process, rather than linking
 through a V test executable.

@@ -8,7 +8,7 @@ module input
 // Single modifier
 // A bitmask for all key modifiers.
 //
-// IMPORTANT: Any changes here update include/ghostty.h
+// IMPORTANT: Any changes here update include/witty.h
 // The standard modifier keys only. Does not include the lock keys,
 // only standard bindable keys.
 // Tracks the side that is active for any given modifier. Note

@@ -1,3 +1,7 @@
-Copied without modification from Ghostty `6c0e02d1138d5376e4ac2f5e311b225494514a97`, `macos/`. `project-plist-settings.json` records the Debug and ReleaseLocal plist settings from the pinned Xcode project. V bundle compilation substitutes the V executable for the Swift compiler step; icons, metadata, signing, resources and launch/install operations follow the source project and GhosttyXcodebuild.
+The plist settings and asset catalog originated in Ghostty
+`6c0e02d1138d5376e4ac2f5e311b225494514a97`, from its `macos/` directory.
+Witty builds the native bundle with the translated V executable and its own
+metadata. The packaged application and its default icon image use the artwork
+from `Witty.app/Contents/Resources/Witty.icns`.
 
-`Ghostty.icon` is copied byte-for-byte from the pinned `images/Ghostty.icon` Icon Composer resource referenced by the original Xcode project. The asset compiler receives it alongside Assets.xcassets.
+The asset catalog retains the upstream alternate and customizable icons.

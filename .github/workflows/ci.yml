@@ -46,7 +46,9 @@ jobs:
       - name: Verify app binary
         # Universal, and not tied to the CI runner's V install (libgc.dylib).
         run: |
-          exe="$RUNNER_TEMP/witty/Ghostty.app/Contents/MacOS/ghostty"
+          exe="$RUNNER_TEMP/witty/Witty.app/Contents/MacOS/witty"
+          test -f "$RUNNER_TEMP/witty/Witty.app/Contents/Resources/Witty.icns"
+          test -z "$(find "$RUNNER_TEMP/witty" -iname '*ghostty*' -print -quit)"
           lipo -info "$exe"
           lipo "$exe" -verify_arch arm64
           lipo "$exe" -verify_arch x86_64
@@ -111,16 +113,16 @@ jobs:
         run: |
           test ! -e .witty-build/native/libglslang.a
           v -path "$PWD|@vlib|@vmodules" run tools/helpgen > "$RUNNER_TEMP/helpgen.zig"
-          v -path "$PWD|@vlib|@vmodules" run tools/docgen mdgen_ghostty_1 > "$RUNNER_TEMP/ghostty.1.md"
-          v -path "$PWD|@vlib|@vmodules" run tools/build_data +vim-syntax > "$RUNNER_TEMP/ghostty.vim"
+          v -path "$PWD|@vlib|@vmodules" run tools/docgen mdgen_witty_1 > "$RUNNER_TEMP/witty.1.md"
+          v -path "$PWD|@vlib|@vmodules" run tools/build_data +vim-syntax > "$RUNNER_TEMP/witty.vim"
           test -s "$RUNNER_TEMP/helpgen.zig"
-          test -s "$RUNNER_TEMP/ghostty.1.md"
-          test -s "$RUNNER_TEMP/ghostty.vim"
+          test -s "$RUNNER_TEMP/witty.1.md"
+          test -s "$RUNNER_TEMP/witty.vim"
       - name: Build
         run: bash .github/scripts/ci-build.sh install
       - name: Verify installed executable
         run: |
-          test ! -e "$RUNNER_TEMP/witty/bin/ghostty"
+          test -z "$(find "$RUNNER_TEMP/witty" -iname '*ghostty*' -print -quit)"
           "$RUNNER_TEMP/witty/bin/witty" --version
       - name: Package release
         if: inputs.release_tag != ''
@@ -149,8 +151,12 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install V
         run: bash .github/scripts/install-v.sh
-      - name: Build libghostty-vt
+      - name: Build libwitty-vt
         run: bash .github/scripts/ci-build.sh lib-vt
+      - name: Verify installed library
+        run: |
+          test -f "$RUNNER_TEMP/witty/lib/libwitty-vt.dll"
+          test -z "$(find "$RUNNER_TEMP/witty" -iname '*ghostty*' -print -quit)"
       - name: Package release
         if: inputs.release_tag != ''
         shell: pwsh

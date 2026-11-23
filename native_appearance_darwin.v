@@ -4,7 +4,7 @@ import apprt
 import macos
 
 // AppDelegate observes NSApplication.effectiveAppearance with .new/.initial
-// after the optional libghostty application has been initialized.
+// after the optional libwitty application has been initialized.
 fn native_application_appearance_changed(dark bool) {
 	mut runtime := standalone_runtime()
 	if runtime.app == unsafe { nil } || runtime.app.core_app == unsafe { nil } { return }

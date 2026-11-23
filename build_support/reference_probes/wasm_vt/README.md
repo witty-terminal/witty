@@ -1,7 +1,7 @@
-The production build uses the selected V compiler's C backend and Emscripten's unchanged runtime to produce the source Wasm C ABI. Emscripten 4.0.10 was used for validation. Set `EMCC` and, when using a local SDK, `EM_CONFIG`, then invoke `tools/build lib-vt -Dtarget=wasm32-freestanding` with an isolated prefix. The installed `bin/ghostty-vt.js` and `bin/ghostty-vt.wasm` stay together; Node's factory export and the browser's `GhosttyVT` factory load that same binary. `ghosttyLog(text)` optionally supplies the source `env.log` host; the default uses the original examples' TextDecoder/console behavior.
+The production build uses the selected V compiler's C backend and Emscripten's unchanged runtime to produce the source Wasm C ABI. Emscripten 4.0.10 was used for validation. Set `EMCC` and, when using a local SDK, `EM_CONFIG`, then invoke `tools/build lib-vt -Dtarget=wasm32-freestanding` with an isolated prefix. The installed `bin/witty-vt.js` and `bin/witty-vt.wasm` stay together; Node's factory export and the browser's `GhosttyVT` factory load that same binary. `ghosttyLog(text)` optionally supplies the source `env.log` host; the default uses the original examples' TextDecoder/console behavior.
 
 ```sh
-node build_support/reference_probes/wasm_vt/run.cjs /path/to/prefix/bin/ghostty-vt.js
+node build_support/reference_probes/wasm_vt/run.cjs /path/to/prefix/bin/witty-vt.js
 python3 build_support/reference_probes/wasm_vt/compare_log.py /path/to/ghostty /path/to/zig-0.15.2 /path/to/v /path/to/emcc /path/to/.emscripten
 ```
 

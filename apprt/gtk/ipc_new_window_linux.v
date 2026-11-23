@@ -7,14 +7,14 @@ module gtk
 // Uses a D-Bus method call to open a new window on GTK.
 // See: https://wiki.gnome.org/Projects/GLib/GApplication/DBusAPI
 //
-// `ghostty +new-window` is equivalent to (on a release build):
-//   gdbus call --session --dest com.mitchellh.ghostty \
-//     --object-path /com/mitchellh/ghostty \
+// `witty +new-window` is equivalent to (on a release build):
+//   gdbus call --session --dest com.alexander.witty \
+//     --object-path /com/alexander/witty \
 //     --method org.gtk.Actions.Activate new-window [] []
 //
-// `ghostty +new-window -e echo hello` is equivalent to:
-//   gdbus call --session --dest com.mitchellh.ghostty \
-//     --object-path /com/mitchellh/ghostty \
+// `witty +new-window -e echo hello` is equivalent to:
+//   gdbus call --session --dest com.alexander.witty \
+//     --object-path /com/alexander/witty \
 //     --method org.gtk.Actions.Activate new-window-command \
 //     '[<@as ["echo" "hello"]>]' []
 

@@ -599,7 +599,7 @@ fn window_main_menu_new() GMenu {
 	surface_menu_section(menu, section)
 
 	section = C.g_menu_new()
-	surface_menu_append(section, 'About Ghostty', c'win.about')
+	surface_menu_append(section, 'About Witty', c'win.about')
 	surface_menu_append(section, 'Quit', c'app.quit')
 	surface_menu_section(menu, section)
 	return menu
@@ -1770,8 +1770,8 @@ fn (mut self Window) sync_appearance() {
 
 	// Apply class to color headerbar if window-theme is `ghostty` and GTK is
 	// before 4.16. Above 4.16 we use GTK CSS color variables.
-	self.toggle_css_class('window-theme-ghostty', !gtk_at_least(4, 16, 0)
-		&& config.window_theme == .ghostty)
+	self.toggle_css_class('window-theme-witty', !gtk_at_least(4, 16, 0)
+		&& config.window_theme == .witty)
 
 	// Move the tab bar to the proper location.
 	adw_toolbar_view_remove(self.toolbar, self.as_tab_bar_widget())
@@ -2317,20 +2317,20 @@ pub fn (mut self Window) tab_view_n_pages() {
 // --- Actions ---------------------------------------------------------------
 
 pub fn (mut self Window) action_about() {
-	developer_name := internal_os.translate('Ghostty Developers')
+	developer_name := internal_os.translate('Witty Developers')
 	if supports_dialogs() {
-		C.adw_show_about_dialog(self.as_widget(), c'application-name', c'Ghostty',
+		C.adw_show_about_dialog(self.as_widget(), c'application-name', c'Witty',
 			c'developer-name', &char(developer_name.str), c'application-icon',
-			c'com.mitchellh.ghostty', c'version', &char(build_meta.version_string.str),
-			c'issue-url', c'https://github.com/ghostty-org/ghostty/issues', c'website',
-			c'https://ghostty.org', unsafe { nil })
+			c'com.alexander.witty', c'version', &char(build_meta.version_string.str),
+			c'issue-url', c'https://github.com/witty-terminal/witty/issues', c'website',
+			c'https://github.com/witty-terminal/witty', unsafe { nil })
 		return
 	}
 
-	title := internal_os.translate('About Ghostty')
-	C.gtk_show_about_dialog(self.as_window(), c'program-name', c'Ghostty', c'logo-icon-name',
-		c'com.mitchellh.ghostty', c'title', &char(title.str), c'version',
-		&char(build_meta.version_string.str), c'website', c'https://ghostty.org', unsafe { nil })
+	title := internal_os.translate('About Witty')
+	C.gtk_show_about_dialog(self.as_window(), c'program-name', c'Witty', c'logo-icon-name',
+		c'com.alexander.witty', c'title', &char(title.str), c'version',
+		&char(build_meta.version_string.str), c'website', c'https://github.com/witty-terminal/witty', unsafe { nil })
 }
 
 pub fn (mut self Window) toggle_inspector() {

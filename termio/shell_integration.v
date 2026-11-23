@@ -214,7 +214,7 @@ fn setup_bash(command configpkg.Command, resource_dir string, mut env map[string
 	}
 
 	// Set our new ENV to point to our integration script.
-	script_path := '${resource_dir}/shell-integration/bash/ghostty.bash'
+	script_path := '${resource_dir}/shell-integration/bash/witty.bash'
 	mut script := os.open(script_path) or {
 		log.warn('unable to open ${script_path}: ${err}')
 		env.delete('GHOSTTY_BASH_ENV')
@@ -285,9 +285,9 @@ fn setup_xdg_data_dirs(resource_dir string, mut env map[string]string) bool {
 
 // Set up automatic Nushell shell integration. This works by adding our
 // shell resource directory to the `XDG_DATA_DIRS` environment variable,
-// which Nushell will use to load `nushell/vendor/autoload/ghostty.nu`.
+// which Nushell will use to load `nushell/vendor/autoload/witty.nu`.
 //
-// We then add `--execute 'use ghostty ...'` to the nu command line to
+// We then add `--execute 'use witty ...'` to the nu command line to
 // automatically enable our shell features.
 fn setup_nushell(command configpkg.Command, resource_dir string, mut env map[string]string) ?configpkg.Command {
 	// Add our XDG_DATA_DIRS entry (for nushell/vendor/autoload/). This
@@ -310,9 +310,9 @@ fn setup_nushell(command configpkg.Command, resource_dir string, mut env map[str
 	// 'ghostty' module.
 	//
 	// We can consider making this more specific based on the set of
-	// enabled shell features (e.g. `use ghostty sudo`). At the moment,
+	// enabled shell features (e.g. `use witty sudo`). At the moment,
 	// shell features are all runtime-guarded in the nushell script.
-	cmd.append_arg("--execute 'use ghostty *'")
+	cmd.append_arg("--execute 'use witty *'")
 
 	// Walk through the rest of the given arguments. If we see an option that
 	// would require complex or unsupported integration behavior, we bail out

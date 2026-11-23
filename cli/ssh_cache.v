@@ -29,7 +29,7 @@ pub fn SshCacheEntry.parse(line string) ?SshCacheEntry {
 	return SshCacheEntry{
 		hostname:         parts[0]
 		timestamp:        timestamp
-		terminfo_version: if parts.len >= 3 { parts[2] } else { 'xterm-ghostty' }
+		terminfo_version: if parts.len >= 3 { parts[2] } else { 'xterm-witty' }
 	}
 }
 
@@ -97,7 +97,7 @@ pub fn (cache SshDiskCache) add(hostname string) !SshCacheAddResult {
 	terminfo_version := if existing := entries[hostname] {
 		existing.terminfo_version
 	} else {
-		'xterm-ghostty'
+		'xterm-witty'
 	}
 	entries[hostname] = SshCacheEntry{
 		hostname:         hostname
@@ -363,7 +363,7 @@ pub fn ssh_cache(args []string) !SshCacheResult {
 // run_inner executes parsed SSH-cache options using the standard disk cache.
 pub fn run_inner(opts SshCacheOptions) !SshCacheResult {
 	cache := SshDiskCache{
-		path: SshDiskCache.default_path('ghostty')!
+		path: SshDiskCache.default_path('witty')!
 	}
 	return run_inner_with_cache(cache, opts)
 }
@@ -397,9 +397,9 @@ fn run_inner_with_cache(cache SshDiskCache, opts SshCacheOptions) !SshCacheResul
 		return SshCacheResult{
 			code:   if cached { 0 } else { 1 }
 			output: if cached {
-				"'${host}' has Ghostty terminfo installed.\n"
+				"'${host}' has Witty terminfo installed.\n"
 			} else {
-				"'${host}' does not have Ghostty terminfo installed.\n"
+				"'${host}' does not have Witty terminfo installed.\n"
 			}
 		}
 	}

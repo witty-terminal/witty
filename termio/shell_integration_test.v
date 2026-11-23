@@ -38,7 +38,7 @@ fn TmpResourcesDir.init(shell Shell) !TmpResourcesDir {
 	shell_path := os.join_path(tmp_path, relative_shell_path)
 
 	if shell == .bash {
-		bash_script := os.join_path(tmp_path, 'shell-integration/bash/ghostty.bash')
+		bash_script := os.join_path(tmp_path, 'shell-integration/bash/witty.bash')
 		os.write_file(bash_script, '')!
 	}
 
@@ -180,7 +180,7 @@ fn test_bash_basic() {
 		assert false, 'expected ShellCmd'
 	}
 	assert env['GHOSTTY_BASH_INJECT'] == '1'
-	assert env['ENV'] == '${res.shell_path}/ghostty.bash'
+	assert env['ENV'] == '${res.shell_path}/witty.bash'
 }
 
 fn test_bash_unsupported_posix() {
@@ -326,7 +326,7 @@ fn test_bash_env_preserved() {
 
 	_ := (setup_bash(configpkg.ShellCmd{ shell: 'bash' }, res.path, mut env) or { panic(err) }).value or { return }
 	assert env['GHOSTTY_BASH_ENV'] == 'env.sh'
-	assert env['ENV'] == '${res.shell_path}/ghostty.bash'
+	assert env['ENV'] == '${res.shell_path}/witty.bash'
 }
 
 fn test_bash_empty_env_preserved() {
@@ -341,7 +341,7 @@ fn test_bash_empty_env_preserved() {
 	_ := (setup_bash(configpkg.ShellCmd{ shell: 'bash' }, res.path, mut env) or { panic(err) }).value or { return }
 	assert 'GHOSTTY_BASH_ENV' in env
 	assert env['GHOSTTY_BASH_ENV'] == ''
-	assert env['ENV'] == '${res.shell_path}/ghostty.bash'
+	assert env['ENV'] == '${res.shell_path}/witty.bash'
 }
 
 fn test_bash_additional_args_dash() {
@@ -451,7 +451,7 @@ fn test_nushell_basic() {
 		return
 	}
 	if cmd is configpkg.ShellCmd {
-		assert cmd.shell == "nu --execute 'use ghostty *'"
+		assert cmd.shell == "nu --execute 'use witty *'"
 	}
 	assert 'GHOSTTY_SHELL_INTEGRATION_XDG_DIR' in env
 	xdg := env['XDG_DATA_DIRS'] or { '' }

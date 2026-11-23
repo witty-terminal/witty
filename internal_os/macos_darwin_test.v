@@ -13,10 +13,10 @@ fn test_macos_foundation_directories() {
 	assert is_at_least_version(10, 0, 0)
 	cache := cache_dir('test')!
 	assert cache.contains('Caches')
-	assert cache.contains('com.mitchellh.ghostty/test')
-	app_support := app_support_dir('config.ghostty')!
+	assert cache.contains('com.alexander.witty/test')
+	app_support := app_support_dir('config.witty')!
 	assert app_support.contains('Application Support')
-	assert app_support.contains('com.mitchellh.ghostty/config.ghostty')
+	assert app_support.contains('com.alexander.witty/config.witty')
 }
 
 fn test_cf_release_message_retains_release_arm() {

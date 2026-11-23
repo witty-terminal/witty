@@ -1079,7 +1079,7 @@ pub mut:
 	// Whether this surface is "zoomed" (takes full bounds of a split view).
 	zoom bool
 
-	// Cached metrics for libghostty callbacks.
+	// Cached metrics for libwitty callbacks.
 	size       apprt.SurfaceSize
 	cursor_pos apprt.CursorPos
 
@@ -1680,7 +1680,7 @@ pub fn (self &SurfaceWidget) send_desktop_notification(title string, body string
 		return
 	}
 
-	actual_title := if title.len == 0 { 'Ghostty' } else { title }
+	actual_title := if title.len == 0 { 'Witty' } else { title }
 	notification := C.g_notification_new(&char(actual_title.str))
 	if isnil(notification) {
 		return
@@ -1690,7 +1690,7 @@ pub fn (self &SurfaceWidget) send_desktop_notification(title string, body string
 	}
 	C.g_notification_set_body(notification, &char(body.str))
 
-	icon := C.g_themed_icon_new(c'com.mitchellh.ghostty')
+	icon := C.g_themed_icon_new(c'com.alexander.witty')
 	if !isnil(icon) {
 		C.g_notification_set_icon(notification, icon)
 		object_unref(GObject(icon))
@@ -2398,7 +2398,7 @@ pub fn (mut self SurfaceWidget) ec_focus_leave() {
 
 // notify_focus forwards the focus state to the core surface. In ghostty this is
 // deferred onto a glib idle source (idleFocus) to avoid a deadlock where a
-// libghostty callback triggers focus loss while a lock is held.
+// libwitty callback triggers focus loss while a lock is held.
 fn (self &SurfaceWidget) notify_focus() {
 	object_ref(self.widget)
 	C.g_idle_add(voidptr(surface_idle_focus_cb), voidptr(self))
@@ -2430,7 +2430,7 @@ pub fn (mut self SurfaceWidget) glarea_realize() {
 	if !isnil(gl_err) {
 		log.warn('failed to make GL context current: ${error_message(gl_err)}')
 		log.warn('this error is almost always due to a library, driver, or GTK issue')
-		log.warn('this is a common cause of this issue: https://ghostty.org/docs/help/gtk-opengl-context')
+		log.warn('this is a common cause of this issue: https://github.com/witty-terminal/witty/issues')
 		self.set_error(true)
 		return
 	}
@@ -3385,7 +3385,7 @@ fn surface_error_page_new() GtkWidget {
 	description := i18n_('Unable to acquire an OpenGL context for rendering.')
 	C.adw_status_page_set_title(page, &char(title.str))
 	C.adw_status_page_set_description(page, &char(description.str))
-	link := C.gtk_link_button_new_with_label(c'https://ghostty.org/docs/help/gtk-opengl-context', c'https://ghostty.org/docs/help/gtk-opengl-context')
+	link := C.gtk_link_button_new_with_label(c'https://github.com/witty-terminal/witty/issues', c'https://github.com/witty-terminal/witty/issues')
 	C.adw_status_page_set_child(page, link)
 	return GtkWidget(page)
 }

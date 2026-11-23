@@ -40,7 +40,7 @@ $if !js && !wasm32 && !no_simd ? {
 	#flag darwin -lc++
 	#flag linux -lstdc++
 	#flag freebsd -lstdc++
-	#include "ghostty_simd.h"
+	#include "witty_simd.h"
 }
 
 fn C.ghostty_simd_base64_max_length(&u8, uint) uint

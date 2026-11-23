@@ -1,13 +1,13 @@
 @@ignore
 Ignore this key combination.
 
-Ghostty will not process this combination nor forward it to the child
+Witty will not process this combination nor forward it to the child
 process within the terminal, but it may still be processed by the OS or
 other applications.
 @@unbind
 Unbind a previously bound key binding.
 
-This cannot unbind bindings that were not bound by Ghostty or the user
+This cannot unbind bindings that were not bound by Witty or the user
 (e.g. bindings set by the OS or some other application).
 @@csi
 Send a CSI sequence.
@@ -221,12 +221,12 @@ Toggle the tab overview.
 
 This is only supported on Linux and when the system's libadwaita
 version is 1.4 or newer. The current libadwaita version can be
-found by running `ghostty +version`.
+found by running `witty +version`.
 @@prompt_surface_title
 Change the title of the current focused surface via a pop-up prompt.
 
 This requires libadwaita 1.5 or newer on Linux. The current libadwaita
-version can be found by running `ghostty +version`.
+version can be found by running `witty +version`.
 @@prompt_tab_title
 Change the title of the current tab/window via a pop-up prompt. The
 title set via this prompt overrides any title set by the terminal
@@ -355,7 +355,7 @@ This is used to prevent apps from monitoring your keyboard input
 when entering passwords or other sensitive information.
 
 This applies to the entire application, not just the focused terminal.
-You must manually untoggle it or quit Ghostty entirely to disable it.
+You must manually untoggle it or quit Witty entirely to disable it.
 
 Only implemented on macOS, as this uses a built-in system API.
 @@toggle_mouse_reporting
@@ -376,7 +376,7 @@ you can perform, their associated keybindings (if any), a search bar
 to filter the actions, and the ability to then execute the action.
 
 This requires libadwaita 1.5 or newer on Linux. The current libadwaita
-version can be found by running `ghostty +version`.
+version can be found by running `witty +version`.
 @@toggle_quick_terminal
 Toggle the quick terminal.
 
@@ -416,7 +416,7 @@ The quick terminal has some limitations:
 
     If you do not have this plugin enabled, open System Settings > Apps
     & Windows > Window Management > Desktop Effects, and enable the
-    plugin in the plugin list. Ghostty would then need to be restarted
+    plugin in the plugin list. Witty would then need to be restarted
     fully for this to take effect.
 
   - Quick terminal tabs are only supported on Linux and not on macOS.
@@ -430,7 +430,7 @@ See the various configurations for the quick terminal in the
 configuration file to customize its behavior.
 @@toggle_visibility
 Show or hide all windows. If all windows become shown, we also ensure
-Ghostty becomes focused. When hiding all windows, focus is yielded
+Witty becomes focused. When hiding all windows, focus is yielded
 to the next application as determined by the OS.
 
 Note: When the focused surface is fullscreen, this method does nothing.
@@ -454,7 +454,7 @@ Undo the last undoable action for the focused surface or terminal,
 if possible. This can undo actions such as closing tabs or
 windows.
 
-Not every action in Ghostty can be undone or redone. The list
+Not every action in Witty can be undone or redone. The list
 of actions support undo/redo is currently limited to:
 
   - New window, close window
@@ -517,9 +517,9 @@ If no key table is active, this action has no effect.
 Deactivate all active key tables. If no active key table exists,
 this will report performable as false.
 @@quit
-Quit Ghostty.
+Quit Witty.
 @@crash
-Crash Ghostty in the desired thread for the focused surface.
+Crash Witty in the desired thread for the focused surface.
 
 WARNING: This is a hard crash (panic) and data can be lost.
 

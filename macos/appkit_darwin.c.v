@@ -992,7 +992,7 @@ fn clipboard_for(clipboard_type int) ObjId {
 		0 { msg_id(get_class('NSPasteboard'), 'generalPasteboard') }
 		1 {
 			if is_nil(g_selection_pasteboard) {
-				pasteboard := msg_id1(get_class('NSPasteboard'), 'pasteboardWithName:', nsstring('com.mitchellh.ghostty.selection'))
+				pasteboard := msg_id1(get_class('NSPasteboard'), 'pasteboardWithName:', nsstring('com.alexander.witty.selection'))
 				g_selection_pasteboard = msg_id(pasteboard, 'retain')
 			}
 			g_selection_pasteboard
@@ -1176,9 +1176,9 @@ pub fn confirm_quit() bool {
 	defer {
 		msg_void(alert, 'release')
 	}
-	msg_void1(alert, 'setMessageText:', nsstring('Quit Ghostty?'))
+	msg_void1(alert, 'setMessageText:', nsstring('Quit Witty?'))
 	msg_void1(alert, 'setInformativeText:', nsstring('All terminal sessions will be terminated.'))
-	msg_id1(alert, 'addButtonWithTitle:', nsstring('Close Ghostty'))
+	msg_id1(alert, 'addButtonWithTitle:', nsstring('Close Witty'))
 	msg_id1(alert, 'addButtonWithTitle:', nsstring('Cancel'))
 	msg_void_u64(alert, 'setAlertStyle:', ns_alert_style_warning)
 	return msg_i64(alert, 'runModal') == ns_alert_first_button_return

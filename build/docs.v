@@ -8,10 +8,10 @@ import strings
 // src/build/webgen. The source obtains these records from HelpStrings.zig;
 // Witty embeds the pinned help records for the standalone documentation tool.
 
-const ghostty_1_header = $embed_file('ghostty_1_header.md').to_string()
-const ghostty_1_footer = $embed_file('ghostty_1_footer.md').to_string()
-const ghostty_5_header = $embed_file('ghostty_5_header.md').to_string()
-const ghostty_5_footer = $embed_file('ghostty_5_footer.md').to_string()
+const witty_1_header = $embed_file('witty_1_header.md').to_string()
+const witty_1_footer = $embed_file('witty_1_footer.md').to_string()
+const witty_5_header = $embed_file('witty_5_header.md').to_string()
+const witty_5_footer = $embed_file('witty_5_footer.md').to_string()
 
 fn find_doc(entries []help_strings.HelpEntry, name string) ?string {
 	for entry in entries {
@@ -40,8 +40,8 @@ fn write_definition_docs(mut out strings.Builder, docs string) {
 	out.write_string('\n\n')
 }
 
-// gen_config emits the configuration section used by both Ghostty manpages.
-// cli selects the `--option` spelling used by ghostty(1).
+// gen_config emits the configuration section used by both Witty manpages.
+// cli selects the `--option` spelling used by witty(1).
 pub fn gen_config(cli_options bool) string {
 	docs := help_strings.gen_config().entries
 	mut out := strings.new_builder(help_strings.config_keys.len * 128)
@@ -60,7 +60,7 @@ pub fn gen_config(cli_options bool) string {
 	return out.str()
 }
 
-// gen_actions emits the command-line action section used by ghostty(1).
+// gen_actions emits the command-line action section used by witty(1).
 pub fn gen_actions() string {
 	docs := help_strings.gen_actions().entries
 	mut out := strings.new_builder(docs.len * 128)
@@ -77,7 +77,7 @@ pub fn gen_actions() string {
 	return out.str()
 }
 
-// gen_keybind_actions emits the keybinding action section used by ghostty(5).
+// gen_keybind_actions emits the keybinding action section used by witty(5).
 pub fn gen_keybind_actions() string {
 	docs := help_strings.gen_keybind_actions().entries
 	mut out := strings.new_builder(docs.len * 128)
@@ -98,10 +98,10 @@ pub fn gen_web_actions() string {
 	mut out := strings.new_builder(docs.len * 128)
 	out.write_string('---\n')
 	out.write_string('title: Reference\n')
-	out.write_string('description: Reference of all Ghostty action subcommands.\n')
+	out.write_string('description: Reference of all Witty action subcommands.\n')
 	out.write_string('editOnGithubLink: https://github.com/ghostty-org/ghostty/tree/main/src/cli\n')
 	out.write_string('---\n')
-	out.write_string('Ghostty includes a number of utility actions that can be accessed as subcommands.\n')
+	out.write_string('Witty includes a number of utility actions that can be accessed as subcommands.\n')
 	out.write_string('Actions provide utilities to work with config, list keybinds, list fonts, demo themes,\n')
 	out.write_string('and debug.\n')
 	for entry in docs {
@@ -110,8 +110,8 @@ pub fn gen_web_actions() string {
 		out.write_string(entry.text)
 		out.write_string('\n\n```\n')
 		match name {
-			'help', 'version' { out.write_string('ghostty --${name}\n') }
-			else { out.write_string('ghostty +${name}\n') }
+			'help', 'version' { out.write_string('witty --${name}\n') }
+			else { out.write_string('witty +${name}\n') }
 		}
 		out.write_string('```\n\n')
 	}
@@ -150,10 +150,10 @@ pub fn gen_web_config() string {
 	mut out := strings.new_builder(help_strings.config_keys.len * 192)
 	out.write_string('---\n')
 	out.write_string('title: Reference\n')
-	out.write_string('description: Reference of all Ghostty configuration options.\n')
+	out.write_string('description: Reference of all Witty configuration options.\n')
 	out.write_string('editOnGithubLink: https://github.com/ghostty-org/ghostty/edit/main/src/config/Config.zig\n')
 	out.write_string('---\n\n')
-	out.write_string('This is a reference of all Ghostty configuration options. These\n')
+	out.write_string('This is a reference of all Witty configuration options. These\n')
 	out.write_string('options are ordered roughly by how common they are to be used\n')
 	out.write_string('and grouped with related options. I recommend utilizing your\n')
 	out.write_string("browser's search functionality to find the option you're looking\n")
@@ -222,13 +222,13 @@ pub fn gen_web_keybind_actions() string {
 	return help_strings.web_keybind_actions()
 }
 
-// ghostty_1 generates the complete ghostty(1) markdown source.
-pub fn ghostty_1() string {
-	return substitute(ghostty_1_header) + gen_actions() + gen_config(true) + substitute(ghostty_1_footer)
+// witty_1 generates the complete witty(1) markdown source.
+pub fn witty_1() string {
+	return substitute(witty_1_header) + gen_actions() + gen_config(true) + substitute(witty_1_footer)
 }
 
-// ghostty_5 generates the complete ghostty(5) markdown source.
-pub fn ghostty_5() string {
-	return substitute(ghostty_5_header) + gen_config(false) + gen_keybind_actions() +
-		substitute(ghostty_5_footer)
+// witty_5 generates the complete witty(5) markdown source.
+pub fn witty_5() string {
+	return substitute(witty_5_header) + gen_config(false) + gen_keybind_actions() +
+		substitute(witty_5_footer)
 }

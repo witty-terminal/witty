@@ -75,58 +75,48 @@ pub fn (d Driver) install_tree(source string, relative string, excluded_extensio
 // GhosttyResources.init: terminfo is compiled for every non-Windows install,
 // regardless of whether the optional source/termcap artifacts were selected.
 pub fn (d Driver) install_resources() ! {
-	tool := d.host_tool('ghostty-build-data', 'tools/build_data')!
+	tool := d.host_tool('witty-build-data', 'tools/build_data')!
 	info := checked_process(d.cfg.root, [tool, '+terminfo'])!
 	share_dir := if d.cfg.target.os == 'freebsd' { 'site-terminfo' } else { 'terminfo' }
-	source := d.cache_path('resources', 'ghostty.terminfo')
+	source := d.cache_path('resources', 'witty.terminfo')
 	os.mkdir_all(os.dir(source))!
 	os.write_file(source, info)!
-	if d.cfg.emit_terminfo { d.install_file(source, 'share/${share_dir}/ghostty.terminfo')! }
+	if d.cfg.emit_terminfo { d.install_file(source, 'share/${share_dir}/witty.terminfo')! }
 	if d.cfg.target.os != 'windows' {
 		if d.cfg.emit_termcap {
 			cap := checked_process(d.cfg.root, ['infotocap', source])!
-			d.install_text('share/${share_dir}/ghostty.termcap', cap)!
+			d.install_text('share/${share_dir}/witty.termcap', cap)!
 		}
-		db := d.cache_path('resources', share_dir)
+		db := d.cache_path('resources', 'witty-terminfo', share_dir)
+		os.mkdir_all(db)!
 		checked_process(d.cfg.root, ['tic', '-x', '-o', db, source])!
 		// InstallDir drops aliases which are symlinks. Preserve them exactly as
 		// the source's cp -R step does, including the directory nesting.
 		os.mkdir_all(os.join_path(d.cfg.prefix, 'share', share_dir))!
 		checked_process(d.cfg.root, ['cp', '-R', db, os.join_path(d.cfg.prefix, 'share')])!
 	}
-	d.install_tree(os.join_path(d.cfg.root, 'shell-integration'), 'share/ghostty/shell-integration', ['.md'])!
+	d.install_tree(os.join_path(d.cfg.root, 'shell-integration'), 'share/witty/shell-integration', ['.md'])!
 	if d.cfg.emit_themes {
-		d.install_tree(os.join_path(d.cfg.root, 'build_assets', 'themes'), 'share/ghostty/themes', ['.md'])!
+		d.install_tree(os.join_path(d.cfg.root, 'build_assets', 'themes'), 'share/witty/themes', ['.md'])!
 	}
 	linux := d.cfg.target.os == 'linux'
-	command := if linux { buildcfg.linux_executable_name } else { 'ghostty' }
+	command := buildcfg.cli_command
 	for action, destination in {
 		'fish': 'share/fish/vendor_completions.d/${command}.fish'
 		'zsh': 'share/zsh/site-functions/_${command}'
 		'bash': 'share/bash-completion/completions/${command}.bash'
 	} {
-		mut text := checked_process(d.cfg.root, [tool, '+${action}'])!
-		if linux {
-			text = match action {
-				'fish' { text.replace('complete -c ghostty ', 'complete -c ${command} ').replace('(ghostty +', '(${command} +') }
-				'zsh' { text.replace('#compdef ghostty', '#compdef ${command}').replace('_ghostty', '_${command}').replace('(ghostty +', '(${command} +') }
-				else { text.replace('-F _ghostty ghostty', '-F _${command} ${command}').replace('_ghostty()', '_${command}()') }
-			}
-		}
-		d.install_text(destination, text)!
+		d.install_text(destination, checked_process(d.cfg.root, [tool, '+${action}'])!)!
 	}
-	d.install_text('share/bat/syntaxes/ghostty.sublime-syntax',
+	d.install_text('share/bat/syntaxes/witty.sublime-syntax',
 		checked_process(d.cfg.root, [tool, '+sublime'])!)!
 	for action, relative in {
-		'vim-syntax': 'syntax/ghostty.vim'
-		'vim-ftdetect': 'ftdetect/ghostty.vim'
-		'vim-ftplugin': 'ftplugin/ghostty.vim'
-		'vim-compiler': 'compiler/ghostty.vim'
+		'vim-syntax': 'syntax/witty.vim'
+		'vim-ftdetect': 'ftdetect/witty.vim'
+		'vim-ftplugin': 'ftplugin/witty.vim'
+		'vim-compiler': 'compiler/witty.vim'
 	} {
-		mut text := checked_process(d.cfg.root, [tool, '+${action}'])!
-		if linux && action == 'vim-compiler' {
-			text = text.replace('makeprg=ghostty', 'makeprg=${command}')
-		}
+		text := checked_process(d.cfg.root, [tool, '+${action}'])!
 		for editor in ['share/vim/vimfiles', 'share/nvim/site'] { d.install_text('${editor}/${relative}', text)! }
 	}
 	if linux { d.install_linux_resources()! }
@@ -134,12 +124,12 @@ pub fn (d Driver) install_resources() ! {
 
 fn (d Driver) install_linux_resources() ! {
 	debug := d.cfg.mode in [.debug, .release_safe]
-	name := 'Ghostty${if debug { ' (Debug)' } else { '' }}'
-	app_id := 'com.mitchellh.ghostty${if debug { '-debug' } else { '' }}'
+	name := 'Witty${if debug { ' (Debug)' } else { '' }}'
+	app_id := 'com.alexander.witty${if debug { '-debug' } else { '' }}'
 	mut templates := {
 		'app.desktop.in': 'share/applications/${app_id}.desktop'
 		'dbus.service${if d.cfg.flatpak { '.flatpak' } else { '' }}.in': 'share/dbus-1/services/${app_id}.service'
-		'com.mitchellh.ghostty.metainfo.xml.in': 'share/metainfo/${app_id}.metainfo.xml'
+		'com.alexander.witty.metainfo.xml.in': 'share/metainfo/${app_id}.metainfo.xml'
 	}
 	if !d.cfg.flatpak {
 		templates['systemd.service.in'] = '${if d.cfg.system_package { 'lib' } else { 'share' }}/systemd/user/app-${app_id}.service'
@@ -147,21 +137,21 @@ fn (d Driver) install_linux_resources() ! {
 	for source, destination in templates {
 		text := os.read_file(os.join_path(d.cfg.root, 'build_assets', 'dist', 'linux', source))!
 		d.install_text(destination, text.replace('@NAME@', name).replace('@APPID@', app_id)
-			.replace('@GHOSTTY@', os.join_path(d.cfg.prefix, 'bin', buildcfg.linux_executable_name)))!
+			.replace('@EXECUTABLE@', os.join_path(d.cfg.prefix, 'bin', buildcfg.cli_command)))!
 	}
 	for source, destination in {
-		'ghostty_dolphin.desktop': 'share/kio/servicemenus/com.mitchellh.ghostty.desktop'
-		'ghostty_nautilus.py': 'share/nautilus-python/extensions/ghostty.py'
+		'witty_dolphin.desktop': 'share/kio/servicemenus/com.alexander.witty.desktop'
+		'witty_nautilus.py': 'share/nautilus-python/extensions/witty.py'
 	} { d.install_file(os.join_path(d.cfg.root, 'build_assets', 'dist', 'linux', source), destination)! }
 	mut icons := {'16': '16x16', '32': '32x32', '128': '128x128', '256': '256x256', '512': '512x512'}
 	if !d.cfg.flatpak { icons['1024'] = '1024x1024' }
 	for source, size in icons {
 		d.install_file(os.join_path(d.cfg.root, 'images', 'gnome', '${source}.png'),
-			'share/icons/hicolor/${size}/apps/com.mitchellh.ghostty.png')!
+			'share/icons/hicolor/${size}/apps/com.alexander.witty.png')!
 	}
 	for source, size in {'32': '16x16@2'} {
 		d.install_file(os.join_path(d.cfg.root, 'images', 'gnome', '${source}.png'),
-			'share/icons/hicolor/${size}/apps/com.mitchellh.ghostty.png')!
+			'share/icons/hicolor/${size}/apps/com.alexander.witty.png')!
 	}
 }
 
@@ -170,24 +160,24 @@ pub fn (d Driver) install_docs() ! {
 		if d.cfg.target.darwin() { d.install_text('share/man/.placeholder', 'emit-docs not true so no man pages')! }
 		return
 	}
-	tool := d.host_tool('ghostty-docgen', 'tools/docgen')!
+	tool := d.host_tool('witty-docgen', 'tools/docgen')!
 	for section in ['1', '5'] {
-		text := checked_process(d.cfg.root, [tool, 'mdgen_ghostty_${section}'])!
-		markdown := d.cache_path('docs', 'ghostty.${section}.md')
+		text := checked_process(d.cfg.root, [tool, 'mdgen_witty_${section}'])!
+		markdown := d.cache_path('docs', 'witty.${section}.md')
 		os.mkdir_all(os.dir(markdown))!
 		os.write_file(markdown, text)!
-		d.install_file(markdown, 'share/ghostty/doc/ghostty.${section}.md')!
+		d.install_file(markdown, 'share/witty/doc/witty.${section}.md')!
 		for format in ['html', 'man'] {
 			out := checked_process(d.cfg.root, ['pandoc', '--standalone', '--from', 'markdown', '--to', format, markdown])!
-			d.install_text(if format == 'man' { 'share/man/man${section}/ghostty.${section}' }
-				else { 'share/ghostty/doc/ghostty.${section}.html' }, out)!
+			d.install_text(if format == 'man' { 'share/man/man${section}/witty.${section}' }
+				else { 'share/witty/doc/witty.${section}.html' }, out)!
 		}
 	}
 }
 
 pub fn (d Driver) install_webdata() ! {
-	tool := d.host_tool('ghostty-webgen', 'tools/docgen')!
+	tool := d.host_tool('witty-webgen', 'tools/docgen')!
 	for action in ['config', 'actions', 'commands'] {
-		d.install_text('share/ghostty/webdata/${action}.mdx', checked_process(d.cfg.root, [tool, 'webgen_${action}'])!)!
+		d.install_text('share/witty/webdata/${action}.mdx', checked_process(d.cfg.root, [tool, 'webgen_${action}'])!)!
 	}
 }

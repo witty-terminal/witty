@@ -738,7 +738,7 @@
 // config is so we can just say "false" and break out and avoid
 // more expensive checks below.
 // Alt is pressed, we're on macOS. We break some encapsulation
-// here and assume libghostty for ease...
+// here and assume libwitty for ease...
 // Sends text as-is to the terminal without triggering any keyboard
 // protocol. This will treat the input text as if it was pasted
 // from the clipboard so the same logic will be applied. Namely,
@@ -5409,7 +5409,7 @@ fn (mut self Surface) child_exited_abnormally(info apprt.ChildExited) ! {
 
 	t.set_attribute(terminal.SgrFg8{ name: .bright_red })!
 	t.set_attribute(terminal.SgrBold{})!
-	t.print_string('Ghostty failed to launch the requested command:')!
+	t.print_string('Witty failed to launch the requested command:')!
 	t.set_attribute(terminal.SgrUnset{})!
 	t.carriage_return()
 	t.linefeed()!

@@ -7,9 +7,9 @@ module extra
 
 import help_strings
 
-const sublime_header = '%YAML 1.2\n---\n# See http://www.sublimetext.com/docs/syntax.html\nname: Ghostty Config\nfile_extensions:\n  - ghostty\nscope: source.ghostty\n\ncontexts:\n  main:\n    # Comments\n    - match: \'^\\s*#.*$\'\n      scope: comment.line.number-sign.ghostty\n\n    # Keywords\n    - match: \'\\b('
+const sublime_header = '%YAML 1.2\n---\n# See http://www.sublimetext.com/docs/syntax.html\nname: Witty Config\nfile_extensions:\n  - witty\nscope: source.witty\n\ncontexts:\n  main:\n    # Comments\n    - match: \'^\\s*#.*$\'\n      scope: comment.line.number-sign.witty\n\n    # Keywords\n    - match: \'\\b('
 
-const sublime_footer = ')\\b\'\n      scope: keyword.other.ghostty\n'
+const sublime_footer = ')\\b\'\n      scope: keyword.other.witty\n'
 
 // sublime_syntax returns the Sublime Text syntax file.
 pub fn sublime_syntax() string {

@@ -342,7 +342,7 @@ fn native_command_options(app &apprt.App) []macos.NativeCommandOption {
 	if macos.native_update_is_installable() {
 		updates << macos.NativeCommandOption{
 			title:        if macos.native_update_is_available() {
-				'Update Ghostty and Restart'
+				'Update Witty and Restart'
 			} else {
 				macos.native_update_text()
 			}

@@ -118,7 +118,7 @@ pub:
 	composing           bool
 }
 
-// core converts a libghostty key event into a core key event.
+// core converts a libwitty key event into a core key event.
 pub fn (self EmbeddedKeyEvent) core() ?input.KeyEvent {
 	text := self.text or { '' }
 	unshifted_codepoint := if self.unshifted_codepoint <= 0x1FFFFF {
@@ -376,7 +376,7 @@ pub fn perform_ipc(action string) !bool {
 // Platform
 // -----------------------------------------------------------------------
 
-// Platform is platform-specific configuration for libghostty.
+// Platform is platform-specific configuration for libwitty.
 pub type Platform = MacOSPlatform | IOSPlatform
 
 // MacOSPlatform holds the macOS-specific platform config.
@@ -1657,7 +1657,7 @@ pub fn ghostty_surface_key_is_binding(mut surface Surface, event CAPIKeyEvent) b
 }
 
 // ghostty_surface_key_binding_flags returns the C bitmask for a matching
-// binding, preserving the optional out-parameter behavior of ghostty.h.
+// binding, preserving the optional out-parameter behavior of witty.h.
 pub fn ghostty_surface_key_binding_flags(mut surface Surface, event CAPIKeyEvent) ?u32 {
 	core_event := event.key_event().core() or {
 		log_warn('error processing key event')

@@ -18,7 +18,7 @@ import lib_allocator
 // The possible actions that can be emitted by the Stream
 // function for handling.
 // C ABI functions.
-// TODO: Before shipping an ABI-compatible libghostty, verify this.
+// TODO: Before shipping an ABI-compatible libwitty, verify this.
 // This was just arbitrarily chosen for now.
 // Field types
 // The value of the cursor movement. Depending on the tag of this

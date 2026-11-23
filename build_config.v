@@ -57,7 +57,7 @@ pub const artifact = $if wasm32 {
 // There are many places that don't use this variable so simply swapping
 // this variable is NOT ENOUGH to change the bundle ID. I just wanted to
 // avoid it in V code as much as possible.
-pub const bundle_id = 'com.mitchellh.ghostty'
+pub const bundle_id = 'com.alexander.witty'
 
 // Debug and ReleaseSafe retain runtime safety, as in the original build.
 pub const is_debug = buildcfg.runtime_safety

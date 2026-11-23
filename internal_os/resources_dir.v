@@ -40,17 +40,17 @@ pub fn (r ResourcesDir) host() ?string {
 // The sentinel values are target-specific because each package layout uses
 // the exact terminfo database format selected by the pinned build.
 const resources_sentinels = $if windows {
-	['terminfo/ghostty.terminfo']
+	['terminfo/witty.terminfo']
 } $else $if macos {
 	[
-		'terminfo/78/xterm-ghostty',
+		'terminfo/78/xterm-witty',
 	]
 } $else $if freebsd {
-	['site-terminfo/g/ghostty', 'site-terminfo/x/xterm-ghostty']
+	['site-terminfo/w/witty', 'site-terminfo/x/xterm-witty']
 } $else {
 	[
-		'terminfo/g/ghostty',
-		'terminfo/x/xterm-ghostty',
+		'terminfo/w/witty',
+		'terminfo/x/xterm-witty',
 	]
 }
 
@@ -108,7 +108,7 @@ fn resources_dir_from_exe(exe_path string) ResourcesDir {
 			for sentinel in resources_sentinels {
 				if v := maybe_dir(dir, 'Contents/Resources', sentinel) {
 					return ResourcesDir{
-						app_path: os.join_path(v, 'ghostty')
+						app_path: os.join_path(v, 'witty')
 					}
 				}
 			}
@@ -118,7 +118,7 @@ fn resources_dir_from_exe(exe_path string) ResourcesDir {
 		for sentinel in resources_sentinels {
 			if v := maybe_dir(dir, sub, sentinel) {
 				return ResourcesDir{
-					app_path: os.join_path(v, 'ghostty')
+					app_path: os.join_path(v, 'witty')
 				}
 			}
 		}

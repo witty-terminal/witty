@@ -46,18 +46,22 @@ $if macos || ios {
 
 	// app_support_dir returns Ghostty's user Application Support path.
 	pub fn app_support_dir(sub_path string) !string {
-		return common_macos_dir(14, sub_path)!
+		return common_macos_dir(14, 'com.alexander.witty', sub_path)
+	}
+
+	pub fn previous_app_support_dir(sub_path string) !string {
+		return common_macos_dir(14, 'com.mitchellh.ghostty', sub_path)
 	}
 
 	// cache_dir returns Ghostty's user cache path.
 	pub fn cache_dir(sub_path string) !string {
-		return common_macos_dir(13, sub_path)!
+		return common_macos_dir(13, 'com.alexander.witty', sub_path)
 	}
 
-	fn common_macos_dir(directory u64, sub_path string) !string {
+	fn common_macos_dir(directory u64, bundle_id string, sub_path string) !string {
 		base := macos.user_directory(directory) or {
 			return error('Apple directory API failed')
 		}
-		return os.join_path(base, 'com.mitchellh.ghostty', sub_path)
+		return os.join_path(base, bundle_id, sub_path)
 	}
 }

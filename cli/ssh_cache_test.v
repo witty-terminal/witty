@@ -39,12 +39,12 @@ fn test_ssh_cache_deinit_entries_releases_returned_container() {
 }
 
 fn test_ssh_cache_entry_parsing_format_and_expiration() {
-	entry := SshCacheEntry.parse('example.com|1640995200|xterm-ghostty')?
+	entry := SshCacheEntry.parse('example.com|1640995200|xterm-witty')?
 	assert entry.hostname == 'example.com'
 	assert entry.timestamp == 1640995200
-	assert entry.terminfo_version == 'xterm-ghostty'
-	assert entry.format() == 'example.com|1640995200|xterm-ghostty\n'
-	assert SshCacheEntry.parse('test.com|1640995200')?.terminfo_version == 'xterm-ghostty'
+	assert entry.terminfo_version == 'xterm-witty'
+	assert entry.format() == 'example.com|1640995200|xterm-witty\n'
+	assert SshCacheEntry.parse('test.com|1640995200')?.terminfo_version == 'xterm-witty'
 	assert SshCacheEntry.parse('example.com|invalid') == none
 	assert SshCacheEntry.parse('') == none
 	assert SshCacheEntry.parse('host|+42|term')?.timestamp == 42
@@ -150,12 +150,12 @@ fn test_ssh_atomic_file_uses_exclusive_private_names_and_cleans_unfinished_write
 	$if !windows {
 		assert os.stat(os.join_path(dir, first.name))!.mode & 0o777 == 0o600
 	}
-	first.write('first|1|xterm-ghostty\n')!
+	first.write('first|1|xterm-witty\n')!
 	first.finish()!
 	first.deinit()
 	second.deinit()
 	assert os.ls(dir)! == ['ssh_cache']
-	assert os.read_file(path)! == 'first|1|xterm-ghostty\n'
+	assert os.read_file(path)! == 'first|1|xterm-witty\n'
 }
 
 fn test_ssh_cache_read_rejects_reaching_source_bound() ! {

@@ -1,4 +1,4 @@
-_ghostty() {
+_witty() {
 
   # -o nospace requires we add back a space when a completion is finished
   # and not part of a --key= completion
@@ -10,12 +10,12 @@ _ghostty() {
 
   _fonts() {
     local IFS=$'\n'
-    mapfile -t COMPREPLY < <( compgen -P '"' -S '"' -W "$($ghostty +list-fonts | grep '^[A-Z]' )" -- "$cur")
+    mapfile -t COMPREPLY < <( compgen -P '"' -S '"' -W "$($witty +list-fonts | grep '^[A-Z]' )" -- "$cur")
   }
 
   _themes() {
     local IFS=$'\n'
-    mapfile -t COMPREPLY < <( compgen -P '"' -S '"' -W "$($ghostty +list-themes | sed -E 's/^(.*) \(.*$/\1/')" -- "$cur")
+    mapfile -t COMPREPLY < <( compgen -P '"' -S '"' -W "$($witty +list-themes | sed -E 's/^(.*) \(.*$/\1/')" -- "$cur")
   }
 
   _files() {
@@ -351,7 +351,7 @@ _ghostty() {
       --window-decoration) mapfile -t COMPREPLY < <( compgen -W "auto client server none" -- "$cur" ); _add_spaces ;;
       --window-title-font-family) return ;;
       --window-subtitle) mapfile -t COMPREPLY < <( compgen -W "false working-directory" -- "$cur" ); _add_spaces ;;
-      --window-theme) mapfile -t COMPREPLY < <( compgen -W "auto system light dark ghostty" -- "$cur" ); _add_spaces ;;
+      --window-theme) mapfile -t COMPREPLY < <( compgen -W "auto system light dark witty" -- "$cur" ); _add_spaces ;;
       --window-colorspace) mapfile -t COMPREPLY < <( compgen -W "srgb display-p3" -- "$cur" ); _add_spaces ;;
       --window-height) return ;;
       --window-width) return ;;
@@ -621,4 +621,4 @@ _ghostty() {
   return 0
 }
 
-complete -o nospace -o bashdefault -F _ghostty ghostty
+complete -o nospace -o bashdefault -F _witty witty

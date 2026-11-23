@@ -534,7 +534,7 @@ pub:
 	shell_integration_features configpkg.ShellIntegrationFeatures
 	working_directory          ?string
 	resources_dir              ?string
-	term                       string = 'xterm-ghostty'
+	term                       string = 'xterm-witty'
 	linux_cgroup               ?string
 }
 
@@ -600,7 +600,7 @@ fn add_executable_to_path(mut env map[string]string, executable string, flatpak 
 	if exe_dir.len == 0 {
 		return
 	}
-	log.debug('appending ghostty bin to path dir=${exe_dir}')
+	log.debug('appending witty bin to path dir=${exe_dir}')
 
 	// We always set this so that if the shell overwrites the path scripts
 	// still have a way to find the Ghostty binary when running in Ghostty.
@@ -628,7 +628,7 @@ pub fn Subprocess.init(cfg ExecConfig) !Subprocess {
 
 	// If we have a resources dir then set our env var
 	if dir := cfg.resources_dir {
-		log.info('found Ghostty resources dir: ${dir}')
+		log.info('found Witty resources dir: ${dir}')
 		env['GHOSTTY_RESOURCES_DIR'] = dir
 	}
 
@@ -650,7 +650,7 @@ pub fn Subprocess.init(cfg ExecConfig) !Subprocess {
 		}
 	} else {
 		$if macos || ios {
-			log.warn('ghostty terminfo not found, using xterm-256color')
+			log.warn('witty terminfo not found, using xterm-256color')
 			log.warn('the terminfo SHOULD exist on macos, please ensure')
 			log.warn("you're using a valid app bundle.")
 		}
@@ -687,7 +687,7 @@ pub fn Subprocess.init(cfg ExecConfig) !Subprocess {
 
 	// Set environment variables used by some programs (such as neovim) to detect
 	// which terminal emulator and version they're running under.
-	env['TERM_PROGRAM'] = 'ghostty'
+	env['TERM_PROGRAM'] = 'witty'
 	env['TERM_PROGRAM_VERSION'] = build_meta.version_string
 
 	// VTE_VERSION is set by gnome-terminal and other VTE-based terminals.

@@ -98,7 +98,7 @@ pub fn (d Driver) run_tests(vt_only bool, valgrind bool, install_only bool) ! {
 		args << ['-skip-running', '-o', executable, os.join_path(d.cfg.root, file)]
 		checked_process(d.cfg.root, args)!
 		if d.cfg.emit_test_exe {
-			d.install_file(executable, 'bin/ghostty-tests/' + os.base(executable))!
+			d.install_file(executable, 'bin/witty-tests/' + os.base(executable))!
 		}
 		if install_only { continue
 		 }
@@ -139,7 +139,7 @@ pub fn (d Driver) run_executable(valgrind bool) ! {
 	} else {
 		// The ordinary run artifact uses the installed resources directory.
 		run_foreground(d.cfg.root, args, {
-			'GHOSTTY_RESOURCES_DIR': os.join_path(d.cfg.prefix, 'share', 'ghostty')
+			'GHOSTTY_RESOURCES_DIR': os.join_path(d.cfg.prefix, 'share', 'witty')
 		})!
 	}
 }

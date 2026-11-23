@@ -26,7 +26,7 @@ import zig_fmt
 // C type
 // Converts this to a C-compatible value.
 //
-// Sync with ghostty.h for enums.
+// Sync with witty.h for enums.
 // Full binding parser. The binding parser is implemented as an iterator
 // which yields elements to support multi-key sequences without allocation.
 // A leader trigger in a sequence.
@@ -260,11 +260,11 @@ import zig_fmt
 //
 // This is only supported on Linux and when the system's libadwaita
 // version is 1.4 or newer. The current libadwaita version can be
-// found by running `ghostty +version`.
+// found by running `witty +version`.
 // Change the title of the current focused surface via a pop-up prompt.
 //
 // This requires libadwaita 1.5 or newer on Linux. The current libadwaita
-// version can be found by running `ghostty +version`.
+// version can be found by running `witty +version`.
 // Change the title of the current tab/window via a pop-up prompt. The
 // title set via this prompt overrides any title set by the terminal
 // and persists across focus changes within the tab.
@@ -389,7 +389,7 @@ import zig_fmt
 // to filter the actions, and the ability to then execute the action.
 //
 // This requires libadwaita 1.5 or newer on Linux. The current libadwaita
-// version can be found by running `ghostty +version`.
+// version can be found by running `witty +version`.
 // Toggle the quick terminal.
 //
 // The quick terminal, also known as the "Quake-style" or drop-down
@@ -613,7 +613,7 @@ import zig_fmt
 // Trigger is the associated key state that can trigger an action.
 // This is an extern struct because this is also used in the C API.
 //
-// This must be kept in sync with include/ghostty.h ghostty_input_trigger_s
+// This must be kept in sync with include/witty.h ghostty_input_trigger_s
 // The key that has to be pressed for a binding to take action.
 // The key modifiers that must be active for this to match.
 // key is the "physical" version. This is the same as mapped for

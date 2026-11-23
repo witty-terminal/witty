@@ -154,7 +154,7 @@ fn test_general_config_enum_layouts_and_source_ordinals() {
 
 fn test_window_and_runtime_config_enum_layouts_and_source_ordinals() {
 	assert sizeof(WindowTheme) == 1
-	assert [WindowTheme.auto, .system, .light, .dark, .ghostty].map(u8(it)) == [u8(0), 1,
+	assert [WindowTheme.auto, .system, .light, .dark, .witty].map(u8(it)) == [u8(0), 1,
 		2, 3, 4]
 	assert sizeof(RightClickAction) == 1
 	assert [RightClickAction.ignore, .paste, .copy, .copy_or_paste, .context_menu].map(u8(it)) == [u8(0),
@@ -283,7 +283,7 @@ fn test_load_cli_args_applies_flags_paths_and_command_tail() {
 
 fn test_load_args_cli_can_discard_default_files_and_add_recursive_file() {
 	dir := os.join_path(os.temp_dir(), 'witty-config-cli-${os.getpid()}')
-	xdg_dir := os.join_path(dir, 'ghostty')
+	xdg_dir := os.join_path(dir, 'witty')
 	os.rmdir_all(dir) or {}
 	os.mkdir_all(xdg_dir)!
 	defer { os.rmdir_all(dir) or {} }
@@ -296,7 +296,7 @@ fn test_load_args_cli_can_discard_default_files_and_add_recursive_file() {
 			os.unsetenv('XDG_CONFIG_HOME')
 		}
 	}
-	os.write_file(os.join_path(xdg_dir, 'config.ghostty'), 'font-size = 9\n')!
+	os.write_file(os.join_path(xdg_dir, 'config.witty'), 'font-size = 9\n')!
 	extra := os.join_path(dir, 'extra.conf')
 	os.write_file(extra, 'cursor-opacity = 0.25\n')!
 
@@ -342,7 +342,7 @@ fn test_load_cli_args_diagnostic_lists_enum_values() {
 	mut cfg := Config.default_config()
 	cfg.load_cli_args(['--window-theme=nope'])!
 	assert cfg.diagnostics.len == 1
-	assert cfg.diagnostics[0].format() == 'cli:1:window-theme: invalid value "nope", valid values are: auto, system, light, dark, ghostty'
+	assert cfg.diagnostics[0].format() == 'cli:1:window-theme: invalid value "nope", valid values are: auto, system, light, dark, witty'
 }
 
 fn test_load_iter_uses_iterator_location_contract() {
@@ -436,7 +436,7 @@ fn test_preferred_default_file_path_uses_platform_location() ! {
 		}
 	}
 
-	expected := $if macos { default_app_support_path()! } $else { os.join_path('/tmp/witty-config-home', 'ghostty', 'config.ghostty') }
+	expected := $if macos { default_app_support_path()! } $else { os.join_path('/tmp/witty-config-home', 'witty', 'config.witty') }
 	assert preferred_default_file_path()! == expected
 }
 
@@ -1427,7 +1427,7 @@ fn test_gtk_window_config_parse_format_and_defaults() {
 	assert cfg.quick_terminal_position == .top
 	assert cfg.quick_terminal_size.primary == none
 	assert cfg.gtk_quick_terminal_layer == .top
-	assert cfg.gtk_quick_terminal_namespace == 'ghostty-quick-terminal'
+	assert cfg.gtk_quick_terminal_namespace == 'witty-quick-terminal'
 	assert cfg.quick_terminal_screen == .main
 	assert cfg.quick_terminal_animation_duration == 0.2
 	assert cfg.quick_terminal_autohide == default_quick_terminal_autohide
@@ -1442,7 +1442,7 @@ window-subtitle = working-directory
 quick-terminal-position = right
 quick-terminal-size = 50%,320px
 gtk-quick-terminal-layer = overlay
-gtk-quick-terminal-namespace = dev.ghostty.quick
+gtk-quick-terminal-namespace = dev.witty.quick
 quick-terminal-screen = macos-menu-bar
 quick-terminal-animation-duration = 0.35
 quick-terminal-autohide = ${quick_autohide_value}
@@ -1473,7 +1473,7 @@ gtk-wide-tabs = false')
 	assert quick_secondary is QuickTerminalSizePixels
 	assert (quick_secondary as QuickTerminalSizePixels).value == 320
 	assert cfg.gtk_quick_terminal_layer == .overlay
-	assert cfg.gtk_quick_terminal_namespace == 'dev.ghostty.quick'
+	assert cfg.gtk_quick_terminal_namespace == 'dev.witty.quick'
 	assert cfg.quick_terminal_screen == .macos_menu_bar
 	assert cfg.quick_terminal_animation_duration == 0.35
 	assert cfg.quick_terminal_autohide == !default_quick_terminal_autohide
@@ -1494,7 +1494,7 @@ gtk-wide-tabs = false')
 	assert formatted.contains('quick-terminal-position = right\n')
 	assert formatted.contains('quick-terminal-size = 50%,320px\n')
 	assert formatted.contains('gtk-quick-terminal-layer = overlay\n')
-	assert formatted.contains('gtk-quick-terminal-namespace = dev.ghostty.quick\n')
+	assert formatted.contains('gtk-quick-terminal-namespace = dev.witty.quick\n')
 	assert formatted.contains('quick-terminal-screen = macos-menu-bar\n')
 	assert formatted.contains('quick-terminal-animation-duration = 0.35\n')
 	assert formatted.contains('quick-terminal-autohide = ${quick_autohide_value}\n')
@@ -1583,7 +1583,7 @@ fn test_open_path_helper_creates_file_without_truncating() ! {
 	defer {
 		os.rmdir_all(dir) or {}
 	}
-	path := os.join_path(dir, 'ghostty', 'config.ghostty')
+	path := os.join_path(dir, 'witty', 'config.witty')
 	ensure_editable_config_path(path)!
 	assert os.is_file(path)
 	os.write_file(path, 'keep me')!
@@ -1597,7 +1597,7 @@ fn test_write_config_template_creates_parent_and_interpolates_path() ! {
 	defer {
 		os.rmdir_all(dir) or {}
 	}
-	path := os.join_path(dir, 'ghostty', 'config.ghostty')
+	path := os.join_path(dir, 'witty', 'config.witty')
 	write_config_template(path)!
 	content := os.read_file(path)!
 	assert content.contains('#   ${path}\n')
@@ -2212,7 +2212,7 @@ fn test_theme_loading() {
 
 fn test_theme_loading_resolves_user_theme_name() {
 	dir := os.join_path(os.temp_dir(), 'witty-theme-name-${os.getpid()}')
-	theme_dir := os.join_path(dir, 'ghostty', 'themes')
+	theme_dir := os.join_path(dir, 'witty', 'themes')
 	os.rmdir_all(dir) or {}
 	os.mkdir_all(theme_dir)!
 	defer {
@@ -2886,8 +2886,8 @@ fn test_default_values_match_ghostty() {
 		g: 0xFF
 		b: 0xFF
 	}
-	// term: []const u8 = "xterm-ghostty"
-	assert cfg.term == 'xterm-ghostty'
+	// term: []const u8 = "xterm-witty"
+	assert cfg.term == 'xterm-witty'
 	// @"title-report": bool = false
 	assert cfg.title_report == false
 	// @"mouse-hide-while-typing": bool = false
@@ -2905,11 +2905,11 @@ fn test_default_values_match_ghostty() {
 	// @"minimum-contrast": f64 = 1
 	assert cfg.minimum_contrast == 1.0
 
-	// Empty term falls back to xterm-ghostty in finalize.
+	// Empty term falls back to xterm-witty in finalize.
 	mut cfg2 := Config.default_config()
 	cfg2.term = ''
 	cfg2.finalize()!
-	assert cfg2.term == 'xterm-ghostty'
+	assert cfg2.term == 'xterm-witty'
 }
 
 fn test_finalize_translates_inherit_working_directory_and_preserves_unclamped_opacities() {
@@ -3699,7 +3699,7 @@ fn test_load_file_expands_paths_relative_to_declaring_file() {
 	defer {
 		os.rmdir_all(dir) or {}
 	}
-	path := os.join_path(dir, 'config.ghostty')
+	path := os.join_path(dir, 'config.witty')
 	os.write_file(path, 'custom-shader = shader.glsl\nbackground-image = images/bg.png\n')!
 	mut cfg := Config.default_config()
 	cfg.load_file(path)!
@@ -3715,7 +3715,7 @@ fn test_load_recursive_files_preserves_order_and_nested_bases() {
 	defer {
 		os.rmdir_all(dir) or {}
 	}
-	root := os.join_path(dir, 'config.ghostty')
+	root := os.join_path(dir, 'config.witty')
 	first := os.join_path(dir, 'first.conf')
 	second := os.join_path(dir, 'nested', 'second.conf')
 	os.write_file(root, 'font-size = 10\nconfig-file = first.conf\n')!
@@ -3743,7 +3743,7 @@ fn test_recursive_files_skip_optional_missing_and_report_required_and_cycles() {
 	defer {
 		os.rmdir_all(dir) or {}
 	}
-	root := os.join_path(dir, 'config.ghostty')
+	root := os.join_path(dir, 'config.witty')
 	child := os.join_path(dir, 'child.conf')
 	os.write_file(root, 'config-file = ?missing.conf\nconfig-file = required.conf\nconfig-file = child.conf\n')!
 	os.write_file(child, 'config-file = child.conf\n')!
@@ -3763,7 +3763,7 @@ fn test_recursive_file_diagnostics_keep_the_declaring_path() {
 	defer {
 		os.rmdir_all(dir) or {}
 	}
-	root := os.join_path(dir, 'config.ghostty')
+	root := os.join_path(dir, 'config.witty')
 	child := os.join_path(dir, 'child.conf')
 	os.write_file(root, 'config-file = child.conf\n')!
 	os.write_file(child, 'font-size = invalid\n')!
@@ -3806,6 +3806,7 @@ fn test_preferred_xdg_path_uses_new_then_legacy_name() ! {
 	dir := os.join_path(os.temp_dir(), 'witty-config-default-path-${os.getpid()}')
 	os.rmdir_all(dir) or {}
 	os.mkdir_all(os.join_path(dir, 'ghostty'))!
+	os.mkdir_all(os.join_path(dir, 'witty'))!
 	defer {
 		os.rmdir_all(dir) or {}
 	}
@@ -3818,13 +3819,16 @@ fn test_preferred_xdg_path_uses_new_then_legacy_name() ! {
 			os.unsetenv('XDG_CONFIG_HOME')
 		}
 	}
-	new_path := os.join_path(dir, 'ghostty', 'config.ghostty')
+	new_path := os.join_path(dir, 'witty', 'config.witty')
+	previous_path := os.join_path(dir, 'ghostty', 'config.ghostty')
 	legacy_path := os.join_path(dir, 'ghostty', 'config')
 	assert preferred_xdg_path()! == new_path
 	os.write_file(legacy_path, 'font-size = 10\n')!
 	assert preferred_xdg_path()! == legacy_path
 	os.write_file(new_path, '')!
 	assert preferred_xdg_path()! == legacy_path
+	os.write_file(previous_path, 'font-size = 12\n')!
+	assert preferred_xdg_path()! == previous_path
 	os.write_file(new_path, 'font-size = 11\n')!
 	assert preferred_xdg_path()! == new_path
 }
@@ -3884,7 +3888,7 @@ fn test_keybinds_format_entry_docs_matches_pinned_source_lookup() {
 	]
 }
 
-// Ghostty's `font-size` default is 13 on macOS and 12 elsewhere.
+// Witty's `font-size` default is 13 on macOS and 12 elsewhere.
 const default_font_size_line = $if macos { 'font-size = 13.0\n' } $else { 'font-size = 12.0\n' }
 
 fn test_format_config_default_formats_all_supported_values() {
@@ -3968,7 +3972,7 @@ fn test_format_config_changes_only_round_trips_supported_values() {
 	assert parsed.async_backend == original.async_backend
 	assert parsed.auto_update == original.auto_update
 	assert parsed.auto_update_channel == original.auto_update_channel
-	// Ghostty's binding formatter intentionally serializes triggers and
+	// Witty's binding formatter intentionally serializes triggers and
 	// actions but not the in-memory performable/consumed flags.
 	assert parsed.keybind.set.get_trigger(input.ActionNewWindow{}) != none
 }

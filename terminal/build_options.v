@@ -33,7 +33,7 @@ pub:
 pub enum Artifact as u8 {
 	// Ghostty application
 	ghostty
-	// libghostty-vt, Zig module
+	// libwitty-vt, Zig module
 	lib
 }
 

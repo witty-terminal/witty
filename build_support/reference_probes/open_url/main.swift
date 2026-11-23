@@ -41,7 +41,7 @@ final class URLProbeWorkspace {
 
 struct URLProbeRecord: Codable { let input: String; let kind: Int32; let url: String; let editor: String }
 let values = ["https://ghostty.org/docs?query=hello world", "https://ghostty.org/docs/a%20b",
-              "/tmp/witty config.ghostty", "relative config.txt", "file:///tmp/witty%20config.txt",
+              "/tmp/witty config.witty", "relative config.txt", "file:///tmp/witty%20config.txt",
               "/tmp/readme.md", "/tmp/unknown-extension.witty-ultra-nonexistent-extension",
               "/tmp/no-extension", "", "mailto:alex@example.test", "/tmp/native.html"]
 var inputs: [(String, [UInt8])] = values.map { ($0, Array($0.utf8)) }
@@ -77,9 +77,9 @@ for (input, bytes) in inputs {
     }
 }
 let configs: [(String, [UInt8])] = [
-    ("config-valid", Array("/tmp/witty config.ghostty".utf8)),
+    ("config-valid", Array("/tmp/witty config.witty".utf8)),
     ("config-empty", []),
-    ("config-with-NUL", Array("/tmp/witty".utf8) + [0] + Array("config.ghostty".utf8)),
+    ("config-with-NUL", Array("/tmp/witty".utf8) + [0] + Array("config.witty".utf8)),
     ("config-invalid-UTF8", [0xff])]
 for (input, bytes) in configs {
     let before = URLProbeWorkspace.shared.calls

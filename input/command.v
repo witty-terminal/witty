@@ -416,7 +416,7 @@ fn action_commands(action ActionTag) []Command {
 		}
 		.text {
 			[
-				cmd(ActionText{ value: '👻' }, 'Ghostty', 'Put a little Ghostty in your terminal.'),
+				cmd(ActionText{ value: '👻' }, 'Witty', 'Put a little Witty in your terminal.'),
 			]
 		}
 

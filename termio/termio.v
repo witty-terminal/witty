@@ -1510,7 +1510,7 @@ pub:
 // Selection scrolling. If this is set to true then the termio
 // thread starts a timer that will trigger a `selection_scroll_tick`
 // message back to the surface. This ping/pong is because the
-// surface thread doesn't have access to an event loop from libghostty.
+// surface thread doesn't have access to an event loop from libwitty.
 pub struct MessageSelectionScroll {
 pub:
 	value bool

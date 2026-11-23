@@ -1,13 +1,13 @@
-# German translations for com.mitchellh.ghostty package
-# German translation for com.mitchellh.ghostty.
+# German translations for com.alexander.witty package
+# German translation for com.alexander.witty.
 # Copyright (C) 2025 Mitchell Hashimoto, Ghostty contributors
-# This file is distributed under the same license as the com.mitchellh.ghostty package.
+# This file is distributed under the same license as the com.alexander.witty package.
 # Robin Pfäffle <r@rpfaeffle.com>, 2025.
 # Jan Klass <kissaki@posteo.de>, 2026.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: com.mitchellh.ghostty\n"
+"Project-Id-Version: com.alexander.witty\n"
 "Report-Msgid-Bugs-To: m@mitchellh.com\n"
 "POT-Creation-Date: 2025-07-22 17:18+0000\n"
 "PO-Revision-Date: 2026-01-06 10:25+0100\n"
@@ -171,8 +171,8 @@ msgstr "Terminalinspektor"
 
 #: src/apprt/gtk/ui/1.0/menu-window-titlebar_menu.blp:107
 #: src/apprt/gtk/Window.zig:1038
-msgid "About Ghostty"
-msgstr "Über Ghostty"
+msgid "About Witty"
+msgstr "Über Witty"
 
 #: src/apprt/gtk/ui/1.0/menu-window-titlebar_menu.blp:112
 msgid "Quit"
@@ -245,8 +245,8 @@ msgid "Close"
 msgstr "Schließen"
 
 #: src/apprt/gtk/CloseDialog.zig:87
-msgid "Quit Ghostty?"
-msgstr "Ghostty schließen?"
+msgid "Quit Witty?"
+msgstr "Witty schließen?"
 
 #: src/apprt/gtk/CloseDialog.zig:88
 msgid "Close Window?"
@@ -306,9 +306,9 @@ msgstr "Neues geteiltes Fenster"
 
 #: src/apprt/gtk/Window.zig:329
 msgid ""
-"⚠️ You're running a debug build of Ghostty! Performance will be degraded."
+"⚠️ You're running a debug build of Witty! Performance will be degraded."
 msgstr ""
-"⚠️ Du verwendest einen Debug Build von Ghostty! Die Leistung wird reduziert "
+"⚠️ Du verwendest einen Debug Build von Witty! Die Leistung wird reduziert "
 "sein."
 
 #: src/apprt/gtk/Window.zig:775
@@ -316,9 +316,9 @@ msgid "Reloaded the configuration"
 msgstr "Konfiguration wurde neu geladen"
 
 #: src/apprt/gtk/Window.zig:1019
-msgid "Ghostty Developers"
-msgstr "Ghostty-Entwickler"
+msgid "Witty Developers"
+msgstr "Witty-Entwickler"
 
 #: src/apprt/gtk/inspector.zig:144
-msgid "Ghostty: Terminal Inspector"
-msgstr "Ghostty: Terminalinspektor"
+msgid "Witty: Terminal Inspector"
+msgstr "Witty: Terminalinspektor"

@@ -3,7 +3,7 @@
 Ghostty uses the `gettext` library/framework for localization, which has the
 distinct benefit of being able to be consumed directly by our two main
 app runtimes: macOS and GTK (Linux). The core would ideally remain agnostic
-to localization efforts, as not all consumers of libghostty would be interested
+to localization efforts, as not all consumers of libwitty would be interested
 in localization support. Thus, implementors of app runtimes are left responsible
 for any localization that they may add.
 
@@ -45,7 +45,7 @@ const label = gtk.Label.new(text);
 ```
 
 All translatable strings are extracted into the _translation template file_,
-located under `po/com.mitchellh.ghostty.pot`. **This file must stay in sync with
+located under `po/com.alexander.witty.pot`. **This file must stay in sync with
 the list of translatable strings present in source code or Blueprints at all times.**
 A CI action would be run for every PR, which checks if the translation template
 requires any updates. You can update the translation template by running
@@ -53,7 +53,7 @@ requires any updates. You can update the translation template by running
 for other locales (`.po` files) to reflect the state of the template file.
 
 During the build process, each locale in `.po` files is compiled
-into binary `.mo` files, stored under `share/locale/<LOCALE>/LC_MESSAGES/com.mitchellh.ghostty.mo`.
+into binary `.mo` files, stored under `share/locale/<LOCALE>/LC_MESSAGES/com.alexander.witty.mo`.
 This can be directly accessed by `libintl`, which provide the various `gettext`
 C functions that can be called either by Zig code directly, or by the GTK builder
 (recommended).

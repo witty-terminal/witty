@@ -44,7 +44,7 @@ pub fn set_application_appearance_callback(callback ApplicationAppearanceCallbac
 	}
 	g_application_appearance_callback = callback
 	g_application_appearance_observer = msg_id(alloc('VTApplicationAppearanceObserver'), 'init')
-	// AppDelegate observes .new and .initial after libghostty is initialized.
+	// AppDelegate observes .new and .initial after libwitty is initialized.
 	C.witty_macos_observe_application_appearance(voidptr(g_application_appearance_observer))
 }
 

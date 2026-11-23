@@ -3,8 +3,7 @@ module buildcfg
 
 import build_meta
 
-pub const linux_executable_name = 'witty'
-pub const cli_command = $if linux { linux_executable_name } $else { 'ghostty' }
+pub const cli_command = 'witty'
 
 // ReleaseChannel determines the release channel for this build.
 pub enum ReleaseChannel as u8 {
@@ -48,7 +47,7 @@ pub const mode_string = $if release_safe ? {
 
 // Ghostty's main build enables Oniguruma and synthesizes both terminal
 // features from that one option. `-d no_oniguruma` models the reduced
-// libghostty-vt build, whose source build explicitly disables it.
+// libwitty-vt build, whose source build explicitly disables it.
 pub const oniguruma = $if no_oniguruma ? { false } $else { true }
 pub const kitty_graphics = oniguruma
 pub const tmux_control_mode = oniguruma

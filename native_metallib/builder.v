@@ -4,7 +4,7 @@ import os
 
 pub struct Options {
 pub:
-	name            string = 'ghostty'
+	name            string = 'witty'
 	os_tag          string = os.user_os()
 	simulator       bool
 	minimum_version ?string

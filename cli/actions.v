@@ -328,7 +328,7 @@ pub fn choose_editor(visual string, editor string) string {
 pub fn run_edit_config(args []string) !int {
 	path := edit_config_target(args)!
 	$if windows {
-		eprintln('The `ghostty +edit-config` command is not supported on Windows.')
+		eprintln('The `witty +edit-config` command is not supported on Windows.')
 		eprintln('Please edit the configuration file manually at the following path:\n')
 		eprintln(path)
 		return 1
@@ -336,7 +336,7 @@ pub fn run_edit_config(args []string) !int {
 		editor := choose_editor(os.getenv('VISUAL'), os.getenv('EDITOR'))
 		if editor.len == 0 {
 			eprintln('The \$EDITOR or \$VISUAL environment variable is not set or is empty.')
-			eprintln('This environment variable is required to edit the Ghostty configuration')
+			eprintln('This environment variable is required to edit the Witty configuration')
 			eprintln('via this CLI command.\n')
 			eprintln('Please set the environment variable to your preferred terminal')
 			eprintln('text editor and try again.\n')

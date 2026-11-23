@@ -45,8 +45,8 @@ pub fn parse_target(value string) !Target {
 pub enum Entrypoint {
 	ghostty
 	helpgen
-	mdgen_ghostty_1
-	mdgen_ghostty_5
+	mdgen_witty_1
+	mdgen_witty_5
 	webgen_config
 	webgen_actions
 	webgen_commands

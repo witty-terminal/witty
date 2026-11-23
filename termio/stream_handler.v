@@ -722,7 +722,7 @@ fn (mut self StreamHandler) dcs_command(mut cmd terminal.DcsCommand) ! {
 // V has no comptime map, so it is built once at startup from the same entry.
 // Keys are upper-case hex, so a lower-case request goes unanswered exactly as
 // it does in the source.
-const xtgettcap_map = terminfo.ghostty.xtgettcap_map()
+const xtgettcap_map = terminfo.witty.xtgettcap_map()
 
 // dcs_xtgettcap handles XTGETTCAP requests by iterating over requested
 // terminfo capability names and sending responses. Each found capability is
@@ -1255,8 +1255,8 @@ pub fn (mut self StreamHandler) query_kitty_keyboard() ! {
 // ============================================================
 
 pub fn (mut self StreamHandler) report_xtversion() ! {
-	log.debug('reporting XTVERSION: ghostty ${build_meta.version_string}')
-	resp := '\x1bP>|ghostty ${build_meta.version_string}\x1b\\'
+	log.debug('reporting XTVERSION: witty ${build_meta.version_string}')
+	resp := '\x1bP>|witty ${build_meta.version_string}\x1b\\'
 	self.message_writer(Message.write_req(resp))
 }
 

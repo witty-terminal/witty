@@ -6,8 +6,8 @@ import os
 import semver
 import strings
 
-pub const prefix = '/com/mitchellh/ghostty'
-pub const app_id = 'com.mitchellh.ghostty'
+pub const prefix = '/com/alexander/witty'
+pub const app_id = 'com.alexander.witty'
 pub const icon_sizes = [16, 32, 128, 256, 512, 1024]!
 pub const css = ['style.css', 'style-dark.css', 'style-hc.css', 'style-hc-dark.css']!
 
@@ -107,10 +107,10 @@ pub fn build(repo_root string, adwaita_version string) !string {
 		compile_blueprint(bp, adwaita_version, ui, input)!
 		ui_files << ui
 	}
-	xml_path := os.join_path(output, 'ghostty.gresource.xml')
+	xml_path := os.join_path(output, 'witty.gresource.xml')
 	os.write_file(xml_path, xml(repo_root, ui_files)!)!
-	c_path := os.join_path(output, 'ghostty_resources.c')
-	h_path := os.join_path(output, 'ghostty_resources.h')
+	c_path := os.join_path(output, 'witty_resources.c')
+	h_path := os.join_path(output, 'witty_resources.h')
 	_ = run('glib-compile-resources', ['--c-name', 'ghostty', '--generate-source', '--target', c_path, xml_path])!
 	_ = run('glib-compile-resources', ['--c-name', 'ghostty', '--generate-header', '--target', h_path, xml_path])!
 	return c_path

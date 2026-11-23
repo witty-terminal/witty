@@ -5,10 +5,10 @@ import os
 fn test_source_resource_aliases_and_inputs() ! {
 	root := @VMODROOT
 	assert blueprints.len == 21
-	assert blueprint_resource(Blueprint{major: 1, minor: 5, name: 'command-palette'})! == '/com/mitchellh/ghostty/ui/1.5/command-palette.ui'
+	assert blueprint_resource(Blueprint{major: 1, minor: 5, name: 'command-palette'})! == '/com/alexander/witty/ui/1.5/command-palette.ui'
 	text := xml(root, ['/tmp/1.5/command-palette.ui'])!
 	for name in css { assert text.contains('alias="${name}"') }
-	assert text.contains('alias="1024x1024@2/apps/com.mitchellh.ghostty.png"')
+	assert text.contains('alias="1024x1024@2/apps/com.alexander.witty.png"')
 	assert text.contains('alias="1.5/command-palette.ui"')
 	assert os.read_file(os.join_path(root, 'apprt', 'gtk', 'style-dark.css'))!.contains('rgba(36, 36, 36, 1)')
 }

@@ -1,13 +1,13 @@
-# Russian translations for com.mitchellh.ghostty package
-# Русские переводы для пакета com.mitchellh.ghostty.
+# Russian translations for com.alexander.witty package
+# Русские переводы для пакета com.alexander.witty.
 # Copyright (C) 2025 Mitchell Hashimoto, Ghostty contributors
-# This file is distributed under the same license as the com.mitchellh.ghostty package.
+# This file is distributed under the same license as the com.alexander.witty package.
 # blackzeshi <sergey_zhuzhgov@mail.ru>, 2025.
 # Ivan Bastrakov <bastaynav@proton.me>, 2025.
 
 msgid ""
 msgstr ""
-"Project-Id-Version: com.mitchellh.ghostty\n"
+"Project-Id-Version: com.alexander.witty\n"
 "Report-Msgid-Bugs-To: m@mitchellh.com\n"
 "POT-Creation-Date: 2025-07-22 17:18+0000\n"
 "Language-Team: Russian <gnu@d07.ru>\n"
@@ -171,8 +171,8 @@ msgstr "Инспектор терминала"
 
 #: src/apprt/gtk/ui/1.0/menu-window-titlebar_menu.blp:107
 #: src/apprt/gtk/Window.zig:1038
-msgid "About Ghostty"
-msgstr "О Ghostty"
+msgid "About Witty"
+msgstr "О Witty"
 
 #: src/apprt/gtk/ui/1.0/menu-window-titlebar_menu.blp:112
 msgid "Quit"
@@ -244,8 +244,8 @@ msgid "Close"
 msgstr "Закрыть"
 
 #: src/apprt/gtk/CloseDialog.zig:87
-msgid "Quit Ghostty?"
-msgstr "Закрыть Ghostty?"
+msgid "Quit Witty?"
+msgstr "Закрыть Witty?"
 
 #: src/apprt/gtk/CloseDialog.zig:88
 msgid "Close Window?"
@@ -305,9 +305,9 @@ msgstr "Новый сплит"
 
 #: src/apprt/gtk/Window.zig:329
 msgid ""
-"⚠️ You're running a debug build of Ghostty! Performance will be degraded."
+"⚠️ You're running a debug build of Witty! Performance will be degraded."
 msgstr ""
-"⚠️ Вы запустили отладочную сборку Ghostty! Это может влиять на "
+"⚠️ Вы запустили отладочную сборку Witty! Это может влиять на "
 "производительность."
 
 #: src/apprt/gtk/Window.zig:775
@@ -315,9 +315,9 @@ msgid "Reloaded the configuration"
 msgstr "Конфигурация была обновлена"
 
 #: src/apprt/gtk/Window.zig:1019
-msgid "Ghostty Developers"
-msgstr "Разработчики Ghostty"
+msgid "Witty Developers"
+msgstr "Разработчики Witty"
 
 #: src/apprt/gtk/inspector.zig:144
-msgid "Ghostty: Terminal Inspector"
-msgstr "Ghostty: инспектор терминала"
+msgid "Witty: Terminal Inspector"
+msgstr "Witty: инспектор терминала"

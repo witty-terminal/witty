@@ -75,7 +75,7 @@ fn test_native_sentry_sdk_capture_uses_local_envelope_transport() {
 		_ = C.sentry_capture_event(event)
 		directory := default_dir()!
 		reports := os.ls(directory.path)!
-		crashes := reports.filter(it.ends_with('.ghosttycrash'))
+		crashes := reports.filter(it.ends_with('.wittycrash'))
 		assert crashes.len == 1
 		data := os.read_file(os.join_path(directory.path, crashes[0]))!
 		assert data.contains('source local native capture')
@@ -141,8 +141,8 @@ fn test_native_sentry_breakpad_captures_a_fault_in_a_child_process() {
 		mut state := sentry_state_mut()
 		state.init_thread = none
 		defer { _ = C.sentry_close() }
-		directory := os.join_path(root, 'state', 'ghostty', 'crash')
-		crashes := os.ls(directory)!.filter(it.ends_with('.ghosttycrash'))
+		directory := os.join_path(root, 'state', 'witty', 'crash')
+		crashes := os.ls(directory)!.filter(it.ends_with('.wittycrash'))
 		assert crashes.len == 1
 		data := os.read_file(os.join_path(directory, crashes[0]))!
 		assert data.contains('audit-native-fault')

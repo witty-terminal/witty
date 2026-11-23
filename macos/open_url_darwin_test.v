@@ -52,7 +52,7 @@ fn test_source_url_editor_selection_and_real_native_workspace_selectors() {
 	defer { msg_void(workspace, 'release') }
 	mut records := []URLProbeRecord{}
 	values := ['https://ghostty.org/docs?query=hello world', 'https://ghostty.org/docs/a%20b',
-		'/tmp/witty config.ghostty', 'relative config.txt', 'file:///tmp/witty%20config.txt',
+		'/tmp/witty config.witty', 'relative config.txt', 'file:///tmp/witty%20config.txt',
 		'/tmp/readme.md', '/tmp/unknown-extension.witty-ultra-nonexistent-extension',
 		'/tmp/no-extension', '', 'mailto:alex@example.test', '/tmp/native.html']
 	mut inputs := []URLInput{}
@@ -91,9 +91,9 @@ fn test_source_url_editor_selection_and_real_native_workspace_selectors() {
 			records << URLProbeRecord{input.label, kind, g_url_probe_target, g_url_probe_application}
 		}
 	}
-	for input in [URLInput{'config-valid', '/tmp/witty config.ghostty'.bytes()},
+	for input in [URLInput{'config-valid', '/tmp/witty config.witty'.bytes()},
 		URLInput{'config-empty', []u8{}},
-		URLInput{'config-with-NUL', ('/tmp/witty' + nul + 'config.ghostty').bytes()},
+		URLInput{'config-with-NUL', ('/tmp/witty' + nul + 'config.witty').bytes()},
 		URLInput{'config-invalid-UTF8', [u8(0xff)]}] {
 		before := g_url_probe_calls
 		file_url := source_config_file_url(input.bytes.bytestr())
@@ -106,7 +106,7 @@ fn test_source_url_editor_selection_and_real_native_workspace_selectors() {
 	if path := os.getenv_opt('WITTY_URL_MODEL_OUTPUT') { os.write_file(path, json2.encode(records, escape_unicode: true, time_as_unix: true))! }
 }
 fn test_source_config_open_path_conversion() {
-	assert source_config_file_url('/tmp/witty config.ghostty') == 'file:///tmp/witty%20config.ghostty'
+	assert source_config_file_url('/tmp/witty config.witty') == 'file:///tmp/witty%20config.witty'
 	assert source_config_file_url('relative config.txt') == objc_utf8_string(msg_id(source_url('relative config.txt'), 'absoluteString'))
 	assert source_config_file_url('') == ''
 	assert source_config_file_url([u8(0xff)].bytestr()) == ''

@@ -131,7 +131,7 @@ fn test_sentry_transport_persists_event_envelopes_locally() {
 		assert false, 'event envelope was discarded'
 		return
 	}
-	assert stored.ends_with('.ghosttycrash')
+	assert stored.ends_with('.wittycrash')
 	assert os.read_bytes(stored)! == data
 }
 
@@ -151,7 +151,7 @@ fn persist_sentry_envelope(data []u8, dir Dir) !PersistSentryEnvelopeResult {
 	}
 
 	os.mkdir_all(dir.path)!
-	path := os.join_path(dir.path, '${rand.uuid_v4()}.ghosttycrash')
+	path := os.join_path(dir.path, '${rand.uuid_v4()}.wittycrash')
 	os.write_file_array(path, data)!
 	return PersistSentryEnvelopeResult{
 		path: path

@@ -1,8 +1,8 @@
 The shell integration, C headers, locale catalogs and desktop/Windows assets
-were copied unchanged from Ghostty commit
+originated in Ghostty commit
 `6c0e02d1138d5376e4ac2f5e311b225494514a97`.
 
-`themes/` is the exact dependency pinned by that commit's `build.zig.zon`:
+`themes/` originated in the dependency pinned by that commit's `build.zig.zon`:
 `ghostty-themes-release-20260126-150817-02c580d.tgz`, from
 `https://deps.files.ghostty.org/ghostty-themes-release-20260126-150817-02c580d.tgz`.
 Zig 0.15.2's package hash was checked before extracting it:

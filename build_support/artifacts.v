@@ -115,7 +115,7 @@ pub fn (d Driver) build_vt() !string {
 	} else {
 		'.so.0.1.0'
 	}
-	output := d.cache_path('artifacts', (if d.cfg.target.wasm() { 'ghostty-vt' } else { 'libghostty-vt' }) + extension)
+	output := d.cache_path('artifacts', (if d.cfg.target.wasm() { 'witty-vt' } else { 'libwitty-vt' }) + extension)
 	os.mkdir_all(os.dir(output))!
 	if !d.cfg.target.wasm() {
 		object := output + '.o'
@@ -139,9 +139,9 @@ pub fn (d Driver) build_vt() !string {
 		d.install_file(output, 'lib/' + os.base(output))!
 		if d.cfg.target.os != 'windows' {
 			names := if d.cfg.target.darwin() {
-				['libghostty-vt.dylib', 'libghostty-vt.0.dylib']
+				['libwitty-vt.dylib', 'libwitty-vt.0.dylib']
 			} else {
-				['libghostty-vt.so', 'libghostty-vt.so.0']
+				['libwitty-vt.so', 'libwitty-vt.so.0']
 			}
 			for name in names {
 				path := os.join_path(d.cfg.prefix, 'lib', name)
@@ -149,18 +149,18 @@ pub fn (d Driver) build_vt() !string {
 				os.symlink(os.base(output), path)!
 			}
 		}
-		d.install_tree(os.join_path(d.cfg.root, 'include', 'ghostty'), 'include/ghostty', [])!
+		d.install_tree(os.join_path(d.cfg.root, 'include', 'witty'), 'include/witty', [])!
 		pc :=
 			'prefix=${d.cfg.prefix}\nincludedir=\x24{prefix}/include\nlibdir=\x24{prefix}/lib\n\n' +
-			'Name: libghostty-vt\nURL: https://github.com/ghostty-org/ghostty\nDescription: Ghostty VT library\n' +
-			'Version: 0.1.0\nCflags: -I\x24{includedir}\nLibs: -L\x24{libdir} -lghostty-vt'
-		d.install_text('share/pkgconfig/libghostty-vt.pc', pc)!
+			'Name: libwitty-vt\nURL: https://github.com/witty-terminal/witty\nDescription: Witty VT library\n' +
+			'Version: 0.1.0\nCflags: -I\x24{includedir}\nLibs: -L\x24{libdir} -lwitty-vt'
+		d.install_text('share/pkgconfig/libwitty-vt.pc', pc)!
 		if d.cfg.target.darwin() {
 			checked_process(d.cfg.root, ['dsymutil', output, '-o', output + '.dSYM'])!
 		}
 	} else {
-		d.install_file(output, 'bin/ghostty-vt.wasm')!
-		d.install_file(output.all_before_last('.wasm') + '.js', 'bin/ghostty-vt.js')!
+		d.install_file(output, 'bin/witty-vt.wasm')!
+		d.install_file(output.all_before_last('.wasm') + '.js', 'bin/witty-vt.js')!
 	}
 	return output
 }
@@ -170,7 +170,7 @@ pub fn (d Driver) build_library(deps NativeDeps, static_ bool) !string {
 		'build_config.v'])!
 	mut args := d.v_arguments(.lib, deps)!
 	args = args.filter(it != '-shared')
-	object := d.cache_path('artifacts', 'libghostty.o')
+	object := d.cache_path('artifacts', 'libwitty.o')
 	os.mkdir_all(os.dir(object))!
 	args << ['-is_o', '-cflags', '-fPIC', '-o', object, source]
 	checked_process(d.cfg.root, args)!
@@ -182,14 +182,14 @@ pub fn (d Driver) build_library(deps NativeDeps, static_ bool) !string {
 		} else {
 			'.so'
 		}
-		output := d.cache_path('artifacts', 'libghostty' + extension)
+		output := d.cache_path('artifacts', 'libwitty' + extension)
 		d.link_library(object, output, deps, false)!
 		if d.cfg.target.darwin() {
 			checked_process(d.cfg.root, ['dsymutil', output, '-o', output + '.dSYM'])!
 		}
 		return output
 	}
-	archive := d.cache_path('artifacts', 'libghostty.a')
+	archive := d.cache_path('artifacts', 'libwitty.a')
 	if os.exists(archive) { os.rm(archive)! }
 	if d.cfg.target.darwin() {
 		mut command := ['libtool', '-static', '-o', archive]
@@ -217,19 +217,15 @@ pub fn (d Driver) build_executable(deps NativeDeps) !string {
 			'-Wl,-dead_strip_dylibs']
 	}
 	if d.cfg.target.os == 'windows' {
-		resource := d.cache_path('artifacts', 'ghostty-resource.o')
+		resource := d.cache_path('artifacts', 'witty-resource.o')
 		os.mkdir_all(os.dir(resource))!
 		checked_process(d.cfg.root, [os.getenv_opt('WINDRES') or { 'windres' },
 			'-I', os.join_path(d.cfg.root, 'build_assets', 'dist', 'windows'),
-			'-i', os.join_path(d.cfg.root, 'build_assets', 'dist', 'windows', 'ghostty.rc'),
+			'-i', os.join_path(d.cfg.root, 'build_assets', 'dist', 'windows', 'witty.rc'),
 			'-o', resource])!
 		args << ['-ldflags', '-Xlinker ' + compiler_argument(resource), '-ldflags', '-Wl,--subsystem,windows']
 	}
-	output := d.cache_path('artifacts', match d.cfg.target.os {
-		'linux' { buildcfg.linux_executable_name }
-		'windows' { 'ghostty.exe' }
-		else { 'ghostty' }
-	})
+	output := d.cache_path('artifacts', buildcfg.cli_command + if d.cfg.target.os == 'windows' { '.exe' } else { '' })
 	os.mkdir_all(os.dir(output))!
 	args << ['-o', output, d.cfg.root]
 	checked_process(d.cfg.root, args)!
@@ -248,10 +244,10 @@ fn (d Driver) link_library(object string, output string, deps NativeDeps, vt boo
 	command << [if d.cfg.target.darwin() { '-dynamiclib' } else { '-shared' }, '-o', output, object]
 	if d.cfg.target.darwin() {
 		command << ['-install_name', '@rpath/' +
-			if vt { 'libghostty-vt.0.dylib' } else { os.base(output) }]
+			if vt { 'libwitty-vt.0.dylib' } else { os.base(output) }]
 		if vt { command << ['-current_version', '0.1.0', '-compatibility_version', '0.1.0'] }
 	} else if vt && d.cfg.target.os != 'windows' {
-		command << '-Wl,-soname,libghostty-vt.so.0'
+		command << '-Wl,-soname,libwitty-vt.so.0'
 	} else if d.cfg.target.os == 'windows' {
 		command << '-Wl,--export-all-symbols'
 	}

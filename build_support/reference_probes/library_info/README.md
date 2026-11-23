@@ -1,7 +1,7 @@
 This C consumer checks the actual full embedding library's ReleaseSafe/version metadata, runtime initialization and configuration allocation/lifecycle. Build a managed OpenGL/CoreText ReleaseSafe library with version 1.3.0, then compile:
 
 ```sh
-clang -Iinclude build_support/reference_probes/library_info/main.c -L.witty-build/artifacts -lghostty -Wl,-rpath,"$PWD/.witty-build/artifacts" -o /tmp/library-info-consumer
+clang -Iinclude build_support/reference_probes/library_info/main.c -L.witty-build/artifacts -lwitty -Wl,-rpath,"$PWD/.witty-build/artifacts" -o /tmp/library-info-consumer
 /tmp/library-info-consumer --font-size=17
 ```
 

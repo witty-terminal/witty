@@ -1,4 +1,4 @@
-// C-compatible allocator interface used by libghostty-vt.
+// C-compatible allocator interface used by libwitty-vt.
 //
 // Translated from Ghostty's src/lib/allocator.zig. V does not expose a
 // replaceable language allocator object, so Allocator itself is the canonical
