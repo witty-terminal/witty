@@ -15,7 +15,7 @@ Run this command from the repository root.
 make
 ```
 
-The build driver creates `.witty-build/native/libglslang.a` and the other native dependencies before compiling Witty. If `v .` reports that `libglslang.a` is missing, use `make` or run the build driver directly with the following command.
+Witty builds its bundled glslang shader compiler into `.witty-build/native/libglslang.a`. The `libslang-devel` package provides the separate S-Lang library. If `v .` reports that the archive is missing, run `make` from the Witty checkout or invoke the build driver directly. Both commands build the native dependencies before compiling Witty.
 
 ```sh
 VFLAGS='-cc clang' v -path "$PWD|@vlib|@vmodules" run tools/build install

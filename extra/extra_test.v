@@ -1,6 +1,6 @@
 module extra
 
-import configpkg
+import help_strings
 
 fn test_vim_syntax_lists_every_config_key() {
 	out := syntax()
@@ -10,7 +10,7 @@ fn test_vim_syntax_lists_every_config_key() {
 
 	// Every config key appears as a continuation-line keyword, in order.
 	mut idx := 0
-	for key in configpkg.config_keys {
+	for key in help_strings.config_keys {
 		needle := '\n\t\\ ${key}'
 		found := out.index_after(needle, idx) or {
 			assert false, 'missing or out-of-order key: ${key}'
@@ -51,5 +51,5 @@ fn test_sublime_syntax_alternates_every_config_key() {
 		assert false
 		return
 	}
-	assert rest[open_idx + 1..close_idx] == configpkg.config_keys.join('|')
+	assert rest[open_idx + 1..close_idx] == help_strings.config_keys.join('|')
 }

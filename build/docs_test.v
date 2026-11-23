@@ -1,7 +1,7 @@
 module build
 
 import crypto.sha256
-import configpkg
+import help_strings
 
 fn test_web_document_generators_match_pinned_ghostty() {
 	cases := {
@@ -14,7 +14,7 @@ fn test_web_document_generators_match_pinned_ghostty() {
 		'man-keybinds':    [gen_keybind_actions(), 'a5f4e7271397a48f60be1f59935a8b232c3d36f4bfb2222ee470a193b962ecba']
 		'ghostty-1':       [ghostty_1(), '052c3ef42226c4fbdb5ead524d07d3971d2bde8acd2b4cbccd12a4a1c02006dd']
 		'ghostty-5':       [ghostty_5(), '20a1a77fb75d78aeba481c7bcb35dd29e9794976d9bb0726e68313d6ca1cf8aa']
-		'config-help-data': [configpkg.generated_config_help_data(), '2148b788168cd9d5eb3d7619f3f2f730100aa699c606ad8233c9140f34257360']
+		'config-help-data': [$embed_file('../configpkg/config_help.txt').to_string(), '2148b788168cd9d5eb3d7619f3f2f730100aa699c606ad8233c9140f34257360']
 	}
 	for name, values in cases {
 		actual := sha256.sum(values[0].bytes()).hex()
@@ -31,8 +31,8 @@ fn test_manpage_generators_cover_all_translated_records() {
 
 	config_cli := gen_config(true)
 	config_file := gen_config(false)
-	assert config_cli.count('**`--') == configpkg.config_keys.len
-	assert config_file.count('**`') == configpkg.config_keys.len
+	assert config_cli.count('**`--') == help_strings.config_keys.len
+	assert config_file.count('**`') == help_strings.config_keys.len
 	assert config_cli.contains('**`--font-family-bold`**\n\n')
 	assert config_file.contains('**`font-family-bold`**\n\n')
 

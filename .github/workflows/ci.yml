@@ -97,10 +97,15 @@ jobs:
         run: bash .github/scripts/install-v.sh
       - name: Check
         run: v -check .
-      - name: Verify standalone help generation
+      - name: Verify standalone build generators
         run: |
+          test ! -e .witty-build/native/libglslang.a
           v -path "$PWD|@vlib|@vmodules" run tools/helpgen > "$RUNNER_TEMP/helpgen.zig"
+          v -path "$PWD|@vlib|@vmodules" run tools/docgen mdgen_ghostty_1 > "$RUNNER_TEMP/ghostty.1.md"
+          v -path "$PWD|@vlib|@vmodules" run tools/build_data +vim-syntax > "$RUNNER_TEMP/ghostty.vim"
           test -s "$RUNNER_TEMP/helpgen.zig"
+          test -s "$RUNNER_TEMP/ghostty.1.md"
+          test -s "$RUNNER_TEMP/ghostty.vim"
       - name: Build
         run: bash .github/scripts/ci-build.sh install
       - name: Package release

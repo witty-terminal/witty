@@ -1,54 +1,19 @@
 module build
 
 import build_meta
-import cli
-import configpkg
-import global_state
-import input
+import help_strings
 import strings
 
 // Documentation generators translated from src/build/mdgen and
 // src/build/webgen. The source obtains these records from HelpStrings.zig;
-// Witty embeds the output of that build step in the corresponding modules.
+// Witty embeds the pinned help records for the standalone documentation tool.
 
 const ghostty_1_header = $embed_file('ghostty_1_header.md').to_string()
 const ghostty_1_footer = $embed_file('ghostty_1_footer.md').to_string()
 const ghostty_5_header = $embed_file('ghostty_5_header.md').to_string()
 const ghostty_5_footer = $embed_file('ghostty_5_footer.md').to_string()
 
-struct DocEntry {
-	name string
-	text string
-}
-
-fn doc_entries(source string, marker string) []DocEntry {
-	mut result := []DocEntry{}
-	mut name := ''
-	mut lines := []string{}
-	for line in source.split_into_lines() {
-		if line.starts_with(marker) {
-			if name.len > 0 && name != '__end' {
-				result << DocEntry{
-					name: name
-					text: lines.join('\n')
-				}
-			}
-			name = line[marker.len..]
-			lines = []string{}
-			continue
-		}
-		lines << line
-	}
-	if name.len > 0 && name != '__end' {
-		result << DocEntry{
-			name: name
-			text: lines.join('\n')
-		}
-	}
-	return result
-}
-
-fn find_doc(entries []DocEntry, name string) ?string {
+fn find_doc(entries []help_strings.HelpEntry, name string) ?string {
 	for entry in entries {
 		if entry.name == name {
 			return entry.text
@@ -78,10 +43,10 @@ fn write_definition_docs(mut out strings.Builder, docs string) {
 // gen_config emits the configuration section used by both Ghostty manpages.
 // cli selects the `--option` spelling used by ghostty(1).
 pub fn gen_config(cli_options bool) string {
-	docs := doc_entries(configpkg.generated_config_help_data(), '\x1e')
-	mut out := strings.new_builder(configpkg.config_keys.len * 128)
+	docs := help_strings.gen_config().entries
+	mut out := strings.new_builder(help_strings.config_keys.len * 128)
 	out.write_string('\n# CONFIGURATION OPTIONS\n\n')
-	for key in configpkg.config_keys {
+	for key in help_strings.config_keys {
 		out.write_string('**`')
 		if cli_options {
 			out.write_string('--')
@@ -97,26 +62,24 @@ pub fn gen_config(cli_options bool) string {
 
 // gen_actions emits the command-line action section used by ghostty(1).
 pub fn gen_actions() string {
-	docs := doc_entries(cli.generated_action_help_data(), '@@')
+	docs := help_strings.gen_actions().entries
 	mut out := strings.new_builder(docs.len * 128)
 	out.write_string('\n# COMMAND LINE ACTIONS\n\n')
-	for action in global_state.actions() {
-		name := action.cli_name()
-		match action {
-			.help { out.write_string('**`--help`**\n\n') }
-			.version { out.write_string('**`--version`**\n\n') }
+	for entry in docs {
+		name := entry.name
+		match name {
+			'help' { out.write_string('**`--help`**\n\n') }
+			'version' { out.write_string('**`--version`**\n\n') }
 			else { out.write_string('**`+${name}`**\n\n') }
 		}
-		if text := find_doc(docs, name) {
-			write_definition_docs(mut out, text)
-		}
+		write_definition_docs(mut out, entry.text)
 	}
 	return out.str()
 }
 
 // gen_keybind_actions emits the keybinding action section used by ghostty(5).
 pub fn gen_keybind_actions() string {
-	docs := doc_entries(input.generated_action_help_data(), '@@')
+	docs := help_strings.gen_keybind_actions().entries
 	mut out := strings.new_builder(docs.len * 128)
 	out.write_string('\n# KEYBIND ACTIONS\n\n')
 	for entry in docs {
@@ -131,7 +94,7 @@ pub fn gen_keybind_actions() string {
 
 // gen_web_actions generates the website CLI-action reference.
 pub fn gen_web_actions() string {
-	docs := doc_entries(cli.generated_action_help_data(), '@@')
+	docs := help_strings.gen_actions().entries
 	mut out := strings.new_builder(docs.len * 128)
 	out.write_string('---\n')
 	out.write_string('title: Reference\n')
@@ -141,18 +104,16 @@ pub fn gen_web_actions() string {
 	out.write_string('Ghostty includes a number of utility actions that can be accessed as subcommands.\n')
 	out.write_string('Actions provide utilities to work with config, list keybinds, list fonts, demo themes,\n')
 	out.write_string('and debug.\n')
-	for action in global_state.actions() {
-		name := action.cli_name()
+	for entry in docs {
+		name := entry.name
 		out.write_string('## ${name}\n')
-		if text := find_doc(docs, name) {
-			out.write_string(text)
-			out.write_string('\n\n```\n')
-			match action {
-				.help, .version { out.write_string('ghostty --${name}\n') }
-				else { out.write_string('ghostty +${name}\n') }
-			}
-			out.write_string('```\n\n')
+		out.write_string(entry.text)
+		out.write_string('\n\n```\n')
+		match name {
+			'help', 'version' { out.write_string('ghostty --${name}\n') }
+			else { out.write_string('ghostty +${name}\n') }
 		}
+		out.write_string('```\n\n')
 	}
 	return out.str()
 }
@@ -185,8 +146,8 @@ fn starts_with_ignore_case(value string, prefix string) bool {
 // gen_web_config generates the website configuration reference and performs
 // the same deliberately small markdown rewrite as the pinned Zig generator.
 pub fn gen_web_config() string {
-	docs := doc_entries(configpkg.generated_config_help_data(), '\x1e')
-	mut out := strings.new_builder(configpkg.config_keys.len * 192)
+	docs := help_strings.gen_config().entries
+	mut out := strings.new_builder(help_strings.config_keys.len * 192)
 	out.write_string('---\n')
 	out.write_string('title: Reference\n')
 	out.write_string('description: Reference of all Ghostty configuration options.\n')
@@ -200,14 +161,14 @@ pub fn gen_web_config() string {
 	out.write_string("In the future, we'll have a more user-friendly way to view and\n")
 	out.write_string('organize these options.\n\n')
 
-	for i, key in configpkg.config_keys {
+	for i, key in help_strings.config_keys {
 		text := find_doc(docs, key) or { continue }
 		out.write_string('## `${key}`\n')
 
 		// Undocumented fields following a documented field are grouped under
 		// that field until the next documented field.
-		if i + 1 < configpkg.config_keys.len {
-			for next_key in configpkg.config_keys[i + 1..] {
+		if i + 1 < help_strings.config_keys.len {
+			for next_key in help_strings.config_keys[i + 1..] {
 				if _ := find_doc(docs, next_key) {
 					break
 				}
@@ -258,7 +219,7 @@ pub fn gen_web_config() string {
 
 // gen_web_keybind_actions is the webgen/actions entry point.
 pub fn gen_web_keybind_actions() string {
-	return input.generate(.markdown, true)
+	return help_strings.web_keybind_actions()
 }
 
 // ghostty_1 generates the complete ghostty(1) markdown source.

@@ -5,7 +5,7 @@
 // canonical config key list, as the source generates it from Config's fields.
 module extra
 
-import configpkg
+import help_strings
 
 // ftdetect is the Vim filetype detection file.
 pub const ftdetect = '" Vim filetype detect file\n" Language: Ghostty config file\n" Maintainer: Ghostty <https://github.com/ghostty-org/ghostty>\n"\n" THIS FILE IS AUTO-GENERATED\n\nau BufRead,BufNewFile */ghostty/config,*/*.ghostty/config,*/ghostty/themes/*,*.ghostty setf ghostty\n'
@@ -23,7 +23,7 @@ const syntax_tail = '\n\nsyn match ghosttyConfigComment /^\\s*#.*/ contains=@Spe
 // syntax returns the Vim syntax file.
 pub fn syntax() string {
 	mut out := syntax_head
-	for key in configpkg.config_keys {
+	for key in help_strings.config_keys {
 		out += '\n\t\\ ${key}'
 	}
 	out += syntax_tail

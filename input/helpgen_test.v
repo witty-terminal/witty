@@ -1,5 +1,7 @@
 module input
 
+import help_strings
+
 fn test_help_format_source_layout_and_ordinals() {
 	assert sizeof(Format) == 1
 	assert [Format.plaintext, .markdown].map(u8(it)) == [u8(0), 1]
@@ -27,12 +29,12 @@ fn test_generate_markdown() {
 }
 
 fn test_embedded_action_help_matches_every_translated_tag() {
-	entries := binding_action_help_entries()
+	entries := help_strings.generated_help_entries(generated_action_help_data(), '@@')
 	mut tags := []string{}
 	$for enum_value in ActionTag.values {
 		tags << enum_value.name
 	}
 	assert entries.map(it.name) == tags
 	assert entries.len == 83
-	assert entries.all(it.docs.len > 0)
+	assert entries.all(it.text.len > 0)
 }

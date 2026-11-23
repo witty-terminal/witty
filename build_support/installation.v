@@ -54,7 +54,6 @@ pub fn (d Driver) install() ! {
 		d.install_file(static_, 'lib/libghostty.a')!
 		d.install_file(os.join_path(d.cfg.root, 'include', 'ghostty.h'), 'include/ghostty.h')!
 	}
-	// The documentation host tool imports the runtime and links its native archives.
 	d.install_docs()!
 	if d.cfg.emit_webdata { d.install_webdata()! }
 	if d.cfg.target.darwin() {
