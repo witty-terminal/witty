@@ -211,6 +211,13 @@ fn show_new_controller(context voidptr) {
 	task:=unsafe { &NewControllerShowTask(context) }
 	if task.controller.closed { return }
 	if standalone_runtime().screenshot.path == '' {
+		current := task.controller.focused
+		config := task.controller.creation_config
+		if !task.tab && !config.maximize && current != unsafe { nil }
+			&& (current.initial_width <= 0 || current.initial_height <= 0) {
+			macos.restore_last_terminal_window_size(current.view, config.position_x == none
+				|| config.position_y == none)
+		}
 		macos.show_new_terminal_window(task.controller.host.container,task.tab)
 	}
 	if task.controller.focused != unsafe { nil } { sync_native_window(task.controller.focused) }

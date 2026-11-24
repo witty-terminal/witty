@@ -308,7 +308,10 @@ pub fn apply_native_window_config(view voidptr, config NativeWindowConfig, initi
 				pos := native_window_position(SplitBounds{width: frame.width, height: frame.height}, SplitBounds{x: visible.x, y: visible.y, width: visible.width, height: visible.height}, x, y)
 				C.witty_macos_msg_void_rect_bool(window, sel('setFrame:display:'), objc_rect(pos.x, pos.y, pos.width, pos.height), true)
 			}
-		} else if !restore_last_window_position(window) { msg_void(window, 'center') }
+		} else if msg_u64(shared_app(), 'activationPolicy') == ns_application_activation_policy_prohibited
+			|| !restore_last_window_frame(window, true, false) {
+			msg_void(window, 'center')
+		}
 		for button in [u64(0), 1, 2] { msg_void_bool(msg_id_u64(window, 'standardWindowButton:', button), 'setHidden:', config.buttons_hidden) }
 	}
 	if host:=split_host(msg_id(window,'contentView')) { data.surface_zoomed=host.tree.zoomed != unsafe { nil } }
@@ -342,16 +345,27 @@ pub fn apply_native_window_config(view voidptr, config NativeWindowConfig, initi
 	refresh_native_update_presentation()
 }
 
-fn save_native_window_position(self ObjId) {
+fn save_native_window_frame(self ObjId) {
+	if !msg_bool(self, 'isVisible') { return }
 	frame := msg_rect(self, 'frame')
-	points := [voidptr(msg_id_f64(get_class('NSNumber'), 'numberWithDouble:', frame.x)), voidptr(msg_id_f64(get_class('NSNumber'), 'numberWithDouble:', frame.y))]
-	array := C.witty_macos_array(points.data, uint(points.len))
+	numbers := [frame.x, frame.y, frame.width, frame.height].map(voidptr(msg_id_f64(get_class('NSNumber'), 'numberWithDouble:', it)))
+	array := C.witty_macos_array(numbers.data, uint(numbers.len))
 	msg_void2(msg_id(get_class('NSUserDefaults'), 'standardUserDefaults'), 'setObject:forKey:', array, nsstring('NSWindowLastPosition'))
 }
-fn native_window_did_move(_self ObjId,_cmd Sel,notification ObjId) { window:=msg_id(notification,'object'); if msg_bool1(window,'isKindOfClass:',get_class('VTTerminalWindow')) { save_native_window_position(window) } }
-fn register_native_window_delegate_methods(cls ObjId) { add_method(cls,'windowDidMove:',voidptr(native_window_did_move),'v@:@'); register_terminal_cascade_delegate_methods(cls) }
+fn native_window_geometry_changed(_self ObjId, _cmd Sel, notification ObjId) {
+	window := msg_id(notification, 'object')
+	if is_regular_terminal_window(window) {
+		save_native_window_frame(window)
+	}
+}
+
+fn register_native_window_delegate_methods(cls ObjId) {
+	add_method(cls, 'windowDidMove:', voidptr(native_window_geometry_changed), 'v@:@')
+	add_method(cls, 'windowDidResize:', voidptr(native_window_geometry_changed), 'v@:@')
+	register_terminal_cascade_delegate_methods(cls)
+}
 fn native_window_close(self ObjId,_cmd Sel) {
-	save_native_window_position(self)
+	save_native_window_frame(self)
 	terminal_window_will_close(self)
 	msg_void2(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'), 'postNotificationName:object:', nsstring('TerminalWindowWillClose'), self)
 	C.witty_macos_window_super_void0(self, sel('close'))
@@ -362,17 +376,34 @@ fn native_window_close(self ObjId,_cmd Sel) {
 	}
 	g_native_windows.delete(u64(self))
 }
-fn restore_last_window_position(window ObjId) bool {
-	points := msg_id1(msg_id(get_class('NSUserDefaults'), 'standardUserDefaults'), 'arrayForKey:', nsstring('NSWindowLastPosition'))
-	if msg_u64(points, 'count') != 2 { return false }
+pub fn restore_last_terminal_window_size(view voidptr, restore_origin bool) {
+	restore_last_window_frame(msg_id(view, 'window'), restore_origin, true)
+}
+
+fn restore_last_window_frame(window ObjId, restore_origin bool, restore_size bool) bool {
+	values := msg_id1(msg_id(get_class('NSUserDefaults'), 'standardUserDefaults'), 'arrayForKey:', nsstring('NSWindowLastPosition'))
+	count := msg_u64(values, 'count')
+	if count != 2 && count != 4 { return false }
+	mut numbers := [4]f64{}
+	for i in 0 .. int(count) {
+		number := msg_id_u64(values, 'objectAtIndex:', u64(i))
+		if !msg_bool1(number, 'isKindOfClass:', get_class('NSNumber')) { return false }
+		numbers[i] = msg_f64(number, 'doubleValue')
+		if !math.is_finite(numbers[i]) { return false }
+	}
+	use_size := restore_size && count == 4 && numbers[2] > 0 && numbers[3] > 0
+	if !restore_origin && !use_size { return false }
+
 	mut screen := msg_id(window, 'screen')
 	if is_nil(screen) { screen = msg_id(get_class('NSScreen'), 'mainScreen') }
 	if is_nil(screen) { return false }
-	frame := msg_rect(window, 'frame'); visible := msg_rect(screen, 'visibleFrame')
-	x := msg_f64(msg_id_u64(points, 'objectAtIndex:', 0), 'doubleValue')
-	y := msg_f64(msg_id_u64(points, 'objectAtIndex:', 1), 'doubleValue')
-	pos := restore_last_native_window_position(SplitBounds{width: frame.width, height: frame.height}, SplitBounds{x: visible.x, y: visible.y, width: visible.width, height: visible.height}, x, y)
-	C.witty_macos_msg_void_rect_bool(window, sel('setFrame:display:'), objc_rect(pos.x, pos.y, pos.width, pos.height), true)
+	frame := msg_rect(window, 'frame')
+	visible := msg_rect(screen, 'visibleFrame')
+	restored := restored_window_frame(SplitBounds{x: frame.x, y: frame.y, width: frame.width, height: frame.height},
+		SplitBounds{x: visible.x, y: visible.y, width: visible.width, height: visible.height},
+		SplitBounds{x: numbers[0], y: numbers[1], width: numbers[2], height: numbers[3]},
+		restore_origin, use_size)
+	C.witty_macos_msg_void_rect_bool(window, sel('setFrame:display:'), objc_rect(restored.x, restored.y, restored.width, restored.height), true)
 	return true
 }
 

@@ -34,11 +34,15 @@ pub fn native_window_transparent(config NativeWindowConfig, native_fullscreen bo
 	return !native_fullscreen && !force_opaque && (config.opacity < 1 || config.blur < 0)
 }
 
-pub fn restore_last_native_window_position(frame SplitBounds, visible SplitBounds, x f64, y f64) SplitBounds {
-	mut result := SplitBounds{x: x, y: y, width: frame.width, height: frame.height}
-	if x < visible.x || x > visible.x + visible.width || y < visible.y || y > visible.y + visible.height {
-		result.x = math.max(visible.x, math.min(visible.x + visible.width - frame.width, x))
-		result.y = math.max(visible.y, math.min(visible.y + visible.height - frame.height, y))
+fn restored_window_frame(frame SplitBounds, visible SplitBounds, saved SplitBounds, restore_origin bool, restore_size bool) SplitBounds {
+	mut result := frame
+	if restore_size {
+		result.width = math.min(saved.width, visible.width)
+		result.height = math.min(saved.height, visible.height)
+	}
+	if restore_origin {
+		result.x = math.max(visible.x, math.min(visible.x + visible.width - result.width, saved.x))
+		result.y = math.max(visible.y, math.min(visible.y + visible.height - result.height, saved.y))
 	}
 	return result
 }

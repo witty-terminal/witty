@@ -30,7 +30,7 @@ pub fn preferred_terminal_window() voidptr {
 }
 fn terminal_window_became_main(window ObjId) {
 	if !is_regular_terminal_window(window) { return }
-	save_native_window_position(window)
+	save_native_window_frame(window)
 	if g_terminal_last_main != unsafe { nil } { g_terminal_last_main.deinit() }
 	g_terminal_last_main=new_native_weak_object(voidptr(window))
 }
