@@ -1330,7 +1330,7 @@ fn test_deactivate_key_table_action_payload() ! {
 fn test_balance_padding_if_needed_disabled() {
 	mut surf := Surface{
 		config: DerivedConfig{
-			window_padding_balance: false
+			window_padding_balance: .false_
 		}
 	}
 	// Should return immediately without modifying padding
@@ -1346,7 +1346,7 @@ fn test_balance_padding_basic() {
 		padding: rendererpkg.Padding{}
 	}
 	explicit := rendererpkg.Padding{ left: 5, top: 5, right: 5, bottom: 5 }
-	s.balance_padding(explicit)
+	s.set_padding(explicit, .true_)
 	// The explicit padding is installed before calculating the 11x5 grid.
 	// Balancing the remaining 10x20 pixels produces 5 horizontal and 10
 	// vertical pixels, exactly as renderer.Size.balancePadding does.
@@ -1877,9 +1877,10 @@ fn test_clear_screen_binding_requests_history_clear() ! {
 	mut surf := make_test_surface()
 	assert surf.perform_binding_action(input.ActionClearScreen{})!
 	assert surf.io.messages.len == 1
-	assert surf.io.messages[0] is termiopkg.MessageClearScreen
 	if surf.io.messages[0] is termiopkg.MessageClearScreen {
 		assert surf.io.messages[0].history
+	} else {
+		assert false, 'expected a clear-screen message'
 	}
 }
 

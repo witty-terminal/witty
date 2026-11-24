@@ -1653,18 +1653,11 @@ const config_template = $embed_file('config-template').to_string()
 // top padding to 2 and the bottom padding to 4. If you want to set both
 // paddings to the same value, you can use a single value. For example,
 // `window-padding-y = 2` will set both paddings to 2.
-// The viewport dimensions are usually not perfectly divisible by the cell
-// size. In this case, some extra padding on the end of a column and the bottom
-// of the final row may exist. If this is `true`, then this extra padding
-// is automatically balanced between all four edges to minimize imbalance on
-// one side. If this is `false`, the top left grid cell will always hug the
-// edge with zero padding other than what may be specified with the other
-// `window-padding` options.
-//
-// If other `window-padding` fields are set and this is `true`, this will still
-// apply. The other padding is applied first and may affect how many grid cells
-// actually exist, and this is applied last in order to balance the padding
-// given a certain viewport size and grid cell size.
+// Distribute the leftover pixels after fitting whole cells into the viewport.
+// Explicit padding is applied first when calculating the number of cells.
+// `false` keeps the configured padding. `true` balances the borders and caps
+// the top padding, moving excess to the bottom. `equal` balances every edge
+// without a cap on the top padding.
 // The color of the padding area of the window. Valid values are:
 //
 // * `background` - The background color specified in `background`.
@@ -3990,7 +3983,7 @@ pub mut:
 	wait_after_command             bool
 	window_padding_x               WindowPadding = WindowPadding{2, 2}
 	window_padding_y               WindowPadding = WindowPadding{2, 2}
-	window_padding_balance         bool
+	window_padding_balance         WindowPaddingBalance
 	window_height                  u32
 	window_width                   u32
 	title                          ?string
@@ -5241,6 +5234,13 @@ pub fn (c TerminalColor) format_entry() string {
 		TerminalColorCellForeground { 'cell-foreground' }
 		TerminalColorCellBackground { 'cell-background' }
 	}
+}
+
+// WindowPaddingBalance controls where to place space left over around the grid.
+pub enum WindowPaddingBalance as u8 {
+	false_
+	true_
+	equal
 }
 
 // WindowPaddingColor determines how the padding area is colored.
@@ -8436,6 +8436,14 @@ fn (mut c Config) apply_kv(key string, value string) {
 				return
 			}
 		}
+		'window-padding-balance' {
+			if value == 'equal' {
+				c.window_padding_balance = .equal
+			} else {
+				balance := c.parse_config_bool(key, value) or { return }
+				c.window_padding_balance = if balance { .true_ } else { .false_ }
+			}
+		}
 		'window-position-x' {
 			c.window_position_x = if value.len == 0 {
 				none
@@ -8537,7 +8545,7 @@ fn (mut c Config) apply_kv(key string, value string) {
 				return
 			}
 		}
-		'font-thicken', 'background-opacity-cells', 'background-image-repeat', 'window-vsync', 'clipboard-trim-trailing-spaces', 'clipboard-paste-protection', 'clipboard-paste-bracketed-safe', 'cursor-click-to-move', 'desktop-notifications', 'mouse-hide-while-typing', 'mouse-reporting', 'selection-clear-on-copy', 'selection-clear-on-typing', 'vt-kam-allowed', 'wait-after-command', 'window-padding-balance', 'title-report', 'link-url', 'maximize', 'fullscreen', 'focus-follows-mouse', 'window-inherit-working-directory', 'tab-inherit-working-directory', 'split-inherit-working-directory', 'window-inherit-font-size', 'window-step-resize', 'initial-window', 'quick-terminal-autohide', 'quit-after-last-window-closed', 'config-default-files', 'linux-cgroup-hard-fail', 'gtk-opengl-debug', 'gtk-titlebar', 'gtk-titlebar-hide-when-maximized', 'gtk-wide-tabs', '_xdg-terminal-exec' {
+		'font-thicken', 'background-opacity-cells', 'background-image-repeat', 'window-vsync', 'clipboard-trim-trailing-spaces', 'clipboard-paste-protection', 'clipboard-paste-bracketed-safe', 'cursor-click-to-move', 'desktop-notifications', 'mouse-hide-while-typing', 'mouse-reporting', 'selection-clear-on-copy', 'selection-clear-on-typing', 'vt-kam-allowed', 'wait-after-command', 'title-report', 'link-url', 'maximize', 'fullscreen', 'focus-follows-mouse', 'window-inherit-working-directory', 'tab-inherit-working-directory', 'split-inherit-working-directory', 'window-inherit-font-size', 'window-step-resize', 'initial-window', 'quick-terminal-autohide', 'quit-after-last-window-closed', 'config-default-files', 'linux-cgroup-hard-fail', 'gtk-opengl-debug', 'gtk-titlebar', 'gtk-titlebar-hide-when-maximized', 'gtk-wide-tabs', '_xdg-terminal-exec' {
 			parsed := c.parse_config_bool(key, value) or { return }
 			match key {
 				'font-thicken' {
@@ -8584,9 +8592,6 @@ fn (mut c Config) apply_kv(key string, value string) {
 				}
 				'wait-after-command' {
 					c.wait_after_command = parsed
-				}
-				'window-padding-balance' {
-					c.window_padding_balance = parsed
 				}
 				'title-report' {
 					c.title_report = parsed

@@ -1676,18 +1676,12 @@ top padding to 2 and the bottom padding to 4. If you want to set both
 paddings to the same value, you can use a single value. For example,
 `window-padding-y = 2` will set both paddings to 2.
 window-padding-balance
-The viewport dimensions are usually not perfectly divisible by the cell
-size. In this case, some extra padding on the end of a column and the bottom
-of the final row may exist. If this is `true`, then this extra padding
-is automatically balanced between all four edges to minimize imbalance on
-one side. If this is `false`, the top left grid cell will always hug the
-edge with zero padding other than what may be specified with the other
-`window-padding` options.
+Distribute the leftover pixels after fitting whole cells into the viewport.
+Explicit padding is applied first when calculating the number of cells.
 
-If other `window-padding` fields are set and this is `true`, this will still
-apply. The other padding is applied first and may affect how many grid cells
-actually exist, and this is applied last in order to balance the padding
-given a certain viewport size and grid cell size.
+* `false` keeps the configured padding.
+* `true` balances the borders and caps the top padding, moving excess to the bottom.
+* `equal` balances every edge without a cap on the top padding.
 window-padding-color
 The color of the padding area of the window. Valid values are:
 

@@ -840,7 +840,7 @@ fn test_font_style_status() {
 	assert s.bold_italic == true
 }
 
-// Test Size.balance_padding.
+// Test balanced padding when the top cap has no effect.
 fn test_balance_padding() {
 	mut s := Size{
 		screen:  ScreenSize{
@@ -853,14 +853,14 @@ fn test_balance_padding() {
 		}
 		padding: Padding{}
 	}
-	s.balance_padding(Padding{ top: 0, bottom: 0, left: 0, right: 0 })
+	s.set_padding(Padding{}, .true_)
 	// 810/10 = 81 cols, extra 0. 610/20 = 30 rows, extra 10. The
 	// vertical shift caps top padding to half a cell width.
 	assert s.padding.top == 5
 	assert s.padding.bottom == 5
 }
 
-fn test_balance_padding_caps_top_and_moves_excess_to_bottom() {
+fn test_balance_padding_modes() {
 	mut s := Size{
 		screen:  ScreenSize{
 			width:  805
@@ -872,11 +872,18 @@ fn test_balance_padding_caps_top_and_moves_excess_to_bottom() {
 		}
 		padding: Padding{}
 	}
-	s.balance_padding(Padding{ top: 0, bottom: 0, left: 0, right: 0 })
+	s.set_padding(Padding{}, .true_)
 	assert s.padding.left == 2
 	assert s.padding.right == 2
 	assert s.padding.top == 5
 	assert s.padding.bottom == 13
+
+	s.set_padding(Padding{}, .equal)
+	assert s.padding == Padding{ top: 9, bottom: 9, left: 2, right: 2 }
+
+	explicit := Padding{ top: 3, bottom: 17, left: 12, right: 7 }
+	s.set_padding(explicit, .false_)
+	assert s.padding == explicit
 }
 
 // Verify the production row path shapes codepoints, rasterizes their glyphs,

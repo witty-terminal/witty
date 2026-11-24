@@ -3325,7 +3325,7 @@ auto-update-channel = stable
 	assert cfg.split_preserve_zoom.navigation()
 	assert cfg.window_padding_x == WindowPadding{3, 4}
 	assert cfg.window_padding_y == WindowPadding{1, 2}
-	assert cfg.window_padding_balance
+	assert cfg.window_padding_balance == .true_
 	assert cfg.window_padding_color == .extend_always
 	assert cfg.window_position_x? == -120
 	assert cfg.window_position_y? == 340
@@ -3918,6 +3918,23 @@ fn test_format_entry_uses_composite_format_entry_methods() {
 	assert format_entry('color', ColorRGB{ r: 10, g: 11, b: 12 }) == 'color = #0a0b0c\n'
 	assert format_entry('path', RepeatablePath{}) == 'path = \n'
 	assert format_entry('size', QuickTerminalSize{}) == ''
+}
+
+fn test_window_padding_balance_accepts_equal_and_legacy_booleans() {
+	mut cfg := Config.default_config()
+	cfg.load_cli_args(['--window-padding-balance'])
+	assert cfg.window_padding_balance == .true_
+	cfg.load_cli_args(['--window-padding-balance=0'])
+	assert cfg.window_padding_balance == .false_
+	cfg.load_cli_args(['--window-padding-balance=equal'])
+	assert cfg.window_padding_balance == .equal
+	mut parsed := Config.default_config()
+	parsed.load_string(cfg.format_config(true))
+	assert parsed.window_padding_balance == .equal
+	parsed.load_string('window-padding-balance = ')
+	assert parsed.window_padding_balance == .false_
+	assert cfg.diagnostics.len == 0
+	assert parsed.diagnostics.len == 0
 }
 
 fn test_format_config_changes_only_round_trips_supported_values() {

@@ -1816,7 +1816,7 @@ pub mut:
 	window_padding_bottom            u32
 	window_padding_left              u32
 	window_padding_right             u32
-	window_padding_balance           bool
+	window_padding_balance           configpkg.WindowPaddingBalance
 	window_height                    u32
 	window_width                     u32
 	title                            ?string
@@ -2139,11 +2139,7 @@ pub fn (mut self Surface) init(config_original &Config, mut app App, rt_app &app
 		}
 	}
 	explicit := derived_config.scaled_padding(x_dpi, y_dpi)
-	if derived_config.window_padding_balance {
-		self.size.balance_padding(explicit)
-	} else {
-		self.size.padding = explicit
-	}
+	self.size.set_padding(explicit, derived_config.window_padding_balance)
 
 	// Create our terminal grid with the initial size
 	renderer_config := rendererpkg.DerivedConfig.init(config)!
@@ -2969,7 +2965,7 @@ fn (mut self Surface) resize(size rendererpkg.ScreenSize) ! {
 }
 
 fn (mut self Surface) balance_padding_if_needed() {
-	if !self.config.window_padding_balance {
+	if self.config.window_padding_balance == .false_ {
 		return
 	}
 	content_scale := self.rt_surface.get_content_scale() or {
@@ -2977,7 +2973,7 @@ fn (mut self Surface) balance_padding_if_needed() {
 	}
 	x_dpi := content_scale.x * default_dpi
 	y_dpi := content_scale.y * default_dpi
-	self.size.balance_padding(self.config.scaled_padding(x_dpi, y_dpi))
+	self.size.set_padding(self.config.scaled_padding(x_dpi, y_dpi), self.config.window_padding_balance)
 }
 
 // preedit_callback sets the preedit state for character input (dead keys, IME).
@@ -3471,7 +3467,7 @@ pub fn (mut self Surface) content_scale_callback(content_scale apprt.ContentScal
 
 	// Balanced padding is derived from the remaining cell-space and is not
 	// DPI-sensitive. Explicit, unbalanced padding is scaled directly.
-	if !self.config.window_padding_balance {
+	if self.config.window_padding_balance == .false_ {
 		self.size.padding = self.config.scaled_padding(x_dpi, y_dpi)
 	}
 

@@ -1,5 +1,7 @@
 module renderer
 
+import configpkg
+
 // All relevant sizes for a rendered terminal.
 pub struct Size {
 pub mut:
@@ -48,14 +50,20 @@ pub fn (self Size) terminal() ScreenSize {
 	return self.screen.sub_padding(self.padding)
 }
 
-// Set balanced padding after accounting for explicit padding.
-pub fn (mut self Size) balance_padding(explicit Padding) {
+// Apply explicit padding and balance the remaining space if configured.
+pub fn (mut self Size) set_padding(explicit Padding, balance configpkg.WindowPaddingBalance) {
 	self.padding = explicit
+	if balance == .false_ {
+		return
+	}
 	self.padding = Padding.balanced(self.screen, self.grid(), self.cell)
+	if balance == .equal {
+		return
+	}
 
-	max_padding_left := (explicit.left + explicit.right + self.cell.width) / 2
-	vshift := if self.padding.top > max_padding_left {
-		self.padding.top - max_padding_left
+	max_top := (explicit.left + explicit.right + self.cell.width) / 2
+	vshift := if self.padding.top > max_top {
+		self.padding.top - max_top
 	} else {
 		u32(0)
 	}
