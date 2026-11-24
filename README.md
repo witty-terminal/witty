@@ -27,7 +27,7 @@ Run the installed application with `./v-out/bin/witty`.
 
 Run the executable inside a built Witty app to save the terminal at backing-pixel resolution.
 Witty writes a Display P3 PNG of the terminal viewport from its own Metal frame and exits.
-This works without Screen Recording permission.
+Capture runs offscreen and leaves the active application focused. It works without Screen Recording permission.
 
 ```sh
 ./Witty.app/Contents/MacOS/witty --screenshot=/tmp/witty.png -e /bin/ls -G

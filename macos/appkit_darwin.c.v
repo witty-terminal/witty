@@ -60,6 +60,7 @@ const vt_action_new_tab = 3
 const vt_action_close_tab = 4
 
 const ns_application_activation_policy_regular = u64(0)
+const ns_application_activation_policy_prohibited = u64(2)
 const ns_backing_store_buffered = u64(2)
 const ns_window_above = u64(1)
 const ns_window_tabbing_mode_automatic = u64(1)
@@ -522,7 +523,10 @@ fn dispatch_action(view ObjId, action_id int) {
 }
 
 fn vt_app_did_finish_launching(_self ObjId, _cmd Sel, _notification ObjId) {
-	msg_void_bool(shared_app(), 'activateIgnoringOtherApps:', true)
+	app := shared_app()
+	if msg_u64(app, 'activationPolicy') == ns_application_activation_policy_regular {
+		msg_void_bool(app, 'activateIgnoringOtherApps:', true)
+	}
 	if g_ready_cb != unsafe { nil } {
 		g_ready_cb()
 	}
@@ -877,9 +881,17 @@ fn update_metal_drawable_size(view ObjId) {
 
 // V-friendly wrappers.
 pub fn app_init() {
+	init_app(ns_application_activation_policy_regular)
+}
+
+pub fn app_init_for_capture() {
+	init_app(ns_application_activation_policy_prohibited)
+}
+
+fn init_app(activation_policy u64) {
 	register_classes()
 	app := shared_app()
-	msg_void_u64(app, 'setActivationPolicy:', ns_application_activation_policy_regular)
+	msg_void_u64(app, 'setActivationPolicy:', activation_policy)
 	msg_void_bool(get_class('NSWindow'), 'setAllowsAutomaticWindowTabbing:', true)
 	install_menu_bar()
 	install_command_release_monitor()

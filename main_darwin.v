@@ -210,7 +210,9 @@ fn show_configured_new_fullscreen(context voidptr) {
 fn show_new_controller(context voidptr) {
 	task:=unsafe { &NewControllerShowTask(context) }
 	if task.controller.closed { return }
-	macos.show_new_terminal_window(task.controller.host.container,task.tab)
+	if standalone_runtime().screenshot.path == '' {
+		macos.show_new_terminal_window(task.controller.host.container,task.tab)
+	}
 	if task.controller.focused != unsafe { nil } { sync_native_window(task.controller.focused) }
 }
 
@@ -624,9 +626,15 @@ fn main() {
 		config.deinit()
 	}
 
-	macos.app_init()
+	if screenshot.path != '' {
+		macos.app_init_for_capture()
+	} else {
+		macos.app_init()
+	}
     macos.set_native_application_action(native_menu_application_action)
-	macos.start_native_updater(native_update_config(&config)) or { eprintln('error starting updater: ${err}') }
+	if screenshot.path == '' {
+		macos.start_native_updater(native_update_config(&config)) or { eprintln('error starting updater: ${err}') }
+	}
 	defer { macos.stop_native_updater() }
 	macos.set_draw_callback(on_draw)
 	macos.set_resize_callback(on_resize)
