@@ -24,6 +24,11 @@ fn test_pipe_returns_distinct_fds() {
 	assert fds[0] != fds[1]
 	assert C.fcntl(fds[0], C.F_GETFD, 0) & C.FD_CLOEXEC != 0
 	assert C.fcntl(fds[1], C.F_GETFD, 0) & C.FD_CLOEXEC != 0
+	byte := u8(42)
+	mut received := u8(0)
+	assert C.write(fds[1], &byte, 1) == 1
+	assert C.read(fds[0], &received, 1) == 1
+	assert received == byte
 }
 
 fn test_open_command_platform_selection() {

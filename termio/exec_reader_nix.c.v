@@ -53,12 +53,12 @@ pub fn thread_main_posix(fd int, quit int, io &Termio) {
 	// on the pty fd and our quit notification pipe.
 	mut pollfds := [2]PollFd{}
 	pollfds[0] = PollFd{
-		fd:      fd
+		fd:      i32(fd)
 		events:  pollin
 		revents: 0
 	}
 	pollfds[1] = PollFd{
-		fd:      quit
+		fd:      i32(quit)
 		events:  pollin
 		revents: 0
 	}

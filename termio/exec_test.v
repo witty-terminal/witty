@@ -299,7 +299,7 @@ fn test_clamp_u16() {
 }
 
 fn test_read_error_classifies_would_block() {
-	mut pipe_fds := [2]int{}
+	mut pipe_fds := [2]i32{}
 	assert C.pipe(&pipe_fds[0]) == 0
 	defer {
 		C.close(pipe_fds[0])
@@ -315,7 +315,7 @@ fn test_read_error_classifies_would_block() {
 }
 
 fn test_read_error_classifies_closed_pty() {
-	mut pipe_fds := [2]int{}
+	mut pipe_fds := [2]i32{}
 	assert C.pipe(&pipe_fds[0]) == 0
 	C.close(pipe_fds[0])
 	defer { C.close(pipe_fds[1]) }

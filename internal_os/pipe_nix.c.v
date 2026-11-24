@@ -9,7 +9,8 @@ pub type PipeFd = int
 // The native fd_t alias is an int. Returning the primitive fixed-array type
 // avoids V 0.5.2 generating an inconsistent result typedef for alias elements.
 pub fn pipe() ![2]int {
-	mut fds := [2]int{}
+	// pipe(2) writes two C ints even when V's int is wider.
+	mut fds := [2]i32{}
 	if C.pipe(&fds[0]) != 0 {
 		return os.error_posix()
 	}
@@ -26,7 +27,7 @@ pub fn pipe() ![2]int {
 		os.fd_close(fds[1])
 		return err
 	}
-	return fds
+	return [int(fds[0]), int(fds[1])]!
 }
 
 // set_cloexec sets the FD_CLOEXEC flag on the given file descriptor.

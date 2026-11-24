@@ -21,7 +21,7 @@ import os
 #flag linux -lutil
 #flag freebsd -lutil
 
-fn C.openpty(master &int, slave &int, name &char, termp voidptr, winp voidptr) int
+fn C.openpty(master &i32, slave &i32, name &char, termp voidptr, winp voidptr) int
 
 fn C.close(fd int) int
 
@@ -71,8 +71,8 @@ pub fn Pty.open(size Winsize) !Pty {
 	// Need to copy so that it becomes non-const for the C call.
 	mut size_copy := size
 
-	mut master_fd := -1
-	mut slave_fd := -1
+	mut master_fd := i32(-1)
+	mut slave_fd := i32(-1)
 	if C.openpty(&master_fd, &slave_fd, unsafe { nil }, unsafe { nil }, voidptr(&size_copy)) < 0 {
 		return error('openpty failed')
 	}

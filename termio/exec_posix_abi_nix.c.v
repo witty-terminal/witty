@@ -60,7 +60,7 @@ const wnohang = int(C.WNOHANG)
 // pollfd struct for C.poll()
 struct PollFd {
 mut:
-	fd      int
+	fd      i32
 	events  i16
 	revents i16
 }
