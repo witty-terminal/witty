@@ -7,6 +7,7 @@ import datastruct
 import macos
 import os
 import sync
+import wuffs.png as wuffs_png
 
 struct SurfaceEventCapture {
 mut:
@@ -998,6 +999,17 @@ fn test_rebuild_row_shapes_and_renders_text() ! {
 	macos.metal_texture_get_bytes(render.frames[1].target.texture, mut background_pixel, 4,
 		299, 99, 1, 1)
 	assert background_pixel == [u8(90), 60, 30, 255]
+
+	path := os.join_path(os.temp_dir(), 'witty-terminal-frame-${os.getpid()}.png')
+	defer { os.rm(path) or {} }
+	render.screenshot_png(path)!
+	png := wuffs_png.decode(os.read_bytes(path)!)!
+	assert png.width == 300
+	assert png.height == 100
+	channels := png.data.len / int(png.width * png.height)
+	assert channels in [3, 4]
+	last_pixel := png.data[png.data.len - channels..]
+	assert last_pixel[..3] == [u8(30), 60, 90]
 }
 
 }

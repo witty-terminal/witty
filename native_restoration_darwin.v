@@ -11,7 +11,11 @@ struct NativeRestoredController {
 	title_override ?string
 	cache macos.QuickScreenCache
 }
-fn native_restoration_allowed() bool { runtime:=standalone_runtime(); return runtime.app != unsafe { nil } && runtime.app.config.window_save_state != .never }
+fn native_restoration_allowed() bool {
+	runtime := standalone_runtime()
+	return runtime.screenshot.path == '' && runtime.app != unsafe { nil }
+		&& runtime.app.config.window_save_state != .never
+}
 fn save_native_surface(view voidptr) macos.NativeSavedSurface {
 	state:=state_from_userdata(macos.view_get_userdata(view)) or { panic('surface missing during native restoration encoding') }
 	title,user_set:=state.actions.saved_surface_title()

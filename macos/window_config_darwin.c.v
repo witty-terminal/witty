@@ -291,7 +291,10 @@ pub fn apply_native_window_config(view voidptr, config NativeWindowConfig, initi
 	// Ventura chrome follows the surface config; its appearance override
 	// separately follows the preferred dynamic border background.
 	data.light = native_color_luminance(config.background) > 0.5
-	data.titlebar_color = native_color(preferred_background, math.max(0.001, math.min(1.0, preferred_opacity)))
+	titlebar_opacity := math.max(0.001, math.min(1.0, preferred_opacity))
+	color := msg_id(native_color(preferred_background, titlebar_opacity), 'retain')
+	msg_void(data.titlebar_color, 'release')
+	data.titlebar_color = color
 	if initial {
 		if title := config.title { set_view_title_now(view, title) }
 		if !config.decorations { msg_void_u64(window, 'setStyleMask:', msg_u64(window, 'styleMask') & ~ns_window_style_titled) }
@@ -352,7 +355,11 @@ fn native_window_close(self ObjId,_cmd Sel) {
 	terminal_window_will_close(self)
 	msg_void2(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'), 'postNotificationName:object:', nsstring('TerminalWindowWillClose'), self)
 	C.witty_macos_window_super_void0(self, sel('close'))
-	if mut data:=native_window_data(self) { release_tahoe_window(mut data); release_native_zoom_views(data) }
+	if mut data := native_window_data(self) {
+		release_tahoe_window(mut data)
+		release_native_zoom_views(data)
+		msg_void(data.titlebar_color, 'release')
+	}
 	g_native_windows.delete(u64(self))
 }
 fn restore_last_window_position(window ObjId) bool {

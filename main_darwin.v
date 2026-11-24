@@ -51,6 +51,8 @@ mut:
 struct StandaloneRuntime {
 mut:
 	app    &apprt.App = unsafe { nil }
+	screenshot ScreenshotLaunch
+	screenshot_surface &TermState = unsafe { nil }
 	states []&TermState
 	controllers []&TerminalController
 	undos []&ControllerUndo
@@ -250,6 +252,10 @@ fn request_close_state(mut state TermState) {
 
 fn runtime_close_surface(userdata voidptr, confirm bool) {
 	mut state := state_from_userdata(userdata) or { return }
+	if is_screenshot_surface(state) && !isnil(state.surface)
+		&& apprt.ghostty_surface_process_exited(state.surface) {
+		return
+	}
 	if mut q := macos.quick_terminal_for_view(state.view) {
 		if state.controller.host.tree.root.leaves().len == 1 && !apprt.ghostty_surface_process_exited(state.surface) { q.hide(); return }
 	}
@@ -294,10 +300,11 @@ fn on_should_quit_after_last_window() bool {
 	if runtime.app == unsafe { nil } {
 		return false
 	}
-	return runtime.app.config.quit_after_last_window_closed
+	return runtime.screenshot.path == '' && runtime.app.config.quit_after_last_window_closed
 }
 fn on_first_active() {
 	runtime:=standalone_runtime()
+	if runtime.screenshot.path != '' { return }
 	if runtime.app == unsafe { nil } || !runtime.app.config.initial_window || runtime.controllers.any(!it.closed && !it.quick) { return }
 	macos.native_undo_disable()
 	do_new_window(none)
@@ -314,6 +321,7 @@ fn on_should_terminate() bool {
 
 fn on_reopen() bool {
 	runtime := standalone_runtime()
+	if runtime.screenshot.path != '' { return true }
 	controllers := runtime.controllers.filter(!it.closed && !it.quick).len
 	if !macos.should_create_reopen_window(false, controllers, macos.application_has_become_active()) {
 		return true
@@ -412,6 +420,11 @@ fn reload_runtime_config(app &apprt.App, target ?&TermState, soft bool) bool {
 
 fn runtime_action(app &apprt.App, target apprt.Target, action apprt.RuntimeAction) bool {
 	state := state_from_target(target)
+	if action.action == .show_child_exited {
+		if surface := state {
+			if is_screenshot_surface(surface) { return true }
+		}
+	}
 	match action.action {
 		.quit {
 			macos.app_terminate()
@@ -588,8 +601,13 @@ fn runtime_action(app &apprt.App, target apprt.Target, action apprt.RuntimeActio
 
 fn main() {
 	source_startup.prepare()
+	args := if os.args.len > 1 { os.args[1..] } else { []string{} }
+	screenshot, config_args := parse_screenshot_launch(args) or {
+		eprintln('Witty: ${err.msg()}')
+		exit(1)
+	}
 	mut global := global_state.get_state_mut()
-	global.init() or {
+	global.init_args(config_args) or {
 		eprintln(startup_error_message(err))
 		exit(1)
 	}
@@ -628,6 +646,7 @@ fn main() {
 	macos.set_first_active_callback(on_first_active)
 
 	mut runtime := standalone_runtime()
+	runtime.screenshot = screenshot
 	runtime.app = apprt.ghostty_app_new(&apprt.AppOptions{
 		userdata:                     voidptr(runtime)
 		supports_selection_clipboard: true
@@ -647,7 +666,11 @@ fn main() {
 	defer { macos.stop_application_appearance_callback() }
 	sync_config_menu(&config)
 	macos.set_native_restoration_callbacks(encode_native_controller, decode_native_controller, native_restoration_allowed)
-	macos.apply_native_save_state(int(config.window_save_state))
+	if screenshot.path != '' {
+		macos.dispatch_main(begin_screenshot, unsafe { nil })
+	} else {
+		macos.apply_native_save_state(int(config.window_save_state))
+	}
 
 	macos.app_run()
 	macos.clear_native_undo()

@@ -1108,7 +1108,9 @@ pub fn (mut self Renderer) set_visible(visible bool) {
 pub fn (mut self Renderer) set_font_grid(grid &font.SharedGrid) {
 	if self.draw_mutex != unsafe { nil } {
 		self.draw_mutex.lock()
-		defer {
+	}
+	defer {
+		if self.draw_mutex != unsafe { nil } {
 			self.draw_mutex.unlock()
 		}
 	}
@@ -1419,7 +1421,9 @@ fn render_flattened_highlight(src highlight.Flattened) terminal.RenderFlattenedH
 pub fn (mut self Renderer) draw_frame(sync_ bool) ! {
 	if self.draw_mutex != unsafe { nil } {
 		self.draw_mutex.lock()
-		defer {
+	}
+	defer {
+		if self.draw_mutex != unsafe { nil } {
 			self.draw_mutex.unlock()
 		}
 	}
@@ -1525,7 +1529,9 @@ fn (mut self Renderer) upload_background_image() ! {
 pub fn (mut self Renderer) change_config(config &DerivedConfig) ! {
 	if self.draw_mutex != unsafe { nil } {
 		self.draw_mutex.lock()
-		defer {
+	}
+	defer {
+		if self.draw_mutex != unsafe { nil } {
 			self.draw_mutex.unlock()
 		}
 	}
@@ -1588,7 +1594,9 @@ pub fn (mut self Renderer) change_config(config &DerivedConfig) ! {
 pub fn (mut self Renderer) set_screen_size(size Size) {
 	if self.draw_mutex != unsafe { nil } {
 		self.draw_mutex.lock()
-		defer {
+	}
+	defer {
+		if self.draw_mutex != unsafe { nil } {
 			self.draw_mutex.unlock()
 		}
 	}
@@ -2833,7 +2841,9 @@ pub fn (mut r Renderer) display_realized() ! {
 		r.api.display_realized()
 		if r.draw_mutex != unsafe { nil } {
 			r.draw_mutex.lock()
-			defer {
+		}
+		defer {
+			if r.draw_mutex != unsafe { nil } {
 				r.draw_mutex.unlock()
 			}
 		}
@@ -2868,7 +2878,9 @@ pub fn (mut r Renderer) display_unrealized() {
 	$if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 		if r.draw_mutex != unsafe { nil } {
 			r.draw_mutex.lock()
-			defer {
+		}
+		defer {
+			if r.draw_mutex != unsafe { nil } {
 				r.draw_mutex.unlock()
 			}
 		}
