@@ -753,6 +753,7 @@ import time
 import configpkg
 import datastruct
 import file_type
+import gg.canvas
 import highlight
 import macos
 import log
@@ -1140,6 +1141,7 @@ pub fn (mut self Renderer) set_font_grid(grid &font.SharedGrid) {
 
 	// Update relevant uniforms
 	self.update_font_grid_uniforms()
+	self.update_screen_size_uniforms()
 
 	// Force a full rebuild, because cached rows may still reference
 	// an outdated atlas from the old grid and this can cause garbage
@@ -1376,7 +1378,7 @@ fn (mut self Renderer) rebuild_overlay(features []OverlayFeature) ! {
 
 	terminal_size := self.size.terminal()
 	if mut current := self.overlay {
-		if current.width == terminal_size.width && current.height == terminal_size.height
+		if current.width() == terminal_size.width && current.height() == terminal_size.height
 			&& current.cell_size.width == self.size.cell.width
 			&& current.cell_size.height == self.size.cell.height {
 			current.reset()
@@ -1590,11 +1592,9 @@ pub fn (mut self Renderer) set_screen_size(size Size) {
 			self.draw_mutex.unlock()
 		}
 	}
-	// We only actually need the padding from this,
-	// everything else is derived elsewhere.
-	self.size.padding = size.padding
-
+	self.size = size
 	self.update_screen_size_uniforms()
+	self.cells_rebuilt = true
 }
 
 // Update uniforms that are based on the screen size.
@@ -1605,9 +1605,12 @@ fn (mut self Renderer) update_screen_size_uniforms() {
 	blank :=
 		self.size.screen.blank_padding(self.size.padding, self.cells.size, self.size.cell).add(self.size.padding)
 
-	// Setup our uniforms
-	self.uniforms.projection_matrix = mathutil.ortho2d(-1 * f32(self.size.padding.left), f32(terminal_size.width + self.size.padding.right), f32(terminal_size.height +
-		self.size.padding.bottom), -1 * f32(self.size.padding.top))
+	// The viewport is expressed in terminal coordinates with a top-left origin.
+	viewport := canvas.Rect.ltrb(-f32(self.size.padding.left), -f32(self.size.padding.top),
+		f32(terminal_size.width + self.size.padding.right),
+		f32(terminal_size.height + self.size.padding.bottom))
+	self.uniforms.projection_matrix = mathutil.ortho2d(viewport.left(), viewport.right(),
+		viewport.bottom(), viewport.top())
 	self.uniforms.grid_padding = [
 		f32(blank.top),
 		f32(blank.right),
@@ -1940,6 +1943,7 @@ fn (mut self Renderer) rebuild_cells(preedit ?RenderPreedit, cursor_style_ ?Styl
 		// Update our uniforms accordingly, otherwise
 		// our background cells will be out of place
 		self.uniforms.grid_size = [u16(new_size.columns), u16(new_size.rows)]!
+		self.update_screen_size_uniforms()
 	}
 
 	rebuild := state.dirty == .full || grid_size_diff
@@ -1949,7 +1953,7 @@ fn (mut self Renderer) rebuild_cells(preedit ?RenderPreedit, cursor_style_ ?Styl
 
 		// We also reset our padding extension depending on the screen type
 		match self.config.padding_color {
-			.background {}
+			.background { self.uniforms.padding_extend = PaddingExtend{} }
 			// For extension, assume we are extending in all directions.
 			// For "extend" this may be disabled due to heuristics below.
 			.extend, .extend_always {

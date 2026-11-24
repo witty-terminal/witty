@@ -4,6 +4,7 @@ import font
 import terminal
 import configpkg
 import datastruct
+import macos
 import os
 import sync
 
@@ -308,14 +309,14 @@ fn test_renderer_rebuilds_reuses_and_removes_inspector_overlay() ! {
 
 	render.rebuild_overlay([.highlight_hyperlinks])!
 	mut overlay := render.overlay or { return error('overlay was not created') }
-	assert overlay.width == 40
-	assert overlay.height == 10
-	assert overlay.pixels[(5 * 40 + 15) * 4 + 3] == 96
-	pixels := overlay.pixels.data
+	assert overlay.width() == 40
+	assert overlay.height() == 10
+	assert overlay.surface.pixels[5 * 40 + 15] >> 24 == 96
+	pixels := overlay.surface.pixels.data
 
 	render.rebuild_overlay([.highlight_hyperlinks])!
 	overlay = render.overlay or { return error('overlay was not retained') }
-	assert overlay.pixels.data == pixels
+	assert overlay.surface.pixels.data == pixels
 	render.images.overlay_update(render.overlay)
 	assert render.images.overlay_placements.len == 1
 
@@ -752,6 +753,21 @@ fn test_padding_extend() {
 	assert pe.right == true
 }
 
+fn test_resize_refreshes_terminal_projection_and_padding() ! {
+	mut render := Renderer{}
+	render.cells.resize(GridSize{ columns: 8, rows: 4 })!
+	render.set_screen_size(Size{
+		screen: ScreenSize{ width: 90, height: 72 }
+		cell:   CellSize{ width: 10, height: 16 }
+		padding: Padding{ top: 2, right: 3, bottom: 4, left: 5 }
+	})
+	assert render.cells_rebuilt
+	assert render.uniforms.screen_size == [f32(90), 72]!
+	assert render.uniforms.grid_padding == [f32(2), 5, 6, 5]!
+	assert render.uniforms.projection_matrix[0] == f32(2) / 90
+	assert render.uniforms.projection_matrix[5] == -f32(2) / 72
+}
+
 // Test multiple fg cells per row.
 fn test_multiple_fg_cells_per_row() ! {
 	mut cells := CellContents{}
@@ -967,6 +983,8 @@ fn test_rebuild_row_shapes_and_renders_text() ! {
 	// produced above. This compiles/binds all resources, draws the background
 	// and glyph instances, commits the command buffer, and waits for the GPU.
 	render.uniforms.grid_size = [u16(3), 1]!
+	render.uniforms.bools.use_display_p3 = true
+	render.uniforms.bg_color = [u8(30), 60, 90, 255]!
 	render.update_screen_size_uniforms()
 	render.cells_rebuilt = true
 	render.draw_frame(true)!
@@ -976,6 +994,10 @@ fn test_rebuild_row_shapes_and_renders_text() ! {
 	assert render.frame_index == 1
 	assert render.frames[1].target.width == 300
 	assert render.frames[1].target.height == 100
+	mut background_pixel := []u8{len: 4}
+	macos.metal_texture_get_bytes(render.frames[1].target.texture, mut background_pixel, 4,
+		299, 99, 1, 1)
+	assert background_pixel == [u8(90), 60, 30, 255]
 }
 
 }

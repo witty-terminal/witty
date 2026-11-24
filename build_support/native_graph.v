@@ -99,7 +99,7 @@ pub fn (d Driver) build_native_dependencies(vt_only bool) !NativeDeps {
 	], cc, [])!
 	if d.cfg.renderer == 'opengl' {
 		deps.archives << d.compile_native('glad', os.join_path(d.cfg.root, 'opengl'), [
-			'glad.c',
+			'glad.c', 'gl_dispatch.c',
 		], cc, ['-I' + os.join_path(d.cfg.root, 'opengl')])!
 	}
 	if d.cfg.sentry && d.cfg.target.os != 'windows' {

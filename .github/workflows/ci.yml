@@ -88,7 +88,8 @@ jobs:
             clang pkg-config gettext python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 \
             libgtk-4-dev libadwaita-1-dev meson ninja-build \
             libfreetype-dev libharfbuzz-dev libfontconfig-dev libonig-dev \
-            libx11-dev libwayland-dev wayland-protocols libgl-dev
+            libx11-dev libxi-dev libxcursor-dev libwayland-dev wayland-protocols \
+            libegl-dev libgl-dev
       - name: Build gtk4-layer-shell
         # Ubuntu 24.04 does not package it; 1.1.0 is the version Ghostty pins.
         run: |

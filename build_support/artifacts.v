@@ -23,6 +23,15 @@ pub fn (d Driver) v_arguments(artifact Artifact, deps NativeDeps) ![]string {
 	module_path := d.compiler_module_path()!
 	mut args := [d.cfg.compiler, '-path', module_path, '-cc', if d.cfg.target.wasm() { os.getenv_opt('EMCC') or { 'emcc' } } else { os.getenv_opt('CC') or { 'clang' } },
 		'-d', 'managed_native']
+	if !d.cfg.target.wasm() {
+		// The native runtimes own the windows and event loops.
+		args << ['-d', 'no_sokol_app']
+	}
+	if d.cfg.target.darwin() {
+		// Witty's Objective-C bridges manage ownership explicitly. Sokol's
+		// Metal backend supports manual reference counting in the same unit.
+		args << ['-cflags', '-fno-objc-arc']
+	}
 	args << d.cfg.options(artifact)!
 	for define in deps.defines {
 		args << ['-d', define]

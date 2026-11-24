@@ -36,6 +36,7 @@ import log
 
 $if !managed_native ? {
 	#flag @VMODROOT/opengl/glad.c
+	#flag @VMODROOT/opengl/gl_dispatch.c
 }
 
 #insert "@VMODROOT/opengl/gl_headers.h"
@@ -44,59 +45,59 @@ fn C.witty_gl_load(get_proc_address voidptr) int
 
 fn C.witty_gl_unload()
 
-fn C.glGetError() u32
+fn C.witty_glGetError() u32
 
-fn C.glGetIntegerv(pname u32, data &int)
+fn C.witty_glGetIntegerv(pname u32, data &int)
 
-fn C.glGetStringi(name u32, index u32) &u8
+fn C.witty_glGetStringi(name u32, index u32) &u8
 
-fn C.glClearColor(red f32, green f32, blue f32, alpha f32)
+fn C.witty_glClearColor(red f32, green f32, blue f32, alpha f32)
 
-fn C.glClear(mask u32)
+fn C.witty_glClear(mask u32)
 
-fn C.glDrawArrays(mode u32, first int, count int)
+fn C.witty_glDrawArrays(mode u32, first int, count int)
 
-fn C.glDrawArraysInstanced(mode u32, first int, count int, primcount int)
+fn C.witty_glDrawArraysInstanced(mode u32, first int, count int, primcount int)
 
-fn C.glDrawElements(mode u32, count int, typ u32, indices voidptr)
+fn C.witty_glDrawElements(mode u32, count int, typ u32, indices voidptr)
 
-fn C.glDrawElementsInstanced(mode u32, count int, typ u32, indices voidptr, primcount int)
+fn C.witty_glDrawElementsInstanced(mode u32, count int, typ u32, indices voidptr, primcount int)
 
-fn C.glEnable(cap u32)
+fn C.witty_glEnable(cap u32)
 
-fn C.glDisable(cap u32)
+fn C.witty_glDisable(cap u32)
 
-fn C.glFrontFace(mode u32)
+fn C.witty_glFrontFace(mode u32)
 
-fn C.glBlendFunc(sfactor u32, dfactor u32)
+fn C.witty_glBlendFunc(sfactor u32, dfactor u32)
 
-fn C.glViewport(x int, y int, width int, height int)
+fn C.witty_glViewport(x int, y int, width int, height int)
 
-fn C.glPixelStorei(mode u32, param int)
+fn C.witty_glPixelStorei(mode u32, param int)
 
-fn C.glFinish()
+fn C.witty_glFinish()
 
-fn C.glFlush()
+fn C.witty_glFlush()
 
-fn C.glGenBuffers(n int, buffers &u32)
+fn C.witty_glGenBuffers(n int, buffers &u32)
 
-fn C.glBindBuffer(target u32, buffer u32)
+fn C.witty_glBindBuffer(target u32, buffer u32)
 
-fn C.glDeleteBuffers(n int, buffers &u32)
+fn C.witty_glDeleteBuffers(n int, buffers &u32)
 
-fn C.glBindBufferBase(target u32, index u32, buffer u32)
+fn C.witty_glBindBufferBase(target u32, index u32, buffer u32)
 
-fn C.glBufferData(target u32, size int, data voidptr, usage u32)
+fn C.witty_glBufferData(target u32, size int, data voidptr, usage u32)
 
-fn C.glBufferSubData(target u32, offset int, size int, data voidptr)
+fn C.witty_glBufferSubData(target u32, offset int, size int, data voidptr)
 
-fn C.glVertexAttribPointer(index u32, size int, typ u32, normalized u8, stride int, pointer voidptr)
+fn C.witty_glVertexAttribPointer(index u32, size int, typ u32, normalized u8, stride int, pointer voidptr)
 
-fn C.glVertexAttribIPointer(index u32, size int, typ u32, stride int, pointer voidptr)
+fn C.witty_glVertexAttribIPointer(index u32, size int, typ u32, stride int, pointer voidptr)
 
-fn C.glEnableVertexAttribArray(index u32)
+fn C.witty_glEnableVertexAttribArray(index u32)
 
-fn C.glVertexAttribDivisor(index u32, divisor u32)
+fn C.witty_glVertexAttribDivisor(index u32, divisor u32)
 
 fn C.witty_glVertexBindingDivisor(bindingindex u32, divisor u32) int
 
@@ -110,105 +111,105 @@ fn C.witty_glVertexAttribLFormat(attribindex u32, size int, typ u32, relativeoff
 
 fn C.witty_glBindVertexBuffer(bindingindex u32, buffer u32, offset int, stride int) int
 
-fn C.glActiveTexture(texture u32)
+fn C.witty_glActiveTexture(texture u32)
 
-fn C.glGenTextures(n int, textures &u32)
+fn C.witty_glGenTextures(n int, textures &u32)
 
-fn C.glBindTexture(target u32, texture u32)
+fn C.witty_glBindTexture(target u32, texture u32)
 
-fn C.glDeleteTextures(n int, textures &u32)
+fn C.witty_glDeleteTextures(n int, textures &u32)
 
-fn C.glGenerateMipmap(target u32)
+fn C.witty_glGenerateMipmap(target u32)
 
-fn C.glTexParameteri(target u32, pname u32, param int)
+fn C.witty_glTexParameteri(target u32, pname u32, param int)
 
-fn C.glTexImage2D(target u32, level int, internalformat int, width int, height int, border int, format u32, typ u32, pixels voidptr)
+fn C.witty_glTexImage2D(target u32, level int, internalformat int, width int, height int, border int, format u32, typ u32, pixels voidptr)
 
-fn C.glTexSubImage2D(target u32, level int, xoffset int, yoffset int, width int, height int, format u32, typ u32, pixels voidptr)
+fn C.witty_glTexSubImage2D(target u32, level int, xoffset int, yoffset int, width int, height int, format u32, typ u32, pixels voidptr)
 
-fn C.glCopyTexSubImage2D(target u32, level int, xoffset int, yoffset int, x int, y int, width int, height int)
+fn C.witty_glCopyTexSubImage2D(target u32, level int, xoffset int, yoffset int, x int, y int, width int, height int)
 
-fn C.glGenVertexArrays(n int, arrays &u32)
+fn C.witty_glGenVertexArrays(n int, arrays &u32)
 
-fn C.glBindVertexArray(array u32)
+fn C.witty_glBindVertexArray(array u32)
 
-fn C.glDeleteVertexArrays(n int, arrays &u32)
+fn C.witty_glDeleteVertexArrays(n int, arrays &u32)
 
-fn C.glCreateShader(typ u32) u32
+fn C.witty_glCreateShader(typ u32) u32
 
-fn C.glShaderSource(shader u32, count int, string &&u8, length &int)
+fn C.witty_glShaderSource(shader u32, count int, string &&u8, length &int)
 
-fn C.glCompileShader(shader u32)
+fn C.witty_glCompileShader(shader u32)
 
-fn C.glGetShaderiv(shader u32, pname u32, params &int)
+fn C.witty_glGetShaderiv(shader u32, pname u32, params &int)
 
-fn C.glGetShaderInfoLog(shader u32, max_length int, length &int, info_log &u8)
+fn C.witty_glGetShaderInfoLog(shader u32, max_length int, length &int, info_log &u8)
 
-fn C.glDeleteShader(shader u32)
+fn C.witty_glDeleteShader(shader u32)
 
-fn C.glCreateProgram() u32
+fn C.witty_glCreateProgram() u32
 
-fn C.glDeleteProgram(program u32)
+fn C.witty_glDeleteProgram(program u32)
 
-fn C.glAttachShader(program u32, shader u32)
+fn C.witty_glAttachShader(program u32, shader u32)
 
-fn C.glLinkProgram(program u32)
+fn C.witty_glLinkProgram(program u32)
 
-fn C.glGetProgramiv(program u32, pname u32, params &int)
+fn C.witty_glGetProgramiv(program u32, pname u32, params &int)
 
-fn C.glGetProgramInfoLog(program u32, max_length int, length &int, info_log &u8)
+fn C.witty_glGetProgramInfoLog(program u32, max_length int, length &int, info_log &u8)
 
-fn C.glUseProgram(program u32)
+fn C.witty_glUseProgram(program u32)
 
-fn C.glUniformBlockBinding(program u32, index u32, binding u32)
+fn C.witty_glUniformBlockBinding(program u32, index u32, binding u32)
 
-fn C.glGetUniformLocation(program u32, name &u8) int
+fn C.witty_glGetUniformLocation(program u32, name &u8) int
 
-fn C.glUniform1i(location int, v0 int)
+fn C.witty_glUniform1i(location int, v0 int)
 
-fn C.glUniform1f(location int, v0 f32)
+fn C.witty_glUniform1f(location int, v0 f32)
 
-fn C.glUniform2f(location int, v0 f32, v1 f32)
+fn C.witty_glUniform2f(location int, v0 f32, v1 f32)
 
-fn C.glUniform3f(location int, v0 f32, v1 f32, v2 f32)
+fn C.witty_glUniform3f(location int, v0 f32, v1 f32, v2 f32)
 
-fn C.glUniform4f(location int, v0 f32, v1 f32, v2 f32, v3 f32)
+fn C.witty_glUniform4f(location int, v0 f32, v1 f32, v2 f32, v3 f32)
 
-fn C.glUniformMatrix4fv(location int, count int, transpose u8, value &f32)
+fn C.witty_glUniformMatrix4fv(location int, count int, transpose u8, value &f32)
 
-fn C.glGenFramebuffers(n int, ids &u32)
+fn C.witty_glGenFramebuffers(n int, ids &u32)
 
-fn C.glDeleteFramebuffers(n int, framebuffers &u32)
+fn C.witty_glDeleteFramebuffers(n int, framebuffers &u32)
 
-fn C.glBindFramebuffer(target u32, framebuffer u32)
+fn C.witty_glBindFramebuffer(target u32, framebuffer u32)
 
-fn C.glFramebufferTexture2D(target u32, attachment u32, textarget u32, texture u32, level int)
+fn C.witty_glFramebufferTexture2D(target u32, attachment u32, textarget u32, texture u32, level int)
 
-fn C.glFramebufferRenderbuffer(target u32, attachment u32, renderbuffertarget u32, renderbuffer u32)
+fn C.witty_glFramebufferRenderbuffer(target u32, attachment u32, renderbuffertarget u32, renderbuffer u32)
 
-fn C.glDrawBuffers(n int, bufs &u32)
+fn C.witty_glDrawBuffers(n int, bufs &u32)
 
-fn C.glCheckFramebufferStatus(target u32) u32
+fn C.witty_glCheckFramebufferStatus(target u32) u32
 
 fn C.witty_glBlitFramebuffer(src_x0 int, src_y0 int, src_x1 int, src_y1 int, dst_x0 int, dst_y0 int, dst_x1 int, dst_y1 int, mask u32, filter u32) int
 
 fn C.witty_glDebugMessageCallback(callback voidptr, user_param voidptr) int
 
-fn C.glGenRenderbuffers(n int, renderbuffers &u32)
+fn C.witty_glGenRenderbuffers(n int, renderbuffers &u32)
 
-fn C.glDeleteRenderbuffers(n int, renderbuffers &u32)
+fn C.witty_glDeleteRenderbuffers(n int, renderbuffers &u32)
 
-fn C.glBindRenderbuffer(target u32, renderbuffer u32)
+fn C.witty_glBindRenderbuffer(target u32, renderbuffer u32)
 
-fn C.glRenderbufferStorage(target u32, internalformat u32, width int, height int)
+fn C.witty_glRenderbufferStorage(target u32, internalformat u32, width int, height int)
 
-fn C.glGenSamplers(n int, samplers &u32)
+fn C.witty_glGenSamplers(n int, samplers &u32)
 
-fn C.glBindSampler(unit u32, sampler u32)
+fn C.witty_glBindSampler(unit u32, sampler u32)
 
-fn C.glSamplerParameteri(sampler u32, pname u32, param int)
+fn C.witty_glSamplerParameteri(sampler u32, pname u32, param int)
 
-fn C.glDeleteSamplers(n int, samplers &u32)
+fn C.witty_glDeleteSamplers(n int, samplers &u32)
 
 // ============================================================
 // glad.zig compatibility
@@ -243,7 +244,7 @@ pub fn version_minor(res u32) u32 {
 // ============================================================
 
 pub fn get_error() ! {
-	code := int(C.glGetError())
+	code := int(C.witty_glGetError())
 	match code {
 		C.GL_NO_ERROR {}
 		C.GL_INVALID_ENUM {
@@ -278,7 +279,7 @@ pub fn must_error() ! {
 
 pub fn extensions_len() !u32 {
 	mut n := int(0)
-	C.glGetIntegerv(C.GL_NUM_EXTENSIONS, &n)
+	C.witty_glGetIntegerv(C.GL_NUM_EXTENSIONS, &n)
 	get_error()!
 	return u32(n)
 }
@@ -308,7 +309,7 @@ pub fn (mut it ExtensionIterator) next() !ExtensionNextResult {
 	if it.i >= it.len {
 		return ExtensionNextResult{}
 	}
-	ptr := C.glGetStringi(C.GL_EXTENSIONS, it.i)
+	ptr := C.witty_glGetStringi(C.GL_EXTENSIONS, it.i)
 	get_error()!
 	it.i++
 	return ExtensionNextResult{
@@ -333,20 +334,20 @@ pub enum Primitive as i32 {
 // ============================================================
 
 pub fn clear_color(r f32, g f32, b f32, a f32) {
-	C.glClearColor(r, g, b, a)
+	C.witty_glClearColor(r, g, b, a)
 }
 
 pub fn clear(mask u32) {
-	C.glClear(mask)
+	C.witty_glClear(mask)
 }
 
 pub fn draw_arrays(mode u32, first int, count int) ! {
-	C.glDrawArrays(mode, first, count)
+	C.witty_glDrawArrays(mode, first, count)
 	get_error()!
 }
 
 pub fn draw_arrays_instanced(mode Primitive, first int, count int, primcount int) ! {
-	C.glDrawArraysInstanced(u32(mode), first, count, primcount)
+	C.witty_glDrawArraysInstanced(u32(mode), first, count, primcount)
 	get_error()!
 }
 
@@ -355,49 +356,49 @@ pub fn draw_elements(mode u32, count int, typ u32, offset uint) ! {
 	if offset > 0 {
 		ptr = voidptr(offset)
 	}
-	C.glDrawElements(mode, count, typ, ptr)
+	C.witty_glDrawElements(mode, count, typ, ptr)
 	get_error()!
 }
 
 pub fn draw_elements_instanced(mode u32, count int, typ u32, primcount int) ! {
-	C.glDrawElementsInstanced(mode, count, typ, unsafe { nil }, primcount)
+	C.witty_glDrawElementsInstanced(mode, count, typ, unsafe { nil }, primcount)
 	get_error()!
 }
 
 pub fn enable(cap u32) ! {
-	C.glEnable(cap)
+	C.witty_glEnable(cap)
 	get_error()!
 }
 
 pub fn disable(cap u32) ! {
-	C.glDisable(cap)
+	C.witty_glDisable(cap)
 	get_error()!
 }
 
 pub fn front_face(mode u32) ! {
-	C.glFrontFace(mode)
+	C.witty_glFrontFace(mode)
 	get_error()!
 }
 
 pub fn blend_func(sfactor u32, dfactor u32) ! {
-	C.glBlendFunc(sfactor, dfactor)
+	C.witty_glBlendFunc(sfactor, dfactor)
 	get_error()!
 }
 
 pub fn viewport(x int, y int, width int, height int) ! {
-	C.glViewport(x, y, width, height)
+	C.witty_glViewport(x, y, width, height)
 }
 
 pub fn viewport_rect() ![4]int {
 	mut values := [4]int{}
-	C.glGetIntegerv(C.GL_VIEWPORT, &values[0])
+	C.witty_glGetIntegerv(C.GL_VIEWPORT, &values[0])
 	get_error()!
 	return values
 }
 
 pub fn pixel_store[T](mode u32, value T) ! {
 	$if T is $int {
-		C.glPixelStorei(mode, int(value))
+		C.witty_glPixelStorei(mode, int(value))
 	} $else {
 		$compile_error('pixel_store only supports integer values')
 	}
@@ -405,11 +406,11 @@ pub fn pixel_store[T](mode u32, value T) ! {
 }
 
 pub fn finish() {
-	C.glFinish()
+	C.witty_glFinish()
 }
 
 pub fn flush() {
-	C.glFlush()
+	C.witty_glFlush()
 }
 
 pub const gl_blend = u32(C.GL_BLEND)
@@ -493,14 +494,14 @@ pub:
 
 pub fn Buffer.create() !Buffer {
 	mut id := u32(0)
-	C.glGenBuffers(1, &id)
+	C.witty_glGenBuffers(1, &id)
 	return Buffer{
 		id: id
 	}
 }
 
 pub fn (b Buffer) bind(target BufferTarget) !BufferBinding {
-	C.glBindBuffer(u32(target), b.id)
+	C.witty_glBindBuffer(u32(target), b.id)
 	return BufferBinding{
 		id: b.id
 		target: target
@@ -509,16 +510,16 @@ pub fn (b Buffer) bind(target BufferTarget) !BufferBinding {
 
 pub fn (b Buffer) destroy() {
 	mut id := b.id
-	C.glDeleteBuffers(1, &id)
+	C.witty_glDeleteBuffers(1, &id)
 }
 
 pub fn (b Buffer) bind_base(target BufferTarget, idx u32) ! {
-	C.glBindBufferBase(u32(target), idx, b.id)
+	C.witty_glBindBufferBase(u32(target), idx, b.id)
 	get_error()!
 }
 
 pub fn (b BufferBinding) unbind() {
-	C.glBindBuffer(u32(b.target), 0)
+	C.witty_glBindBuffer(u32(b.target), 0)
 }
 
 struct BufferDataInfo {
@@ -548,28 +549,28 @@ fn buffer_data_info[T](data T) BufferDataInfo {
 
 pub fn (b BufferBinding) set_data[T](data T, usage BufferUsage) ! {
 	info := buffer_data_info(data)
-	C.glBufferData(u32(b.target), info.size, info.ptr, u32(usage))
+	C.witty_glBufferData(u32(b.target), info.size, info.ptr, u32(usage))
 	get_error()!
 }
 
 pub fn (b BufferBinding) set_sub_data[T](offset uint, data T) ! {
 	info := buffer_data_info(data)
-	C.glBufferSubData(u32(b.target), int(offset), info.size, info.ptr)
+	C.witty_glBufferSubData(u32(b.target), int(offset), info.size, info.ptr)
 	get_error()!
 }
 
 pub fn (b BufferBinding) set_data_null[T](usage BufferUsage) ! {
-	C.glBufferData(u32(b.target), int(sizeof(T)), unsafe { nil }, u32(usage))
+	C.witty_glBufferData(u32(b.target), int(sizeof(T)), unsafe { nil }, u32(usage))
 	get_error()!
 }
 
 pub fn (b BufferBinding) set_data_null_manual(size uint, usage BufferUsage) ! {
-	C.glBufferData(u32(b.target), int(size), unsafe { nil }, u32(usage))
+	C.witty_glBufferData(u32(b.target), int(size), unsafe { nil }, u32(usage))
 	get_error()!
 }
 
 pub fn (b BufferBinding) enable_attrib_array(idx u32) ! {
-	C.glEnableVertexAttribArray(idx)
+	C.witty_glEnableVertexAttribArray(idx)
 	get_error()!
 }
 
@@ -597,19 +598,19 @@ fn buffer_attribute_component_size[T](value T) uint {
 
 pub fn (b BufferBinding) attribute_divisor(idx u32, divisor u32) ! {
 	_ = b
-	C.glVertexAttribDivisor(idx, divisor)
+	C.witty_glVertexAttribDivisor(idx, divisor)
 	get_error()!
 }
 
 pub fn (b BufferBinding) attribute_advanced(idx u32, size int, typ u32, normalized bool, stride int, offset uint) ! {
 	_ = b
-	C.glVertexAttribPointer(idx, size, typ, if normalized { u8(C.GL_TRUE) } else { u8(C.GL_FALSE) }, stride, voidptr(offset))
+	C.witty_glVertexAttribPointer(idx, size, typ, if normalized { u8(C.GL_TRUE) } else { u8(C.GL_FALSE) }, stride, voidptr(offset))
 	get_error()!
 }
 
 pub fn (b BufferBinding) attribute_i_advanced(idx u32, size int, typ u32, stride int, offset uint) ! {
 	_ = b
-	C.glVertexAttribIPointer(idx, size, typ, stride, voidptr(offset))
+	C.witty_glVertexAttribIPointer(idx, size, typ, stride, voidptr(offset))
 	get_error()!
 }
 
@@ -702,13 +703,13 @@ pub:
 }
 
 pub fn texture_active(index u32) ! {
-	C.glActiveTexture(index + u32(C.GL_TEXTURE0))
+	C.witty_glActiveTexture(index + u32(C.GL_TEXTURE0))
 	get_error()!
 }
 
 pub fn Texture.create() !Texture {
 	mut id := u32(0)
-	C.glGenTextures(1, &id)
+	C.witty_glGenTextures(1, &id)
 	get_error()!
 	return Texture{
 		id: id
@@ -716,7 +717,7 @@ pub fn Texture.create() !Texture {
 }
 
 pub fn (t Texture) bind(target TextureTarget) !TextureBinding {
-	C.glBindTexture(u32(target), t.id)
+	C.witty_glBindTexture(u32(target), t.id)
 	get_error()!
 	return TextureBinding{
 		target: target
@@ -725,34 +726,34 @@ pub fn (t Texture) bind(target TextureTarget) !TextureBinding {
 
 pub fn (t Texture) destroy() {
 	mut id := t.id
-	C.glDeleteTextures(1, &id)
+	C.witty_glDeleteTextures(1, &id)
 }
 
 pub fn (b TextureBinding) unbind() {
-	C.glBindTexture(u32(b.target), 0)
+	C.witty_glBindTexture(u32(b.target), 0)
 }
 
 pub fn (b TextureBinding) generate_mipmap() {
-	C.glGenerateMipmap(u32(b.target))
+	C.witty_glGenerateMipmap(u32(b.target))
 }
 
 pub fn (b TextureBinding) parameter(name TextureParameter, value int) ! {
-	C.glTexParameteri(u32(b.target), u32(name), value)
+	C.witty_glTexParameteri(u32(b.target), u32(name), value)
 	get_error()!
 }
 
 pub fn (b TextureBinding) image_2d(level int, internal_format TextureInternalFormat, width int, height int, format TextureFormat, typ TextureDataType, data voidptr) ! {
-	C.glTexImage2D(u32(b.target), level, int(internal_format), width, height, 0, u32(format), u32(typ), data)
+	C.witty_glTexImage2D(u32(b.target), level, int(internal_format), width, height, 0, u32(format), u32(typ), data)
 	get_error()!
 }
 
 pub fn (b TextureBinding) sub_image_2d(level int, xoffset int, yoffset int, width int, height int, format TextureFormat, typ TextureDataType, data voidptr) ! {
-	C.glTexSubImage2D(u32(b.target), level, xoffset, yoffset, width, height, u32(format), u32(typ), data)
+	C.witty_glTexSubImage2D(u32(b.target), level, xoffset, yoffset, width, height, u32(format), u32(typ), data)
 	get_error()!
 }
 
 pub fn (b TextureBinding) copy_sub_image_2d(level int, xoffset int, yoffset int, x int, y int, width int, height int) ! {
-	C.glCopyTexSubImage2D(u32(b.target), level, xoffset, yoffset, x, y, width, height)
+	C.witty_glCopyTexSubImage2D(u32(b.target), level, xoffset, yoffset, x, y, width, height)
 	get_error()!
 }
 
@@ -769,31 +770,31 @@ pub struct VertexArrayBinding {}
 
 pub fn VertexArray.create() !VertexArray {
 	mut id := u32(0)
-	C.glGenVertexArrays(1, &id)
+	C.witty_glGenVertexArrays(1, &id)
 	return VertexArray{
 		id: id
 	}
 }
 
 pub fn (v VertexArray) bind() !VertexArrayBinding {
-	C.glBindVertexArray(v.id)
+	C.witty_glBindVertexArray(v.id)
 	get_error()!
 	return VertexArrayBinding{}
 }
 
 pub fn (v VertexArray) destroy() {
 	mut id := v.id
-	C.glDeleteVertexArrays(1, &id)
+	C.witty_glDeleteVertexArrays(1, &id)
 }
 
 pub fn (b VertexArrayBinding) unbind() {
 	_ = b
-	C.glBindVertexArray(0)
+	C.witty_glBindVertexArray(0)
 }
 
 pub fn (b VertexArrayBinding) enable_attrib_array(idx u32) ! {
 	_ = b
-	C.glEnableVertexAttribArray(idx)
+	C.witty_glEnableVertexAttribArray(idx)
 	get_error()!
 }
 
@@ -863,7 +864,7 @@ pub const shader_type_vertex = u32(C.GL_VERTEX_SHADER)
 pub const shader_type_fragment = u32(C.GL_FRAGMENT_SHADER)
 
 pub fn Shader.create(typ u32) !Shader {
-	id := C.glCreateShader(typ)
+	id := C.witty_glCreateShader(typ)
 	if id == 0 {
 		must_error()!
 		return error('CreateShader failed')
@@ -876,10 +877,10 @@ pub fn Shader.create(typ u32) !Shader {
 
 pub fn (s Shader) set_source_and_compile(source string) ! {
 	mut src := source.str
-	C.glShaderSource(s.id, 1, &src, unsafe { nil })
-	C.glCompileShader(s.id)
+	C.witty_glShaderSource(s.id, 1, &src, unsafe { nil })
+	C.witty_glCompileShader(s.id)
 	mut success := int(0)
-	C.glGetShaderiv(s.id, C.GL_COMPILE_STATUS, &success)
+	C.witty_glGetShaderiv(s.id, C.GL_COMPILE_STATUS, &success)
 	if success != int(C.GL_TRUE) {
 		msg := s.get_info_log()
 		log.error('shader compilation failure id=${s.id} message=${unsafe {
@@ -891,13 +892,13 @@ pub fn (s Shader) set_source_and_compile(source string) ! {
 
 pub fn (s Shader) get_info_log() [512]u8 {
 	mut msg := [512]u8{}
-	C.glGetShaderInfoLog(s.id, msg.len, unsafe { nil }, &msg[0])
+	C.witty_glGetShaderInfoLog(s.id, msg.len, unsafe { nil }, &msg[0])
 	return msg
 }
 
 pub fn (s Shader) destroy() {
 	assert s.id != 0
-	C.glDeleteShader(s.id)
+	C.witty_glDeleteShader(s.id)
 	log.debug('shader destroyed id=${s.id}')
 }
 
@@ -913,7 +914,7 @@ pub:
 pub struct ProgramBinding {}
 
 pub fn Program.create() !Program {
-	id := C.glCreateProgram()
+	id := C.witty_glCreateProgram()
 	if id == 0 {
 		must_error()!
 		return error('CreateProgram failed')
@@ -946,19 +947,19 @@ pub fn Program.create_vf(vsrc string, fsrc string) !Program {
 
 pub fn (p Program) destroy() {
 	assert p.id != 0
-	C.glDeleteProgram(p.id)
+	C.witty_glDeleteProgram(p.id)
 	log.debug('program destroyed id=${p.id}')
 }
 
 pub fn (p Program) attach_shader(s Shader) ! {
-	C.glAttachShader(p.id, s.id)
+	C.witty_glAttachShader(p.id, s.id)
 	get_error()!
 }
 
 pub fn (p Program) link() ! {
-	C.glLinkProgram(p.id)
+	C.witty_glLinkProgram(p.id)
 	mut success := int(0)
-	C.glGetProgramiv(p.id, C.GL_LINK_STATUS, &success)
+	C.witty_glGetProgramiv(p.id, C.GL_LINK_STATUS, &success)
 	if success == int(C.GL_TRUE) {
 		log.debug('program linked id=${p.id}')
 		return
@@ -971,42 +972,42 @@ pub fn (p Program) link() ! {
 }
 
 pub fn (p Program) use() !ProgramBinding {
-	C.glUseProgram(p.id)
+	C.witty_glUseProgram(p.id)
 	get_error()!
 	return ProgramBinding{}
 }
 
 pub fn (b ProgramBinding) unbind() {
 	_ = b
-	C.glUseProgram(0)
+	C.witty_glUseProgram(0)
 }
 
 pub fn (p Program) uniform_block_binding(index u32, binding u32) ! {
-	C.glUniformBlockBinding(p.id, index, binding)
+	C.witty_glUniformBlockBinding(p.id, index, binding)
 	get_error()!
 }
 
 pub fn (p Program) set_uniform[T](name string, value T) ! {
-	loc := C.glGetUniformLocation(p.id, name.str)
+	loc := C.witty_glGetUniformLocation(p.id, name.str)
 	if loc < 0 {
 		return error('UniformNameInvalid')
 	}
 	get_error()!
 
 	$if T is bool {
-		C.glUniform1i(loc, if value { 1 } else { 0 })
+		C.witty_glUniform1i(loc, if value { 1 } else { 0 })
 	} $else $if T is int {
-		C.glUniform1i(loc, value)
+		C.witty_glUniform1i(loc, value)
 	} $else $if T is f32 {
-		C.glUniform1f(loc, value)
+		C.witty_glUniform1f(loc, value)
 	} $else $if T is [2]f32 {
-		C.glUniform2f(loc, value[0], value[1])
+		C.witty_glUniform2f(loc, value[0], value[1])
 	} $else $if T is [3]f32 {
-		C.glUniform3f(loc, value[0], value[1], value[2])
+		C.witty_glUniform3f(loc, value[0], value[1], value[2])
 	} $else $if T is [4]f32 {
-		C.glUniform4f(loc, value[0], value[1], value[2], value[3])
+		C.witty_glUniform4f(loc, value[0], value[1], value[2], value[3])
 	} $else $if T is [16]f32 {
-		C.glUniformMatrix4fv(loc, 1, u8(C.GL_FALSE), &value[0])
+		C.witty_glUniformMatrix4fv(loc, 1, u8(C.GL_FALSE), &value[0])
 	} $else {
 		$compile_error('unsupported uniform type')
 	}
@@ -1016,7 +1017,7 @@ pub fn (p Program) set_uniform[T](name string, value T) ! {
 
 pub fn (p Program) get_info_log() [512]u8 {
 	mut msg := [512]u8{}
-	C.glGetProgramInfoLog(p.id, msg.len, unsafe { nil }, &msg[0])
+	C.witty_glGetProgramInfoLog(p.id, msg.len, unsafe { nil }, &msg[0])
 	return msg
 }
 
@@ -1036,7 +1037,7 @@ pub:
 
 pub fn Renderbuffer.create() !Renderbuffer {
 	mut id := u32(0)
-	C.glGenRenderbuffers(1, &id)
+	C.witty_glGenRenderbuffers(1, &id)
 	return Renderbuffer{
 		id: id
 	}
@@ -1044,25 +1045,25 @@ pub fn Renderbuffer.create() !Renderbuffer {
 
 pub fn (r Renderbuffer) destroy() {
 	mut id := r.id
-	C.glDeleteRenderbuffers(1, &id)
+	C.witty_glDeleteRenderbuffers(1, &id)
 }
 
 pub fn (r Renderbuffer) bind() !RenderbufferBinding {
 	mut current := int(0)
-	C.glGetIntegerv(C.GL_RENDERBUFFER_BINDING, &current)
-	C.glBindRenderbuffer(C.GL_RENDERBUFFER, r.id)
+	C.witty_glGetIntegerv(C.GL_RENDERBUFFER_BINDING, &current)
+	C.witty_glBindRenderbuffer(C.GL_RENDERBUFFER, r.id)
 	return RenderbufferBinding{
 		previous: u32(current)
 	}
 }
 
 pub fn (b RenderbufferBinding) unbind() {
-	C.glBindRenderbuffer(C.GL_RENDERBUFFER, b.previous)
+	C.witty_glBindRenderbuffer(C.GL_RENDERBUFFER, b.previous)
 }
 
 pub fn (b RenderbufferBinding) storage(format TextureInternalFormat, width int, height int) ! {
 	_ = b
-	C.glRenderbufferStorage(C.GL_RENDERBUFFER, u32(format), width, height)
+	C.witty_glRenderbufferStorage(C.GL_RENDERBUFFER, u32(format), width, height)
 	get_error()!
 }
 
@@ -1108,7 +1109,7 @@ pub:
 
 pub fn Framebuffer.create() !Framebuffer {
 	mut id := u32(0)
-	C.glGenFramebuffers(1, &id)
+	C.witty_glGenFramebuffers(1, &id)
 	return Framebuffer{
 		id: id
 	}
@@ -1116,13 +1117,13 @@ pub fn Framebuffer.create() !Framebuffer {
 
 pub fn (f Framebuffer) destroy() {
 	mut id := f.id
-	C.glDeleteFramebuffers(1, &id)
+	C.witty_glDeleteFramebuffers(1, &id)
 }
 
 pub fn (f Framebuffer) bind(target FramebufferTarget) !FramebufferBinding {
 	mut current := int(0)
-	C.glGetIntegerv(C.GL_FRAMEBUFFER_BINDING, &current)
-	C.glBindFramebuffer(u32(target), f.id)
+	C.witty_glGetIntegerv(C.GL_FRAMEBUFFER_BINDING, &current)
+	C.witty_glBindFramebuffer(u32(target), f.id)
 	return FramebufferBinding{
 		target: target
 		previous: u32(current)
@@ -1130,16 +1131,16 @@ pub fn (f Framebuffer) bind(target FramebufferTarget) !FramebufferBinding {
 }
 
 pub fn (b FramebufferBinding) unbind() {
-	C.glBindFramebuffer(u32(b.target), b.previous)
+	C.witty_glBindFramebuffer(u32(b.target), b.previous)
 }
 
 pub fn (b FramebufferBinding) texture_2d(attachment FramebufferAttachment, textarget TextureTarget, texture Texture, level int) ! {
-	C.glFramebufferTexture2D(u32(b.target), u32(attachment), u32(textarget), texture.id, level)
+	C.witty_glFramebufferTexture2D(u32(b.target), u32(attachment), u32(textarget), texture.id, level)
 	get_error()!
 }
 
 pub fn (b FramebufferBinding) renderbuffer(attachment FramebufferAttachment, buffer Renderbuffer) ! {
-	C.glFramebufferRenderbuffer(u32(b.target), u32(attachment), C.GL_RENDERBUFFER, buffer.id)
+	C.witty_glFramebufferRenderbuffer(u32(b.target), u32(attachment), C.GL_RENDERBUFFER, buffer.id)
 	get_error()!
 }
 
@@ -1149,12 +1150,12 @@ pub fn (b FramebufferBinding) draw_buffers(bufs []FramebufferAttachment) ! {
 	if bufs.len > 0 {
 		ptr = &u32(bufs.data)
 	}
-	C.glDrawBuffers(bufs.len, ptr)
+	C.witty_glDrawBuffers(bufs.len, ptr)
 	get_error()!
 }
 
 pub fn (b FramebufferBinding) check_status() FramebufferStatus {
-	return unsafe { FramebufferStatus(C.glCheckFramebufferStatus(u32(b.target))) }
+	return unsafe { FramebufferStatus(C.witty_glCheckFramebufferStatus(u32(b.target))) }
 }
 
 pub fn blit_framebuffer(src_x0 int, src_y0 int, src_x1 int, src_y1 int, dst_x0 int, dst_y0 int, dst_x1 int, dst_y1 int, mask u32, filter TextureMagFilter) ! {
@@ -1175,7 +1176,7 @@ pub:
 
 pub fn Sampler.create() !Sampler {
 	mut id := u32(0)
-	C.glGenSamplers(1, &id)
+	C.witty_glGenSamplers(1, &id)
 	get_error()!
 	return Sampler{
 		id: id
@@ -1183,16 +1184,16 @@ pub fn Sampler.create() !Sampler {
 }
 
 pub fn (s Sampler) bind(index u32) ! {
-	C.glBindSampler(index, s.id)
+	C.witty_glBindSampler(index, s.id)
 	get_error()!
 }
 
 pub fn (s Sampler) parameter(name TextureParameter, value int) ! {
-	C.glSamplerParameteri(s.id, u32(name), value)
+	C.witty_glSamplerParameteri(s.id, u32(name), value)
 	get_error()!
 }
 
 pub fn (s Sampler) destroy() {
 	mut id := s.id
-	C.glDeleteSamplers(1, &id)
+	C.witty_glDeleteSamplers(1, &id)
 }

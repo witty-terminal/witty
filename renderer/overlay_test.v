@@ -59,21 +59,29 @@ fn test_overlay_rectangle_matches_z2d_0_10_fill_and_hairline_bytes() {
 	assert overlay_pixel(&overlay, 4, 1) == [u8(171), 171, 243, 244]!
 	assert overlay_pixel(&overlay, 2, 2) == [u8(67), 67, 96, 96]!
 	assert overlay_pixel(&overlay, 4, 2) == [u8(141), 141, 200, 200]!
-	assert sha256.sum(overlay.pixels).hex() == '5ebe13c89b22bd043a617cd62763811ceb2a8f60b4687e1244a088d11d277f30'
+	assert sha256.sum(overlay.pending_image().data).hex() == '5ebe13c89b22bd043a617cd62763811ceb2a8f60b4687e1244a088d11d277f30'
 }
 
 fn test_overlay_degenerate_rectangles_match_z2d_0_10_bytes() {
 	mut overlay := overlay_for_grid(6, 6, 1, 1)
 	overlay.highlight_pixel_rect(1, 1, 0, 3, .hyperlink)!
-	assert sha256.sum(overlay.pixels).hex() == '509c9cfe914dc7b2427c70b16489052b0e79194f1bc8e9e8936c15c3e2c4a035'
+	assert sha256.sum(overlay.pending_image().data).hex() == '509c9cfe914dc7b2427c70b16489052b0e79194f1bc8e9e8936c15c3e2c4a035'
 
 	overlay.reset()
 	overlay.highlight_pixel_rect(1, 1, 3, 0, .hyperlink)!
-	assert sha256.sum(overlay.pixels).hex() == 'd511718883dcefd72d324c6991efeaaed8df6b64fe6e1dfc5f163347b69a3aa3'
+	assert sha256.sum(overlay.pending_image().data).hex() == 'd511718883dcefd72d324c6991efeaaed8df6b64fe6e1dfc5f163347b69a3aa3'
 
 	overlay.reset()
 	overlay.highlight_pixel_rect(1, 1, 0, 0, .hyperlink)!
-	assert sha256.sum(overlay.pixels).hex() == '451f2e215103f9c5934940c07f448cec6a3221a94d77d25b810e16eaad6bdac2'
+	assert sha256.sum(overlay.pending_image().data).hex() == '451f2e215103f9c5934940c07f448cec6a3221a94d77d25b810e16eaad6bdac2'
+}
+
+fn test_overlay_clips_large_rectangles_to_the_canvas() ! {
+	mut overlay := overlay_for_grid(3, 3, 1, 1)
+	overlay.highlight_pixel_rect(1, 1, overlay_max_i32, overlay_max_i32, .hyperlink)!
+	assert overlay_pixel(&overlay, 0, 0) == [u8(0), 0, 0, 0]!
+	assert overlay_pixel(&overlay, 2, 2) == [u8(67), 67, 96, 96]!
+	assert overlay_pixel(&overlay, 1, 1) == [u8(174), 174, 247, 248]!
 }
 
 fn overlay_for_grid(cols u32, rows u32, cell_width u32, cell_height u32) Overlay {
@@ -90,9 +98,8 @@ fn overlay_for_grid(cols u32, rows u32, cell_width u32, cell_height u32) Overlay
 }
 
 fn overlay_pixel(overlay &Overlay, x int, y int) [4]u8 {
-	idx := (y * int(overlay.width) + x) * 4
-	return [overlay.pixels[idx], overlay.pixels[idx + 1], overlay.pixels[idx + 2],
-		overlay.pixels[idx + 3]]!
+	pixel := overlay.surface.pixels[y * overlay.surface.width + x]
+	return [u8(pixel >> 16), u8(pixel >> 8), u8(pixel), u8(pixel >> 24)]!
 }
 
 fn test_overlay_rejects_dimensions_outside_source_raster_range() {
@@ -113,7 +120,7 @@ fn test_overlay_grid_rectangle_rejects_coordinate_overflow() {
 	overlay.cell_size.width = 2
 	overlay.highlight_grid_rect(uint(2147483647), 0, 1, 1, .hyperlink) or {
 		assert err.msg() == 'overlay coordinate overflow'
-		assert overlay.pixels == []u8{len: 4}
+		assert overlay.surface.pixels == [u32(0)]
 		return
 	}
 	assert false, 'out-of-range overlay coordinate should fail'

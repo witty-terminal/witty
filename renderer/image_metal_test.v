@@ -39,26 +39,21 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		state.deinit()
 	}
 
-	fn test_overlay_update_replaces_then_unloads_image() {
+	fn test_overlay_update_replaces_then_unloads_image() ! {
 		mut api := MetalAPI.init()!
 		defer {
 			api.deinit()
 		}
 		mut state := ImageRenderState.empty()
-		state.overlay_update(Overlay{
-			width:  1
-			height: 1
-			pixels: [u8(1), 2, 3, 4]
-		})
+		mut overlay := Overlay.init(Size{ screen: ScreenSize{ width: 1, height: 1 } })!
+		overlay.surface.clear(0x04010203)
+		state.overlay_update(overlay)
 		mut ready_entry := state.images[overlay_image_key] or { panic('missing overlay image') }
 		ready_entry.image = ImageReady{}
 		state.images[overlay_image_key] = ready_entry
 
-		state.overlay_update(Overlay{
-			width:  1
-			height: 1
-			pixels: [u8(5), 6, 7, 8]
-		})
+		overlay.surface.clear(0x08050607)
+		state.overlay_update(overlay)
 		replaced := state.images[overlay_image_key] or { panic('missing replaced overlay') }
 		assert replaced.image is ImageReplace
 		assert state.overlay_placements.len == 1

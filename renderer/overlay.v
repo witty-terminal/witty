@@ -1,5 +1,6 @@
 module renderer
 
+import gg.canvas
 import log
 import terminal
 
@@ -17,14 +18,10 @@ const overlay_max_i32 = uint(2147483647)
 // Draw it on the GPU as an image composited on top of the terminal output.
 pub struct Overlay {
 pub mut:
-	// RGBA pixel data for the overlay surface.
-	pixels []u8
-	// Width of the overlay in pixels.
-	width u32
-	// Height of the overlay in pixels.
-	height u32
 	// Cell size information so we can map grid coordinates to pixels.
 	cell_size CellSize
+mut:
+	surface canvas.RasterSurface
 }
 
 // The colors we use for overlays.
@@ -132,34 +129,45 @@ pub fn Overlay.init(sz Size) !Overlay {
 	if u64(w) > u64(overlay_max_i32) / u64(h) / 4 {
 		return error('invalid dimensions for overlay')
 	}
-	total := int(u64(w) * u64(h) * 4)
 	return Overlay{
-		pixels:    []u8{len: total}
-		width:     w
-		height:    h
+		surface:   canvas.new_raster_surface(width: int(w), height: int(h))!
 		cell_size: sz.cell
 	}
 }
 
+pub fn (self &Overlay) width() u32 {
+	return u32(self.surface.width)
+}
+
+pub fn (self &Overlay) height() u32 {
+	return u32(self.surface.height)
+}
+
 pub fn (mut self Overlay) deinit() {
-	self.pixels = []
+	self.surface = canvas.RasterSurface{}
 }
 
 // Returns a pending image that can be used to copy, convert, upload, etc.
 pub fn (self &Overlay) pending_image() PendingImage {
+	mut rgba := []u8{len: self.surface.pixels.len * 4}
+	for i, pixel in self.surface.pixels {
+		offset := i * 4
+		rgba[offset] = u8(pixel >> 16)
+		rgba[offset + 1] = u8(pixel >> 8)
+		rgba[offset + 2] = u8(pixel)
+		rgba[offset + 3] = u8(pixel >> 24)
+	}
 	return PendingImage{
-		width:        self.width
-		height:       self.height
+		width:        self.width()
+		height:       self.height()
 		pixel_format: .rgba
-		data:         self.pixels.clone()
+		data:         rgba
 	}
 }
 
 // Clear the overlay.
 pub fn (mut self Overlay) reset() {
-	for i in 0 .. self.pixels.len {
-		self.pixels[i] = 0
-	}
+	self.surface.clear(0)
 }
 
 // Apply the given features to this overlay. This will draw on top of
@@ -291,59 +299,30 @@ fn (mut self Overlay) highlight_pixel_rect(x uint, y uint, width_px uint, height
 // end coordinates while every hairline segment includes both endpoints, so
 // corners composite twice and right/bottom edges sit on the path boundary.
 fn (mut self Overlay) draw_z2d_rectangle(start_x int, start_y int, width int, height int, border OverlayPixel, fill OverlayPixel) {
-	end_x := start_x + width
-	end_y := start_y + height
+	left := i64(start_x)
+	top := i64(start_y)
+	right := left + width
+	bottom := top + height
 
 	// The z2d polyline plotter discards consecutive duplicate path points.
 	// A point-only path is painted once; a collapsed line is traversed once
 	// in each direction by the closed path. Degenerate polygons have no fill.
 	if width == 0 && height == 0 {
-		self.composite_xy(start_x, start_y, border)
+		self.composite_rect(left, top, right + 1, bottom + 1, border)
 		return
 	}
-	if width == 0 {
-		self.z2d_hairline(start_x, start_y, start_x, end_y, border)
-		self.z2d_hairline(start_x, end_y, start_x, start_y, border)
-		return
+	self.composite_rect(left, top, right, bottom, fill)
+	if width > 0 {
+		self.composite_rect(left, top, right + 1, top + 1, border)
 	}
-	if height == 0 {
-		self.z2d_hairline(start_x, start_y, end_x, start_y, border)
-		self.z2d_hairline(end_x, start_y, start_x, start_y, border)
-		return
+	if height > 0 {
+		self.composite_rect(right, top, right + 1, bottom + 1, border)
 	}
-
-	// painter.fill -> direct rasterizer for the rectangular non-zero path.
-	for y in start_y .. end_y {
-		for x in start_x .. end_x {
-			self.composite_xy(x, y, fill)
-		}
+	if width > 0 {
+		self.composite_rect(left, bottom, right + 1, bottom + 1, border)
 	}
-
-	// painter.stroke(hairline=true) -> polyline plotter -> hairline rasterizer.
-	// The four line calls intentionally retain shared endpoints.
-	self.z2d_hairline(start_x, start_y, end_x, start_y, border)
-	self.z2d_hairline(end_x, start_y, end_x, end_y, border)
-	self.z2d_hairline(end_x, end_y, start_x, end_y, border)
-	self.z2d_hairline(start_x, end_y, start_x, start_y, border)
-}
-
-// z2d_hairline translates the axis-aligned branches of z2d's hairline
-// rasterizer. Overlay rectangles never take either Bresenham branch.
-fn (mut self Overlay) z2d_hairline(x0 int, y0 int, x1 int, y1 int, pixel OverlayPixel) {
-	if x0 == x1 {
-		start := if y0 < y1 { y0 } else { y1 }
-		end := if y0 > y1 { y0 } else { y1 }
-		for y in start .. end + 1 {
-			self.composite_xy(x0, y, pixel)
-		}
-		return
-	}
-	if y0 == y1 {
-		start := if x0 < x1 { x0 } else { x1 }
-		end := if x0 > x1 { x0 } else { x1 }
-		for x in start .. end + 1 {
-			self.composite_xy(x, y0, pixel)
-		}
+	if height > 0 {
+		self.composite_rect(left, top, left + 1, bottom + 1, border)
 	}
 }
 
@@ -356,26 +335,32 @@ fn overlay_mul_i32(value uint, scale u32) !int {
 	return int(value * uint(scale))
 }
 
-fn (mut self Overlay) composite_xy(x int, y int, pixel OverlayPixel) {
-	if x < 0 || y < 0 || x >= int(self.width) || y >= int(self.height) {
-		return
-	}
-	idx := (y * int(self.width) + x) * 4
-	self.composite_pixel(idx, pixel)
-}
-
 // z2d's RGBA surfaces store premultiplied colors. Integer src-over computes
 // color as src + dst * (255 - src.a) / 255 and alpha as
 // src.a + dst.a - src.a * dst.a / 255, all with truncating division.
-fn (mut self Overlay) composite_pixel(idx int, pixel OverlayPixel) {
+fn (mut self Overlay) composite_rect(left i64, top i64, right i64, bottom i64, pixel OverlayPixel) {
+	x0 := if left > 0 { left } else { 0 }
+	y0 := if top > 0 { top } else { 0 }
+	x1 := if right < self.surface.width { right } else { i64(self.surface.width) }
+	y1 := if bottom < self.surface.height { bottom } else { i64(self.surface.height) }
+	if x0 >= x1 || y0 >= y1 {
+		return
+	}
 	src_a := u32(pixel.a)
 	inv_a := u32(255) - src_a
 	src_r := u32(pixel.r)
 	src_g := u32(pixel.g)
 	src_b := u32(pixel.b)
-	dst_a := u32(self.pixels[idx + 3])
-	self.pixels[idx] = u8(src_r + u32(self.pixels[idx]) * inv_a / 255)
-	self.pixels[idx + 1] = u8(src_g + u32(self.pixels[idx + 1]) * inv_a / 255)
-	self.pixels[idx + 2] = u8(src_b + u32(self.pixels[idx + 2]) * inv_a / 255)
-	self.pixels[idx + 3] = u8(src_a + dst_a - src_a * dst_a / 255)
+	for y in int(y0) .. int(y1) {
+		row := y * self.surface.width
+		for i in row + int(x0) .. row + int(x1) {
+			dst := self.surface.pixels[i]
+			r := src_r + (dst >> 16 & 255) * inv_a / 255
+			g := src_g + (dst >> 8 & 255) * inv_a / 255
+			b := src_b + (dst & 255) * inv_a / 255
+			dst_a := dst >> 24
+			a := src_a + dst_a - src_a * dst_a / 255
+			self.surface.pixels[i] = (a << 24) | (r << 16) | (g << 8) | b
+		}
+	}
 }

@@ -190,13 +190,10 @@ fn test_image_render_state_empty() {
 	state.deinit()
 }
 
-fn test_overlay_update_prepares_image_and_placement() {
+fn test_overlay_update_prepares_image_and_placement() ! {
 	mut state := ImageRenderState.empty()
-	overlay := Overlay{
-		width: 2
-		height: 3
-		pixels: []u8{len: 2 * 3 * 4, init: 7}
-	}
+	mut overlay := Overlay.init(Size{ screen: ScreenSize{ width: 2, height: 3 } })!
+	overlay.surface.clear(0x07070707)
 	state.overlay_update(overlay)
 
 	assert overlay_image_key in state.images
@@ -206,7 +203,7 @@ fn test_overlay_update_prepares_image_and_placement() {
 	assert pending.width == 2
 	assert pending.height == 3
 	assert pending.pixel_format == .rgba
-	assert pending.data == overlay.pixels
+	assert pending.data == []u8{len: 2 * 3 * 4, init: 7}
 	assert state.overlay_placements.len == 1
 	placement := state.overlay_placements[0]
 	assert placement.width == 2
