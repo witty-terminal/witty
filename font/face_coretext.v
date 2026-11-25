@@ -514,8 +514,8 @@ pub fn (self CoreTextFace) render_glyph(mut atlas Atlas, glyph_index u32, opts R
 
 		bytes_per_row := uint(layout.px_width * depth)
 		byte_count := int(bytes_per_row * layout.px_height)
-		// CoreText writes color glyphs directly into the Canvas BGRA surface.
-		// Monochrome glyphs use the one-byte mask required by the grayscale atlas.
+		// CoreText writes into zero-initialized storage. Color glyphs use a
+		// Canvas BGRA surface, and monochrome glyphs use a one-byte alpha mask.
 		color_surface := if is_color {
 			canvas.new_raster_surface(width: int(layout.px_width), height: int(layout.px_height))!
 		} else {
@@ -535,13 +535,6 @@ pub fn (self CoreTextFace) render_glyph(mut atlas Atlas, glyph_index u32, opts R
 			uint(layout.px_height), 8, bytes_per_row, color_space, context_opts)!
 		context := bitmap.as_context()
 		defer { context.release() }
-
-		if is_color {
-			context.set_rgb_fill_color(0, 0, 0, 0)
-		} else {
-			context.set_gray_fill_color(0, 0)
-		}
-		context.fill_rect(macos.CGRect.init(0, 0, f64(layout.px_width), f64(layout.px_height)))
 
 		context.set_allows_font_smoothing(true)
 		context.set_should_smooth_fonts(opts.thicken)
