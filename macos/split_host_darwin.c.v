@@ -1,6 +1,12 @@
 module macos
 
 import math
+import gg.canvas
+
+#insert "@VMODROOT/macos/split_divider_darwin.h"
+
+fn C.witty_split_place_overlay(parent voidptr, child voidptr)
+fn C.witty_split_present_dividers(target voidptr, pixel &u32, positions voidptr, count int)
 
 @[heap]
 pub struct NativeSplitHost {
@@ -17,6 +23,9 @@ mut:
 	focused_view voidptr
 	dim_fill u32
 	dim_opacity f64
+	divider_view ObjId
+	divider_color u32
+	dividers []NativeSplitDivider
 }
 
 fn split_host(self ObjId) ?&NativeSplitHost {
@@ -32,13 +41,19 @@ fn register_split_host_class() {
 	if !is_nil(get_class('VTTerminalSplitHost')) { return }
 	cls := C.macos_objc_allocate_class_pair(get_class('NSView'), cstr('VTTerminalSplitHost'), 0)
 	C.macos_class_add_ivar(cls, cstr('vtSplitHost'), sizeof(voidptr), 3, cstr('^v'))
-	add_method(cls, 'drawRect:', voidptr(split_host_draw), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
+	add_method(cls, 'hitTest:', voidptr(split_host_hit_test), '@@:{CGPoint=dd}')
 	add_method(cls, 'mouseDown:', voidptr(split_host_mouse_down), 'v@:@')
 	add_method(cls, 'mouseDragged:', voidptr(split_host_mouse_dragged), 'v@:@')
 	add_method(cls, 'mouseUp:', voidptr(split_host_mouse_up), 'v@:@')
 	add_method(cls, 'isFlipped', voidptr(split_host_is_flipped), 'B@:')
 	add_method(cls, 'resizeSubviewsWithOldSize:', voidptr(split_host_resize), 'v@:{CGSize=dd}')
 	C.macos_objc_register_class_pair(cls)
+
+	overlay := C.macos_objc_allocate_class_pair(get_class('NSView'), cstr('WittySplitDividerOverlay'), 0)
+	add_method(overlay, 'isFlipped', voidptr(split_host_is_flipped), 'B@:')
+	add_method(overlay, 'hitTest:', voidptr(action_passive_hit), '@@:{CGPoint=dd}')
+	add_method(overlay, 'drawRect:', voidptr(split_divider_draw), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
+	C.macos_objc_register_class_pair(overlay)
 }
 pub fn create_split_host(view voidptr) &NativeSplitHost {
 	register_split_host_class()
@@ -71,7 +86,7 @@ pub fn (mut host NativeSplitHost) layout() {
 	children := msg_id(host.container, 'subviews')
 	for i := int(msg_u64(children, 'count')) - 1; i >= 0; i-- {
 		child := msg_id_u64(children, 'objectAtIndex:', u64(i))
-		if voidptr(child) !in containers { msg_void(child, 'removeFromSuperview') }
+		if child != host.divider_view && voidptr(child) !in containers { msg_void(child, 'removeFromSuperview') }
 	}
 	for view in leaves {
 		container := surface_container(view)
@@ -79,16 +94,59 @@ pub fn (mut host NativeSplitHost) layout() {
 		msg_void_bool(container, 'setHidden:', host.tree.zoomed != unsafe { nil } && !host.tree.zoomed.leaves().contains(view))
 	}
 	root := if host.tree.zoomed == unsafe { nil } { host.tree.root } else { host.tree.zoomed }
-	msg_void_bool(host.container, 'setNeedsDisplay:', true)
-	for slot in native_split_layout(root, SplitBounds{width: bounds.width, height: bounds.height}, host.increment_width, host.increment_height) {
+	area := SplitBounds{width: bounds.width, height: bounds.height}
+	for slot in native_split_layout(root, area, host.increment_width, host.increment_height) {
 		b := slot.bounds
 		msg_void_rect(surface_container(slot.node.view), 'setFrame:', objc_rect(b.x, b.y, b.width, b.height))
 		surface_container_layout(slot.node.view)
 	}
+	host.dividers = split_dividers(root, area, host.increment_width, host.increment_height)
+	host.layout_divider_view(bounds)
 	host.refresh_dimming()
 }
 
-pub fn (mut host NativeSplitHost) set_dimming(config NativeWindowConfig, focused_view voidptr) {
+fn (mut host NativeSplitHost) layout_divider_view(bounds ObjCRect) {
+	if host.dividers.len == 0 {
+		if !is_nil(host.divider_view) { msg_void_bool(host.divider_view, 'setHidden:', true) }
+		return
+	}
+	if is_nil(host.divider_view) {
+		host.divider_view = msg_id_rect(alloc('WittySplitDividerOverlay'), 'initWithFrame:', bounds)
+		C.witty_split_place_overlay(host.container, host.divider_view)
+		msg_void(host.divider_view, 'release')
+	} else if msg_id(msg_id(host.container, 'subviews'), 'lastObject') != host.divider_view {
+		C.witty_split_place_overlay(host.container, host.divider_view)
+	}
+	msg_void_rect(host.divider_view, 'setFrame:', bounds)
+	msg_void_bool(host.divider_view, 'setHidden:', false)
+	msg_void_bool(host.divider_view, 'setNeedsDisplay:', true)
+}
+
+fn native_split_divider_color(config NativeWindowConfig) u32 {
+	if color := config.split_divider_color { return color }
+	background := config.background
+	// Scaling HSB brightness preserves hue and saturation in the RGB channels.
+	brightness := if native_color_luminance(background) > 0.5 { 0.92 } else { 0.6 }
+	r := split_divider_channel((background >> 16) & 255, brightness)
+	g := split_divider_channel((background >> 8) & 255, brightness)
+	b := split_divider_channel(background & 255, brightness)
+	return r << 16 | g << 8 | b
+}
+
+fn split_divider_channel(value u32, brightness f64) u32 {
+	// SwiftUI's non-linear sRGB renderer stores the shade in half precision
+	// before converting it to an eight-bit output pixel.
+	fraction, exponent := math.frexp(f64(value) * brightness / 255)
+	component := math.ldexp(math.round(fraction * 2048), exponent - 11)
+	return u32(math.round(component * 255))
+}
+
+pub fn (mut host NativeSplitHost) set_appearance(config NativeWindowConfig, focused_view voidptr) {
+	divider_color := native_split_divider_color(config)
+	if host.divider_color != divider_color {
+		host.divider_color = divider_color
+		msg_void_bool(host.divider_view, 'setNeedsDisplay:', true)
+	}
 	fill := config.unfocused_split_fill or { config.background }
 	opacity := 1.0 - config.unfocused_split_opacity
 	if host.focused_view == focused_view && host.dim_fill == fill && host.dim_opacity == opacity {
@@ -121,63 +179,81 @@ fn terminal_view_for_window(window ObjId) ObjId {
 	return content
 }
 
-fn split_dividers(n &NativeSplitNode, bounds SplitBounds, iw f64, ih f64) []SplitSlot {
-	if n == unsafe { nil } || n.is_leaf() { return []SplitSlot{} }
-	mut left := bounds
-	mut right := bounds
-	if n.axis == .horizontal {
-		left.width = bounds.width * n.ratio - 0.5
-		left.width -= math.fmod(left.width, iw)
-		right.x += left.width + 0.5
-		right.width -= left.width + 0.5
+struct NativeSplitDivider {
+	node &NativeSplitNode
+	bounds SplitBounds
+	line SplitBounds
+}
+
+fn split_dividers(n &NativeSplitNode, bounds SplitBounds, iw f64, ih f64) []NativeSplitDivider {
+	if n == unsafe { nil } || n.is_leaf() { return []NativeSplitDivider{} }
+	left, right := native_split_children(n, bounds, iw, ih)
+	line := if n.axis == .horizontal {
+		SplitBounds{x: left.x + left.width - 0.5, y: bounds.y, width: 1, height: bounds.height}
 	} else {
-		left.height = bounds.height * n.ratio - 0.5
-		left.height -= math.fmod(left.height, ih)
-		right.y += left.height + 0.5
-		right.height -= left.height + 0.5
+		SplitBounds{x: bounds.x, y: left.y + left.height - 0.5, width: bounds.width, height: 1}
 	}
-	mut result := [SplitSlot{node: n, bounds: bounds}]
+	mut result := [NativeSplitDivider{node: n, bounds: bounds, line: line}]
 	result << split_dividers(n.left, left, iw, ih)
 	result << split_dividers(n.right, right, iw, ih)
 	return result
 }
-fn split_host_draw(self ObjId, _cmd Sel, _dirty ObjCRect) {
-	host := split_host(self) or { return }
-	if host.tree.zoomed != unsafe { nil } { return }
-	bounds := msg_rect(self, 'bounds')
-	msg_void(msg_id(get_class('NSColor'), 'separatorColor'), 'setFill')
-	for slot in split_dividers(host.tree.root, SplitBounds{width: bounds.width, height: bounds.height}, host.increment_width, host.increment_height) {
-		b := slot.bounds
-		n := slot.node
-		mut rect := objc_rect(b.x, b.y, b.width, b.height)
-		if n.axis == .horizontal {
-			width := b.width * n.ratio - 0.5
-			rect.x += width - math.fmod(width, host.increment_width)
-			rect.width = 1
-		} else {
-			height := b.height * n.ratio - 0.5
-			rect.y += height - math.fmod(height, host.increment_height)
-			rect.height = 1
-		}
-		msg_void_rect(get_class('NSBezierPath'), 'fillRect:', rect)
+fn split_divider_draw(self ObjId, _cmd Sel, _dirty ObjCRect) {
+	host := split_host(msg_id(self, 'superview')) or { return }
+	context := msg_id(msg_id(get_class('NSGraphicsContext'), 'currentContext'), 'CGContext')
+	if is_nil(context) { return }
+	host.draw_dividers(context, math.max(1, msg_f64(msg_id(self, 'window'), 'backingScaleFactor')))
+}
+
+fn (host &NativeSplitHost) draw_dividers(context voidptr, scale f64) {
+	if host.dividers.len == 0 { return }
+	mut tile := canvas.new_raster_surface(width: 1, height: 1) or { return }
+	tile.clear(0xff000000 | host.divider_color)
+	mut rects := []ObjCRect{cap: host.dividers.len}
+	for divider in host.dividers {
+		line := divider.line
+		// SwiftUI snaps both edges to the backing grid, including at 1x.
+		x := math.round(line.x * scale)
+		y := math.round(line.y * scale)
+		right := math.round((line.x + line.width) * scale)
+		bottom := math.round((line.y + line.height) * scale)
+		rects << objc_rect(x / scale, y / scale, (right - x) / scale, (bottom - y) / scale)
 	}
+	C.witty_split_present_dividers(context, unsafe { &tile.pixels[0] }, rects.data, rects.len)
+}
+
+fn (host &NativeSplitHost) divider_at(point ObjCPoint) ?NativeSplitDivider {
+	// The visible one-point divider has another three points on each side.
+	for divider in host.dividers {
+		line := divider.line
+		x_pad := if divider.node.axis == .horizontal { 3.0 } else { 0.0 }
+		y_pad := if divider.node.axis == .vertical { 3.0 } else { 0.0 }
+		if point.x >= line.x - x_pad && point.x <= line.x + line.width + x_pad
+			&& point.y >= line.y - y_pad && point.y <= line.y + line.height + y_pad {
+			return divider
+		}
+	}
+	return none
+}
+
+fn split_host_hit_test(self ObjId, _cmd Sel, point ObjCPoint) ObjId {
+	if host := split_host(self) {
+		local := msg_point_point_obj(self, 'convertPoint:fromView:', point, msg_id(self, 'superview'))
+		if host.divider_at(local) != none { return self }
+	}
+	return C.witty_action_hit_super(self, get_class('VTTerminalSplitHost'), point.x, point.y)
 }
 fn split_host_mouse_down(self ObjId, _cmd Sel, event ObjId) {
 	mut host := split_host(self) or { return }
-	if host.tree.zoomed != unsafe { nil } { return }
 	point := msg_point_point_obj(self, 'convertPoint:fromView:', msg_point(event, 'locationInWindow'), nil_obj())
-	bounds := msg_rect(self, 'bounds')
-	for slot in split_dividers(host.tree.root, SplitBounds{width: bounds.width, height: bounds.height}, host.increment_width, host.increment_height) {
-		b := slot.bounds
-		n := slot.node
-		hit := if n.axis == .horizontal { math.abs(point.x - (b.x + b.width * n.ratio - 0.5 - math.fmod(b.width * n.ratio - 0.5, host.increment_width))) <= 3.5 && point.y >= b.y && point.y <= b.y + b.height } else { math.abs(point.y - (b.y + b.height * n.ratio - 0.5 - math.fmod(b.height * n.ratio - 0.5, host.increment_height))) <= 3.5 && point.x >= b.x && point.x <= b.x + b.width }
-		if !hit { continue }
-		if msg_u64(event, 'clickCount') == 2 { host.replace_tree(host.tree.equalized()); return }
-		host.drag_path = host.tree.root.path(n) or { return }
-		host.drag_bounds = b
-		host.dragging = true
+	divider := host.divider_at(point) or { return }
+	if msg_u64(event, 'clickCount') == 2 {
+		host.replace_tree(host.tree.equalized())
 		return
 	}
+	host.drag_path = host.tree.root.path(divider.node) or { return }
+	host.drag_bounds = divider.bounds
+	host.dragging = true
 }
 fn split_host_mouse_dragged(self ObjId, _cmd Sel, event ObjId) {
 	mut host := split_host(self) or { return }

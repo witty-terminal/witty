@@ -12,6 +12,9 @@ fn native_window_config(config &configpkg.Config) macos.NativeWindowConfig {
 		unfocused_split_fill: if fill := config.unfocused_split_fill {
 			?u32(u32(fill.r) << 16 | u32(fill.g) << 8 | fill.b)
 		} else { none }
+		split_divider_color: if divider := config.split_divider_color {
+			?u32(u32(divider.r) << 16 | u32(divider.g) << 8 | divider.b)
+		} else { none }
 	}
 }
 fn native_controller_config(current &TermState) macos.NativeWindowConfig {
@@ -25,17 +28,17 @@ fn native_surface_appearance_config(current &TermState) macos.NativeWindowConfig
 	base := current.controller.creation_config
 	return macos.NativeWindowConfig{...base, window_title_font_family: current.native_config.window_title_font_family, shadow: current.native_config.shadow, theme: current.native_config.theme, background: current.native_config.background, opacity: current.native_config.opacity, blur: current.native_config.blur}
 }
-fn sync_native_split_dimming(mut controller TerminalController) {
+fn sync_native_split_appearance(mut controller TerminalController) {
 	if controller.host == unsafe { nil } { return }
 	// Find and other native controls can temporarily own the first responder.
 	focused := if controller.focused == unsafe { nil } { unsafe { nil } } else { controller.focused.view }
-	controller.host.set_dimming(controller.app_config, focused)
+	controller.host.set_appearance(controller.app_config, focused)
 }
 
 fn sync_native_window(current &TermState) {
 	if current.controller == unsafe { nil } { return }
 	mut controller := current.controller
-	sync_native_split_dimming(mut controller)
+	sync_native_split_appearance(mut controller)
 	if current.controller.quick {
 		macos.sync_quick_terminal_appearance(current.controller.force_opaque)
 		sync_native_surface_color_scheme(mut controller)

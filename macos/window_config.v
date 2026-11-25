@@ -23,6 +23,7 @@ pub:
 	preserve_split_zoom bool
 	unfocused_split_opacity f64 = 0.7
 	unfocused_split_fill ?u32
+	split_divider_color ?u32
 	focus_follows_mouse bool
 	maximize bool
 }

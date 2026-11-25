@@ -193,10 +193,8 @@ pub fn (t NativeSplitTree) borders(direction SplitFocusDirection, target &Native
 	return false
 }
 
-// SplitView.leftRect/rightRect uses a half-point divider and cell increments.
-pub fn native_split_layout(n &NativeSplitNode, bounds SplitBounds, increment_width f64, increment_height f64) []SplitSlot {
-	if n == unsafe { nil } { return []SplitSlot{} }
-	if n.is_leaf() { return [SplitSlot{node: n, bounds: bounds}] }
+// SplitView.leftRect/rightRect leaves half a point between the child frames.
+fn native_split_children(n &NativeSplitNode, bounds SplitBounds, increment_width f64, increment_height f64) (SplitBounds, SplitBounds) {
 	mut left := bounds
 	mut right := bounds
 	if n.axis == .horizontal {
@@ -210,6 +208,13 @@ pub fn native_split_layout(n &NativeSplitNode, bounds SplitBounds, increment_wid
 		right.y += left.height + 0.5
 		right.height -= left.height + 0.5
 	}
+	return left, right
+}
+
+pub fn native_split_layout(n &NativeSplitNode, bounds SplitBounds, increment_width f64, increment_height f64) []SplitSlot {
+	if n == unsafe { nil } { return []SplitSlot{} }
+	if n.is_leaf() { return [SplitSlot{node: n, bounds: bounds}] }
+	left, right := native_split_children(n, bounds, increment_width, increment_height)
 	mut slots := native_split_layout(n.left, left, increment_width, increment_height)
 	slots << native_split_layout(n.right, right, increment_width, increment_height)
 	return slots
