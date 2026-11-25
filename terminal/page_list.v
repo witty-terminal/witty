@@ -3020,6 +3020,8 @@ pub struct PageResizeCursor {
 pub:
 	x u16
 	y u16
+	// A tracked live cursor preserves the cells leading up to it during reflow.
+	pin ?&Pin
 }
 
 // ============================================================
@@ -5186,7 +5188,7 @@ fn (mut self ReflowCursor) copy_row_metadata(other &RowData) {
 }
 
 // Reflow the provided row into this cursor.
-fn (mut self ReflowCursor) reflow_row(mut list PageList, row Pin) ! {
+fn (mut self ReflowCursor) reflow_row(mut list PageList, row Pin, cursor_pin &Pin) ! {
 	mut src_page := &row.node.data
 	src_row := src_page.rows[int(row.y)]
 	src_y := row.y
@@ -5211,20 +5213,27 @@ fn (mut self ReflowCursor) reflow_row(mut list PageList, row Pin) ! {
 	}
 
 	// Handle tracked pin adjustments.
+	dst_x := if self.new_rows > 0 || self.pending_wrap { u16(0) } else { self.x }
 	for mut p in list.tracked_pins_storage {
-		if voidptr(p.node) != voidptr(row.node) || p.y != src_y {
+		if voidptr(p.node) != voidptr(row.node) || p.y != src_y || voidptr(p) == voidptr(cursor_pin) {
 			continue
 		}
 		// If this pin is in the blanks on the right and past the end of the
 		// dst col width then we move it to the end of the dst col width.
 		if p.x >= cols_len {
-			limit := self.node.data.size.cols - 1 - self.x
+			limit := self.node.data.size.cols - 1 - dst_x
 			p.x = if p.x < limit { p.x } else { limit }
 		}
 		// We increase our col len to at least include this pin. This
 		// ensures blank rows with pins are processed so pins are remapped.
 		if p.x + 1 > cols_len {
 			cols_len = p.x + 1
+		}
+	}
+	// The blanks before the live cursor determine where the next write goes.
+	if !isnil(cursor_pin) && voidptr(cursor_pin.node) == voidptr(row.node) && cursor_pin.y == src_y {
+		if cursor_pin.x >= cols_len {
+			cols_len = cursor_pin.x + 1
 		}
 	}
 
@@ -6141,10 +6150,6 @@ pub fn (mut self PageList) resize(opts PageResizeOpts) ! {
 fn (mut self PageList) resize_cols(cols u16, cursor ?PageResizeCursor) ! {
 	assert cols != self.cols
 
-	// Update our cols. We have to do this early because grow() that we
-	// may call below relies on this to calculate the proper page size.
-	self.cols = cols
-
 	// If we have a cursor position (x,y), then we try under any col resizing
 	// to keep the same number remaining active rows beneath it. This is a
 	// very special case if you can imagine clearing the screen (i.e.
@@ -6154,36 +6159,48 @@ fn (mut self PageList) resize_cols(cols u16, cursor ?PageResizeCursor) ! {
 	mut preserved_pin := &Pin(unsafe { nil })
 	mut preserved_remaining := uint(0)
 	mut preserved_wrapped := uint(0)
-	mut have_preserved := false
+	mut untrack_preserved := false
 	if c := cursor {
-		if p := self.pin(Point.new(.active, Coordinate{ x: c.x, y: c.y })) {
+		pin := if tracked := c.pin {
+			?Pin(*tracked)
+		} else {
+			self.pin(Point.new(.active, Coordinate{ x: c.x, y: c.y }))
+		}
+		if p := pin {
 			active_pin := self.get_top_left(.active)
 
 			// We count how many wraps the cursor had before it to begin with
 			// so that we can offset any additional wraps to avoid pushing the
 			// original row contents in to the scrollback.
 			mut wrapped := uint(0)
-			mut row_it := p.row_iterator(.left_up, active_pin)
-			for {
-				next := row_it.next() or { break }
-				if int(next.y) < next.node.data.rows.len {
-					if next.node.data.rows[int(next.y)].header.wrap_continuation {
+			// Height changes may have moved the cursor above the active area.
+			if !p.before(active_pin) {
+				mut row_it := p.row_iterator(.left_up, active_pin)
+				for {
+					next := row_it.next() or { break }
+					if next.row_and_cell().row.header.wrap_continuation {
 						wrapped += 1
 					}
 				}
 			}
 
-			preserved_pin = self.track_pin(p)!
-			preserved_remaining = uint(self.rows) - uint(c.y) - 1
+			preserved_pin = c.pin or {
+				untrack_preserved = true
+				self.track_pin(p)!
+			}
+			preserved_remaining = if c.y < self.rows { uint(self.rows - c.y - 1) } else { uint(0) }
 			preserved_wrapped = wrapped
-			have_preserved = true
 		}
 	}
 	defer {
-		if have_preserved {
+		if untrack_preserved {
 			self.untrack_pin(preserved_pin)
 		}
 	}
+
+	// The cursor must be resolved using the old width. Growth during reflow
+	// uses the new width to size destination pages.
+	self.cols = cols
 
 	// Create the first node that contains our reflow.
 	first_page := &(self.pages.first or { panic('page list has no first page') }).data
@@ -6212,7 +6229,7 @@ fn (mut self PageList) resize_cols(cols u16, cursor ?PageResizeCursor) ! {
 	mut reflow_cursor := ReflowCursor.init(first_rewritten_node)
 	for {
 		row := it.next() or { break }
-		reflow_cursor.reflow_row(mut self, row) or {
+		reflow_cursor.reflow_row(mut self, row, preserved_pin) or {
 			// The old pages were orphaned above. On error, destroy every source
 			// page still held by the iterator, matching Ghostty's errdefer cleanup.
 			mut orphan := ?&PageNode(none)
@@ -6259,7 +6276,7 @@ fn (mut self PageList) resize_cols(cols u16, cursor ?PageResizeCursor) ! {
 	}
 
 	// See preserved_cursor setup for why.
-	if have_preserved {
+	if !isnil(preserved_pin) {
 		vp := Pin{
 			node: preserved_pin.node
 			y:    preserved_pin.y

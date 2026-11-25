@@ -2339,6 +2339,33 @@ fn test_resize_with_high_unique_style_per_cell_with_wrapping() {
 	assert t.cols == 60
 }
 
+fn test_resize_reflows_blanks_before_live_cursor() ! {
+	mut t := Terminal.init(Options{ cols: 10, rows: 4 })!
+	defer { t.deinit() }
+	t.print_string('sh %')!
+	t.set_cursor_pos(1, 9)
+	t.resize(6, 4)!
+
+	assert t.screens.active.cursor.x == 2
+	assert t.screens.active.cursor.y == 1
+	t.print_string('!')!
+	cell := t.screens.active.pages.get_cell(Point.new(.active, Coordinate{ x: 2, y: 1 })) or {
+		return error('missing cell at the reflowed cursor')
+	}
+	assert cell.cell.codepoint() == u32(`!`)
+}
+
+fn test_resize_reflows_live_cursor_when_width_and_height_shrink() ! {
+	mut t := Terminal.init(Options{ cols: 12, rows: 6 })!
+	defer { t.deinit() }
+	t.set_cursor_pos(6, 1)
+	t.print_string('123456789AB')!
+	t.resize(7, 3)!
+
+	assert t.screens.active.cursor.x == 4
+	assert t.screens.active.cursor.y == 2
+}
+
 fn test_resize_with_reflow_and_saved_cursor() {
 	mut t := Terminal.init(Options{ cols: 2, rows: 3 }) or {
 		assert false

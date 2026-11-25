@@ -15,7 +15,7 @@ from capture import (
     output_directory, read_window, write_versions,
 )
 from fixtures import (
-    CURSOR_STYLES, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES,
+    CURSOR_STYLES, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES,
     SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED,
 )
 
@@ -23,8 +23,10 @@ from fixtures import (
 PROBE = Path(__file__).resolve().parent
 PADDING = 2
 FOREGROUND = (228, 229, 233)
+CURSOR_COLOR = (255, 238, 170)
 SELECTION_BACKGROUND = (23, 81, 107)
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
+INTERACTIVE_FIXTURES = ("selection-wide", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES)
 WALLPAPER_OPTIONS = {
     "wallpaper-stretch": ("--background-image-fit=stretch",),
     "wallpaper-repeat": (
@@ -35,7 +37,7 @@ WALLPAPER_OPTIONS = {
     ),
 }
 FIXTURES = (
-    "ansi", "decorations", "unicode", "wide-wrap", "selection-wide", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES,
+    "ansi", "decorations", "unicode", "wide-wrap", *INTERACTIVE_FIXTURES,
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -58,7 +60,7 @@ OPTIONS = (
     "--font-size=13",
     "--background=161820",
     f"--foreground={bytes(FOREGROUND).hex()}",
-    "--cursor-color=ffeeaa",
+    f"--cursor-color={bytes(CURSOR_COLOR).hex()}",
     "--cursor-style-blink=false",
     "--term=xterm-256color",
     "--shell-integration=none",
@@ -221,6 +223,23 @@ def scroll_history(window, helper, padding, cell_width, cell_height):
     return rendered
 
 
+def narrow_window(window, scale):
+    target = (412 * scale, 211 * scale)
+    subprocess.run(
+        ["xdotool", "windowfocus", "--sync", window, "windowsize", "--sync", window,
+         str(target[0]), str(target[1]), "sleep", "0.25"],
+        check=True, timeout=5,
+    )
+
+    def rendered(image):
+        if image.size != target:
+            return False
+        colors = image.convert("RGB").getcolors(4096)
+        return colors is not None and any(color == CURSOR_COLOR for _, color in colors)
+
+    return rendered
+
+
 def capture_interactive(binary, args, helper, prefix, fixture, settle, scale, *, witty=False):
     png = prefix.with_suffix(".png")
     capture_args = [f"--screenshot={png}"] if witty else []
@@ -241,6 +260,8 @@ def capture_interactive(binary, args, helper, prefix, fixture, settle, scale, *,
             rendered = drag_wide_selection(window, padding, cell_width, cell_height)
         elif fixture in SCROLLBACK_FIXTURES:
             rendered = scroll_history(window, helper, padding, cell_width, cell_height)
+        elif fixture in RESIZE_FIXTURES:
+            rendered = narrow_window(window, scale)
         else:
             rendered = type_unicode_preedit(window, fixture, padding, cell_width, cell_height)
 
@@ -310,7 +331,7 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             args = fixture_args(name, work)
             actual = output / f"{name}-witty"
             expected = output / f"{name}-ghostty"
-            if name == "selection-wide" or name in (*PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES):
+            if name in INTERACTIVE_FIXTURES:
                 capture_interactive(ghostty, args, helper, expected, name, settle, scale)
                 capture_interactive(witty, args, helper, actual, name, settle, scale, witty=True)
             else:

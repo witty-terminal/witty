@@ -3530,6 +3530,7 @@ pub fn (mut self Screen) resize(opts ScreenResize) ! {
 		cursor: PageResizeCursor{
 			x: u16(self.cursor.x)
 			y: u16(self.cursor.y)
+			pin: self.cursor.page_pin
 		}
 	})!
 

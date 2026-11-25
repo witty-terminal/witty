@@ -13,6 +13,7 @@ KITTY_SCROLL_FIXTURES = ("kitty-scroll-up", "kitty-scroll-down")
 SCROLLBACK_FIXTURES = ("scrollback-follow-output", "scrollback-keep-position")
 SCROLLBACK_LAST_COLOR = (38, 198, 216)
 SCROLLBACK_RECOLORED = (221, 117, 170)
+RESIZE_FIXTURES = ("resize-cursor-in-blanks", "resize-cursor-near-bottom")
 
 
 def kitty_image():
@@ -372,6 +373,11 @@ def main():
             b" styled text: ABCDEFGHIJKLMNOPQRSTUVWX \x1b[0m\x1b[3;17H\x1b[?25h"
         ),
         "preedit-edge": b"Unicode input near the right edge\x1b[6;57H\x1b[?25h",
+        "resize-cursor-in-blanks": b"shell % \r\nabc\x1b[1;56H\x1b[2 q\x1b[?25h",
+        "resize-cursor-near-bottom": (
+            b"line 1 before resize\r\n\x1b[10;1Hbottom "
+            b"\x1b[33mline that should remain visible after resize\x1b[0m\x1b[2 q\x1b[?25h"
+        ),
         "shader": b"Witty shader chain\n",
     }
     sys.stdout.buffer.write(CLEAR)

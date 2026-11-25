@@ -5206,7 +5206,7 @@ fn test_page_list_resize_no_reflow_more_cols_remaps_pins_in_backfill_path() ! {
 
 	// Grow until we have two pages.
 	for voidptr(s.pages.first or { return }) == voidptr(s.pages.last or { return }) {
-		s.grow()!.node or { panic(err) }
+		_ = s.grow()!
 	}
 	first_page := s.pages.first or { return }
 	second_page := s.pages.last or { return }
