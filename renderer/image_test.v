@@ -292,7 +292,7 @@ fn test_kitty_virtual_placement_can_reference_a_pin() ! {
 		t.deinit()
 	}
 
-	display := terminal.CommandParser.parse_string('a=T,f=24,t=d,i=7,p=9,s=1,v=1,c=1,r=1,C=1;////')!
+	display := terminal.CommandParser.parse_string('a=T,f=24,t=d,i=7,p=9,s=1,v=1,c=1,r=1,z=-1,C=1;////')!
 	assert (t.kitty_graphics(&display) or { panic('expected display response') }).ok()
 	mut state := ImageRenderState.empty()
 	defer {
@@ -310,6 +310,8 @@ fn test_kitty_virtual_placement_can_reference_a_pin() ! {
 	assert state.kitty_requires_update(&t)
 	state.kitty_update(&t, cell_size)
 	assert state.kitty_placements.len == 2
+	assert state.kitty_placements[0].virtual_placeholder
+	assert !state.kitty_placements[1].virtual_placeholder
 	assert state.kitty_virtual
 
 	t.set_cursor_pos(3, 2)

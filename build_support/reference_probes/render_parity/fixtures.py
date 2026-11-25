@@ -149,6 +149,33 @@ def kitty_unicode_pinned():
     )
 
 
+def kitty_layers():
+    commands = bytearray(b"Kitty image layers")
+    for image_id, col, z in (
+        (441, 3, -1073741825), (442, 13, -1073741824),
+        (443, 23, -1), (444, 33, 0),
+    ):
+        commands += f"\x1b[3;{col}H\x1b[48;2;20;100;170m TEXT \x1b[0m".encode()
+        commands += f"\x1b[3;{col}H\x1b_Ga=T,i={image_id},f=32,s=1,v=1,c=8,r=1,z={z},C=1,q=2;".encode()
+        commands += base64.b64encode(bytes((240, 165, 25, 144))) + b"\x1b\\"
+
+    # At equal z, sort by image ID even when they are transmitted in reverse order.
+    # Two translucent colors make the order observable in the overlapping region.
+    for row, image_id, col, z, rgba in (
+        (6, 507, 6, 0, (250, 40, 60, 160)), (6, 506, 4, 0, (40, 220, 120, 185)),
+        (8, 526, 4, 1, (40, 220, 120, 185)), (8, 527, 6, 0, (250, 40, 60, 160)),
+    ):
+        commands += f"\x1b[{row};{col}H\x1b_Ga=T,i={image_id},f=32,s=1,v=1,c=4,r=1,z={z},C=1,q=2;".encode()
+        commands += base64.b64encode(bytes(rgba)) + b"\x1b\\"
+
+    # Both placements use the same image and z. The fixed placement uses a different crop.
+    commands += b"\x1b[6;20H\x1b_Ga=T,f=24,i=43,p=1,s=2,v=1,x=1,w=1,c=2,r=1,z=-1,C=1,q=2;"
+    commands += base64.b64encode(bytes((245, 55, 85, 50, 225, 185))) + b"\x1b\\"
+    commands += b"\x1b_Ga=p,i=43,p=2,U=1,c=2,r=1,q=2;\x1b\\"
+    commands += "\x1b[6;20H\x1b[38;5;43;58:5:2m\U0010eeee\u0305\u0305\U0010eeee\u0305\u030d\x1b[0m".encode()
+    return commands
+
+
 def main():
     fixture = sys.argv[1]
     output = {
@@ -200,6 +227,8 @@ def main():
         sys.stdout.buffer.write(kitty_unicode())
     elif fixture == "kitty-unicode-pinned":
         sys.stdout.buffer.write(kitty_unicode_pinned())
+    elif fixture == "kitty-layers":
+        sys.stdout.buffer.write(kitty_layers())
     elif fixture in CURSOR_STYLES:
         # Reposition over an existing glyph and show a steady cursor.
         style = CURSOR_STYLES[fixture]

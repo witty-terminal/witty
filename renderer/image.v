@@ -460,6 +460,8 @@ pub mut:
 // Represents a single image placement on the grid.
 // A placement is a request to render an instance of an image.
 pub struct ImagePlacement {
+mut:
+	virtual_placeholder bool
 pub mut:
 	// The image being rendered. This MUST be in the image map.
 	image_id ImageId
@@ -796,6 +798,10 @@ fn (mut self ImageRenderState) kitty_sort_and_index() {
 		if b.image_id.z_less_than(a.image_id) {
 			return 1
 		}
+		// For the same image at the same z, draw the placeholder before the pin.
+		if a.virtual_placeholder != b.virtual_placeholder {
+			return if a.virtual_placeholder { -1 } else { 1 }
+		}
 		return 0
 	})
 
@@ -896,20 +902,19 @@ fn (mut self ImageRenderState) prep_kitty_virtual_placement(mut storage terminal
 	// Prepare the image for the GPU and store the placement.
 	self.prep_kitty_image(image)!
 	self.kitty_placements << ImagePlacement{
-		image_id: KittyImageId{
-			id: image.id
-		}
-		x: i32(rp.top_left.x)
-		y: i32(viewport_y)
-		z: -1
-		width: rp.dest_width
-		height: rp.dest_height
-		cell_offset_x: rp.offset_x
-		cell_offset_y: rp.offset_y
-		source_x: rp.source_x
-		source_y: rp.source_y
-		source_width: rp.source_width
-		source_height: rp.source_height
+		image_id:            KittyImageId{ id: image.id }
+		virtual_placeholder: true
+		x:                   i32(rp.top_left.x)
+		y:                   i32(viewport_y)
+		z:                   -1
+		width:               rp.dest_width
+		height:              rp.dest_height
+		cell_offset_x:       rp.offset_x
+		cell_offset_y:       rp.offset_y
+		source_x:            rp.source_x
+		source_y:            rp.source_y
+		source_width:        rp.source_width
+		source_height:       rp.source_height
 	}
 }
 
