@@ -19,6 +19,8 @@ mut:
 	config NativeWindowConfig
 	window ObjId
 	titlebar_color ObjId
+	titlebar_fill NativeWindowCanvasFill
+	buttons_fill NativeWindowCanvasFill
 	light bool
 	effect_hidden bool
 	backdrop ObjId
@@ -195,7 +197,7 @@ fn push_native_tabs(context voidptr) {
 		msg_void1(titlebar, 'addSubview:', data.backdrop)
 		msg_void_bool(data.backdrop, 'setWantsLayer:', true)
 		data.backdrop_overlay = msg_id(alloc('VTVibrantLayer'), 'init')
-		msg_void1(data.backdrop_overlay, 'setBackgroundColor:', msg_id(native_color(0xf2f2f2, 1), 'CGColor'))
+		set_native_window_canvas_tile(data.backdrop_overlay, native_window_canvas_color(C.witty_canvas_gamma22_gray(0.95)))
 		msg_void_u64(data.backdrop_overlay, 'setAutoresizingMask:', 18)
 		msg_void1(msg_id(data.backdrop, 'layer'), 'addSublayer:', data.backdrop_overlay)
 		msg_void_bool(data.backdrop, 'setTranslatesAutoresizingMaskIntoConstraints:', false)
@@ -232,11 +234,10 @@ fn push_native_tabs(context voidptr) {
 }
 fn update_native_titlebar(window ObjId) {
 	mut data := native_window_data(window) or { return }
-	if data.tabs_tahoe { update_tahoe_titlebar(data); return }
+	if data.tabs_tahoe { update_tahoe_titlebar(mut data); return }
 	container := titlebar_container(window)
 	if is_nil(container) { return }
-	msg_void_bool(container, 'setWantsLayer:', true)
-	msg_void1(msg_id(container, 'layer'), 'setBackgroundColor:', msg_id(data.titlebar_color, 'CGColor'))
+	mut titlebar_color := data.titlebar_color
 	if data.config.titlebar_style == 2 {
 		hide_descendants(container, 'NSTitlebarSeparatorView')
 		hide_descendants(container, 'NSToolbarClippedItemsIndicatorViewer')
@@ -260,20 +261,24 @@ fn update_native_titlebar(window ObjId) {
 		group := msg_id(window, 'tabGroup'); windows := msg_id(group, 'windows')
 		highlighted := msg_id_u64(windows, 'objectAtIndex:', 0) == window
 		msg_void_rect(data.backdrop_overlay, 'setFrame:', msg_rect(data.backdrop, 'bounds'))
-		if data.light {
-			msg_void_bool(data.backdrop_overlay, 'setHidden:', highlighted)
-			msg_void1(msg_id(data.backdrop, 'layer'), 'setBackgroundColor:', msg_id(native_color(0, 0), 'CGColor'))
+		msg_void_bool(data.backdrop_overlay, 'setHidden:', !data.light || highlighted)
+		background := msg_id(window, 'backgroundColor')
+		very_dark := native_color_object_luminance(background) < 0.05
+		button_color := if data.light {
+			nil_obj()
+		} else if !highlighted {
+			native_color(0, 0.45)
+		} else if very_dark {
+			background
 		} else {
-			msg_void_bool(data.backdrop_overlay, 'setHidden:', true)
-			very_dark := native_color_object_luminance(msg_id(window, 'backgroundColor')) < 0.05
-			color := if highlighted { if very_dark { msg_id(window, 'backgroundColor') } else { native_color(0, 0) } } else { native_color(0, 0.45) }
-			msg_void1(msg_id(data.backdrop, 'layer'), 'setBackgroundColor:', msg_id(color, 'CGColor'))
+			nil_obj()
 		}
-		if native_color_object_luminance(msg_id(window, 'backgroundColor')) < 0.05 {
-			color := if msg_bool(group, 'isTabBarVisible') { msg_id_f64(data.titlebar_color, 'highlightWithLevel:', 0.14) } else { data.titlebar_color }
-			msg_void1(msg_id(container, 'layer'), 'setBackgroundColor:', msg_id(color, 'CGColor'))
+		data.buttons_fill.update(data.backdrop, button_color)
+		if very_dark && msg_bool(group, 'isTabBarVisible') {
+			titlebar_color = msg_id_f64(titlebar_color, 'highlightWithLevel:', 0.14)
 		}
 	}
+	data.titlebar_fill.update(container, titlebar_color)
 }
 pub fn apply_native_window_config(view voidptr, config NativeWindowConfig, initial bool, preferred_background u32, preferred_opacity f64, force_opaque bool) {
 	window := msg_id(view, 'window')
@@ -320,13 +325,17 @@ pub fn apply_native_window_config(view voidptr, config NativeWindowConfig, initi
 		msg_void_u64(window,'setToolbarStyle:',4)
 	}
 	update_native_zoom_views(mut data)
-	if data.tabs_tahoe { data.tahoe_last_config = true; observe_tahoe_tab_group(mut data) }
+	if data.tabs_tahoe {
+		data.tahoe_last_config = true
+		observe_tahoe_tab_group(mut data)
+		schedule_tahoe_tab_background(window)
+	}
 	if !msg_bool(window, 'isVisible') {
 		if data.tabs_tahoe {
 			msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:', nsstring(if native_color_luminance(preferred_background) > 0.5 { 'NSAppearanceNameAqua' } else { 'NSAppearanceNameDarkAqua' })))
 			msg_void_bool(window, 'setTitlebarAppearsTransparent:', true)
 			msg_void_u64(window, 'setTitleVisibility:', 1)
-			update_tahoe_titlebar(data)
+			update_tahoe_titlebar(mut data)
 		}
 		return
 	}
@@ -373,6 +382,8 @@ fn native_window_close(self ObjId,_cmd Sel) {
 		release_tahoe_window(mut data)
 		release_native_zoom_views(data)
 		msg_void(data.titlebar_color, 'release')
+		data.titlebar_fill.clear()
+		data.buttons_fill.clear()
 	}
 	g_native_windows.delete(u64(self))
 }

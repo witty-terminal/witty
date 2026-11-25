@@ -5,6 +5,7 @@ import json2
 import os
 
 #insert "@VMODROOT/macos/window_tahoe_test_abi.h"
+#insert "@VMODROOT/macos/canvas_overlay_test_bridge.h"
 fn C.witty_tahoe_test_size(view voidptr, width &f64, height &f64)
 fn C.witty_tahoe_test_priority(view voidptr) f32
 fn C.witty_tahoe_test_event(kind u64, flags u64, button u64, x f64, y f64) ObjId
@@ -14,7 +15,7 @@ fn C.witty_tahoe_test_fallback_count() int
 fn C.witty_tahoe_test_watch_add_accessory(accessory voidptr)
 fn C.witty_tahoe_test_restore_add_accessory()
 fn C.witty_tahoe_test_super_accessory_layout() i64
-fn C.CGColorEqualToColor(first voidptr, second voidptr) bool
+fn C.witty_overlay_test_srgb_tile_matches(layer ObjId, color ObjId) bool
 fn C.object_setClass(object ObjId, cls ObjId) ObjId
 
 __global g_tahoe_test_right_clicks = 0
@@ -209,7 +210,7 @@ fn test_tahoe_tab_constraints_observer_reset_event_forwarding_and_appearance() {
 	assert !is_nil(data.tahoe_frame_observer)
 	titlebar := tahoe_titlebar_view(window)
 	tab_bar := tahoe_tab_bar_view(window)
-	clip := first_superview(tab_bar, 'NSTitlebarAccessoryClipView')
+	clip := tahoe_tab_accessory_container(tab_bar)
 	toolbar := first_descendant(titlebar, 'NSToolbarView')
 	assert !is_nil(clip) && !is_nil(toolbar)
 	new_button := first_descendant(titlebar, 'NSTabBarNewTabButton')
@@ -237,16 +238,28 @@ fn test_tahoe_tab_constraints_observer_reset_event_forwarding_and_appearance() {
 	container := window_font_titlebar_container(window)
 	background := first_descendant(container, 'NSTitlebarBackgroundView')
 	assert is_nil(background) || msg_bool(background, 'isHidden')
+	if C.witty_native_os_at_least(27, 0, 0) {
+		glass := first_descendant(container, 'NSSubduedGlassEffectView')
+		child := msg_id(msg_id(glass, 'subviews'), 'firstObject')
+		if !is_nil(child) {
+			msg_void_f64(child, 'setAlphaValue:', 1)
+			schedule_tahoe_tab_background(window)
+			tahoe_test_drain()
+			assert msg_f64(child, 'alphaValue') == 0.5
+		}
+	}
 	titlebar_layer := msg_id(first_descendant(container, 'NSTitlebarView'), 'layer')
-	assert C.CGColorEqualToColor(voidptr(msg_id(titlebar_layer, 'backgroundColor')), voidptr(msg_id(native_color(0x224466, 0.5), 'CGColor')))
+	assert msg_id(data.titlebar_fill.layer, 'superlayer') == titlebar_layer
+	assert C.witty_overlay_test_srgb_tile_matches(data.titlebar_fill.layer, native_color(0x224466, 0.5))
 	apply_native_window_config(view, NativeWindowConfig{...config, blur: -1}, false, 0x224466, 0.5, false)
-	assert C.CGColorEqualToColor(voidptr(msg_id(titlebar_layer, 'backgroundColor')), voidptr(msg_id(msg_id(get_class('NSColor'), 'clearColor'), 'CGColor')))
+	assert is_nil(data.titlebar_fill.layer)
 	// A hot reload changes the derived style while the source window class is fixed.
 	apply_native_window_config(view, NativeWindowConfig{...config, titlebar_style: 0, blur: -1}, false, 0xffffff, 0.5, false)
 	assert data.tabs_tahoe
 	assert objc_utf8_string(msg_id(msg_id(window, 'appearance'), 'name')) == 'NSAppearanceNameAqua'
 	assert msg_u64(window, 'titleVisibility') == 1
-	assert C.CGColorEqualToColor(voidptr(msg_id(titlebar_layer, 'backgroundColor')), voidptr(msg_id(native_color(0xffffff, 0.5), 'CGColor')))
+	assert msg_id(data.titlebar_fill.layer, 'superlayer') == titlebar_layer
+	assert C.witty_overlay_test_srgb_tile_matches(data.titlebar_fill.layer, native_color(0xffffff, 0.5))
 	tahoe_test_readd_tab_accessory(window)
 	tahoe_test_drain()
 	apply_native_window_config(view, NativeWindowConfig{...config, blur: -1}, false, 0x224466, 0.5, false)
@@ -345,7 +358,7 @@ fn test_tahoe_hidden_window_buttons_use_zero_tab_padding() {
 	data := native_window_data(window) or { panic('missing Tahoe metadata') }
 	assert !is_nil(data.tahoe_frame_observer)
 	titlebar := tahoe_titlebar_view(window)
-	clip := first_superview(tahoe_tab_bar_view(window), 'NSTitlebarAccessoryClipView')
+	clip := tahoe_tab_accessory_container(tahoe_tab_bar_view(window))
 	constraints := msg_id(titlebar, 'constraints')
 	mut zero_padding := false
 	for i in 0 .. int(msg_u64(constraints, 'count')) {

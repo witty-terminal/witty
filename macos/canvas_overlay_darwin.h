@@ -76,6 +76,31 @@ static inline CGImageRef witty_canvas_rgba_image(CFDataRef data, int width, int 
     return image;
 }
 
+static inline CGImageRef witty_canvas_make_srgb_tile(float r, float g, float b, float a) {
+    const uint16_t rgba[] = {
+        (uint16_t)lround(fmin(fmax(r, 0), 1) * 65535),
+        (uint16_t)lround(fmin(fmax(g, 0), 1) * 65535),
+        (uint16_t)lround(fmin(fmax(b, 0), 1) * 65535),
+        (uint16_t)lround(fmin(fmax(a, 0), 1) * 65535),
+    };
+    CFDataRef data = CFDataCreate(NULL, (const UInt8 *)rgba, sizeof(rgba));
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGImageRef image = witty_canvas_rgba_image(data, 1, 1, 16, space, false);
+    if (space) CGColorSpaceRelease(space);
+    if (data) CFRelease(data);
+    return image;
+}
+
+static inline NSColor *witty_canvas_gamma22_gray(double white) {
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceGenericGrayGamma2_2);
+    const CGFloat components[] = { white, 1 };
+    CGColorRef color = space ? CGColorCreate(space, components) : NULL;
+    NSColor *result = color ? [NSColor colorWithCGColor:color] : nil;
+    if (color) CGColorRelease(color);
+    if (space) CGColorSpaceRelease(space);
+    return result;
+}
+
 static inline void *witty_canvas_make_tile(const uint32_t *pixel, void *target, double opacity,
         int blend_over_gray) {
     double r, g, b;

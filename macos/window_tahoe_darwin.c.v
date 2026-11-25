@@ -15,6 +15,7 @@ enum TahoeWindowTaskKind {
 	tab_bar
 	setup
 	appearance
+	tab_background
 }
 
 @[heap]
@@ -53,6 +54,19 @@ fn tahoe_window_task_main(context voidptr) {
 		.tab_bar { set_tahoe_has_tab_bar(mut data, task.has_tab_bar) }
 		.setup { setup_tahoe_tab_bar(window) }
 		.appearance { reapply_tahoe_appearance(window) }
+		.tab_background {
+			container := window_font_titlebar_container(window)
+			glass := first_descendant(container, 'NSSubduedGlassEffectView')
+			child := msg_id(msg_id(glass, 'subviews'), 'firstObject')
+			msg_void_f64(child, 'setAlphaValue:', 0.5)
+		}
+	}
+}
+
+fn schedule_tahoe_tab_background(window ObjId) {
+	if C.witty_native_os_at_least(27, 0, 0) {
+		// AppKit can restore the native glass opacity while arranging tabs.
+		queue_tahoe_window(window, .tab_background, false, false, 0.05)
 	}
 }
 
@@ -81,6 +95,15 @@ fn first_superview(view ObjId, class_name string) ObjId {
 	return nil_obj()
 }
 
+fn tahoe_tab_accessory_container(tab_bar ObjId) ObjId {
+	clip := first_superview(tab_bar, 'NSTitlebarAccessoryClipView')
+	return if is_nil(clip) {
+		first_superview(tab_bar, 'NSTitlebarAccessoryContainerView')
+	} else {
+		clip
+	}
+}
+
 fn clear_tahoe_frame_observer(mut data NativeWindowData) {
 	if is_nil(data.tahoe_frame_observer) { return }
 	msg_void1(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'), 'removeObserver:', data.tahoe_frame_observer)
@@ -102,7 +125,7 @@ fn setup_tahoe_tab_bar(window ObjId) {
 	tab_bar := tahoe_tab_bar_view(window)
 	if is_nil(titlebar) || is_nil(tab_bar) { return }
 	queue_tahoe_window(window, .tab_bar, false, true, 0)
-	clip := first_superview(tab_bar, 'NSTitlebarAccessoryClipView')
+	clip := tahoe_tab_accessory_container(tab_bar)
 	if is_nil(clip) { return }
 	children := msg_id(clip, 'subviews')
 	if msg_u64(children, 'count') == 0 { return }
@@ -120,6 +143,7 @@ fn setup_tahoe_tab_bar(window ObjId) {
 	constrain(clip, 'heightAnchor', toolbar, 'heightAnchor', 0)
 	for anchor in ['leftAnchor', 'rightAnchor', 'topAnchor', 'heightAnchor'] { constrain(accessory, anchor, clip, anchor, 0) }
 	for view in [clip, accessory] { msg_void_bool(view, 'setNeedsLayout:', true) }
+	schedule_tahoe_tab_background(window)
 	msg_void_bool(tab_bar, 'setPostsFrameChangedNotifications:', true)
 	data.tahoe_frame_observer = C.witty_tahoe_observe_frame(voidptr(tab_bar), voidptr(window), tahoe_tab_bar_frame_changed)
 }
@@ -195,15 +219,18 @@ fn create_tahoe_terminal_toolbar(mut data NativeWindowData) ObjId {
 	return toolbar
 }
 
-fn update_tahoe_titlebar(data &NativeWindowData) {
+fn update_tahoe_titlebar(mut data NativeWindowData) {
 	// TransparentTitlebarTerminalWindow.syncAppearanceTahoe uses the inherited
 	// titlebar container, including the separate native fullscreen window.
 	container := window_font_titlebar_container(data.window)
 	titlebar := first_descendant(container, 'NSTitlebarView')
 	if !is_nil(titlebar) {
-		msg_void_bool(titlebar, 'setWantsLayer:', true)
-		color := if data.config.blur < 0 && data.config.titlebar_style in [1, 2] { msg_id(get_class('NSColor'), 'clearColor') } else { native_color(data.preferred_background, data.preferred_opacity) }
-		msg_void1(msg_id(titlebar, 'layer'), 'setBackgroundColor:', msg_id(color, 'CGColor'))
+		color := if data.config.blur < 0 && data.config.titlebar_style in [1, 2] {
+			nil_obj()
+		} else {
+			native_color(data.preferred_background, data.preferred_opacity)
+		}
+		data.titlebar_fill.update(titlebar, color)
 	}
 	msg_void_bool(first_descendant(container, 'NSTitlebarBackgroundView'), 'setHidden:', true)
 }

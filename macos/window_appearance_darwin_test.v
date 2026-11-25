@@ -1,8 +1,12 @@
 module macos
 
 import math
+import os
 
-fn C.CGColorEqualToColor(color1 voidptr, color2 voidptr) bool
+#insert "@VMODROOT/macos/canvas_overlay_test_bridge.h"
+
+fn C.witty_overlay_test_srgb_tile_matches(layer ObjId, color ObjId) bool
+fn C.witty_overlay_test_window_png(window ObjId) ObjId
 
 struct NativeAppearanceColorCase {
 	background      u32
@@ -84,7 +88,7 @@ fn test_ventura_dark_chrome_uses_actual_native_window_color() {
 	for tab in [view, other] {
 		// This regression exercises the pre-Tahoe Ventura class explicitly.
 		tab_window := msg_id(tab, 'window')
-		g_native_windows[u64(tab_window)] = &NativeWindowData{window: tab_window}
+		g_native_windows[u64(tab_window)] = &NativeWindowData{ window: tab_window }
 		apply_native_window_config(tab, NativeWindowConfig{ titlebar_style: 2 }, true, 0, 1, false)
 	}
 	add_native_tab(view, other)
@@ -178,18 +182,98 @@ fn test_ventura_dark_chrome_uses_actual_native_window_color() {
 		assert !data.light
 		update_native_titlebar(window)
 		expected_backdrop := if color.very_dark { actual_background } else { native_color(0, 0) }
-		assert C.CGColorEqualToColor(msg_id(msg_id(data.backdrop, 'layer'), 'backgroundColor'), msg_id(expected_backdrop,
-			'CGColor'))
+		assert C.witty_overlay_test_srgb_tile_matches(data.buttons_fill.layer, expected_backdrop)
 		expected_titlebar := if color.very_dark {
 			msg_id_f64(data.titlebar_color, 'highlightWithLevel:', 0.14)
 		} else {
 			data.titlebar_color
 		}
-		assert C.CGColorEqualToColor(msg_id(msg_id(container, 'layer'), 'backgroundColor'), msg_id(expected_titlebar,
-			'CGColor'))
+		assert C.witty_overlay_test_srgb_tile_matches(data.titlebar_fill.layer, expected_titlebar)
+		assert msg_id(data.titlebar_fill.layer, 'superlayer') == msg_id(container, 'layer')
 	}
 	// preferredBackgroundColor clamps alpha in the source, including zero.
 	apply_native_window_config(view, NativeWindowConfig{ titlebar_style: 2, opacity: 0 }, false,
 		0x404040, 0, false)
 	assert math.abs(msg_f64(data.titlebar_color, 'alphaComponent') - 0.001) < 0.000001
+}
+
+fn test_native_window_canvas_fill_reparents_and_keeps_its_tile() {
+	app_init()
+	first := msg_id_rect(alloc('NSView'), 'initWithFrame:', objc_rect(0, 0, 240, 28))
+	second := msg_id_rect(alloc('NSView'), 'initWithFrame:', objc_rect(0, 0, 400, 32))
+	mut fill := NativeWindowCanvasFill{}
+	defer {
+		fill.clear()
+		msg_void(first, 'release')
+		msg_void(second, 'release')
+	}
+	color := native_color(0x526d9a, 0.6)
+	fill.update(first, color)
+	tile := msg_id(fill.layer, 'contents')
+	assert !is_nil(tile)
+	fill.update(second, color)
+	assert msg_id(fill.layer, 'contents') == tile
+	assert msg_id(fill.layer, 'superlayer') == msg_id(second, 'layer')
+	assert msg_rect(fill.layer, 'frame') == msg_rect(second, 'bounds')
+	fill.update(second, nil_obj())
+	assert is_nil(fill.layer)
+}
+
+fn test_native_window_canvas_fill_capture() {
+	output := os.getenv_opt('WITTY_TITLEBAR_OUTPUT') or { return }
+	app_init()
+	frame := objc_rect(0, 0, 320, 110)
+	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
+		objc_rect(80, 80, frame.width, frame.height), 0, ns_backing_store_buffered, false)
+	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void_bool(window, 'setHasShadow:', false)
+	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
+	root := msg_id_rect(alloc('NSView'), 'initWithFrame:', frame)
+	msg_void1(window, 'setContentView:', root)
+	msg_void_bool(root, 'setWantsLayer:', true)
+	msg_void1(msg_id(root, 'layer'), 'setBackgroundColor:', msg_id(native_color(0x566993, 1), 'CGColor'))
+	// A second base color checks the same translucent fill across different backgrounds.
+	underlay := msg_id_rect(alloc('NSView'), 'initWithFrame:', objc_rect(160, 0, 160, frame.height))
+	msg_void_bool(underlay, 'setWantsLayer:', true)
+	msg_void1(msg_id(underlay, 'layer'), 'setBackgroundColor:', msg_id(native_color(0x9a8260, 1), 'CGColor'))
+	msg_void1(root, 'addSubview:', underlay)
+	msg_void(underlay, 'release')
+	view := msg_id_rect(alloc('NSView'), 'initWithFrame:', objc_rect(20, 39, 280, 32))
+	msg_void_bool(view, 'setWantsLayer:', true)
+	msg_void1(root, 'addSubview:', view)
+	mut fill := NativeWindowCanvasFill{}
+	defer {
+		fill.clear()
+		msg_void(window, 'close')
+		msg_void(window, 'release')
+		msg_void(view, 'release')
+		msg_void(root, 'release')
+	}
+
+	// Use the native layer colors from the Ghostty titlebar styles as references.
+	names := ['opaque', 'translucent', 'very-dark', 'dark-buttons', 'light-buttons', 'clear']
+	colors := [
+		native_color(0x224466, 1),
+		native_color(0x224466, 0.5),
+		msg_id_f64(native_color(0x0c0c0c, 1), 'highlightWithLevel:', 0.14),
+		native_color(0, 0.45),
+		C.witty_canvas_gamma22_gray(0.95),
+		native_color(0, 0),
+	]
+	for i, name in names {
+		fill.clear()
+		color := colors[i]
+		msg_void1(msg_id(view, 'layer'), 'setBackgroundColor:', msg_id(color, 'CGColor'))
+		save_window_canvas_capture(window, output, '${name}-ghostty')
+		fill.update(view, color)
+		assert C.witty_overlay_test_srgb_tile_matches(fill.layer, color)
+		save_window_canvas_capture(window, output, '${name}-witty')
+	}
+}
+
+fn save_window_canvas_capture(window ObjId, output string, name string) {
+	png := C.witty_overlay_test_window_png(window)
+	assert !is_nil(png)
+	assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(output, name + '.png')),
+		ObjId(1))
 }

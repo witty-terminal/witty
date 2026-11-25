@@ -1,6 +1,7 @@
 #include <AppKit/AppKit.h>
 #include <QuartzCore/QuartzCore.h>
 #include <dlfcn.h>
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
@@ -20,6 +21,30 @@ static inline uint32_t witty_overlay_test_tile(void *object) {
 
 static inline float witty_overlay_test_opacity(void *object) {
     return [(CALayer *)object opacity];
+}
+
+static inline bool witty_overlay_test_srgb_tile_matches(CALayer *layer, NSColor *color) {
+    NSColor *srgb = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+    CGImageRef image = (CGImageRef)layer.contents;
+    if (!srgb || srgb.alphaComponent == 0) return image == NULL;
+    if (!image || CGImageGetWidth(image) != 1 || CGImageGetHeight(image) != 1) return false;
+    CGColorSpaceRef space = CGImageGetColorSpace(image);
+    CFStringRef name = space ? CGColorSpaceGetName(space) : NULL;
+    if (!name || !CFEqual(name, kCGColorSpaceSRGB)) return false;
+    CFDataRef data = CGDataProviderCopyData(CGImageGetDataProvider(image));
+    uint16_t rgba[4];
+    bool matches = data && CFDataGetLength(data) == sizeof(rgba);
+    if (matches) {
+        memcpy(rgba, CFDataGetBytePtr(data), sizeof(rgba));
+        double alpha = srgb.alphaComponent;
+        const double expected[] = { srgb.redComponent * alpha, srgb.greenComponent * alpha,
+            srgb.blueComponent * alpha, alpha };
+        for (int i = 0; i < 4; ++i) {
+            if (fabs(rgba[i] - expected[i] * 65535) > 1) matches = false;
+        }
+    }
+    if (data) CFRelease(data);
+    return matches;
 }
 
 static inline void *witty_overlay_test_png(void *object) {
