@@ -714,3 +714,51 @@ fn test_storage_aspect_ratio_calculation_when_only_columns_or_rows_specified() !
 		assert calc_height == 100
 	}
 }
+
+fn test_storage_scales_the_intersected_kitty_crop() ! {
+	mut t := Terminal.init(Options{ rows: 5, cols: 5 })!
+	defer { t.deinit() }
+	t.width_px = 50
+	t.height_px = 100
+	image := Image{ width: 10, height: 10 }
+
+	native := Placement{ source_x: 8, source_y: 7 }
+	assert native.source_rect(image) == PlacementSourceRect{ x: 8, y: 7, width: 2, height: 3 }
+	native_width, native_height := native.calculated_size(image, &t)
+	assert native_width == 2 && native_height == 3
+
+	scaled := Placement{
+		...native
+		source_width:  8
+		source_height: 8
+		x_offset:      3
+		y_offset:      4
+		columns:       2
+	}
+	width, height := scaled.calculated_size(image, &t)
+	assert width == 17 && height == 26
+	cols, rows := scaled.grid_size(image, &t)
+	assert cols == 2 && rows == 2
+
+	empty := Placement{ ...scaled, source_x: 10 }
+	assert empty.source_rect(image).width == 0
+	empty_width, empty_height := empty.calculated_size(image, &t)
+	assert empty_width == 17 && empty_height == 0
+
+	explicit := Placement{ ...empty, rows: 2 }
+	explicit_width, explicit_height := explicit.calculated_size(image, &t)
+	assert explicit_width == 17 && explicit_height == 36
+}
+
+fn test_storage_clamps_kitty_offsets_to_the_first_cell() ! {
+	mut t := Terminal.init(Options{ rows: 5, cols: 5 })!
+	defer { t.deinit() }
+	t.width_px = 50
+	t.height_px = 100
+	p := Placement{ columns: 2, rows: 2, x_offset: 30, y_offset: 44 }
+	offset_x, offset_y := p.cell_offset(&t)
+	assert offset_x == 9 && offset_y == 19
+
+	width, height := p.calculated_size(Image{ width: 10, height: 10 }, &t)
+	assert width == 11 && height == 21
+}

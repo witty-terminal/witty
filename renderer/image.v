@@ -204,7 +204,6 @@ module renderer
 // --- Original Ghostty Comments End: src/renderer/image.zig
 
 import terminal
-import math
 import time
 import wuffs.swizzle
 
@@ -842,50 +841,27 @@ fn (mut self ImageRenderState) prep_kitty_placement(t &terminal.Terminal, top_y 
 		return
 	}
 
-	// We need to prep this image for upload if it isn't in the
-	// cache OR it is in the cache but the transmit time doesn't
-	// match meaning this image is different.
-	self.prep_kitty_image(image)!
-
-	// Calculate the dimensions of our image, taking in to
-	// account the rows / columns specified by the placement.
 	dest_w, dest_h := p.calculated_size(image, t)
-
-	// Calculate the source rectangle
-	source_x := math.min(image.width, p.source_x)
-	source_y := math.min(image.height, p.source_y)
-	source_width := if p.source_width > 0 {
-		math.min(image.width - source_x, p.source_width)
-	} else {
-		image.width
-	}
-	source_height := if p.source_height > 0 {
-		math.min(image.height - source_y, p.source_height)
-	} else {
-		image.height
+	if dest_w == 0 || dest_h == 0 {
+		return
 	}
 
-	// Get the viewport-relative Y position of the placement.
-	y_pos := i32(img_top_y) - i32(top_y)
-
-	// Accumulate the placement
-	if dest_w > 0 && dest_h > 0 {
-		self.kitty_placements << ImagePlacement{
-			image_id: KittyImageId{
-				id: image.id
-			}
-			x: i32(rect.top_left.x)
-			y: y_pos
-			z: p.z
-			width: dest_w
-			height: dest_h
-			cell_offset_x: p.x_offset
-			cell_offset_y: p.y_offset
-			source_x: source_x
-			source_y: source_y
-			source_width: source_width
-			source_height: source_height
-		}
+	source := p.source_rect(image)
+	offset_x, offset_y := p.cell_offset(t)
+	self.prep_kitty_image(image)!
+	self.kitty_placements << ImagePlacement{
+		image_id:      KittyImageId{ id: image.id }
+		x:             i32(rect.top_left.x)
+		y:             i32(img_top_y) - i32(top_y)
+		z:             p.z
+		width:         dest_w
+		height:        dest_h
+		cell_offset_x: offset_x
+		cell_offset_y: offset_y
+		source_x:      source.x
+		source_y:      source.y
+		source_width:  source.width
+		source_height: source.height
 	}
 }
 

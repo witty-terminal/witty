@@ -68,6 +68,26 @@ def kitty_history():
     )
 
 
+def kitty_layout():
+    pixels = bytes(
+        channel
+        for y in range(12)
+        for x in range(16)
+        for channel in (x * 16, y * 20, 240 - x * 8 - y * 4, 255)
+    )
+    commands = bytearray(b"Kitty image layout\x1b_Ga=t,f=32,i=410,s=16,v=12,q=2;")
+    commands += base64.b64encode(pixels) + b"\x1b\\"
+    for row, col, layout in (
+        (3, 3, "x=5,y=4"),
+        (3, 12, "x=9,y=7,w=40,h=20,c=4,r=2,X=3,Y=5"),
+        (3, 27, "x=8,y=2,w=8,c=3,X=7,Y=6"),
+        (7, 12, "c=2,r=1,X=30,Y=44"),
+        (7, 27, "x=16,c=2,r=2"),
+    ):
+        commands += f"\x1b[{row};{col}H\x1b_Ga=p,i=410,C=1,q=2,{layout};\x1b\\".encode()
+    return commands
+
+
 def main():
     fixture = sys.argv[1]
     output = {
@@ -111,6 +131,8 @@ def main():
         sys.stdout.buffer.write(kitty_retransmit())
     elif fixture == "kitty-history":
         sys.stdout.buffer.write(kitty_history())
+    elif fixture == "kitty-layout":
+        sys.stdout.buffer.write(kitty_layout())
     elif fixture in CURSOR_STYLES:
         # Reposition over an existing glyph and show a steady cursor.
         style = CURSOR_STYLES[fixture]

@@ -104,58 +104,73 @@ pub fn (self &Placement) deinit(mut s Screen) {
 	}
 }
 
-// Calculates the size of this placement's image in pixels,
-// taking in to account the specified rows and columns.
-pub fn (self &Placement) calculated_size(image Image, t &Terminal) (u32, u32) {
-	// Height / width of the image in px.
+pub struct PlacementSourceRect {
+pub:
+	x      u32
+	y      u32
+	width  u32
+	height u32
+}
+
+// Intersect the requested source rectangle with the image. A zero requested
+// extent defaults to the image dimension before intersection.
+pub fn (self &Placement) source_rect(image Image) PlacementSourceRect {
+	x := math.min(self.source_x, image.width)
+	y := math.min(self.source_y, image.height)
 	width := if self.source_width > 0 { self.source_width } else { image.width }
 	height := if self.source_height > 0 { self.source_height } else { image.height }
+	return PlacementSourceRect{
+		x:      x
+		y:      y
+		width:  math.min(width, image.width - x)
+		height: math.min(height, image.height - y)
+	}
+}
 
-	// If we don't have any specified cols or rows then the placement
-	// should be the native size of the image, and doesn't need to be
-	// re-scaled.
+fn kitty_cell_offset(offset u32, cell_extent u32) u32 {
+	return if cell_extent > 0 { math.min(offset, cell_extent - 1) } else { u32(0) }
+}
+
+pub fn (self &Placement) cell_offset(t &Terminal) (u32, u32) {
+	return kitty_cell_offset(self.x_offset, t.width_px / u32(t.cols)), kitty_cell_offset(self.y_offset, t.height_px / u32(t.rows))
+}
+
+fn scale_kitty_dimension(value u32, numerator u32, denominator u32) u32 {
+	if denominator == 0 {
+		return 0
+	}
+	rounded := (u64(value) * numerator + denominator / 2) / denominator
+	return u32(math.min(rounded, u64(max_u32)))
+}
+
+// Calculate the drawn extent after applying the source crop and cell offsets.
+pub fn (self &Placement) calculated_size(image Image, t &Terminal) (u32, u32) {
+	source := self.source_rect(image)
 	if self.columns == 0 && self.rows == 0 {
+		return source.width, source.height
+	}
+
+	cell_width := t.width_px / u32(t.cols)
+	cell_height := t.height_px / u32(t.rows)
+	if self.columns > 0 {
+		width := scale_kitty_dimension(cell_width, self.columns, 1) - kitty_cell_offset(self.x_offset, cell_width)
+		if self.rows == 0 {
+			return width, scale_kitty_dimension(width, source.height, source.width)
+		}
+		height := scale_kitty_dimension(cell_height, self.rows, 1) - kitty_cell_offset(self.y_offset, cell_height)
 		return width, height
 	}
 
-	// We calculate the size of a cell so that we can multiply
-	// it by the specified cols/rows to get the correct px size.
-	//
-	// We assume that the width is divided evenly by the column
-	// count and the height by the row count, because it should be.
-	cell_width := t.width_px / u32(t.cols)
-	cell_height := t.height_px / u32(t.rows)
+	height := scale_kitty_dimension(cell_height, self.rows, 1) - kitty_cell_offset(self.y_offset, cell_height)
+	return scale_kitty_dimension(height, source.width, source.height), height
+}
 
-	width_f64 := f64(width)
-	height_f64 := f64(height)
-
-	// If we have a specified cols AND rows then we calculate
-	// the width and height from them directly, we don't need
-	// to adjust for aspect ratio.
-	if self.columns > 0 && self.rows > 0 {
-		calc_width := cell_width * self.columns
-		calc_height := cell_height * self.rows
-		return calc_width, calc_height
+fn kitty_grid_extent(pixels u32, offset u32, cell_extent u32) u32 {
+	if cell_extent == 0 {
+		return 0
 	}
-
-	// Either the columns or the rows were specified, but not both,
-	// so we need to calculate the other one based on the aspect ratio.
-
-	// If only the columns were specified, we determine
-	// the height of the image based on the aspect ratio.
-	if self.columns > 0 {
-		aspect := height_f64 / width_f64
-		calc_width := cell_width * self.columns
-		calc_height := u32(math.round(f64(calc_width) * aspect))
-		return calc_width, calc_height
-	}
-
-	// Otherwise, only the rows were specified, so we
-	// determine the width based on the aspect ratio.
-	aspect := width_f64 / height_f64
-	calc_height := cell_height * self.rows
-	calc_width := u32(math.round(f64(calc_height) * aspect))
-	return calc_width, calc_height
+	extent := math.min(u64(pixels) + offset, u64(max_u32))
+	return u32((extent + cell_extent - 1) / cell_extent)
 }
 
 // Returns the size in grid cells that this placement takes up.
@@ -165,24 +180,11 @@ pub fn (self &Placement) grid_size(image Image, t &Terminal) (u32, u32) {
 		return self.columns, self.rows
 	}
 
-	// Otherwise we calculate the pixel size, divide by
-	// cell size, and round up to the nearest integer.
 	calc_width, calc_height := self.calculated_size(image, t)
 	cell_width := t.width_px / u32(t.cols)
 	cell_height := t.height_px / u32(t.rows)
-
-	// divCeil: (a + b - 1) / b, returns 0 if divisor is 0
-	cols := if cell_width > 0 {
-		(calc_width + self.x_offset + cell_width - 1) / cell_width
-	} else {
-		u32(0)
-	}
-	rows := if cell_height > 0 {
-		(calc_height + self.y_offset + cell_height - 1) / cell_height
-	} else {
-		u32(0)
-	}
-	return cols, rows
+	return kitty_grid_extent(calc_width, kitty_cell_offset(self.x_offset, cell_width), cell_width),
+		kitty_grid_extent(calc_height, kitty_cell_offset(self.y_offset, cell_height), cell_height)
 }
 
 // Returns a rect of the entire rectangle this placement
@@ -207,11 +209,7 @@ pub fn (self &Placement) rect(image Image, t &Terminal) ?Rect {
 		DownOverflowOffset { overflow.pin }
 		DownOverflowOverflow { overflow.end }
 	}
-	br.x = u16(math.min(
-	// We need to sub one here because the x value is
-	// one width already. So if the image is width "1"
-	// then we add zero to X because X itself is width 1.
-	u32(pin.x) + (grid_cols - 1), u32(t.cols) - 1))
+	br.x = u16(math.min(u64(pin.x) + grid_cols - 1, u64(t.cols) - 1))
 
 	return Rect{
 		top_left:     *pin
@@ -324,15 +322,13 @@ fn (mut p Placement) scroll_within_margins(t &Terminal, image Image, position Co
 // Materialize the source rectangle so clipped portions stay gone after
 // subsequent scrolls. A zero source extent would request the full image.
 fn (mut p Placement) clip_scroll_rows(image Image, cell_height u32, span u32, top u32, bottom u32) bool {
-	x := math.min(p.source_x, image.width)
-	y := math.min(p.source_y, image.height)
-	width := math.min(if p.source_width > 0 { p.source_width } else { image.width }, image.width - x)
-	height := math.min(if p.source_height > 0 { p.source_height } else { image.height }, image.height - y)
-	if width == 0 || height == 0 {
+	source := p.source_rect(image)
+	height := source.height
+	if source.width == 0 || height == 0 {
 		return false
 	}
 
-	mut source_y := y
+	mut source_y := source.y
 	mut source_height := height
 	if p.rows > 0 {
 		crop := u32(u64(height) * (top + bottom) / span)
@@ -353,14 +349,15 @@ fn (mut p Placement) clip_scroll_rows(image Image, cell_height u32, span u32, to
 		source_height -= u32(crop)
 	} else {
 		visible := u64(cell_height) * (span - bottom)
-		if visible <= p.y_offset {
+		offset_y := kitty_cell_offset(p.y_offset, cell_height)
+		if visible <= offset_y {
 			return false
 		}
-		source_height = u32(math.min(u64(height), visible - p.y_offset))
+		source_height = u32(math.min(u64(height), visible - offset_y))
 	}
-	p.source_x = x
+	p.source_x = source.x
 	p.source_y = source_y
-	p.source_width = width
+	p.source_width = source.width
 	p.source_height = source_height
 	return true
 }
