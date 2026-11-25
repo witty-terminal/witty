@@ -163,10 +163,17 @@ static inline void witty_gtk_canvas_overlay_register(void) {
 	}
 }
 
+typedef enum {
+	WITTY_CANVAS_FIRST_FILL,
+	WITTY_CANVAS_LAST_FILL,
+	WITTY_CANVAS_LAST_CLIPPED_FILL,
+} WittyCanvasFillSearch;
+
 // Replace a fill at the given allocation. A null area targets the dialog's
-// first opaque rounded panel background.
+// first opaque rounded panel background. A text view paints its text
+// background over its widget background, possibly under a viewport clip.
 static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
-		GdkTexture *mask, const graphene_rect_t *area) {
+		GdkTexture *mask, const graphene_rect_t *area, WittyCanvasFillSearch search) {
 	graphene_rect_t bounds;
 	gsk_render_node_get_bounds(node, &bounds);
 	if (area && !graphene_rect_contains_rect(&bounds, area))
@@ -175,7 +182,8 @@ static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
 	switch (gsk_render_node_get_node_type(node)) {
 	case GSK_COLOR_NODE: {
 		const GdkRGBA *color = gsk_color_node_get_color(node);
-		if (!area || !graphene_rect_equal(&bounds, area) || color->alpha != 1)
+		if (!area || color->alpha != 1 || (search != WITTY_CANVAS_LAST_CLIPPED_FILL
+				&& !graphene_rect_equal(&bounds, area)))
 			return NULL;
 		GtkSnapshot *snapshot = gtk_snapshot_new();
 		witty_gtk_canvas_snapshot_mask(snapshot, mask, color, &bounds, &bounds, 1);
@@ -184,13 +192,14 @@ static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
 	case GSK_CONTAINER_NODE: {
 		const guint count = gsk_container_node_get_n_children(node);
 		for (guint i = 0; i < count; ++i) {
-			GskRenderNode *child = gsk_container_node_get_child(node, i);
-			g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_fill(child, mask, area);
+			const guint index = search == WITTY_CANVAS_FIRST_FILL ? i : count - i - 1;
+			GskRenderNode *child = gsk_container_node_get_child(node, index);
+			g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_fill(child, mask, area, search);
 			if (!fill)
 				continue;
 			GtkSnapshot *snapshot = gtk_snapshot_new();
 			for (guint j = 0; j < count; ++j)
-				gtk_snapshot_append_node(snapshot, j == i ? fill : gsk_container_node_get_child(node, j));
+				gtk_snapshot_append_node(snapshot, j == index ? fill : gsk_container_node_get_child(node, j));
 			return gtk_snapshot_free_to_node(snapshot);
 		}
 		return NULL;
@@ -210,13 +219,16 @@ static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
 			local.origin.y -= y;
 		}
 		g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_fill(
-			gsk_transform_node_get_child(node), mask, area ? &local : NULL);
+			gsk_transform_node_get_child(node), mask, area ? &local : NULL, search);
 		return fill ? gsk_transform_node_new(fill, transform) : NULL;
 	}
 	case GSK_CLIP_NODE: {
+		const graphene_rect_t *clip = gsk_clip_node_get_clip(node);
+		if (area && search == WITTY_CANVAS_LAST_FILL && graphene_rect_equal(clip, area))
+			search = WITTY_CANVAS_LAST_CLIPPED_FILL;
 		g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_fill(
-			gsk_clip_node_get_child(node), mask, area);
-		return fill ? gsk_clip_node_new(fill, gsk_clip_node_get_clip(node)) : NULL;
+			gsk_clip_node_get_child(node), mask, area, search);
+		return fill ? gsk_clip_node_new(fill, clip) : NULL;
 	}
 	case GSK_ROUNDED_CLIP_NODE: {
 		const GskRoundedRect *clip = gsk_rounded_clip_node_get_clip(node);
@@ -230,7 +242,7 @@ static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
 		}
 		if (!area || !gsk_rounded_rect_contains_rect(clip, area))
 			return NULL;
-		g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_fill(child, mask, area);
+		g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_fill(child, mask, area, search);
 		return fill ? gsk_rounded_clip_node_new(fill, clip) : NULL;
 	}
 	default:

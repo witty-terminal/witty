@@ -13,7 +13,7 @@ static inline GtkWidget *witty_gtk_window_canvas_next_toast(GtkWidget *child, Gt
 
 static inline void witty_gtk_window_canvas_replace_fill(GskRenderNode **node, GdkTexture *mask,
 		const graphene_rect_t *area) {
-	GskRenderNode *updated = witty_gtk_canvas_replace_fill(*node, mask, area);
+	GskRenderNode *updated = witty_gtk_canvas_replace_fill(*node, mask, area, WITTY_CANVAS_FIRST_FILL);
 	if (updated) {
 		gsk_render_node_unref(*node);
 		*node = updated;

@@ -100,17 +100,11 @@ fn config_errors_dialog_set_property(obj voidptr, property_id u32, value voidptr
 			object_unref(GObject(priv.config))
 		}
 		newv := C.g_value_get_object(value)
-		mut use_canvas := false
 		if !isnil(newv) {
 			priv.config = voidptr(object_ref(GObject(newv)))
-			wrapper := config_priv(newv).wrapper
-			if !isnil(wrapper) {
-				use_canvas = gtk_canvas_styles_enabled(unsafe { (&Config(wrapper)).get() })
-			}
 		} else {
 			priv.config = unsafe { nil }
 		}
-		gtk_canvas_overlay_set_mask(GtkWidget(obj), use_canvas)
 	}
 }
 
@@ -166,6 +160,7 @@ fn config_errors_dialog_instance_init(instance voidptr, klass voidptr) {
 	C.gtk_widget_init_template(instance)
 	priv := config_errors_dialog_priv(instance)
 	C.witty_gtk_dialog_canvas_set_fill_widget(GtkWidget(instance), GtkWidget(priv.diagnostics))
+	gtk_canvas_overlay_set_mask(GtkWidget(instance), !isnil(priv.diagnostics))
 }
 
 // config_errors_dialog_get_type lazily registers the GhosttyConfigErrorsDialog

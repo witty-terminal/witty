@@ -470,6 +470,7 @@ fn clipboard_confirmation_dialog_instance_init(instance voidptr, klass voidptr) 
 	C.gtk_widget_init_template(instance)
 	priv := clipboard_confirmation_dialog_priv(instance)
 	C.witty_gtk_dialog_canvas_set_fill_widget(GtkWidget(instance), GtkWidget(priv.text_view))
+	gtk_canvas_overlay_set_mask(GtkWidget(instance), !isnil(priv.text_view))
 	// Trigger initial values (matches ghostty's `init`).
 	clipboard_confirmation_notify_blur_cb(instance, unsafe { nil }, unsafe { nil })
 	clipboard_confirmation_notify_request_cb(instance, unsafe { nil }, unsafe { nil })
@@ -559,10 +560,6 @@ fn clipboard_confirmation_native_response_cb(obj GObject, response_id &char) {
 // present shows the dialog. Mirrors `ClipboardConfirmationDialog.present`.
 pub fn (mut self ClipboardConfirmationDialog) present(parent ?GtkWidget) {
 	self.dialog.present(parent)
-}
-
-fn (self &ClipboardConfirmationDialog) set_canvas_enabled(enabled bool) {
-	gtk_canvas_overlay_set_mask(GtkWidget(self.dialog.obj), enabled)
 }
 
 // get_request returns the clipboard request without copying. Mirrors
