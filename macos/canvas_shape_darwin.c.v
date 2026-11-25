@@ -66,10 +66,11 @@ fn canvas_rounded_span(x int, width int, left f64) f64 {
 
 @[params]
 struct NativeCanvasRoundedMaskOptions {
-	stroke  f64
-	opacity f64 = 1
-	style   NativeCanvasRoundedStyle
-	padding f64
+	stroke               f64
+	opacity              f64 = 1
+	style                NativeCanvasRoundedStyle
+	padding              f64
+	outer_coverage_gamma f64 = 1
 }
 
 // Create coverage for a fill or inside stroke. All dimensions are in backing pixels.
@@ -94,10 +95,16 @@ fn native_canvas_rounded_mask(width int, height int, corner f64, opts NativeCanv
 			}
 		}
 		for column in 0 .. (width + 1) / 2 {
+			mut outer_coverage := 0.0
 			mut coverage := 0.0
 			for i, edge in outer {
-				coverage += canvas_rounded_span(column, width, edge)
-					- canvas_rounded_span(column, width, inner[i])
+				span := canvas_rounded_span(column, width, edge)
+				outer_coverage += span
+				coverage += span - canvas_rounded_span(column, width, inner[i])
+			}
+			if opts.outer_coverage_gamma != 1 && outer_coverage > 0 && outer_coverage < outer.len {
+				alpha := outer_coverage / outer.len
+				coverage = math.max(0.0, coverage + (math.pow(alpha, opts.outer_coverage_gamma) - alpha) * outer.len)
 			}
 			pixel := u32(math.round(255 * opts.opacity * coverage / outer.len)) << 24
 			raster.pixels[row * width + column] = pixel

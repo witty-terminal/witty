@@ -190,6 +190,7 @@ pub fn (mut surface NativeActionSurface) toggle_command_palette(options []Native
 	msg_void1(palette.field, 'setFont:', msg_id_f64(get_class('NSFont'), 'systemFontOfSize:', 20))
 	msg_void1(palette.field, 'setDelegate:', palette.owner)
 	msg_void1(palette.container, 'addSubview:', palette.field)
+	msg_void(palette.field, 'release')
 	palette.scroll = msg_id_rect(alloc('NSScrollView'), 'initWithFrame:',
 		objc_rect(0, 48, 500, 200))
 	msg_void_bool(palette.scroll, 'setHasVerticalScroller:', true)
@@ -197,11 +198,12 @@ pub fn (mut surface NativeActionSurface) toggle_command_palette(options []Native
 	palette.document = msg_id_rect(alloc('WittyActionOverlay'), 'initWithFrame:', objc_rect(0, 0,
 		500, 200))
 	msg_void1(palette.scroll, 'setDocumentView:', palette.document)
+	msg_void(palette.document, 'release')
 	msg_void1(palette.container, 'addSubview:', palette.scroll)
+	msg_void(palette.scroll, 'release')
 	surface.palette = palette
 	msg_void1(surface.overlay, 'addSubview:', palette.container)
 	palette.rebuild()
-	palette.layout()
 	msg_bool1(view_window(surface.view), 'makeFirstResponder:', palette.field)
 }
 
@@ -210,161 +212,86 @@ pub fn (surface &NativeActionSurface) command_palette_is_showing() bool {
 }
 
 fn (mut palette NativeCommandPalette) layout() {
-	width := math.min(500.0, view_width(palette.surface.view) - 32)
+	width := math.max(0.0, math.min(500.0, view_width(palette.surface.view) - 32))
+	scroll_height := if palette.filtered.len == 0 { 48.0 } else { 200.0 }
 	msg_void_rect(palette.container, 'setFrame:', objc_rect((view_width(palette.surface.view) - width) / 2,
-		view_height(palette.surface.view) * 0.05, width, if palette.filtered.len == 0 {
-			96.0
-		} else {
-			248.0
-		}))
+		view_height(palette.surface.view) * 0.05, width, 48 + scroll_height))
 	msg_void_rect(palette.tint, 'setFrame:', msg_rect(palette.container, 'bounds'))
 	msg_void1(palette.tint, 'setBackgroundColor:', msg_id(native_color(palette.surface.visual_background, 1), 'CGColor'))
-	msg_void_rect(palette.field, 'setFrame:', objc_rect(16, 8, width - 32, 40))
-	msg_void_rect(palette.scroll, 'setFrame:', objc_rect(0, 48, width, 200))
+	msg_void_rect(palette.field, 'setFrame:', objc_rect(16, 8, math.max(0.0, width - 32), 40))
+	msg_void_rect(palette.scroll, 'setFrame:', objc_rect(0, 48, width, scroll_height))
+	msg_void_rect(palette.document, 'setFrame:',
+		objc_rect(0, 0, width, msg_rect(palette.document, 'frame').height))
 }
 
 fn (mut palette NativeCommandPalette) close() {
 	if palette.surface.palette == unsafe { nil } { return }
 	palette.surface.palette = unsafe { nil }
 	msg_bool1(view_window(palette.surface.view), 'makeFirstResponder:', palette.surface.view)
+	palette.clear_rows()
+	msg_void1(palette.field, 'setDelegate:', nil_obj())
+	C.macos_objc_set_ptr_ivar(palette.owner, cstr('palette'), unsafe { nil })
 	msg_void(palette.container, 'removeFromSuperview')
 	msg_void(palette.container, 'release')
 	msg_void(palette.owner, 'release')
 }
 
-fn (mut palette NativeCommandPalette) rebuild() {
-	palette.filtered = filtered_command_options(palette.options, palette.query)
+fn (palette &NativeCommandPalette) clear_rows() {
 	children := msg_id(palette.document, 'subviews')
+	row_class := get_class('WittyPaletteRow')
 	for i := int(msg_u64(children, 'count')) - 1; i >= 0; i-- {
-		msg_void(msg_id_u64(children, 'objectAtIndex:', u64(i)), 'removeFromSuperview')
+		row := msg_id_u64(children, 'objectAtIndex:', u64(i))
+		if !is_nil(row_class) && msg_bool1(row, 'isKindOfClass:', row_class) {
+			C.macos_objc_set_ptr_ivar(row, cstr('palette'), unsafe { nil })
+			msg_void1(row, 'setTarget:', nil_obj())
+			areas := msg_id(row, 'trackingAreas')
+			for j := int(msg_u64(areas, 'count')) - 1; j >= 0; j-- {
+				msg_void1(row, 'removeTrackingArea:', msg_id_u64(areas, 'objectAtIndex:', u64(j)))
+			}
+		}
+		msg_void(row, 'removeFromSuperview')
 	}
-	width := msg_rect(palette.scroll, 'bounds').width
-	height := if palette.filtered.len > 0 { f64(palette.filtered.len) * 46 + 20 } else { 48.0 }
-	msg_void_rect(palette.document, 'setFrame:', objc_rect(0, 0, width, height))
+}
+
+fn (mut palette NativeCommandPalette) rebuild() {
+	palette.clear_rows()
+	palette.hovered = none
+	palette.filtered = filtered_command_options(palette.options, palette.query)
+	palette.layout()
+	width := msg_rect(palette.document, 'bounds').width
 	if palette.filtered.len == 0 {
-		label := action_label('No matches', objc_rect(16, 12, width - 32, 24))
+		msg_void_rect(palette.document, 'setFrame:', objc_rect(0, 0, width, 48))
+		label := action_label('No matches', objc_rect(16, 12, math.max(0.0, width - 32), 24))
+		msg_void_u64(label, 'setAutoresizingMask:', 2)
 		msg_void1(palette.document, 'addSubview:', label)
 		msg_void(label, 'release')
 		return
 	}
+	mut y := 10.0
 	for index, option in palette.filtered {
-		button := msg_id_rect(alloc('NSButton'), 'initWithFrame:', objc_rect(10, 10 + index * 46,
-			width - 20, 42))
-		msg_void1(button, 'setTitle:', nsstring((if option.leading_color != none {
-			'        '
-		} else if option.leading_icon.len > 0 {
-			'    '
-		} else {
-			''
-		}) + option.title +
-			(if option.subtitle.len > 0 { '\n${option.subtitle}' } else { '' })))
-		msg_void_bool(button, 'setBordered:', false)
-		msg_void_u64(button, 'setAlignment:', 0)
-		msg_void1(button, 'setToolTip:', nsstring(option.description))
-		msg_void1(button, 'setTarget:', palette.owner)
-		msg_void1(button, 'setAction:', sel('submit:'))
-		msg_void_u64(button, 'setTag:', u64(index))
-		msg_void_bool(button, 'setWantsLayer:', true)
-		msg_void_f64(msg_id(button, 'layer'), 'setCornerRadius:', 5)
-		if option.emphasis {
-			msg_void1(button, 'setFont:', C.witty_action_id_f64_f64(get_class('NSFont'), sel('systemFontOfSize:weight:'), 13, 0.23))
-			msg_void_f64(msg_id(button, 'layer'), 'setBorderWidth:', 1.5)
-			msg_void1(msg_id(button, 'layer'), 'setBorderColor:', msg_id(msg_id_f64(msg_id(get_class('NSColor'), 'controlAccentColor'), 'colorWithAlphaComponent:', 0.3), 'CGColor'))
-		}
-		if selected := palette.selected {
-			if index == int(if selected < uint(palette.filtered.len) {
-				selected
-			} else {
-				uint(palette.filtered.len - 1)
-			}) {
-				msg_void1(msg_id(button, 'layer'), 'setBackgroundColor:', msg_id(msg_id_f64(msg_id(get_class('NSColor'),
-					'controlAccentColor'), 'colorWithAlphaComponent:', 0.2), 'CGColor'))
-			}
-		}
-		if color := option.leading_color {
-			dot := msg_id_rect(alloc('NSView'), 'initWithFrame:', objc_rect(4, 17, 8, 8))
-			msg_void_bool(dot, 'setWantsLayer:', true)
-			msg_void_f64(msg_id(dot, 'layer'), 'setCornerRadius:', 4)
-			msg_void1(msg_id(dot, 'layer'), 'setBackgroundColor:', msg_id(color, 'CGColor'))
-			msg_void1(button, 'addSubview:', dot)
-			msg_void(dot, 'release')
-		}
-		if option.leading_icon.len > 0 {
-			image := msg_id2(get_class('NSImage'), 'imageWithSystemSymbolName:accessibilityDescription:', nsstring(option.leading_icon), nil_obj())
-			icon := msg_id_rect(alloc('NSImageView'), 'initWithFrame:', objc_rect(if option.leading_color != none {
-				20.0
-			} else {
-				4.0
-			}, 13, 16, 16))
-			msg_void1(icon, 'setImage:', image)
-			msg_void1(icon, 'setContentTintColor:', msg_id(get_class('NSColor'), if option.emphasis {
-				'controlAccentColor'
-			} else {
-				'secondaryLabelColor'
-			}))
-			msg_void1(button, 'addSubview:', icon)
-			msg_void(icon, 'release')
-		}
-		if badge := option.badge {
-			if badge.len > 0 {
-				badge_width := action_text_width(badge, 11) + 14
-				label := action_label(badge, objc_rect(width - 30 - badge_width, 12, badge_width, 18))
-				msg_void1(label, 'setFont:', C.witty_action_id_f64_f64(get_class('NSFont'), sel('systemFontOfSize:weight:'), 11, 0.23))
-				msg_void1(label, 'setTextColor:', msg_id(get_class('NSColor'), 'controlAccentColor'))
-				msg_void_u64(label, 'setAlignment:', 1)
-				msg_void_bool(label, 'setWantsLayer:', true)
-				msg_void_f64(msg_id(label, 'layer'), 'setCornerRadius:', 9)
-				msg_void1(msg_id(label, 'layer'), 'setBackgroundColor:', msg_id(msg_id_f64(msg_id(get_class('NSColor'), 'controlAccentColor'), 'colorWithAlphaComponent:', 0.15), 'CGColor'))
-				msg_void1(button, 'addSubview:', label)
-				msg_void(label, 'release')
-			}
-		}
-		tracking := msg_id_rect_u64_obj_obj(alloc('NSTrackingArea'), 'initWithRect:options:owner:userInfo:', msg_rect(button, 'bounds'), 1 | 128, palette.owner, msg_id_u64(get_class('NSNumber'), 'numberWithUnsignedInteger:', u64(index)))
-		msg_void1(button, 'addTrackingArea:', tracking)
-		msg_void(tracking, 'release')
-		msg_void1(palette.document, 'addSubview:', button)
-		msg_void(button, 'release')
+		height := option.row_height()
+		row := new_palette_row(palette, index, objc_rect(10, y, math.max(0.0, width - 20), height))
+		msg_void1(palette.document, 'addSubview:', row)
+		msg_void(row, 'release')
+		y += height + palette_row_gap
 	}
-	palette.repaint_rows()
-	palette.layout()
+	msg_void_rect(palette.document, 'setFrame:', objc_rect(0, 0, width, y + 10 - palette_row_gap))
 }
 
 fn (palette &NativeCommandPalette) repaint_rows() {
 	children := msg_id(palette.document, 'subviews')
 	for i in 0 .. int(msg_u64(children, 'count')) {
-		button := msg_id_u64(children, 'objectAtIndex:', u64(i))
-		if !msg_bool1(button, 'isKindOfClass:', get_class('NSButton')) { continue }
-		selected := if index := palette.selected {
-			i == int(if index < uint(palette.filtered.len) {
-				index
-			} else {
-				uint(palette.filtered.len - 1)
-			})
-		} else {
-			false
-		}
-		hovered := if index := palette.hovered { i == int(index) } else { false }
-		color := if selected {
-			msg_id_f64(msg_id(get_class('NSColor'), 'controlAccentColor'), 'colorWithAlphaComponent:', 0.2)
-		} else if hovered {
-			msg_id_f64(msg_id(get_class('NSColor'), 'secondaryLabelColor'), 'colorWithAlphaComponent:', 0.2)
-		} else {
-			nil_obj()
-		}
-		msg_void1(msg_id(button, 'layer'), 'setBackgroundColor:', msg_id(color, 'CGColor'))
-		if palette.filtered[i].emphasis {
-			msg_void_f64(msg_id(button, 'layer'), 'setBorderWidth:', if selected {
-				0.0
-			} else {
-				1.5
-			})
-		}
+		row := msg_id_u64(children, 'objectAtIndex:', u64(i))
+		msg_void_bool(row, 'setNeedsDisplay:', true)
 	}
 }
 
 fn palette_hover(self ObjId, cmd Sel, event ObjId) {
 	mut palette := palette_state(self) or { return }
-	index := uint(msg_u64(msg_id(msg_id(event, 'trackingArea'), 'userInfo'), 'unsignedIntegerValue'))
+	info := msg_id(msg_id(event, 'trackingArea'), 'userInfo')
+	tag := msg_id1(info, 'objectForKey:', nsstring('row'))
+	if is_nil(tag) { return }
+	index := uint(msg_u64(tag, 'unsignedIntegerValue'))
 	if cmd == sel('mouseEntered:') {
 		palette.hovered = index
 	} else if previous := palette.hovered {
@@ -404,11 +331,12 @@ fn palette_command(self ObjId, _cmd Sel, _control ObjId, _text ObjId, command Se
 			current := palette.selected or { ~uint(0) }
 			palette.selected = if current >= uint(count - 1) { uint(0) } else { current + 1 }
 		}
-		palette.rebuild()
-		if row := palette.selected {
-			if row < uint(count) {
-				C.witty_action_scroll_rect(palette.document, 0, f64(row) * 46 + 10, msg_rect(palette.scroll,
-					'bounds').width, 42)
+		palette.repaint_rows()
+		if index := palette.selected {
+			if index < uint(count) {
+				children := msg_id(palette.document, 'subviews')
+				frame := msg_rect(msg_id_u64(children, 'objectAtIndex:', u64(index)), 'frame')
+				C.witty_action_scroll_rect(palette.document, frame.x, frame.y, frame.width, frame.height)
 			}
 		}
 		return true
