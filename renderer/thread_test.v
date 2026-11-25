@@ -143,12 +143,10 @@ fn test_renderer_thread_derived_config_retains_shader_animation_type() {
 }
 
 fn test_renderer_thread_disabled_draw_keeps_armed_completion() ! {
-	mut render := Renderer{}
-	mut flags := ThreadFlags{}
-	flags.set_visible(false)
+	mut render := Renderer{ has_custom_shaders: true }
 	mut render_thread := renderer_test_thread(&render, ThreadDerivedConfig{
 		custom_shader_animation: .always
-	}, flags)!
+	}, ThreadFlags{})!
 	defer {
 		render_thread.deinit()
 	}
@@ -169,13 +167,18 @@ fn test_renderer_thread_disabled_draw_keeps_armed_completion() ! {
 fn test_renderer_thread_active_draw_rearms_completion() ! {
 	mut render := Renderer{}
 	mut flags := ThreadFlags{}
-	flags.set_visible(false)
+	flags.set_focused(false)
 	mut render_thread := renderer_test_thread(&render, ThreadDerivedConfig{
 		custom_shader_animation: .always
 	}, flags)!
 	defer {
 		render_thread.deinit()
 	}
+	render_thread.draw_from_app_thread = true
+	render_thread.sync_draw_timer()
+	assert render_thread.draw_c.state() == .dead
+
+	render.has_custom_shaders = true
 	render_thread.sync_draw_timer()
 	// An already active draw timer is not started twice.
 	render_thread.sync_draw_timer()
@@ -184,6 +187,43 @@ fn test_renderer_thread_active_draw_rearms_completion() ! {
 	// The callback rearms while the animation stays active.
 	render_thread.loop.run(.once)!
 	assert render_thread.draw_c.state() == .active
+
+	// A failed rebuild removes the animation source before the next tick.
+	render.has_custom_shaders = false
+	render_thread.loop.run(.until_done)!
+	assert !render_thread.draw_active
+	assert render_thread.draw_c.state() == .dead
+}
+
+fn test_shader_animation_follows_focus_and_visibility() ! {
+	mut render := Renderer{ has_custom_shaders: true, focused: true }
+	mut render_thread := renderer_test_thread(&render, ThreadDerivedConfig{
+		custom_shader_animation: .true_
+	}, ThreadFlags{})!
+	defer {
+		render_thread.deinit()
+	}
+	assert render.has_animations()
+	assert render_thread.should_animate()
+
+	render.set_focus(false)!
+	render_thread.flags.set_focused(false)
+	assert !render.has_animations()
+	assert !render_thread.should_animate()
+
+	render.config.custom_shader_animation = .always
+	render_thread.config.custom_shader_animation = .always
+	assert render.has_animations()
+	assert render_thread.should_animate()
+
+	render_thread.flags.set_visible(false)
+	assert !render_thread.should_animate()
+	render_thread.flags.set_visible(true)
+
+	render.config.custom_shader_animation = .false_
+	render_thread.config.custom_shader_animation = .false_
+	assert !render.has_animations()
+	assert !render_thread.should_animate()
 }
 
 fn test_renderer_thread_routes_app_thread_draws_through_redraw_callback() {

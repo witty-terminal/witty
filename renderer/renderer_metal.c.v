@@ -177,7 +177,8 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 
 		// Conditions under which we need to draw the frame, otherwise we
 		// don't need to since the previous frame should be identical.
-		needs_redraw := size_changed || self.cells_rebuilt || self.has_animations() || sync_
+		needs_redraw := size_changed || self.cells_rebuilt || self.reinitialize_shaders
+			|| self.has_animations() || sync_
 
 		if !needs_redraw {
 			// We still need to present the last target again, because the apprt

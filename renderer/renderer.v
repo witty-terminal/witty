@@ -1031,6 +1031,24 @@ pub fn (mut self Renderer) mark_dirty() {
 // True if our renderer has animations so that a higher frequency
 // timer is used.
 pub fn (self &Renderer) has_animations() bool {
+	return self.has_custom_shaders && shader_animation_enabled(self.config.custom_shader_animation,
+		self.focused)
+}
+
+// The draw timer can start before the application thread has built a pending
+// shader chain. After that frame, only successfully created pipelines count.
+fn (mut self Renderer) has_shader_animation_source() bool {
+	if self.draw_mutex != unsafe { nil } {
+		self.draw_mutex.lock()
+	}
+	defer {
+		if self.draw_mutex != unsafe { nil } {
+			self.draw_mutex.unlock()
+		}
+	}
+	if self.reinitialize_shaders {
+		return self.config.custom_shaders.items.len > 0
+	}
 	return self.has_custom_shaders
 }
 
@@ -1068,11 +1086,17 @@ pub fn (mut self Renderer) set_macos_display_id(display_id u32) ! {
 //
 // Must be called on the render thread.
 pub fn (mut self Renderer) set_focus(focus bool) ! {
+	if self.draw_mutex != unsafe { nil } {
+		self.draw_mutex.lock()
+	}
 	assert self.focused != focus
 	self.focused = focus
 
 	// Flag that we need to update our custom shaders
 	self.custom_shader_focused_changed = true
+	if self.draw_mutex != unsafe { nil } {
+		self.draw_mutex.unlock()
+	}
 
 	$if macos {
 		if self.display_link != unsafe { nil } {

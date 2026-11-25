@@ -137,7 +137,8 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 		}
 		size_changed := self.size.screen.width != surface_width
 			|| self.size.screen.height != surface_height
-		needs_redraw := size_changed || self.cells_rebuilt || self.has_animations() || sync_
+		needs_redraw := size_changed || self.cells_rebuilt || self.reinitialize_shaders
+			|| self.has_animations() || sync_
 		if !needs_redraw {
 			self.api.present_last_target()!
 			return

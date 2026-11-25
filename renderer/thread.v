@@ -289,7 +289,7 @@ pub mut:
 
 	// The timer used for draw calls. Draw calls don't update from the
 	// terminal state so they're much cheaper. They're used for animation
-	// and are paused when the terminal is not focused.
+	// and follow the configured animation policy and terminal visibility.
 	draw_h      xev.Timer
 	draw_c      xev.Completion
 	draw_active bool
@@ -559,41 +559,15 @@ fn (self &RendererThread) set_qos_class() {
 	}
 }
 
+fn (mut self RendererThread) should_animate() bool {
+	return self.flags.visible()
+		&& shader_animation_enabled(self.config.custom_shader_animation, self.flags.focused())
+		&& self.renderer.has_shader_animation_source()
+}
+
 fn (mut self RendererThread) sync_draw_timer() {
-	skip: for {
-		// If our renderer supports animations and has them, then we
-		// always have a draw timer.
-		if self.renderer.has_animations() {
-			break skip
-		}
-
-		// If our config says to always animate, we do so.
-		match self.config.custom_shader_animation {
-			// Always animate
-			.always {
-				break skip
-			}
-			// Only when focused
-			.true_ {
-				if self.flags.focused() {
-					break skip
-				}
-			}
-			// Never animate
-			.false_ {}
-		}
-
-		// We're skipping the draw timer. Stop it on the next iteration.
-		self.draw_active = false
-		return
-	}
-
-	// Set our active state so it knows we're running. We set this before
-	// even checking the active state in case we have a pending shutdown.
-	self.draw_active = true
-
-	// If our draw timer is already active, then we don't have to do anything.
-	if self.draw_c.state() == .active {
+	self.draw_active = self.should_animate()
+	if !self.draw_active || self.draw_c.state() == .active {
 		return
 	}
 
@@ -644,13 +618,7 @@ fn (mut self RendererThread) drain_mailbox() ! {
 
 					// Notify the renderer so it can update any state.
 					self.renderer.set_visible(msg.visible)
-
-					// Note that we're explicitly today not stopping any
-					// cursor timers, draw timers, etc. These things have very
-					// little resource cost and properly maintaining their active
-					// state across different transitions is going to be bug-prone,
-					// so its easier to just let them keep firing and have them
-					// check the visible state themselves to control their behavior.
+					self.sync_draw_timer()
 				}
 			}
 			FocusMessage {
@@ -820,13 +788,13 @@ fn renderer_thread_draw_callback(self_ voidptr, _ &xev.Loop, _ &xev.Completion, 
 	}
 	mut t := unsafe { &RendererThread(self_) }
 
-	// Draw
-	t.draw_frame(false)
-
-	// Only continue if we're still active
-	if t.draw_active {
-		t.draw_h.run(mut t.loop, &t.draw_c, draw_interval, t, renderer_thread_draw_callback)
+	// Creating the pipelines may have failed since the previous tick.
+	if !t.draw_active || !t.should_animate() {
+		t.draw_active = false
+		return .disarm
 	}
+	t.draw_frame(false)
+	t.draw_h.run(mut t.loop, &t.draw_c, draw_interval, t, renderer_thread_draw_callback)
 
 	return .disarm
 }

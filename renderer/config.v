@@ -73,6 +73,7 @@ pub mut:
 	padding_color configpkg.WindowPaddingColor = .background
 	// Custom shader paths.
 	custom_shaders configpkg.RepeatablePath
+	custom_shader_animation configpkg.CustomShaderAnimation = .true_
 	// Background image path.
 	bg_image ?configpkg.Path
 	// Background image opacity (0.0 to 1.0).
@@ -169,6 +170,7 @@ pub fn DerivedConfig.init(config &configpkg.Config) !DerivedConfig {
 		search_selected_background: config.search_selected_background
 		search_selected_foreground: config.search_selected_foreground
 		custom_shaders: custom_shaders
+		custom_shader_animation: config.custom_shader_animation
 		bg_image: bg_image
 		bg_image_opacity: config.background_image_opacity
 		bg_image_position: config.background_image_position
@@ -178,6 +180,14 @@ pub fn DerivedConfig.init(config &configpkg.Config) !DerivedConfig {
 		colorspace: config.window_colorspace
 		blending: config.alpha_blending
 		background_blur: config.background_blur
+	}
+}
+
+fn shader_animation_enabled(mode configpkg.CustomShaderAnimation, focused bool) bool {
+	return match mode {
+		.false_ { false }
+		.true_ { focused }
+		.always { true }
 	}
 }
 
