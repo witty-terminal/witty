@@ -1428,6 +1428,8 @@ fn test_clipboard_write_ignores_invalid_base64() ! {
 	assert runtime.clipboards.len == 0
 	surf.clipboard_write('aGVsbG8=', .standard)!
 	assert runtime.clipboards[.standard][0].data == 'hello'
+	surf.clipboard_write('', .standard)!
+	assert runtime.clipboards[.standard][0].data == ''
 }
 
 fn test_clipboard_write_absorbs_runtime_failure_and_honors_deny() ! {

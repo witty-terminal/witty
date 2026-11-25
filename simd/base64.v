@@ -9,7 +9,7 @@ $if ghostty_wasm_module ? { import wasm_log }
 // same output behavior as Ghostty's SIMD implementation.
 fn base64_scalar_input(input []u8) []u8 {
 	mut end := input.len
-	for input[end - 1] == `=` {
+	for end > 0 && input[end - 1] == `=` {
 		end--
 	}
 	return input[..end]

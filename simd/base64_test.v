@@ -44,6 +44,12 @@ fn test_base64_decode_one_byte_input_matches_scalar_fallback() {
 	assert decode_scalar('A'.bytes(), mut output)! == []u8{}
 }
 
+fn test_base64_scalar_empty_input() {
+	mut output := []u8{}
+	assert max_len_scalar([]u8{}) == 0
+	assert decode_scalar([]u8{}, mut output)! == []u8{}
+}
+
 fn test_scalar_base64_preserves_source_partial_writes_on_error() {
 	for i, input in ['AAA!AAAA', 'AAAA!AAA'] {
 		mut output := []u8{len: 6, init: 0xa5}
