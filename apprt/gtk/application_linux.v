@@ -1050,13 +1050,19 @@ fn application_runtime_css(config &configpkg.Config, gtk_416 bool) string {
 	bell_tint := if gtk_416 { 'color-mix(in srgb, var(--accent-color), transparent 50%)' } else {
 		'rgba(58, 148, 74, 0.5)'
 	}
+	success_tint := if gtk_416 { 'color-mix(in srgb, var(--success-bg-color), transparent 50%)' } else {
+		'rgba(38, 162, 105, 0.5)'
+	}
+	error_tint := if gtk_416 { 'color-mix(in srgb, var(--error-bg-color), transparent 50%)' } else {
+		'rgba(192, 28, 40, 0.5)'
+	}
 
 	if gtk_416 {
 		css += '/*\n * Child Exited Overlay\n */\n\n'
-		css += '.child-exited.normal revealer widget {\n  background-color: color-mix(\n    in srgb,\n    var(--success-bg-color),\n    transparent 50%\n  );\n}\n\n'
-		css += '.child-exited.abnormal revealer widget {\n  background-color: color-mix(\n    in srgb,\n    var(--error-bg-color),\n    transparent 50%\n  );\n}\n\n'
+		css += '.child-exited.normal revealer widget {\n  background-color: ${success_tint};\n}\n\n'
+		css += '.child-exited.abnormal revealer widget {\n  background-color: ${error_tint};\n}\n\n'
 		css += '/*\n * Surface\n */\n\n'
-		css += '.surface progressbar.error trough progress {\n  background-color: color-mix(\n    in srgb,\n    var(--error-bg-color),\n    transparent 50%\n  );\n}\n\n'
+		css += '.surface progressbar.error trough progress {\n  background-color: ${error_tint};\n}\n\n'
 		css += '.surface .bell-overlay {\n  background-color: ${bell_tint};\n  border-color: ${bell_tint};\n}\n\n'
 		css += '/*\n * Splits\n */\n\n'
 		css += '.window .split paned > separator {\n  background-color: color-mix(\n    in srgb,\n    var(--window-bg-color),\n    transparent 0%\n  );\n}\n\n'
@@ -1079,6 +1085,9 @@ fn application_runtime_css(config &configpkg.Config, gtk_416 bool) string {
 	}
 
 	css += '.surface .bell-overlay.bell-canvas {\n color: ${bell_tint};\n background-color: transparent;\n border-color: transparent;\n}\n'
+	css += '.child-exited.child-exited-canvas revealer widget { background-color: transparent; }\n'
+	css += '.child-exited.normal .child-exited-fill { color: ${success_tint}; }\n'
+	css += '.child-exited.abnormal .child-exited-fill { color: ${error_tint}; }\n'
 
 	fill := config.unfocused_split_fill or { config.background }
 	css += 'widget.unfocused-split {\n opacity: ${1.0 - config.unfocused_split_opacity:.2f};\n'

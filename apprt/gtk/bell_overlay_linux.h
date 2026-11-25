@@ -1,20 +1,8 @@
 #ifndef WITTY_GTK_BELL_OVERLAY_H
 #define WITTY_GTK_BELL_OVERLAY_H
 
-#include <gtk/gtk.h>
+#include "canvas_linux.h"
 #include <stdbool.h>
-
-static inline void witty_gtk_bell_paint(GtkSnapshot *snapshot, GdkTexture *mask, const GdkRGBA *tint,
-		const graphene_rect_t *bounds, const graphene_rect_t *pieces, size_t count) {
-	gtk_snapshot_push_mask(snapshot, GSK_MASK_MODE_ALPHA);
-	for (size_t i = 0; i < count; ++i) {
-		if (pieces[i].size.width > 0 && pieces[i].size.height > 0)
-			gtk_snapshot_append_scaled_texture(snapshot, mask, GSK_SCALING_FILTER_NEAREST, &pieces[i]);
-	}
-	gtk_snapshot_pop(snapshot);
-	gtk_snapshot_append_color(snapshot, tint, bounds);
-	gtk_snapshot_pop(snapshot);
-}
 
 static inline void witty_gtk_bell_snapshot(GtkWidget *widget, GtkSnapshot *snapshot) {
 	if (!gtk_widget_has_css_class(widget, "bell-canvas"))
@@ -40,7 +28,7 @@ static inline void witty_gtk_bell_snapshot(GtkWidget *widget, GtkSnapshot *snaps
 	// The CSS background extends beneath the border. Keep the two paints
 	// separate so GTK applies the same blending before the revealer fades.
 	if (gtk_check_version(4, 16, 0) == NULL)
-		witty_gtk_bell_paint(snapshot, mask, &tint, &bounds, &bounds, 1);
+		witty_gtk_canvas_snapshot_mask(snapshot, mask, &tint, &bounds, &bounds, 1);
 
 	GskRenderer *renderer = gtk_native_get_renderer(gtk_widget_get_native(widget));
 	if (!GSK_IS_CAIRO_RENDERER(renderer)) {
@@ -59,7 +47,7 @@ static inline void witty_gtk_bell_snapshot(GtkWidget *widget, GtkSnapshot *snaps
 		GRAPHENE_RECT_INIT(x, 0, border.left, height),
 		GRAPHENE_RECT_INIT(width, 0, border.right, height),
 	};
-	witty_gtk_bell_paint(snapshot, mask, &tint, &bounds, edges, G_N_ELEMENTS(edges));
+	witty_gtk_canvas_snapshot_mask(snapshot, mask, &tint, &bounds, edges, G_N_ELEMENTS(edges));
 }
 
 static inline void witty_gtk_bell_class_init(void *klass, void *data) {

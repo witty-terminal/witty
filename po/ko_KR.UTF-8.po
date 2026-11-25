@@ -279,11 +279,11 @@ msgid "Cleared clipboard"
 msgstr "클립보드 지워짐"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "명령 성공"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "명령 실패"
 
 #: src/apprt/gtk/Window.zig:216

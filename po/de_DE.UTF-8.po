@@ -285,11 +285,11 @@ msgid "Cleared clipboard"
 msgstr "Zwischenablage geleert"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "Befehl erfolgreich"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "Befehl fehlgeschlagen"
 
 #: src/apprt/gtk/Window.zig:216

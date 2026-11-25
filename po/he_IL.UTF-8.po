@@ -279,11 +279,11 @@ msgid "Cleared clipboard"
 msgstr "לוח ההעתקה רוקן"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "הפקודה הצליחה"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "הפקודה נכשלה"
 
 #: src/apprt/gtk/Window.zig:216

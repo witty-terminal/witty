@@ -282,11 +282,11 @@ msgid "Cleared clipboard"
 msgstr "Клипбордът е изчистен"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "Командата завърши успешно"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "Командата завърши неуспешно"
 
 #: src/apprt/gtk/Window.zig:216

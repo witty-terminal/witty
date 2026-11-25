@@ -282,11 +282,11 @@ msgid "Cleared clipboard"
 msgstr "Исчистена привремена меморија"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "Командата успеа"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "Командата не успеа"
 
 #: src/apprt/gtk/Window.zig:216

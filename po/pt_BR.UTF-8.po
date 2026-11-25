@@ -285,11 +285,11 @@ msgid "Cleared clipboard"
 msgstr "Área de transferência limpa"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "Comando executado com sucesso"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "Comando falhou"
 
 #: src/apprt/gtk/Window.zig:216

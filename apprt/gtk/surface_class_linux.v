@@ -2580,9 +2580,12 @@ fn (mut self SurfaceWidget) apply_resize_overlay_config() {
 // every programmatic binding that depends on the shared Config object.
 pub fn (mut self SurfaceWidget) apply_config() {
 	self.apply_resize_overlay_config()
+	use_canvas := !isnil(self.config) && gtk_canvas_styles_enabled(self.config.get())
 	if !isnil(self.bell_revealer) {
-		use_canvas := !isnil(self.config) && gtk_canvas_styles_enabled(self.config.get())
 		C.witty_gtk_bell_set_canvas(self.bell_revealer, use_canvas)
+	}
+	if !isnil(self.child_exited_overlay) {
+		self.child_exited_overlay.set_canvas(use_canvas)
 	}
 	self.sync_bell_border_overlay()
 }

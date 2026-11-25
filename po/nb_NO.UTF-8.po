@@ -284,11 +284,11 @@ msgid "Cleared clipboard"
 msgstr "Utklippstavle tømt"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "Kommando lyktes"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "Kommando mislyktes"
 
 #: src/apprt/gtk/Window.zig:216

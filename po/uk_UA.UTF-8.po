@@ -283,11 +283,11 @@ msgid "Cleared clipboard"
 msgstr "Буфер обміну очищено"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "Команда завершилась успішно"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "Команда завершилась з помилкою"
 
 #: src/apprt/gtk/Window.zig:216

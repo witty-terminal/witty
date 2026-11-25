@@ -282,11 +282,11 @@ msgid "Cleared clipboard"
 msgstr "Appunti svuotati"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "Comando riuscito"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "Comando fallito"
 
 #: src/apprt/gtk/Window.zig:216

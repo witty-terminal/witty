@@ -282,11 +282,11 @@ msgid "Cleared clipboard"
 msgstr "Pano temizlendi"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "Komut başarılı oldu"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "Komut başarısız oldu"
 
 #: src/apprt/gtk/Window.zig:216

@@ -283,11 +283,11 @@ msgid "Cleared clipboard"
 msgstr "Očišćen međuspremnik"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "Naredba je uspjela"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "Naredba nije uspjela"
 
 #: src/apprt/gtk/Window.zig:216

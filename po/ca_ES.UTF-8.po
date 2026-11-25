@@ -282,11 +282,11 @@ msgid "Cleared clipboard"
 msgstr "Porta-retalls netejat"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "Comanda completada amb èxit"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "Comanda fallida"
 
 #: src/apprt/gtk/Window.zig:216

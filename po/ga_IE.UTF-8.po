@@ -283,11 +283,11 @@ msgid "Cleared clipboard"
 msgstr "Gearrthaisce glanta"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "D'éirigh leis an ordú"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "Theip ar an ordú"
 
 #: src/apprt/gtk/Window.zig:216

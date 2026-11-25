@@ -281,11 +281,11 @@ msgid "Cleared clipboard"
 msgstr "Papan klip dibersihkan"
 
 #: src/apprt/gtk/Surface.zig:2525
-msgid "Command succeeded"
+msgid "Command Succeeded"
 msgstr "Perintah berhasil"
 
 #: src/apprt/gtk/Surface.zig:2527
-msgid "Command failed"
+msgid "Command Failed"
 msgstr "Perintah gagal"
 
 #: src/apprt/gtk/Window.zig:216
