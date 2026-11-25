@@ -35,18 +35,9 @@ static inline void witty_gtk_split_canvas_snapshot(GtkWidget *widget, GtkSnapsho
 		return;
 	g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_widget_fill(node, mask, separator, &area,
 		WITTY_CANVAS_FIRST_FILL);
-	if (!fill) {
-		// The separator's default background-clip is content-box.
-		const graphene_point_t zero = GRAPHENE_POINT_INIT(0, 0);
-		graphene_point_t origin;
-		const int width = gtk_widget_get_width(separator);
-		const int height = gtk_widget_get_height(separator);
-		if (width > 0 && height > 0 && gtk_widget_compute_point(separator, widget, &zero, &origin)) {
-			const graphene_rect_t content = GRAPHENE_RECT_INIT(origin.x, origin.y, width, height);
-			if (!graphene_rect_equal(&area, &content))
-				fill = witty_gtk_canvas_replace_fill(node, mask, &content, WITTY_CANVAS_FIRST_FILL);
-		}
-	}
+	if (!fill)
+		fill = witty_gtk_canvas_replace_widget_content_fill(node, mask, separator, widget, &area,
+			WITTY_CANVAS_FIRST_FILL);
 	gtk_snapshot_append_node(snapshot, fill ? fill : node);
 }
 

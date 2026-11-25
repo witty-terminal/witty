@@ -3,7 +3,6 @@ module gtk
 #include "@VMODROOT/apprt/gtk/progress_overlay_linux.h"
 
 fn C.witty_gtk_progress_new(mask voidptr) GtkWidget
-fn C.witty_gtk_progress_set_canvas(bar GtkWidget, enabled bool)
 
 fn surface_progress_bar_new() GtkWidget {
 	progress_bar := C.witty_gtk_progress_new(gtk_canvas_solid_mask())

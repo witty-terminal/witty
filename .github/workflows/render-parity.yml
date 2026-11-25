@@ -47,6 +47,7 @@ jobs:
           bash .github/scripts/linux-render-parity.sh \
             "$RUNNER_TEMP/witty/bin/witty" "$RUNNER_TEMP/render-parity-gl" \
             --fixture split-search --fixture split-search-themed --fixture split-close --fixture key-state-overlay \
+            --fixture progress-overlay --fixture progress-overlay-themed \
             --fixture link-preview --fixture link-preview-right --fixture readonly-overlay --fixture readonly-overlay-themed \
             --fixture command-palette --fixture command-palette-compact --fixture clipboard-confirmation \
             --fixture config-errors --fixture terminal-title --fixture tab-title \

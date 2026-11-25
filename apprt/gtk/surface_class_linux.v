@@ -2612,9 +2612,6 @@ fn (mut self SurfaceWidget) apply_resize_overlay_config() {
 pub fn (mut self SurfaceWidget) apply_config() {
 	self.apply_resize_overlay_config()
 	use_canvas := !isnil(self.config) && gtk_canvas_styles_enabled(self.config.get())
-	if !isnil(self.progress_bar_overlay) {
-		C.witty_gtk_progress_set_canvas(self.progress_bar_overlay, use_canvas)
-	}
 	if !isnil(self.bell_revealer) {
 		C.witty_gtk_bell_set_canvas(self.bell_revealer, use_canvas)
 	}

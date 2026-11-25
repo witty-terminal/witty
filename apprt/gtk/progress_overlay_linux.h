@@ -1,48 +1,37 @@
 #ifndef WITTY_GTK_PROGRESS_OVERLAY_H
 #define WITTY_GTK_PROGRESS_OVERLAY_H
 
-#include "canvas_linux.h"
-#include <stdbool.h>
+#include "canvas_overlay_linux.h"
 
-static inline void witty_gtk_progress_append(GtkSnapshot *snapshot, GdkTexture *mask,
-		GskRenderNode *node) {
-	switch (gsk_render_node_get_node_type(node)) {
-	case GSK_COLOR_NODE: {
-		graphene_rect_t bounds;
-		gsk_render_node_get_bounds(node, &bounds);
-		witty_gtk_canvas_snapshot_mask(snapshot, mask, gsk_color_node_get_color(node),
-			&bounds, &bounds, 1);
-		break;
+static inline GtkWidget *witty_gtk_progress_find_child(GtkWidget *widget, const char *name) {
+	for (GtkWidget *child = gtk_widget_get_first_child(widget); child;
+			child = gtk_widget_get_next_sibling(child)) {
+		if (g_strcmp0(gtk_widget_get_css_name(child), name) == 0)
+			return child;
 	}
-	case GSK_CONTAINER_NODE:
-		for (guint i = 0; i < gsk_container_node_get_n_children(node); ++i)
-			witty_gtk_progress_append(snapshot, mask, gsk_container_node_get_child(node, i));
-		break;
-	case GSK_TRANSFORM_NODE:
-		gtk_snapshot_save(snapshot);
-		gtk_snapshot_transform(snapshot, gsk_transform_node_get_transform(node));
-		witty_gtk_progress_append(snapshot, mask, gsk_transform_node_get_child(node));
-		gtk_snapshot_restore(snapshot);
-		break;
-	case GSK_CLIP_NODE:
-		gtk_snapshot_push_clip(snapshot, gsk_clip_node_get_clip(node));
-		witty_gtk_progress_append(snapshot, mask, gsk_clip_node_get_child(node));
-		gtk_snapshot_pop(snapshot);
-		break;
-	case GSK_ROUNDED_CLIP_NODE:
-		gtk_snapshot_push_rounded_clip(snapshot, gsk_rounded_clip_node_get_clip(node));
-		witty_gtk_progress_append(snapshot, mask, gsk_rounded_clip_node_get_child(node));
-		gtk_snapshot_pop(snapshot);
-		break;
-	default:
-		gtk_snapshot_append_node(snapshot, node);
-		break;
+	return NULL;
+}
+
+static inline void witty_gtk_progress_replace_fill(GskRenderNode **node, GdkTexture *mask,
+		GtkWidget *bar, GtkWidget *target, WittyCanvasFillSearch search) {
+	graphene_rect_t area;
+	if (!target || !gtk_widget_get_mapped(target) || !gtk_widget_compute_bounds(target, bar, &area)
+			|| area.size.width <= 0 || area.size.height <= 0)
+		return;
+	GskRenderNode *updated = witty_gtk_canvas_replace_widget_fill(*node, mask, target, &area, search);
+	if (!updated)
+		updated = witty_gtk_canvas_replace_widget_content_fill(*node, mask, target, bar, &area, search);
+	if (updated) {
+		gsk_render_node_unref(*node);
+		*node = updated;
 	}
 }
 
 static inline void witty_gtk_progress_snapshot(GtkWidget *widget, GtkSnapshot *snapshot) {
 	GtkWidgetClass *native_class = g_type_class_peek(GTK_TYPE_PROGRESS_BAR);
-	if (!g_object_get_data(G_OBJECT(widget), "witty-progress-canvas")) {
+	GdkTexture *mask = g_object_get_data(G_OBJECT(widget), "witty-progress-mask");
+	GtkWidget *trough = witty_gtk_progress_find_child(widget, "trough");
+	if (!mask || !trough) {
 		native_class->snapshot(widget, snapshot);
 		return;
 	}
@@ -51,12 +40,13 @@ static inline void witty_gtk_progress_snapshot(GtkWidget *widget, GtkSnapshot *s
 	// placement. Canvas supplies the coverage for their solid fills.
 	GtkSnapshot *layout = gtk_snapshot_new();
 	native_class->snapshot(widget, layout);
-	GskRenderNode *node = gtk_snapshot_free_to_node(layout);
-	if (node) {
-		GdkTexture *mask = g_object_get_data(G_OBJECT(widget), "witty-progress-mask");
-		witty_gtk_progress_append(snapshot, mask, node);
-		gsk_render_node_unref(node);
-	}
+	g_autoptr(GskRenderNode) node = gtk_snapshot_free_to_node(layout);
+	if (!node)
+		return;
+	witty_gtk_progress_replace_fill(&node, mask, widget, trough, WITTY_CANVAS_FIRST_FILL);
+	witty_gtk_progress_replace_fill(&node, mask, widget, witty_gtk_progress_find_child(trough, "progress"),
+		WITTY_CANVAS_LAST_FILL);
+	gtk_snapshot_append_node(snapshot, node);
 }
 
 static inline void witty_gtk_progress_class_init(void *klass, void *data) {
@@ -82,15 +72,6 @@ static inline GtkWidget *witty_gtk_progress_new(GdkTexture *mask) {
 	GtkWidget *bar = g_object_new(type, NULL);
 	g_object_set_data_full(G_OBJECT(bar), "witty-progress-mask", mask, g_object_unref);
 	return bar;
-}
-
-static inline void witty_gtk_progress_set_canvas(GtkWidget *bar, bool enabled) {
-	GObject *object = G_OBJECT(bar);
-	void *mode = GINT_TO_POINTER(enabled && g_object_get_data(object, "witty-progress-mask"));
-	if (g_object_get_data(object, "witty-progress-canvas") != mode) {
-		g_object_set_data(object, "witty-progress-canvas", mode);
-		gtk_widget_queue_draw(bar);
-	}
 }
 
 #endif

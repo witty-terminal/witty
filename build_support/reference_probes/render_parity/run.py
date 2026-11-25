@@ -33,6 +33,8 @@ SEARCH_SELECTED_BACKGROUND = (242, 165, 126)
 PALETTE_THEME_BACKGROUND = (54, 87, 129)
 READONLY_THEME_BACKGROUND = (33, 128, 205)
 SPLIT_THEME_DIVIDER = (190, 115, 185)
+PROGRESS_THEME_TROUGH = (90, 67, 90)
+PROGRESS_THEME_FILL = (33, 128, 205)
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
 INTERACTIVE_FIXTURES = (
     "selection-wide", "wide-edit", "search-wrap", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES,
@@ -40,6 +42,7 @@ INTERACTIVE_FIXTURES = (
 LINK_PREVIEW_FIXTURES = ("link-preview", "link-preview-right")
 READONLY_FIXTURES = ("readonly-overlay", "readonly-overlay-themed")
 SPLIT_SEARCH_FIXTURES = ("split-search", "split-search-themed")
+PROGRESS_FIXTURES = ("progress-overlay", "progress-overlay-themed")
 COMMAND_PALETTE_FIXTURES = (
     "command-palette", "command-palette-compact", "command-palette-resize", "command-palette-themed",
 )
@@ -57,7 +60,7 @@ WALLPAPER_OPTIONS = {
 }
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
-    *INTERACTIVE_FIXTURES, *SPLIT_SEARCH_FIXTURES, "split-close", "visual-bell", "progress-overlay",
+    *INTERACTIVE_FIXTURES, *SPLIT_SEARCH_FIXTURES, "split-close", "visual-bell", *PROGRESS_FIXTURES,
     "resize-overlay", "key-state-overlay",
     *LINK_PREVIEW_FIXTURES, *READONLY_FIXTURES, *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
     *TITLE_DIALOG_ACTIONS, "gtk-toast",
@@ -206,6 +209,16 @@ def fixture_args(name, work):
         ]
     if name == "resize-overlay":
         options.extend(("--resize-overlay=always", "--resize-overlay-duration=5s"))
+    if name == "progress-overlay-themed":
+        css = work / "progress-theme.css"
+        css.write_text(
+            ".surface progressbar.osd trough { "
+            f"background-color: #{bytes(PROGRESS_THEME_TROUGH).hex()}; }}\n"
+            ".surface progressbar.osd.error trough progress { "
+            f"background-color: #{bytes(PROGRESS_THEME_FILL).hex()}; }}\n"
+        )
+        options.append(f"--gtk-custom-css={css}")
+        name = "progress-overlay"
     if name == "key-state-overlay":
         options.extend(("--keybind=copy/escape=deactivate_key_table", "--keybind=ctrl+alt+k=activate_key_table:copy"))
     if name in LINK_PREVIEW_FIXTURES:
@@ -423,7 +436,7 @@ def capture_visual_bell(binary, args, helper, prefix, settle, scale, *, witty=Fa
                 raise RuntimeError("Refocusing the terminal did not clear the bell overlay")
 
 
-def capture_progress_overlay(binary, args, helper, prefix, settle, scale, *, witty=False):
+def capture_progress_overlay(binary, args, helper, prefix, settle, scale, *, themed=False, witty=False):
     capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
     env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(settle + 8)}
     with open_window([binary, *capture_args, *args], prefix.with_suffix(".log"), env=env) as (_, window):
@@ -433,11 +446,13 @@ def capture_progress_overlay(binary, args, helper, prefix, settle, scale, *, wit
             with read_window(helper, window) as image:
                 fill = image.getpixel((image.width * 48 // 100, scale))
                 rest = image.getpixel((image.width * 54 // 100, scale))
-                if fill != rest:
+                ready = (fill, rest) == (PROGRESS_THEME_FILL, PROGRESS_THEME_TROUGH) if themed else fill != rest
+                if ready:
                     image.save(prefix.with_suffix(".png"))
                     return
             time.sleep(0.05)
-        raise RuntimeError("The paused progress fill did not reach 51%")
+        message = "The themed progress colors did not render" if themed else "The paused progress fill did not reach 51%"
+        raise RuntimeError(message)
 
 
 def capture_mode_overlay(binary, args, helper, prefix, name, settle, scale, *, witty=False):
@@ -1066,9 +1081,10 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name == "visual-bell":
                 capture_visual_bell(ghostty, args, helper, expected, settle, scale)
                 capture_visual_bell(witty, args, helper, actual, settle, scale, witty=True)
-            elif name == "progress-overlay":
-                capture_progress_overlay(ghostty, args, helper, expected, settle, scale)
-                capture_progress_overlay(witty, args, helper, actual, settle, scale, witty=True)
+            elif name in PROGRESS_FIXTURES:
+                themed = name == "progress-overlay-themed"
+                capture_progress_overlay(ghostty, args, helper, expected, settle, scale, themed=themed)
+                capture_progress_overlay(witty, args, helper, actual, settle, scale, themed=themed, witty=True)
             elif name in ("resize-overlay", "key-state-overlay"):
                 capture_mode_overlay(ghostty, args, helper, expected, name, settle, scale)
                 capture_mode_overlay(witty, args, helper, actual, name, settle, scale, witty=True)

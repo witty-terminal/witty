@@ -331,6 +331,22 @@ static inline GskRenderNode *witty_gtk_canvas_replace_widget_fill(GskRenderNode 
 	return witty_gtk_canvas_replace_fill(node, mask, &padding, search);
 }
 
+static inline GskRenderNode *witty_gtk_canvas_replace_widget_content_fill(GskRenderNode *node,
+		GdkTexture *mask, GtkWidget *widget, GtkWidget *relative_to, const graphene_rect_t *area,
+		WittyCanvasFillSearch search) {
+	// CSS can clip a background inside both the border and padding.
+	const graphene_point_t zero = GRAPHENE_POINT_INIT(0, 0);
+	graphene_point_t origin;
+	const int width = gtk_widget_get_width(widget);
+	const int height = gtk_widget_get_height(widget);
+	if (width <= 0 || height <= 0 || !gtk_widget_compute_point(widget, relative_to, &zero, &origin))
+		return NULL;
+	const graphene_rect_t content = GRAPHENE_RECT_INIT(origin.x, origin.y, width, height);
+	if (graphene_rect_equal(area, &content))
+		return NULL;
+	return witty_gtk_canvas_replace_fill(node, mask, &content, search);
+}
+
 static inline bool witty_gtk_canvas_overlay_has_mask(GtkWidget *bin) {
 	return g_object_get_data(G_OBJECT(bin), "witty-overlay-mask") != NULL;
 }
