@@ -167,8 +167,6 @@ fn C.adw_split_button_set_icon_name(button GtkWidget, icon_name &char)
 
 fn C.adw_split_button_set_dropdown_tooltip(button GtkWidget, tooltip &char)
 
-fn C.adw_split_button_set_menu_model(button GtkWidget, menu_model GMenuModel)
-
 fn C.gtk_toggle_button_new() GtkWidget
 
 fn C.gtk_toggle_button_get_active(button GtkWidget) int
@@ -180,8 +178,6 @@ fn C.gtk_button_set_icon_name(button GtkWidget, icon_name &char)
 fn C.gtk_menu_button_new() GtkWidget
 
 fn C.gtk_menu_button_set_icon_name(button GtkWidget, icon_name &char)
-
-fn C.gtk_menu_button_set_menu_model(button GtkWidget, menu_model GMenuModel)
 
 fn C.gtk_menu_button_get_active(button GtkWidget) int
 
@@ -617,7 +613,7 @@ fn window_split_button_new(menu GMenu, flat bool, self &Window) GtkWidget {
 	dropdown_tooltip := i18n_('New Split')
 	C.gtk_widget_set_tooltip_text(button, &char(tooltip.str))
 	C.adw_split_button_set_dropdown_tooltip(button, &char(dropdown_tooltip.str))
-	C.adw_split_button_set_menu_model(button, GMenuModel(menu))
+	C.witty_gtk_menu_canvas_attach(button, GMenuModel(menu))
 	C.gtk_widget_set_focusable(button, 0)
 	C.gtk_widget_set_focus_on_click(button, 0)
 	C.g_signal_connect_data(button, c'clicked', GCallback(voidptr(window_new_tab_button_cb)),
@@ -646,7 +642,7 @@ fn window_menu_button_new(menu GMenu, flat bool, self &Window) GtkWidget {
 		C.gtk_widget_add_css_class(button, c'flat')
 	}
 	C.gtk_menu_button_set_icon_name(button, c'open-menu-symbolic')
-	C.gtk_menu_button_set_menu_model(button, GMenuModel(menu))
+	C.witty_gtk_menu_canvas_attach(button, GMenuModel(menu))
 	tooltip := i18n_('Main Menu')
 	C.gtk_widget_set_tooltip_text(button, &char(tooltip.str))
 	C.gtk_widget_set_focusable(button, 0)

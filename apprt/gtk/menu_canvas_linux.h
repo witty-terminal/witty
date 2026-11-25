@@ -16,7 +16,17 @@ static inline void witty_gtk_menu_canvas_snapshot(GtkWidget *widget, GtkSnapshot
 	native_class->snapshot(widget, layout);
 	g_autoptr(GskRenderNode) node = gtk_snapshot_free_to_node(layout);
 	if (node) {
-		g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_fill(node, mask, NULL);
+		// The contents widget supplies the bounds of the flat title-bar
+		// background. The popup's bounds also include its arrow and shadow.
+		GtkWidget *child = gtk_popover_get_child(GTK_POPOVER(widget));
+		GtkWidget *contents = child ? gtk_widget_get_parent(child) : NULL;
+		graphene_rect_t area;
+		g_autoptr(GskRenderNode) fill = NULL;
+		if (contents && gtk_widget_get_parent(contents) == widget
+				&& gtk_widget_compute_bounds(contents, widget, &area))
+			fill = witty_gtk_canvas_replace_fill(node, mask, &area);
+		if (!fill)
+			fill = witty_gtk_canvas_replace_fill(node, mask, NULL);
 		gtk_snapshot_append_node(snapshot, fill ? fill : node);
 	}
 }
@@ -42,6 +52,20 @@ static inline GtkWidget *witty_gtk_menu_canvas_new(GMenuModel *model, GtkPopover
 		g_once_init_leave(&type, registered);
 	}
 	return g_object_new(type, "flags", flags, "menu-model", model, NULL);
+}
+
+static inline void witty_gtk_menu_canvas_attach(GtkWidget *button, GMenuModel *model) {
+	GtkWidget *popover = witty_gtk_menu_canvas_new(model, 0);
+	if (ADW_IS_SPLIT_BUTTON(button))
+		adw_split_button_set_popover(ADW_SPLIT_BUTTON(button), GTK_POPOVER(popover));
+	else
+		gtk_menu_button_set_popover(GTK_MENU_BUTTON(button), popover);
+
+	// Match the accessible label relation installed by GTK's menu-model setter.
+	GtkWidget *owner = gtk_widget_get_parent(popover);
+	if (owner)
+		gtk_accessible_update_relation(GTK_ACCESSIBLE(popover),
+			GTK_ACCESSIBLE_RELATION_LABELLED_BY, owner, NULL, -1);
 }
 
 #endif
