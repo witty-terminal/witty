@@ -29,6 +29,7 @@ The text selection fixture uses a mouse drag starting on the second cell of an e
 The Unicode input fixtures capture GTK’s underlined preview over a terminal wallpaper and at the right edge before the character is committed.
 The scrollback fixtures update the palette and append a row after scrolling into history, with `scroll-to-bottom=output` enabled and disabled.
 The search fixture drives scrollback search through keybindings and checks both highlight colors as navigation wraps from the newest match to the oldest and back.
+The split search fixture captures the full GTK client window and compares both panes as Find takes focus in the right pane.
 The resize fixtures narrow the window with the cursor after blank cells or near the bottom of the screen. They also check which row of a newly wrapped Bash prompt clears and where the next character appears after widening a full row.
 
 Each run saves the PNGs, application logs, executable versions and hashes, and a `results.tsv` report under `.witty-build/render-parity/`. Differing pixels appear white in the corresponding `*-diff.png` mask. A size or pixel mismatch returns exit status 1.

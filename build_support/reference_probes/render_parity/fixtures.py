@@ -20,6 +20,7 @@ RESIZE_FIXTURES = (
 RESIZE_WRAP_COLOR = (129, 68, 93)
 WIDE_EDIT_BEFORE = (153, 61, 77)
 WIDE_EDIT_AFTER = (58, 119, 97)
+SPLIT_RIGHT_COLOR = (77, 154, 209)
 
 
 def kitty_image():
@@ -402,6 +403,14 @@ def search_wrap():
     ).encode()
 
 
+def split_pane(side):
+    r, g, b = SPLIT_RIGHT_COLOR if side == "Right" else (202, 122, 89)
+    return (
+        f"{side} pane\r\n\x1b[48;2;{r};{g};{b}m                    \x1b[0m\r\n"
+        " Steady cursor: \x1b[2 q\x1b[?25h"
+    ).encode()
+
+
 def edit_wrapped_wide():
     wait_for_initial_grid()
     attrs = termios.tcgetattr(sys.stdin)
@@ -524,6 +533,8 @@ def main():
         sys.stdout.buffer.write(grapheme_sequences())
     elif fixture == "search-wrap":
         sys.stdout.buffer.write(search_wrap())
+    elif fixture == "split-search":
+        sys.stdout.buffer.write(split_pane(sys.argv[2]))
     elif fixture == "wide-edit":
         edit_wrapped_wide()
         return

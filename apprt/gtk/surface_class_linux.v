@@ -1550,9 +1550,12 @@ pub fn (mut self SurfaceWidget) set_is_split(is_split bool) {
 }
 
 fn (self &SurfaceWidget) sync_unfocused_split_overlay() {
-	if !isnil(self.unfocused_revealer) {
-		C.gtk_revealer_set_reveal_child(self.unfocused_revealer, !self.focused && self.is_split)
+	if isnil(self.unfocused_revealer) {
+		return
 	}
+	search_active := !isnil(self.search_overlay) && self.search_overlay.get_search_active()
+	C.gtk_revealer_set_reveal_child(self.unfocused_revealer, self.is_split && !self.focused
+		&& !search_active)
 }
 
 // set_progress_report mirrors Surface.setProgressReport. Every update resets
@@ -3186,6 +3189,7 @@ pub fn (mut self SurfaceWidget) set_search_active(active bool, needle string) {
 		return
 	}
 	self.search_overlay.set_search_active(active)
+	self.sync_unfocused_split_overlay()
 	if needle.len > 0 {
 		self.search_overlay.set_search_contents(needle)
 	}

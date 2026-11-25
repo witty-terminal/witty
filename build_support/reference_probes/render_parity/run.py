@@ -3,6 +3,7 @@ import hashlib
 import math
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -16,7 +17,8 @@ from capture import (
 )
 from fixtures import (
     CURSOR_STYLES, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES, RESIZE_WRAP_COLOR,
-    SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED, WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE,
+    SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED, SPLIT_RIGHT_COLOR,
+    WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE,
 )
 
 
@@ -42,7 +44,7 @@ WALLPAPER_OPTIONS = {
 }
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
-    *INTERACTIVE_FIXTURES,
+    *INTERACTIVE_FIXTURES, "split-search",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -114,6 +116,13 @@ def prepare_fixtures(path):
 def fixture_args(name, work):
     blend = "native" if name == "ansi" or name.startswith("kitty") else "linear-corrected"
     options = [*OPTIONS, f"--alpha-blending={blend}", f"--working-directory={work}"]
+    if name == "split-search":
+        command = [sys.executable, str(PROBE / "fixtures.py"), name]
+        return [
+            *options, "--keybind=ctrl+alt+d=new_split:right", "--unfocused-split-fill=81315a",
+            "--split-divider-color=47637c", f"--command={shlex.join([*command, 'Right'])}",
+            "-e", *command, "Left",
+        ]
     if name == "shader":
         options.extend(
             (
@@ -162,6 +171,38 @@ def capture_ghostty(command, helper, prefix, settle):
     with open_window(command, prefix.with_suffix(".log")) as (_, window):
         time.sleep(settle)
         with read_window(helper, window) as image:
+            image.save(prefix.with_suffix(".png"))
+
+
+def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir, *, witty=False):
+    # Screenshot mode suppresses Witty's debug banner. The X11 capture
+    # includes both panes and the search widget above the terminal content.
+    capture_args = [f"--screenshot={prefix}-active-pane.png"] if witty else []
+    env = {**os.environ, "XDG_CONFIG_HOME": str(config_dir), "SCREENSHOT_SETTLE_SECONDS": str(3 * settle + 8)}
+    with open_window([binary, *capture_args, *args], prefix.with_suffix(".log"), env=env) as (_, window):
+        time.sleep(settle)
+        subprocess.run(
+            ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window, "8", "80",
+             "key", "ctrl+alt+d"], check=True, timeout=5,
+        )
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            with read_window(helper, window) as image:
+                if image.getpixel((3 * image.width // 4, image.height // 8))[:3] == SPLIT_RIGHT_COLOR:
+                    probe = (image.width // 2, 10 * scale)
+                    divider = image.getpixel(probe)
+                    break
+            time.sleep(0.05)
+        else:
+            raise RuntimeError("The right pane did not render after splitting")
+
+        subprocess.run(
+            ["xdotool", "key", "ctrl+shift+f", "sleep", "0.25", "type", "pane"], check=True, timeout=5,
+        )
+        time.sleep(settle)
+        with read_window(helper, window) as image:
+            if image.getpixel(probe) == divider:
+                raise RuntimeError("The search bar did not render in the split")
             image.save(prefix.with_suffix(".png"))
 
 
@@ -403,6 +444,13 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             if name in INTERACTIVE_FIXTURES:
                 capture_interactive(ghostty, args, helper, expected, name, settle, scale)
                 capture_interactive(witty, args, helper, actual, name, settle, scale, witty=True)
+            elif name == "split-search":
+                config_dir = work / "split-search-config"
+                gtk_config = config_dir / "gtk-4.0"
+                gtk_config.mkdir(parents=True)
+                (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
+                capture_split_search(ghostty, args, helper, expected, settle, scale, config_dir)
+                capture_split_search(witty, args, helper, actual, settle, scale, config_dir, witty=True)
             else:
                 capture_ghostty([ghostty, *args], helper, expected, settle)
                 capture_witty(witty, args, actual, settle)
