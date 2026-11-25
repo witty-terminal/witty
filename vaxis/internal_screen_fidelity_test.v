@@ -56,6 +56,22 @@ fn test_internal_screen_default_cell_differs_from_initialized_space() {
 	assert s.buf.len == 0
 }
 
+fn test_internal_screen_writes_unallocated_hyperlink_text() {
+	mut s := InternalScreen.new(1, 1)
+	unsafe {
+		s.buf[0].uri.str = nil
+		s.buf[0].uri_id.str = nil
+	}
+	s.write_cell(0, 0, Cell{
+		char_: CellCharacter{ grapheme: 'a' }
+		link:  CellHyperlink{ uri: 'https://example.org', params: 'id=a' }
+	})
+	read := s.read_cell(0, 0) or { panic('missing') }
+	assert read.char_.grapheme == 'a'
+	assert read.link.uri == 'https://example.org'
+	assert read.link.params == 'id=a'
+}
+
 fn test_internal_screen_keeps_flags_and_ignores_nonretained_cell_metadata() {
 	mut s := InternalScreen.new(1, 1)
 	s.buf[0].skip = true

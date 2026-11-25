@@ -115,19 +115,19 @@ fn internal_screen_growth_increment() uint {
 fn internal_screen_retained_write(mut cell InternalCell, field int, text string) {
 	match field {
 		0 {
-			cell.char_ = unsafe { tos(cell.char_.str, 0) }
+			cell.char_ = internal_screen_retained_view(cell.char_storage, 0)
 			internal_screen_retained_prepare(mut cell.char_storage, text.len)
 			cell.char_ = internal_screen_retained_view(cell.char_storage, text.len)
 			internal_screen_retained_copy(cell.char_storage, text)
 		}
 		1 {
-			cell.uri = unsafe { tos(cell.uri.str, 0) }
+			cell.uri = internal_screen_retained_view(cell.uri_storage, 0)
 			internal_screen_retained_prepare(mut cell.uri_storage, text.len)
 			cell.uri = internal_screen_retained_view(cell.uri_storage, text.len)
 			internal_screen_retained_copy(cell.uri_storage, text)
 		}
 		else {
-			cell.uri_id = unsafe { tos(cell.uri_id.str, 0) }
+			cell.uri_id = internal_screen_retained_view(cell.uri_id_storage, 0)
 			internal_screen_retained_prepare(mut cell.uri_id_storage, text.len)
 			cell.uri_id = internal_screen_retained_view(cell.uri_id_storage, text.len)
 			internal_screen_retained_copy(cell.uri_id_storage, text)
