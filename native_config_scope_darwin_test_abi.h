@@ -1,5 +1,7 @@
 #include <AppKit/AppKit.h>
+#include <math.h>
 #include <objc/runtime.h>
+#include <stdint.h>
 
 static BOOL witty_config_scope_key;
 static BOOL witty_config_scope_is_key(id self, SEL command) {
@@ -32,6 +34,13 @@ static inline void witty_config_scope_finish_launching(void) {
 }
 static inline bool witty_config_scope_opaque(void* view) {
     return [[(NSView*)view window] isOpaque];
+}
+static inline uint32_t witty_config_scope_background(void* view) {
+    NSColor* color = [[[(NSView*)view window] backgroundColor]
+        colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+    return ((uint32_t)lround(color.redComponent * 255) << 16)
+        | ((uint32_t)lround(color.greenComponent * 255) << 8)
+        | (uint32_t)lround(color.blueComponent * 255);
 }
 static inline bool witty_config_scope_scroller(void* view) {
     return [[(NSView*)view enclosingScrollView] hasVerticalScroller];

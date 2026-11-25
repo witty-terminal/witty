@@ -12,6 +12,7 @@ fn C.witty_config_scope_set_key(key bool)
 fn C.witty_config_scope_drain_main()
 fn C.witty_config_scope_finish_launching()
 fn C.witty_config_scope_opaque(view voidptr) bool
+fn C.witty_config_scope_background(view voidptr) u32
 fn C.witty_config_scope_scroller(view voidptr) bool
 fn C.witty_config_scope_clear_responder(view voidptr)
 fn C.witty_config_scope_is_responder(view voidptr) bool
@@ -88,6 +89,18 @@ fn test_native_config_notification_scopes_preserve_surface_appearance() {
 	assert !C.witty_config_scope_scroller(view)
 	before := state.native_config
 	frame := macos.native_window_frame(view)
+	target := config_scope_target(state)
+	assert runtime_action(runtime.app, target, apprt.RuntimeAction{
+		action: .color_change
+		data:   apprt.ColorChange{
+			kind: .background
+			r:    0x42
+			g:    0x30
+			b:    0x62
+		}
+	})
+	C.witty_config_scope_drain_main()
+	assert state.background_color == ?u32(0x423062)
 	mut app_change := original.clone()
 	defer { app_change.deinit() }
 	app_change.background = configpkg.ColorRGB{
@@ -119,6 +132,7 @@ fn test_native_config_notification_scopes_preserve_surface_appearance() {
 	assert !native_controller_config(state).proxy_icon
 	assert controller.creation_config == projection
 	assert state.native_config == before
+	assert state.background_color == ?u32(0x423062)
 	assert !C.witty_config_scope_opaque(view)
 	assert !C.witty_config_scope_scroller(view)
 	assert macos.native_window_frame(view) == frame
@@ -137,7 +151,7 @@ fn test_native_config_notification_scopes_preserve_surface_appearance() {
 	surface_change.window_step_resize = false
 	surface_change.macos_titlebar_proxy_icon = .visible
 	surface_change.macos_secure_input_indication = false
-	assert runtime_action(runtime.app, config_scope_target(state), apprt.RuntimeAction{
+	assert runtime_action(runtime.app, target, apprt.RuntimeAction{
 		action: .config_change
 		data:   apprt.ConfigChange{
 			config: &surface_change
@@ -145,6 +159,8 @@ fn test_native_config_notification_scopes_preserve_surface_appearance() {
 	})
 	C.witty_config_scope_drain_main()
 	assert state.native_config == native_window_config(&surface_change)
+	assert state.background_color == none
+	assert C.witty_config_scope_background(view) == 0x445566
 	assert C.witty_config_scope_opaque(view)
 	assert C.witty_config_scope_scroller(view)
 	assert native_controller_config(state).step_resize
@@ -152,6 +168,26 @@ fn test_native_config_notification_scopes_preserve_surface_appearance() {
 	assert state.actions.secure_indication
 	assert state.actions.visual_background == 0xeeeeee
 	assert runtime.app.config.background == app_change.background
+
+	// A terminal color that arrives after a reload should still reach the window.
+	assert runtime_action(runtime.app, target, apprt.RuntimeAction{
+		action: .config_change
+		data:   apprt.ConfigChange{
+			config: &surface_change
+		}
+	})
+	assert runtime_action(runtime.app, target, apprt.RuntimeAction{
+		action: .color_change
+		data:   apprt.ColorChange{
+			kind: .background
+			r:    0x30
+			g:    0x47
+			b:    0x52
+		}
+	})
+	C.witty_config_scope_drain_main()
+	assert state.background_color == ?u32(0x304752)
+	assert C.witty_config_scope_background(view) == 0x304752
 }
 
 fn test_native_focus_follows_mouse_uses_app_setting_key_window_and_palette_guards() {

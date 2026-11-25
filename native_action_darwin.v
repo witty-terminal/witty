@@ -134,9 +134,7 @@ fn runtime_native_action(app &apprt.App, target apprt.Target, state ?&TermState,
 		.color_change {
 			if data is apprt.ColorChange {
 				if data.kind == .background {
-					mut writable := unsafe { &TermState(current) }
-					writable.background_color = (u32(data.r) << 16) | (u32(data.g) << 8) | u32(data.b)
-					sync_native_window(current)
+					queue_native_background_color(current, data)
 				}
 				return true
 			}

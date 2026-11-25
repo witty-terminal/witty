@@ -35,6 +35,12 @@ fn native_config_change_main(context voidptr) {
 	if mut current := task.target {
 		if !current.closed {
 			current.native_config = projection
+			// Refresh the chrome from the new config until another OSC background arrives.
+			if cached := current.background_color {
+				if cached != projection.background {
+					current.background_color = none
+				}
+			}
 			native_surface_action_config(current,&task.config)
 			if current.controller != unsafe { nil } && current.controller.focused == current { sync_native_window(current) }
 		}
@@ -99,6 +105,35 @@ fn native_focus_follows_mouse(current &TermState) {
 	if controller.focused != unsafe { nil } && controller.focused.actions != unsafe { nil } && controller.focused.actions.command_palette_is_showing() { return }
 	macos.move_focus(current.view,unsafe { nil },none)
 }
+
+struct NativeBackgroundColorTask {
+	state &TermState
+	color u32
+}
+
+fn queue_native_background_color(state &TermState, change apprt.ColorChange) {
+	task := NativeBackgroundColorTask{
+		state: state
+		color: (u32(change.r) << 16) | (u32(change.g) << 8) | u32(change.b)
+	}
+	// Use the main queue for both background notifications and config changes.
+	context := unsafe { memdup_uncollectable(&task, int($sizeof(NativeBackgroundColorTask))) }
+	macos.dispatch_main(native_background_color_main, context)
+}
+
+fn native_background_color_main(context voidptr) {
+	defer { unsafe { free(context) } }
+	task := unsafe { &NativeBackgroundColorTask(context) }
+	mut current := task.state
+	if current.closed {
+		return
+	}
+	current.background_color = task.color
+	if current.controller != unsafe { nil } && current.controller.focused == current {
+		sync_native_window(current)
+	}
+}
+
 struct NativeCellSizeTask {
 	state &TermState
 	width u32
