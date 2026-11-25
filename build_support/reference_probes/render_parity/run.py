@@ -1,6 +1,5 @@
 import argparse
 import hashlib
-import io
 import math
 import os
 from pathlib import Path
@@ -11,7 +10,10 @@ import time
 
 from PIL import Image
 
-from capture import capture_witty, configure_xvfb_capture, output_directory, write_versions
+from capture import (
+    build_window_reader, capture_witty, configure_xvfb_capture, open_window,
+    output_directory, read_window, write_versions,
+)
 from fixtures import CURSOR_STYLES
 
 
@@ -115,43 +117,11 @@ def fixture_args(name, work):
     return [*options, "-e", sys.executable, str(PROBE / "fixtures.py"), name]
 
 
-def find_window(process, log_path):
-    deadline = time.monotonic() + 15
-    while time.monotonic() < deadline:
-        status = process.poll()
-        if status is not None:
-            raise RuntimeError(f"Ghostty exited with status {status}. See {log_path}")
-        windows = subprocess.run(
-            ["xdotool", "search", "--onlyvisible", "--pid", str(process.pid)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            timeout=3,
-        ).stdout.split()
-        if windows:
-            return windows[-1]
-        time.sleep(0.05)
-    raise RuntimeError(f"Ghostty did not open a visible window. See {log_path}")
-
-
 def capture_ghostty(command, helper, prefix, settle):
-    log_path = prefix.with_suffix(".log")
-    with log_path.open("wb") as log:
-        process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
-        try:
-            window = find_window(process, log_path)
-            time.sleep(settle)
-            pixels = subprocess.check_output([helper, window], timeout=5)
-            with Image.open(io.BytesIO(pixels)) as image:
-                image.save(prefix.with_suffix(".png"))
-        finally:
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
+    with open_window(command, prefix.with_suffix(".log")) as (_, window):
+        time.sleep(settle)
+        with read_window(helper, window) as image:
+            image.save(prefix.with_suffix(".png"))
 
 
 def compare(name, actual_path, expected_path, difference_path):
@@ -189,10 +159,7 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
     work = output / "fixtures"
     prepare_fixtures(work)
     helper = output / "window_ppm"
-    subprocess.run(
-        ["cc", "-Wall", "-Wextra", "-Werror", PROBE / "window_ppm.c", "-o", helper, "-lX11"],
-        check=True,
-    )
+    build_window_reader(helper)
     write_versions(output, witty, ghostty)
     with (output / "versions.txt").open("a") as versions:
         versions.write(f"GTK scale: {scale}\n")

@@ -1,10 +1,13 @@
 import argparse
 from pathlib import Path
 import subprocess
+import time
 
 from PIL import Image
 
-from capture import capture_witty, configure_xvfb_capture, output_directory
+from capture import (
+    build_window_reader, capture_witty, configure_xvfb_capture, open_window, output_directory, read_window,
+)
 
 
 COLUMNS = 60
@@ -43,6 +46,45 @@ def capture_grid(binary, name, columns, rows, *options):
         return frame.size
 
 
+def wait_for_shader_color(process, helper, window, expected, screenshot):
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and process.poll() is None:
+        with read_window(helper, window) as image:
+            center = (image.width // 2, image.height // 2)
+            if image.getpixel(center) == expected:
+                image.save(screenshot)
+                return
+        time.sleep(0.1)
+    if process.poll() is None:
+        with read_window(helper, window) as image:
+            image.save(screenshot)
+    raise RuntimeError(f"Witty did not render shader color {expected}. See {screenshot.parent}")
+
+
+def check_shader_reload(binary, output):
+    work = output / "shader-reload"
+    work.mkdir()
+    helper = work / "window_ppm"
+    build_window_reader(helper)
+    config = work / "config"
+    red = work / "red.glsl"
+    green = work / "green.glsl"
+    for shader, color in [(red, "1, 0, 0"), (green, "0, 1, 0")]:
+        shader.write_text(f"void mainImage(out vec4 color, in vec2 uv) {{ color = vec4({color}, 1); }}\n")
+    config.write_text(f"custom-shader = {red}\n")
+    command = [
+        binary, "--config-default-files=false", "--gtk-single-instance=false",
+        "--window-decoration=none", "--window-save-state=never", "--shell-integration=none",
+        f"--config-file={config}", "--keybind=ctrl+alt+9=reload_config",
+        "-e", "/bin/sleep", "30",
+    ]
+    with open_window(command, work / "witty.log") as (process, window):
+        wait_for_shader_color(process, helper, window, (255, 0, 0), work / "before.png")
+        config.write_text(f"custom-shader = {green}\n")
+        subprocess.run(["xdotool", "windowfocus", "--sync", window, "key", "ctrl+alt+9"], check=True, timeout=5)
+        wait_for_shader_color(process, helper, window, (0, 255, 0), work / "after.png")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Check Linux screenshot content and viewport sizing in Xvfb.")
     parser.add_argument("witty", type=Path)
@@ -79,9 +121,10 @@ def main():
         log = fallback.with_suffix(".log")
         if "error initializing postprocess shaders" not in log.read_text():
             raise RuntimeError(f"Expected OpenGL to reject the post-processing pipeline. See {log}")
+        check_shader_reload(binary, output)
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         parser.exit(1, f"Linux screenshot check failed: {error}\n")
-    print(f"Verified terminal grid sizing and rendering after a shader link failure. See {output}")
+    print(f"Verified terminal grid sizing, shader fallback, and shader reload. See {output}")
 
 
 if __name__ == "__main__":

@@ -621,7 +621,7 @@ fn (mut self RendererThread) drain_mailbox() ! {
 
 	for {
 		msg := self.mailbox.pop() or { break }
-		log.debug('mailbox message=${msg}')
+		log.debug('mailbox message=${msg.type_name()}')
 		match msg {
 			CrashMessage {
 				panic('crash request, crashing intentionally')
