@@ -29,7 +29,7 @@ jobs:
             libxml2-dev libpng-dev zlib1g-dev libbz2-dev \
             libx11-dev libxi-dev libxcursor-dev libwayland-dev wayland-protocols \
             libegl-dev libgl-dev libgl1-mesa-dri fonts-dejavu-core \
-            curl dbus-daemon python3-pil vim xauth xdotool xvfb
+            curl dbus-daemon less python3-pil tmux vim xauth xdotool xvfb
       - name: Install V
         run: bash .github/scripts/install-v.sh
       - name: Build Witty
@@ -51,7 +51,8 @@ jobs:
             --fixture command-palette --fixture command-palette-compact --fixture clipboard-confirmation \
             --fixture config-errors --fixture terminal-title --fixture tab-title \
             --fixture close-confirmation --fixture gtk-toast \
-            --fixture gtk-chrome-tabs --fixture gtk-chrome-native --fixture tab-overview
+            --fixture gtk-chrome-tabs --fixture gtk-chrome-native --fixture tab-overview \
+            --fixture less --fixture tmux
       - name: Upload screenshots and comparison report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7

@@ -2,7 +2,7 @@
 
 ## Linux
 
-Run this probe on Linux with an installed [Ghostty GTK release](https://ghostty.org/download), Python 3 with Pillow, DejaVu Sans Mono, Xvfb, `xauth`, `dbus-run-session`, `xdotool`, a C compiler with X11 headers, GNU `ls`, Git, and Vim.
+Run this probe on Linux with an installed [Ghostty GTK release](https://ghostty.org/download), Python 3 with Pillow, DejaVu Sans Mono, Xvfb, `xauth`, `dbus-run-session`, `xdotool`, a C compiler with X11 headers, GNU `ls`, Git, Vim, less, and tmux.
 
 The probe works with debug and release builds. This command builds Witty with the settings used by the on-demand parity workflow.
 
@@ -31,6 +31,8 @@ The scrollback fixtures update the palette and append a row after scrolling into
 The search fixture drives scrollback search through keybindings and checks both highlight colors as navigation wraps from the newest match to the oldest and back.
 The split search fixture captures the full GTK client window and compares both panes as Find takes focus in the right pane.
 The resize fixtures narrow the window with the cursor after blank cells or near the bottom of the screen. They also check which row of a newly wrapped Bash prompt clears and where the next character appears after widening a full row.
+
+The `less` fixture captures an ANSI-colored file when it opens, after searching, and after advancing to the next match. The `tmux` fixture captures a two-pane session with box drawing, a colored status line, and focus switching with Ctrl+B followed by O.
 
 Each run saves the PNGs, application logs, executable versions and hashes, and a `results.tsv` report under `.witty-build/render-parity/`. Differing pixels appear white in the corresponding `*-diff.png` mask. A size or pixel mismatch returns exit status 1.
 

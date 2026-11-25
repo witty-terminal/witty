@@ -11,6 +11,7 @@ import time
 
 from PIL import Image, ImageChops
 
+from applications import APPLICATION_STAGES, capture_less, capture_tmux, prepare_applications
 from capture import (
     build_window_reader, capture_witty, configure_xvfb_capture, open_window,
     output_directory, read_window, write_versions,
@@ -56,7 +57,7 @@ FIXTURES = (
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
     "kitty-delete-selection", "kitty-delete-visible", "kitty-chunked", "kitty-animation",
-    *WALLPAPER_OPTIONS, "ls", "git", "vim", "shader",
+    *WALLPAPER_OPTIONS, "ls", "git", "vim", *APPLICATION_STAGES, "shader",
 )
 OPTIONS = (
     "--config-default-files=false",
@@ -123,6 +124,8 @@ def prepare_fixtures(path):
 def fixture_args(name, work):
     blend = "native" if name == "ansi" or name.startswith("kitty") else "linear-corrected"
     options = [*OPTIONS, f"--alpha-blending={blend}", f"--working-directory={work}"]
+    if name in APPLICATION_STAGES:
+        return options
     if name == "tab-overview":
         program = shlex.join([sys.executable, str(PROBE / "fixtures.py"), name, str(work / "overview-tab-count")])
         return [
@@ -904,6 +907,7 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
     configure_xvfb_capture(scale)
     work = output / "fixtures"
     prepare_fixtures(work)
+    prepare_applications(work, fixtures)
     helper = output / "window_ppm"
     build_window_reader(helper)
     write_versions(output, witty, ghostty)
@@ -920,7 +924,13 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             args = fixture_args(name, work)
             actual = output / f"{name}-witty"
             expected = output / f"{name}-ghostty"
-            if name in INTERACTIVE_FIXTURES:
+            if name == "less":
+                capture_less(ghostty, args, helper, output, "ghostty", work, settle, scale, PADDING)
+                capture_less(witty, args, helper, output, "witty", work, settle, scale, PADDING)
+            elif name == "tmux":
+                capture_tmux(ghostty, args, helper, output, "ghostty", work, settle, scale)
+                capture_tmux(witty, args, helper, output, "witty", work, settle, scale)
+            elif name in INTERACTIVE_FIXTURES:
                 capture_interactive(ghostty, args, helper, expected, name, settle, scale)
                 capture_interactive(witty, args, helper, actual, name, settle, scale, witty=True)
             elif name == "split-search":
@@ -979,13 +989,15 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             else:
                 capture_ghostty([ghostty, *args], helper, expected, settle)
                 capture_witty(witty, args, actual, settle)
-            row, match = compare(
-                name, actual.with_suffix(".png"), expected.with_suffix(".png"),
-                output / f"{name}-diff.png",
-            )
-            print(row, file=report, flush=True)
-            print(row, flush=True)
-            matches = matches and match
+            for stage in APPLICATION_STAGES.get(name, ("",)):
+                case = f"{name}{stage}"
+                row, match = compare(
+                    case, output / f"{case}-witty.png", output / f"{case}-ghostty.png",
+                    output / f"{case}-diff.png",
+                )
+                print(row, file=report, flush=True)
+                print(row, flush=True)
+                matches = matches and match
     return 0 if matches else 1
 
 
@@ -1007,7 +1019,7 @@ def main():
         if not binary.is_file() or not os.access(binary, os.X_OK):
             parser.error(f"expected an executable file at {binary}")
     fixtures = tuple(dict.fromkeys(args.fixture or FIXTURES))
-    tools = ("cc", "xdotool", *(name for name in fixtures if name in ("ls", "git", "vim")))
+    tools = ("cc", "xdotool", "env", *(name for name in fixtures if name in ("ls", "git", "vim", *APPLICATION_STAGES)))
     for tool in tools:
         if not shutil.which(tool):
             parser.error(f"missing {tool}")
