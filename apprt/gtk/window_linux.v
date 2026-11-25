@@ -965,6 +965,7 @@ fn window_close_page_cb(view AdwTabView, page AdwTabPage, user_data voidptr) int
 		return 1
 	}
 	mut dialog := close_confirmation_dialog_new(.tab)
+	dialog.set_canvas_enabled(!isnil(self.config) && gtk_canvas_styles_enabled(self.config.get()))
 	C.g_signal_connect_data(dialog.dialog.obj, c'close-request',
 		GCallback(voidptr(window_close_tab_confirmed_cb)), page, unsafe { nil }, 0)
 	C.g_signal_connect_data(dialog.dialog.obj, c'cancel',
@@ -2288,6 +2289,7 @@ pub fn (mut self Window) prop_quick_terminal(mut app Application) {
 pub fn (mut self Window) window_close_request() bool {
 	if self.get_needs_confirm_quit() {
 		mut dialog := close_confirmation_dialog_new(.window)
+		dialog.set_canvas_enabled(!isnil(self.config) && gtk_canvas_styles_enabled(self.config.get()))
 		C.g_signal_connect_data(dialog.dialog.obj, c'close-request',
 			GCallback(voidptr(window_close_confirmed_cb)), voidptr(self), unsafe { nil }, 0)
 		dialog.present(self.as_widget())

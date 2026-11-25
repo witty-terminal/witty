@@ -136,6 +136,7 @@ fn close_confirmation_dialog_dispose(obj voidptr) {
 // ghostty `Class.init`.
 fn close_confirmation_dialog_class_init(klass voidptr, class_data voidptr) {
 	C.g_type_class_adjust_private_offset(klass, &g_close_confirmation_dialog_priv_offset)
+	C.witty_gtk_dialog_canvas_class_init(klass, true)
 	// Ensure the parent Dialog type is registered (ghostty's ensureType).
 	dialog_get_type()
 
@@ -222,6 +223,10 @@ fn close_confirmation_native_response_cb(obj GObject, response_id &char) {
 	} else {
 		C.g_signal_emit_by_name(obj, c'cancel')
 	}
+}
+
+fn (self &CloseConfirmationDialog) set_canvas_enabled(enabled bool) {
+	gtk_canvas_overlay_set_mask(GtkWidget(self.dialog.obj), supports_dialogs() && enabled)
 }
 
 // present sets up the title/body from the target and shows the dialog. Mirrors

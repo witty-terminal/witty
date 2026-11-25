@@ -498,6 +498,7 @@ def main():
         "command-palette": b"GTK command palette\r\n",
         "command-palette-compact": b"GTK command palette\r\n",
         "window-chrome": b"GTK window chrome\r\n",
+        "terminal-dialog": b"\x1b]0;Initial title\x07GTK dialog fixture\r\n",
     }
     sys.stdout.buffer.write(CLEAR)
     sys.stdout.flush()

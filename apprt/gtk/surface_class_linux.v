@@ -1291,6 +1291,8 @@ pub fn (mut self SurfaceWidget) prompt_title() {
 		initial_value = title
 	}
 	mut dialog := surface_title_dialog_new(initial_value)
+	gtk_canvas_overlay_set_mask(GtkWidget(dialog.obj), !isnil(self.config)
+		&& gtk_canvas_styles_enabled(self.config.get()))
 	C.g_signal_connect_data(dialog.obj, c'set', GCallback(voidptr(surface_title_dialog_set_cb)), voidptr(self), unsafe { nil }, 0)
 	dialog.present(self.widget)
 }

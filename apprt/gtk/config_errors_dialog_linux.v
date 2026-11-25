@@ -143,7 +143,7 @@ fn config_errors_dialog_native_response_cb(obj GObject, response_id &char) {
 fn config_errors_dialog_class_init(klass voidptr, class_data voidptr) {
 	C.g_type_class_adjust_private_offset(klass, &g_config_errors_dialog_priv_offset)
 	dialog_get_type()
-	C.witty_gtk_dialog_canvas_class_init(klass)
+	C.witty_gtk_dialog_canvas_class_init(klass, false)
 
 	bytes := C.g_bytes_new_static(config_errors_dialog_ui.str, uint(config_errors_dialog_ui.len))
 	C.gtk_widget_class_set_template(klass, bytes)

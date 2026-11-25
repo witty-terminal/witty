@@ -36,6 +36,7 @@ INTERACTIVE_FIXTURES = (
 LINK_PREVIEW_FIXTURES = ("link-preview", "link-preview-right")
 COMMAND_PALETTE_FIXTURES = ("command-palette", "command-palette-compact")
 WINDOW_CHROME_FIXTURES = ("gtk-chrome-tabs", "gtk-chrome-native")
+TERMINAL_DIALOG_FIXTURES = ("terminal-title", "close-confirmation")
 WALLPAPER_OPTIONS = {
     "wallpaper-stretch": ("--background-image-fit=stretch",),
     "wallpaper-repeat": (
@@ -49,6 +50,7 @@ FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
     *INTERACTIVE_FIXTURES, "split-search", "visual-bell", "progress-overlay", "resize-overlay", "key-state-overlay",
     *LINK_PREVIEW_FIXTURES, "readonly-overlay", *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
+    "terminal-title",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -120,6 +122,13 @@ def prepare_fixtures(path):
 def fixture_args(name, work):
     blend = "native" if name == "ansi" or name.startswith("kitty") else "linear-corrected"
     options = [*OPTIONS, f"--alpha-blending={blend}", f"--working-directory={work}"]
+    if name in TERMINAL_DIALOG_FIXTURES:
+        action = "prompt_surface_title" if name == "terminal-title" else "close_window"
+        return [
+            *options, "--window-width=72", "--window-height=22", "--confirm-close-surface=always",
+            "--quit-after-last-window-closed=false", f"--keybind=ctrl+alt+t={action}",
+            "-e", sys.executable, str(PROBE / "fixtures.py"), "terminal-dialog",
+        ]
     if name == "config-errors":
         return [
             *options, "--initial-window=false", "--quit-after-last-window-closed=false",
@@ -523,6 +532,63 @@ def capture_config_errors(binary, args, helper, prefix, settle, scale):
         raise RuntimeError("Reloading the repaired configuration left the diagnostics window open")
 
 
+def capture_terminal_dialog(binary, args, helper, prefix, settle, config_dir, name, *, witty=False):
+    # Closing the window is part of the close fixture, so launch it normally.
+    capture_args = [f"--screenshot={prefix}-terminal.png"] if witty and name == "terminal-title" else []
+    fade = max(settle, 0.65)
+    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
+    env = {**os.environ, "GSK_DEBUG": debug, "XDG_CONFIG_HOME": str(config_dir),
+           "SCREENSHOT_SETTLE_SECONDS": str(8 * fade + 8)}
+
+    def xdotool(*command):
+        return subprocess.check_output(["xdotool", *command], text=True, timeout=5).strip()
+
+    with open_window([binary, *capture_args, *args], prefix.with_suffix(".log"), env=env) as (process, window):
+        xdotool("windowfocus", "--sync", window, "mousemove", "--window", window, "14", "80")
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            idle = image.tobytes()
+        xdotool("key", "ctrl+alt+t")
+        time.sleep(fade)
+        if name == "close-confirmation":
+            # Expose the Cancel button's keyboard focus consistently.
+            xdotool("key", "Tab", "shift+Tab")
+            time.sleep(fade)
+        with read_window(helper, window) as image:
+            if image.tobytes() == idle:
+                raise RuntimeError(f"{name} did not open")
+            image.save(prefix.with_suffix(".png"))
+        xdotool("key", "Escape")
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            if image.tobytes() != idle:
+                raise RuntimeError(f"Escape did not dismiss {name}")
+
+        xdotool("key", "ctrl+alt+t")
+        time.sleep(fade)
+        if name == "terminal-title":
+            xdotool("key", "ctrl+a", "type", "--delay", "0", "Parity title")
+            xdotool("key", "Return")
+            time.sleep(fade)
+            if xdotool("getwindowname", window) != "Parity title":
+                raise RuntimeError("Enter did not apply the terminal title")
+            xdotool("key", "ctrl+alt+t")
+            time.sleep(fade)
+            xdotool("key", "ctrl+a", "key", "BackSpace", "key", "Return")
+            time.sleep(fade)
+            if xdotool("getwindowname", window) != "Initial title":
+                raise RuntimeError("A blank title did not restore the default")
+        else:
+            xdotool("key", "Tab", "key", "Return")
+            time.sleep(fade)
+            windows = subprocess.run(
+                ["xdotool", "search", "--onlyvisible", "--pid", str(process.pid)],
+                capture_output=True, timeout=5,
+            )
+            if windows.stdout or process.poll() not in (None, 0):
+                raise RuntimeError("Confirming close did not close the terminal window")
+
+
 def drag_wide_selection(window, padding, cell_width, cell_height):
     # The emoji is in columns 13 and 14 (zero-based). Start on its
     # spacer tail and drag past the space in column 15.
@@ -797,6 +863,13 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name == "config-errors":
                 capture_config_errors(ghostty, args, helper, expected, settle, scale)
                 capture_config_errors(witty, args, helper, actual, settle, scale)
+            elif name in TERMINAL_DIALOG_FIXTURES:
+                config_dir = work / f"{name}-config"
+                gtk_config = config_dir / "gtk-4.0"
+                gtk_config.mkdir(parents=True)
+                (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
+                capture_terminal_dialog(ghostty, args, helper, expected, settle, config_dir, name)
+                capture_terminal_dialog(witty, args, helper, actual, settle, config_dir, name, witty=True)
             else:
                 capture_ghostty([ghostty, *args], helper, expected, settle)
                 capture_witty(witty, args, actual, settle)
@@ -817,7 +890,7 @@ def main():
     parser.add_argument("--output", type=Path, help="new directory for screenshots, logs, and the report")
     parser.add_argument("--settle-seconds", type=float, default=1.0)
     parser.add_argument("--scale", type=int, choices=(1, 2), default=1, help="GTK display scale (default: 1)")
-    parser.add_argument("--fixture", choices=(*FIXTURES, *WINDOW_CHROME_FIXTURES), action="append",
+    parser.add_argument("--fixture", choices=(*FIXTURES, *WINDOW_CHROME_FIXTURES, "close-confirmation"), action="append",
                         help="run only this fixture, repeatable")
     args = parser.parse_args()
     if sys.platform != "linux" or not os.environ.get("DISPLAY"):

@@ -418,7 +418,7 @@ fn clipboard_confirmation_hide_clicked_cb(button voidptr, obj voidptr) {
 // confirm/deny signals, and overrides the get/set/dispose/finalize vfuncs.
 fn clipboard_confirmation_dialog_class_init(klass voidptr, class_data voidptr) {
 	C.g_type_class_adjust_private_offset(klass, &g_clipboard_confirmation_dialog_priv_offset)
-	C.witty_gtk_dialog_canvas_class_init(klass)
+	C.witty_gtk_dialog_canvas_class_init(klass, false)
 	template_ui := if supports_switch_row() {
 		clipboard_confirmation_dialog_ui
 	} else {

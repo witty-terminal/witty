@@ -148,6 +148,7 @@ fn surface_title_dialog_finalize(obj voidptr) {
 // `Class.init`.
 fn surface_title_dialog_class_init(klass voidptr, class_data voidptr) {
 	C.g_type_class_adjust_private_offset(klass, &g_surface_title_dialog_priv_offset)
+	C.witty_gtk_dialog_canvas_class_init(klass, true)
 	bytes := C.g_bytes_new_static(surface_title_dialog_ui.str, uint(surface_title_dialog_ui.len))
 	C.gtk_widget_class_set_template(klass, bytes)
 	C.g_bytes_unref(bytes)

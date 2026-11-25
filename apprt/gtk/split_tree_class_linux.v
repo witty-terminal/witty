@@ -884,6 +884,7 @@ pub fn (mut self SplitTreeWidget) surface_close_request(surface &SurfaceWidget) 
 	}
 
 	mut dialog := close_confirmation_dialog_new(.surface)
+	dialog.set_canvas_enabled(!isnil(self.config) && gtk_canvas_styles_enabled(self.config.get()))
 	C.g_signal_connect_data(dialog.dialog.obj, c'close-request', GCallback(voidptr(split_tree_close_confirmed_cb)), voidptr(self), unsafe { nil }, 0)
 	dialog.present(self.widget)
 }

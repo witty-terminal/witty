@@ -40,7 +40,7 @@ static inline void witty_gtk_window_canvas_snapshot(GtkWidget *widget, GtkSnapsh
 	native_class->snapshot(widget, layout);
 	g_autoptr(GskRenderNode) node = gtk_snapshot_free_to_node(layout);
 	for (guint i = 0; node && i < count; ++i) {
-		GskRenderNode *updated = witty_gtk_canvas_replace_flat_fill(node, mask, &areas[i]);
+		GskRenderNode *updated = witty_gtk_canvas_replace_fill(node, mask, &areas[i]);
 		if (updated) {
 			gsk_render_node_unref(node);
 			node = updated;
