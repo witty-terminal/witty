@@ -589,6 +589,10 @@ fn test_native_progress_overlay_capture() {
 			}
 		}
 	}
+	value_output := os.getenv('WITTY_PROGRESS_VALUE_OUTPUT')
+	if value_output != '' {
+		capture_progress_value_motion(window, base, mut surface, value_output)
+	}
 	if motion_output != '' {
 		// Use a nonzero local clock so a resize can retain the original start.
 		start := 1.0
@@ -628,6 +632,63 @@ fn test_native_progress_overlay_capture() {
 				nsstring(os.join_path(motion_output, '${label}-witty.png')), ObjId(1))
 		}
 	}
+}
+
+fn capture_progress_value_motion(window ObjId, base ObjId, mut surface NativeActionSurface, output string) {
+	loop := msg_id(get_class('NSRunLoop'), 'currentRunLoop')
+	C.witty_macos_msg_void_f32(surface.progress_layer, sel('setSpeed:'), 0)
+	for mode in ['increase', 'decrease', 'interrupt', 'empty', 'full', 'resize'] {
+		surface.set_progress(0, none)
+		msg_void_f64(surface.progress_layer, 'setTimeOffset:', 1)
+		from := match mode {
+			'decrease', 'empty' { u8(83) }
+			'full' { u8(0) }
+			else { u8(17) }
+		}
+		to := match mode {
+			'decrease' { u8(17) }
+			'empty' { u8(0) }
+			'full' { u8(100) }
+			else { u8(83) }
+		}
+		surface.set_progress(1, from)
+		assert !is_nil(C.witty_overlay_test_window_png(window))
+		surface.set_progress(1, to)
+		for ms in [10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210, 230, 350] {
+			if ms == 110 {
+				msg_void_f64(surface.progress_layer, 'setTimeOffset:', 1.1)
+				if mode == 'interrupt' {
+					surface.set_progress(1, u8(38))
+				} else if mode == 'resize' {
+					msg_void_size(window, 'setContentSize:', objc_size(126, 6))
+					msg_void_rect(base, 'setFrame:', objc_rect(0, 0, 126, 6))
+					surface.scroll.layout()
+					surface.resize()
+				}
+			}
+			msg_void_f64(surface.progress_layer, 'setTimeOffset:', 1 + f64(ms) / 1000)
+			msg_void(get_class('CATransaction'), 'flush')
+			msg_void1(loop, 'runUntilDate:', msg_id_f64(get_class('NSDate'),
+				'dateWithTimeIntervalSinceNow:', 0.06))
+			png := C.witty_overlay_test_current_window_png(window)
+			assert !is_nil(png)
+			assert msg_bool2(png, 'writeToFile:atomically:',
+				nsstring(os.join_path(output, '${mode}-${ms}.png')), ObjId(1))
+		}
+	}
+	surface.set_progress(1, u8(17))
+	assert !is_nil(msg_id1(surface.progress_layer, 'animationForKey:', nsstring('progressWidthOffset')))
+	surface.set_progress(3, none)
+	keys := msg_id(surface.progress_layer, 'animationKeys')
+	assert msg_u64(keys, 'count') == 1
+	assert !is_nil(msg_id1(surface.progress_layer, 'animationForKey:', nsstring('bounce')))
+	surface.set_progress(0, none)
+	msg_void_size(window, 'setContentSize:', objc_size(101, 6))
+	msg_void_rect(base, 'setFrame:', objc_rect(0, 0, 101, 6))
+	surface.scroll.layout()
+	surface.resize()
+	msg_void_f64(surface.progress_layer, 'setTimeOffset:', 0)
+	C.witty_macos_msg_void_f32(surface.progress_layer, sel('setSpeed:'), 1)
 }
 
 // Invert the ease-in-out curve so the captures correspond to known positions.

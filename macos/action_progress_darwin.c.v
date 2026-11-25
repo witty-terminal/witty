@@ -4,6 +4,7 @@ import gg.canvas
 import math
 
 const progress_bounce_duration = 1.2
+const progress_value_duration = 0.2
 
 fn C.witty_action_layer_time(layer ObjId) f64
 
@@ -16,6 +17,8 @@ fn (mut state NativeActionSurface) initialize_progress() {
 	msg_void_bool(clip, 'setMasksToBounds:', true)
 	state.progress_track = msg_id(get_class('CALayer'), 'layer')
 	state.progress_layer = msg_id(get_class('CALayer'), 'layer')
+	C.witty_action_layer_anchor(state.progress_layer, 0, 0.5)
+	msg_void_bool(state.progress_layer, 'setAllowsEdgeAntialiasing:', true)
 	msg_void1(clip, 'addSublayer:', state.progress_track)
 	msg_void1(clip, 'addSublayer:', state.progress_layer)
 	msg_void_bool(state.progress_view, 'setAccessibilityElement:', true)
@@ -41,7 +44,8 @@ fn (mut state NativeActionSurface) refresh_progress() {
 	width := view_width(state.view)
 	scale := view_backing_scale(state.view)
 	value := if determinate { f64(progress_value) / 100 } else { 0.25 }
-	bar_width := math.round(width * value * scale) / scale
+	raw_width := width * value
+	bar_width := math.round(raw_width * scale) / scale
 	size_changed := width != state.last_progress_width || scale != state.last_progress_scale
 
 	color := msg_id(get_class('NSColor'), match state.progress_state {
@@ -66,26 +70,24 @@ fn (mut state NativeActionSurface) refresh_progress() {
 	msg_void_rect(state.progress_view, 'setFrame:', objc_rect(0, 0, width, 2))
 	msg_void_rect(state.progress_track, 'setFrame:', objc_rect(0, 0, width, 2))
 	msg_void_bool(state.progress_track, 'setHidden:', determinate)
-	msg_void(transaction, 'commit')
-
-	animate := determinate && state.last_progress_value >= 0
-		&& progress_value != state.last_progress_value && !size_changed
-	msg_void(transaction, 'begin')
-	msg_void_bool(transaction, 'setDisableActions:', !animate)
-	msg_void_f64(transaction, 'setAnimationDuration:', 0.2)
-	msg_void1(transaction, 'setAnimationTimingFunction:', progress_timing_function())
 	msg_void_rect(state.progress_layer, 'setFrame:', objc_rect(0, 0, bar_width, 2))
 	msg_void(transaction, 'commit')
-	bounce := msg_id1(state.progress_layer, 'animationForKey:', nsstring('bounce'))
 	if determinate {
 		state.clear_progress_bounce()
-	} else if width > 0 && (size_changed || is_nil(bounce)) {
-		start := if is_nil(bounce) {
-			C.witty_action_layer_time(state.progress_layer)
-		} else {
-			msg_f64(bounce, 'beginTime')
+		state.refresh_progress_value(progress_value, raw_width, bar_width, size_changed)
+	} else {
+		if state.last_progress_value >= 0 {
+			msg_void(state.progress_layer, 'removeAllAnimations')
 		}
-		animate_progress_bounce(state.progress_layer, width, scale, start)
+		bounce := msg_id1(state.progress_layer, 'animationForKey:', nsstring('bounce'))
+		if width > 0 && (size_changed || is_nil(bounce)) {
+			start := if is_nil(bounce) {
+				C.witty_action_layer_time(state.progress_layer)
+			} else {
+				msg_f64(bounce, 'beginTime')
+			}
+			animate_progress_bounce(state.progress_layer, width, scale, start)
+		}
 	}
 	state.last_progress_value = progress_value
 	state.last_progress_width = width
@@ -111,6 +113,43 @@ fn progress_timing_function() ObjId {
 	return msg_id1(get_class('CAMediaTimingFunction'), 'functionWithName:', nsstring('easeInEaseOut'))
 }
 
+fn (state &NativeActionSurface) refresh_progress_value(value int, raw_width f64, bar_width f64, size_changed bool) {
+	if state.last_progress_value < 0 { return }
+	layer := state.progress_layer
+	offset_key := nsstring('progressWidthOffset')
+	mut start := f64(0)
+	if value != state.last_progress_value {
+		previous_width := state.last_progress_width * (f64(state.last_progress_value) / 100)
+		start = C.witty_action_layer_time(layer)
+		// Each report adds its own change to the width. Existing changes keep
+		// their easing and finish on their original schedule.
+		animate_progress_width(layer, nil_obj(), previous_width - raw_width, 0, start)
+	} else if size_changed {
+		offset := msg_id1(layer, 'animationForKey:', offset_key)
+		if is_nil(offset) { return }
+		start = msg_f64(offset, 'beginTime')
+	} else {
+		return
+	}
+	// Use the fractional target during motion and the pixel-aligned frame
+	// after the last change finishes. A resize updates the offset in place.
+	offset := raw_width - bar_width
+	animate_progress_width(layer, offset_key, offset, offset, start)
+}
+
+fn animate_progress_width(layer ObjId, key ObjId, from f64, to f64, start f64) {
+	animation := msg_id1(get_class('CABasicAnimation'), 'animationWithKeyPath:',
+		nsstring('bounds.size.width'))
+	number := get_class('NSNumber')
+	msg_void1(animation, 'setFromValue:', msg_id_f64(number, 'numberWithDouble:', from))
+	msg_void1(animation, 'setToValue:', msg_id_f64(number, 'numberWithDouble:', to))
+	msg_void_bool(animation, 'setAdditive:', true)
+	msg_void_f64(animation, 'setBeginTime:', start)
+	msg_void_f64(animation, 'setDuration:', progress_value_duration)
+	msg_void1(animation, 'setTimingFunction:', progress_timing_function())
+	msg_void2(layer, 'addAnimation:forKey:', animation, key)
+}
+
 fn (state &NativeActionSurface) clear_progress_bounce() {
 	msg_void1(state.progress_layer, 'removeAnimationForKey:', nsstring('bounce'))
 }
@@ -131,12 +170,12 @@ fn animate_progress_bounce(layer ObjId, width f64, scale f64, start f64) {
 	mut left := 0.0
 	mut right := math.round(unrounded_width)
 	mut times := []voidptr{}
-	mut centers := []voidptr{}
+	mut positions := []voidptr{}
 	mut widths := []voidptr{}
 	mut phase := 0.0
 	for {
 		times << voidptr(msg_id_f64(number, 'numberWithDouble:', phase))
-		centers << voidptr(msg_id_f64(number, 'numberWithDouble:', (left + right) / (2 * scale)))
+		positions << voidptr(msg_id_f64(number, 'numberWithDouble:', left / scale))
 		widths << voidptr(msg_id_f64(number, 'numberWithDouble:', (right - left) / scale))
 
 		// Snap each edge independently as it crosses the next half pixel.
@@ -152,7 +191,7 @@ fn animate_progress_bounce(layer ObjId, width f64, scale f64, start f64) {
 	times << voidptr(msg_id_f64(number, 'numberWithDouble:', 1))
 	key_times := C.witty_macos_array(times.data, uint(times.len))
 	animations := [
-		voidptr(progress_bounce_keyframes('position.x', key_times, centers)),
+		voidptr(progress_bounce_keyframes('position.x', key_times, positions)),
 		voidptr(progress_bounce_keyframes('bounds.size.width', key_times, widths)),
 	]
 	group := msg_id(get_class('CAAnimationGroup'), 'animation')
