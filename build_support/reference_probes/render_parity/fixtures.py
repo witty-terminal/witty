@@ -14,7 +14,8 @@ KITTY_SCROLL_FIXTURES = ("kitty-scroll-up", "kitty-scroll-down")
 SCROLLBACK_FIXTURES = ("scrollback-follow-output", "scrollback-keep-position")
 SCROLLBACK_LAST_COLOR = (38, 198, 216)
 SCROLLBACK_RECOLORED = (221, 117, 170)
-RESIZE_FIXTURES = ("resize-cursor-in-blanks", "resize-cursor-near-bottom")
+RESIZE_FIXTURES = ("resize-cursor-in-blanks", "resize-cursor-near-bottom", "resize-pending-wrap")
+RESIZE_WRAP_COLOR = (129, 68, 93)
 
 
 def kitty_image():
@@ -343,17 +344,35 @@ def scrollback_output():
         termios.tcsetattr(sys.stdin, termios.TCSANOW, attrs)
 
 
+def wait_for_terminal_size(matches, expected):
+    deadline = time.monotonic() + 5
+    while True:
+        size = os.get_terminal_size(sys.stdout.fileno())
+        if matches(size):
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"Expected {expected}, got a {size.columns}×{size.lines} PTY")
+        time.sleep(0.01)
+
+
+def wait_for_initial_grid():
+    wait_for_terminal_size(lambda size: size == (GRID_COLUMNS, GRID_ROWS), f"a {GRID_COLUMNS}×{GRID_ROWS} PTY")
+
+
+def resize_pending_wrap():
+    wait_for_initial_grid()
+    # The next printable character would normally wrap to the next row.
+    line = "Full line before widening " + "1234567890" * GRID_COLUMNS
+    sys.stdout.write("\x1b[2 q\x1b[?25h" + line[:GRID_COLUMNS])
+    sys.stdout.flush()
+    wait_for_terminal_size(lambda size: size.columns > GRID_COLUMNS, "a wider PTY")
+    r, g, b = RESIZE_WRAP_COLOR
+    return f"\x1b[48;2;{r};{g};{b}mX\x1b[0m".encode()
+
+
 def colored_line_erase():
     # An erase issued before the startup resize uses the old right edge.
-    expected = (GRID_COLUMNS, GRID_ROWS)
-    deadline = time.monotonic() + 5
-    size = os.get_terminal_size(sys.stdout.fileno())
-    while size != expected:
-        if time.monotonic() >= deadline:
-            raise RuntimeError(f"Expected a {GRID_COLUMNS}×{GRID_ROWS} PTY, got {size.columns}×{size.lines}")
-        time.sleep(0.01)
-        size = os.get_terminal_size(sys.stdout.fileno())
-
+    wait_for_initial_grid()
     return (
         "Colored line erase\x1b[2;1HErase to end \x1b[48;2;71;99;143m\x1b[K\x1b[0m"
         "\x1b[3;23HErase to start\x1b[3;22H\x1b[48;2;55;105;81m\x1b[1K\x1b[0m"
@@ -447,6 +466,8 @@ def main():
         sys.stdout.buffer.write(terminal_sprites())
     elif fixture == "colored-line-erase":
         sys.stdout.buffer.write(colored_line_erase())
+    elif fixture == "resize-pending-wrap":
+        sys.stdout.buffer.write(resize_pending_wrap())
     elif fixture in SCROLLBACK_FIXTURES:
         scrollback_output()
         return

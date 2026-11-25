@@ -2310,6 +2310,7 @@ fn test_screen_resize_more_rows_with_populated_scrollback() ! {
 
 	// Set our cursor to be on the "4"
 	s.cursor_absolute(0, 1)
+	s.cursor.pending_wrap = false
 	if true {
 		list_cell := must_cell(s, active_pt(int(s.cursor.x), int(s.cursor.y)))
 		assert list_cell.cell.codepoint == u32(`4`)
@@ -2340,8 +2341,9 @@ fn test_screen_resize_more_cols_no_reflow() ! {
 	cursor := s.cursor
 	s.resize(ScreenResize{ cols: 10, rows: 3 })!
 
-	// Cursor should not move
-	assert s.cursor.x == cursor.x
+	// The new right edge leaves space for the next character.
+	assert !s.cursor.pending_wrap
+	assert s.cursor.x == cursor.x + 1
 	assert s.cursor.y == cursor.y
 
 	if true {
@@ -2489,6 +2491,7 @@ fn test_screen_resize_more_cols_with_reflow_that_fits_full_width() ! {
 
 	// Let's put our cursor on row 2, where the soft wrap is
 	s.cursor_absolute(0, 1)
+	s.cursor.pending_wrap = false
 	if true {
 		list_cell := must_cell(s, active_pt(int(s.cursor.x), int(s.cursor.y)))
 		assert list_cell.cell.codepoint == u32(`2`)
@@ -2548,6 +2551,7 @@ fn test_screen_resize_more_cols_with_reflow_that_forces_more_wrapping() ! {
 
 	// Let's put our cursor on row 2, where the soft wrap is
 	s.cursor_absolute(0, 1)
+	s.cursor.pending_wrap = false
 	if true {
 		list_cell := must_cell(s, active_pt(int(s.cursor.x), int(s.cursor.y)))
 		assert list_cell.cell.codepoint == u32(`2`)
@@ -2581,6 +2585,7 @@ fn test_screen_resize_more_cols_with_reflow_that_unwraps_multiple_times() ! {
 
 	// Let's put our cursor on row 2, where the soft wrap is
 	s.cursor_absolute(0, 2)
+	s.cursor.pending_wrap = false
 	if true {
 		list_cell := must_cell(s, active_pt(int(s.cursor.x), int(s.cursor.y)))
 		assert list_cell.cell.codepoint == u32(`3`)
@@ -2619,6 +2624,7 @@ fn test_screen_resize_more_cols_with_populated_scrollback() ! {
 
 	// // Set our cursor to be on the "5"
 	s.cursor_absolute(0, 2)
+	s.cursor.pending_wrap = false
 	if true {
 		list_cell := must_cell(s, active_pt(int(s.cursor.x), int(s.cursor.y)))
 		assert list_cell.cell.codepoint == u32(`5`)
@@ -2647,6 +2653,7 @@ fn test_screen_resize_more_cols_with_reflow() ! {
 
 	// Let's put our cursor on row 2, where the soft wrap is
 	s.cursor_absolute(0, 2)
+	s.cursor.pending_wrap = false
 	if true {
 		list_cell := must_cell(s, active_pt(int(s.cursor.x), int(s.cursor.y)))
 		assert list_cell.cell.codepoint == u32(`E`)
@@ -2685,8 +2692,9 @@ fn test_screen_resize_more_rows_and_cols_with_wrapping() ! {
 
 	s.resize(ScreenResize{ cols: 5, rows: 10 })!
 
-	// Cursor should move due to wrapping
-	assert s.cursor.x == 3
+	// Reflow leaves room for the next character.
+	assert !s.cursor.pending_wrap
+	assert s.cursor.x == 4
 	assert s.cursor.y == 1
 
 	if true {
@@ -2706,6 +2714,7 @@ fn test_screen_resize_less_rows_no_scrollback() ! {
 	s.test_write_string(str)!
 
 	s.cursor_absolute(0, 0)
+	s.cursor.pending_wrap = false
 	cursor := s.cursor
 	s.resize(ScreenResize{ cols: 5, rows: 1 })!
 
@@ -2733,6 +2742,7 @@ fn test_screen_resize_less_rows_moving_cursor() ! {
 
 	// Put our cursor on the last line
 	s.cursor_absolute(1, 2)
+	s.cursor.pending_wrap = false
 	if true {
 		list_cell := must_cell(s, active_pt(int(s.cursor.x), int(s.cursor.y)))
 		assert list_cell.cell.codepoint == u32(`I`)
@@ -2866,6 +2876,7 @@ fn test_screen_resize_less_cols_with_reflow_but_row_space() ! {
 
 	// Put our cursor on the end
 	s.cursor_absolute(4, 0)
+	s.cursor.pending_wrap = false
 	if true {
 		list_cell := must_cell(s, active_pt(int(s.cursor.x), int(s.cursor.y)))
 		assert list_cell.cell.codepoint == u32(`D`)
@@ -2995,6 +3006,7 @@ fn test_screen_resize_less_cols_with_reflow_previously_wrapped_and_scrollback() 
 
 	// Put our cursor on the end
 	s.cursor_absolute(u32(s.pages.cols) - 1, u32(s.pages.rows) - 1)
+	s.cursor.pending_wrap = false
 	if true {
 		list_cell := must_cell(s, active_pt(int(s.cursor.x), int(s.cursor.y)))
 		assert list_cell.cell.codepoint == u32(`H`)

@@ -3544,6 +3544,12 @@ pub fn (mut self Screen) resize(opts ScreenResize) ! {
 		self.cursor_reload()
 	}
 
+	// A cursor left in the middle of a row by reflow can advance normally.
+	if self.cursor.pending_wrap && self.cursor.x != opts.cols - 1 {
+		self.cursor.pending_wrap = false
+		self.cursor_right(1)
+	}
+
 	// If we reflowed a saved cursor, update it.
 	if !isnil(saved_cursor_pin) {
 		// This should never fail because a non-null saved_cursor_pin

@@ -15,7 +15,7 @@ from capture import (
     output_directory, read_window, write_versions,
 )
 from fixtures import (
-    CURSOR_STYLES, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES,
+    CURSOR_STYLES, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES, RESIZE_WRAP_COLOR,
     SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED,
 )
 
@@ -223,8 +223,7 @@ def scroll_history(window, helper, padding, cell_width, cell_height):
     return rendered
 
 
-def narrow_window(window, scale):
-    target = (412 * scale, 211 * scale)
+def resize_window(window, target, expected_color):
     subprocess.run(
         ["xdotool", "windowfocus", "--sync", window, "windowsize", "--sync", window,
          str(target[0]), str(target[1]), "sleep", "0.25"],
@@ -235,7 +234,7 @@ def narrow_window(window, scale):
         if image.size != target:
             return False
         colors = image.convert("RGB").getcolors(4096)
-        return colors is not None and any(color == CURSOR_COLOR for _, color in colors)
+        return colors is not None and any(color == expected_color for _, color in colors)
 
     return rendered
 
@@ -255,13 +254,16 @@ def capture_interactive(binary, args, helper, prefix, fixture, settle, scale, *,
             padding = PADDING * scale
             cell_width = (image.width - 2 * padding) // GRID_COLUMNS
             cell_height = (image.height - 2 * padding) // GRID_ROWS
+            window_height = image.height
 
         if fixture == "selection-wide":
             rendered = drag_wide_selection(window, padding, cell_width, cell_height)
         elif fixture in SCROLLBACK_FIXTURES:
             rendered = scroll_history(window, helper, padding, cell_width, cell_height)
+        elif fixture == "resize-pending-wrap":
+            rendered = resize_window(window, (684 * scale, window_height), RESIZE_WRAP_COLOR)
         elif fixture in RESIZE_FIXTURES:
-            rendered = narrow_window(window, scale)
+            rendered = resize_window(window, (412 * scale, 211 * scale), CURSOR_COLOR)
         else:
             rendered = type_unicode_preedit(window, fixture, padding, cell_width, cell_height)
 

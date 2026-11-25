@@ -26,7 +26,7 @@ The colored line erase fixture waits for the configured PTY grid before erasing 
 The text selection fixture uses a mouse drag starting on the second cell of an emoji to verify the highlight covers the full glyph.
 The Unicode input fixtures capture GTK’s underlined preview over a terminal wallpaper and at the right edge before the character is committed.
 The scrollback fixtures update the palette and append a row after scrolling into history, with `scroll-to-bottom=output` enabled and disabled.
-The resize fixtures narrow the window with the cursor after blank cells or near the bottom of the screen.
+The resize fixtures narrow the window with the cursor after blank cells or near the bottom of the screen. They also widen the window after filling a row and verify where the next character appears.
 
 Each run saves the PNGs, application logs, executable versions and hashes, and a `results.tsv` report under `.witty-build/render-parity/`. Differing pixels appear white in the corresponding `*-diff.png` mask. A size or pixel mismatch returns exit status 1.
 

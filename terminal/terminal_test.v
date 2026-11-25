@@ -2366,6 +2366,36 @@ fn test_resize_reflows_live_cursor_when_width_and_height_shrink() ! {
 	assert t.screens.active.cursor.y == 2
 }
 
+fn test_resize_wider_advances_live_cursor_with_pending_wrap() ! {
+	for screen in [ScreenKey.primary, .alternate] {
+		for text in ['abcd', 'ab界'] {
+			mut t := create_test_terminal(4, 3)!
+			defer { t.deinit() }
+			_ = t.switch_screen(screen)!
+			t.print_string(text)!
+			assert t.screens.active.cursor.pending_wrap
+
+			t.resize(7, 3)!
+			assert !t.screens.active.cursor.pending_wrap
+			assert t.screens.active.cursor.x == 4
+			assert t.screens.active.cursor.y == 0
+			t.print(u32(`X`))!
+			assert t.plain_string()! == '${text}X'
+		}
+	}
+}
+
+fn test_resize_taller_preserves_live_cursor_wrap_at_right_edge() ! {
+	mut t := create_test_terminal(4, 3)!
+	defer { t.deinit() }
+	t.print_string('abcd')!
+
+	t.resize(4, 5)!
+	assert t.screens.active.cursor.pending_wrap
+	t.print(u32(`X`))!
+	assert t.plain_string()! == 'abcd\nX'
+}
+
 fn test_resize_with_reflow_and_saved_cursor() {
 	mut t := Terminal.init(Options{ cols: 2, rows: 3 }) or {
 		assert false
