@@ -57,7 +57,8 @@ WALLPAPER_OPTIONS = {
 }
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
-    *INTERACTIVE_FIXTURES, *SPLIT_SEARCH_FIXTURES, "visual-bell", "progress-overlay", "resize-overlay", "key-state-overlay",
+    *INTERACTIVE_FIXTURES, *SPLIT_SEARCH_FIXTURES, "split-close", "visual-bell", "progress-overlay",
+    "resize-overlay", "key-state-overlay",
     *LINK_PREVIEW_FIXTURES, *READONLY_FIXTURES, *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
     *TITLE_DIALOG_ACTIONS, "gtk-toast",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
@@ -168,8 +169,13 @@ def fixture_args(name, work):
         else:
             options.extend(("--gtk-titlebar-style=native", "--gtk-tabs-location=bottom", "--window-theme=light"))
         return options
-    if name in SPLIT_SEARCH_FIXTURES:
+    if name in (*SPLIT_SEARCH_FIXTURES, "split-close"):
         command = [sys.executable, str(PROBE / "fixtures.py"), "split-search"]
+        if name == "split-close":
+            options.extend((
+                "--confirm-close-surface=false", "--keybind=ctrl+alt+h=goto_split:left",
+                "--keybind=ctrl+alt+v=new_split:down", "--keybind=ctrl+alt+w=close_surface",
+            ))
         if name == "split-search-themed":
             css = work / "split-theme.css"
             css.write_text(
@@ -322,6 +328,51 @@ def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir
             if image.getpixel(probe) == divider:
                 raise RuntimeError("The search bar did not render in the split")
             image.save(prefix.with_suffix(".png"))
+
+
+def capture_split_close(binary, args, helper, prefix, settle, scale, config_dir, *, witty=False):
+    capture_args = [f"--screenshot={prefix}-active-pane.png"] if witty else []
+    env = {**os.environ, "XDG_CONFIG_HOME": str(config_dir), "SCREENSHOT_SETTLE_SECONDS": "30"}
+    left_color = (202, 122, 89)
+    with open_window([binary, *capture_args, *args], prefix.with_suffix(".log"), env=env) as (_, window):
+        time.sleep(settle)
+        with read_window(helper, window) as image:
+            width, height = image.size
+        left = (width // 5, 24 * scale)
+        right = (3 * width // 4, 24 * scale)
+        bottom = (left[0], height // 2 + left[1])
+
+        def command(*args):
+            subprocess.run(["xdotool", *args], check=True, timeout=5)
+
+        def frame_until(matches, message):
+            deadline = time.monotonic() + 4
+            while time.monotonic() < deadline:
+                with read_window(helper, window) as image:
+                    if matches(image):
+                        return image.copy()
+                time.sleep(0.05)
+            raise RuntimeError(message)
+
+        command("windowfocus", "--sync", window, "mousemove", "--window", window,
+                "8", str(80 * scale), "key", "ctrl+alt+d")
+        frame_until(lambda image: image.getpixel(right) == SPLIT_RIGHT_COLOR, "The right pane did not open")
+        command("key", "ctrl+alt+h")
+        focused = frame_until(
+            lambda image: image.getpixel(left) == left_color
+            and 100 < image.getpixel(right)[2] < SPLIT_RIGHT_COLOR[2],
+            "The left pane did not take focus",
+        )
+        right_dimmed = focused.getpixel(right)
+        command("key", "ctrl+alt+v")
+        frame_until(lambda image: image.getpixel(bottom) == SPLIT_RIGHT_COLOR, "The nested pane did not open")
+        command("key", "ctrl+alt+w")
+        time.sleep(settle)
+        restored = frame_until(
+            lambda image: image.getpixel(left) == left_color and image.getpixel(right) == right_dimmed,
+            "The surviving panes did not redraw after closing the nested split",
+        )
+        restored.save(prefix.with_suffix(".png"))
 
 
 def capture_visual_bell(binary, args, helper, prefix, settle, scale, *, witty=False):
@@ -1000,14 +1051,18 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name in INTERACTIVE_FIXTURES:
                 capture_interactive(ghostty, args, helper, expected, name, settle, scale)
                 capture_interactive(witty, args, helper, actual, name, settle, scale, witty=True)
-            elif name in SPLIT_SEARCH_FIXTURES:
+            elif name in (*SPLIT_SEARCH_FIXTURES, "split-close"):
                 config_dir = work / f"{name}-config"
                 gtk_config = config_dir / "gtk-4.0"
                 gtk_config.mkdir(parents=True)
                 (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
-                themed = name == "split-search-themed"
-                capture_split_search(ghostty, args, helper, expected, settle, scale, config_dir, themed=themed)
-                capture_split_search(witty, args, helper, actual, settle, scale, config_dir, themed=themed, witty=True)
+                if name == "split-close":
+                    capture_split_close(ghostty, args, helper, expected, settle, scale, config_dir)
+                    capture_split_close(witty, args, helper, actual, settle, scale, config_dir, witty=True)
+                else:
+                    themed = name == "split-search-themed"
+                    capture_split_search(ghostty, args, helper, expected, settle, scale, config_dir, themed=themed)
+                    capture_split_search(witty, args, helper, actual, settle, scale, config_dir, themed=themed, witty=True)
             elif name == "visual-bell":
                 capture_visual_bell(ghostty, args, helper, expected, settle, scale)
                 capture_visual_bell(witty, args, helper, actual, settle, scale, witty=True)

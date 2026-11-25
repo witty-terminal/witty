@@ -125,6 +125,14 @@ fn C.gtk_gl_area_make_current(area GtkGLArea)
 
 fn C.gtk_gl_area_get_error(area GtkGLArea) GError
 
+fn C.gtk_gl_area_get_context(area GtkGLArea) voidptr
+
+fn C.gdk_gl_context_get_current() voidptr
+
+fn C.gdk_gl_context_make_current(context voidptr)
+
+fn C.gdk_gl_context_clear_current()
+
 fn C.gtk_gl_area_set_allowed_apis(area GtkGLArea, apis int)
 
 // GtkWidget (extra helpers not in c_gtk_linux.v)
@@ -841,16 +849,7 @@ fn terminal_surface_finalize(obj voidptr) {
 			inspector_window.close()
 			self.inspector = unsafe { nil }
 		}
-		if self.has_core() {
-			if !isnil(self.core_surface_ref) && !isnil(self.app) && !isnil(self.app.core_app) {
-				mut app := unsafe { self.app.core_app }
-				app.delete_surface(self.core_surface_ref)
-			}
-			mut core_surface := self.core_surface
-			core_surface.deinit()
-			self.core_surface = unsafe { nil }
-			self.core_surface_ref = unsafe { nil }
-		}
+		self.deinit_core()
 		self.clear_cgroup()
 		self.mouse_hover_url = none
 		self.default_size = none
@@ -2418,6 +2417,48 @@ fn surface_idle_focus_cb(data voidptr) int {
 }
 
 // --- GLArea lifecycle -----------------------------------------------------
+
+fn (mut self SurfaceWidget) deinit_core() {
+	if !self.has_core() {
+		return
+	}
+	if !isnil(self.core_surface_ref) && !isnil(self.app) && !isnil(self.app.core_app) {
+		mut app := unsafe { self.app.core_app }
+		app.delete_surface(self.core_surface_ref)
+	}
+
+	previous := C.gdk_gl_context_get_current()
+	if !isnil(previous) {
+		object_ref(GObject(previous))
+	}
+	defer {
+		if previous != C.gdk_gl_context_get_current() {
+			if isnil(previous) {
+				C.gdk_gl_context_clear_current()
+			} else {
+				C.gdk_gl_context_make_current(previous)
+			}
+		}
+		if !isnil(previous) {
+			object_unref(GObject(previous))
+		}
+	}
+	// A close action can run with the compositor's context current. GL framebuffers
+	// and vertex arrays must be deleted in the context that created them.
+	if !isnil(self.terminal_page) && C.gtk_widget_get_realized(GtkWidget(self.gl_area)) {
+		context := C.gtk_gl_area_get_context(self.gl_area)
+		C.gtk_gl_area_make_current(self.gl_area)
+		if isnil(context) || context != C.gdk_gl_context_get_current() {
+			log.warn('unable to make the surface GL context current during teardown')
+			C.gdk_gl_context_clear_current()
+		}
+	}
+
+	mut surface := self.core_surface
+	surface.deinit()
+	self.core_surface = unsafe { nil }
+	self.core_surface_ref = unsafe { nil }
+}
 
 // glarea_realize is the GtkGLArea "realize" handler. Mirrors `glareaRealize`.
 pub fn (mut self SurfaceWidget) glarea_realize() {

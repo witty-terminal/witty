@@ -951,15 +951,8 @@ pub fn (mut self SplitTreeWidget) close_confirmation_close() {
 	defer {
 		new_tree.free()
 	}
-	if !isnil(closing) && !isnil(closing.core_surface_ref) && !isnil(closing.app)
-		&& !isnil(closing.app.core_app) {
-		mut app := unsafe { closing.app.core_app }
-		app.delete_surface(closing.core_surface_ref)
-		if closing.has_core() {
-			mut core_surface := closing.core_surface
-			core_surface.deinit()
-			closing.core_surface = unsafe { nil }
-		}
+	if !isnil(closing) {
+		closing.deinit_core()
 		for i, candidate in self.surfaces {
 			if candidate == closing {
 				self.surfaces.delete(i)
@@ -984,17 +977,7 @@ pub fn (mut self SplitTreeWidget) deinit_surfaces() {
 		if isnil(surface) {
 			continue
 		}
-		if !isnil(surface.core_surface_ref) && !isnil(surface.app)
-			&& !isnil(surface.app.core_app) {
-			mut app := unsafe { surface.app.core_app }
-			app.delete_surface(surface.core_surface_ref)
-		}
-		if surface.has_core() {
-			mut core_surface := surface.core_surface
-			core_surface.deinit()
-			surface.core_surface = unsafe { nil }
-			surface.core_surface_ref = unsafe { nil }
-		}
+		surface.deinit_core()
 	}
 	self.surfaces.clear()
 	if self.has_tree {
