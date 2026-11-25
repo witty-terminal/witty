@@ -4,8 +4,6 @@ import math
 
 // SurfaceView.KeyStateIndicator / PendingIndicator, hover URL, BellBorderOverlay
 // and SecureInputOverlay. Timing and gesture thresholds are the source values.
-fn C.witty_action_rounded_path(width f64, height f64, radius f64) voidptr
-fn C.witty_action_path_release(path voidptr)
 fn C.witty_action_shadow_offset(layer voidptr, x f64, y f64)
 
 fn register_action_visual_methods(cls ObjId) {
@@ -289,36 +287,6 @@ fn (mut surface NativeActionSurface) initialize_visuals() {
 	}
 	C.witty_macos_msg_void_f32(surface.bell_layer, sel('setOpacity:'), 0)
 	msg_void1(msg_id(surface.overlay, 'layer'), 'addSublayer:', surface.bell_layer)
-	image := msg_id2(get_class('NSImage'), 'imageWithSystemSymbolName:accessibilityDescription:', nsstring('lock.shield.fill'), nsstring('Secure Input'))
-	msg_void1(surface.secure_badge, 'setTitle:', nsstring(''))
-	msg_void1(surface.secure_badge, 'setImage:', image)
-	msg_void_bool(surface.secure_badge, 'setBordered:', false)
-	msg_void_bool(surface.secure_badge, 'setWantsLayer:', true)
-	layer := msg_id(surface.secure_badge, 'layer')
-	msg_void_f64(layer, 'setCornerRadius:', 12)
-	msg_void_bool(layer, 'setMasksToBounds:', true)
-	msg_void_f64(layer, 'setBorderWidth:', 1)
-	msg_void1(layer, 'setBorderColor:', msg_id(msg_id(get_class('NSColor'), 'systemGrayColor'), 'CGColor'))
-	colors := msg_id(get_class('NSMutableArray'), 'array')
-	for name in ['systemCyanColor', 'systemBlueColor', 'systemYellowColor', 'systemBlueColor',
-		'systemCyanColor'] {
-		msg_void1(colors, 'addObject:', msg_id(msg_id(get_class('NSColor'), name), 'CGColor'))
-	}
-	gradient := msg_id(get_class('CAGradientLayer'), 'layer')
-	msg_void1(gradient, 'setType:', nsstring('conic'))
-	msg_void1(gradient, 'setColors:', colors)
-	msg_void_rect(gradient, 'setFrame:', objc_rect(0, 0, 35, 35))
-	mask := msg_id(get_class('CAShapeLayer'), 'layer')
-	path := C.witty_action_rounded_path(35, 35, 12)
-	msg_void1(mask, 'setPath:', path)
-	C.witty_action_path_release(path)
-	msg_void1(mask, 'setStrokeColor:', msg_id(msg_id(get_class('NSColor'), 'blackColor'), 'CGColor'))
-	msg_void1(mask, 'setFillColor:', nil_obj())
-	msg_void_f64(mask, 'setLineWidth:', 6)
-	msg_void1(gradient, 'setMask:', mask)
-	msg_void1(layer, 'addSublayer:', gradient)
-	surface.secure_gradient = gradient
-	surface.secure_mask = mask
 	msg_void_bool(surface.hover_label, 'setWantsLayer:', true)
 	msg_void1(msg_id(surface.hover_label, 'layer'), 'setBackgroundColor:', msg_id(msg_id(get_class('NSColor'), 'windowBackgroundColor'), 'CGColor'))
 	msg_void_f64(msg_id(surface.hover_label, 'layer'), 'setCornerRadius:', 9)
@@ -374,29 +342,4 @@ fn (surface &NativeActionSurface) refresh_bell_visuals() {
 		msg_id1(get_class('CAMediaTimingFunction'), 'functionWithName:', nsstring('easeInEaseOut')))
 	C.witty_macos_msg_void_f32(surface.bell_layer, sel('setOpacity:'), if lit { f32(1) } else { f32(0) })
 	msg_void(transaction, 'commit')
-}
-
-fn (mut surface NativeActionSurface) refresh_secure_visuals() {
-	if msg_bool(surface.secure_badge, 'isHidden') {
-		msg_void(surface.secure_gradient, 'removeAllAnimations')
-		msg_void(surface.secure_mask, 'removeAllAnimations')
-		return
-	}
-	if !is_nil(msg_id1(surface.secure_gradient, 'animationForKey:', nsstring('secureRotation'))) {
-		return
-	}
-	rotation := msg_id1(get_class('CABasicAnimation'), 'animationWithKeyPath:', nsstring('transform.rotation'))
-	msg_void1(rotation, 'setToValue:', msg_id_f64(get_class('NSNumber'), 'numberWithDouble:', math.pi * 2))
-	msg_void1(rotation, 'setTimingFunction:', msg_id1(get_class('CAMediaTimingFunction'), 'functionWithName:', nsstring('linear')))
-	msg_void_f64(rotation, 'setDuration:', 2)
-	C.witty_action_repeat_forever(rotation)
-	msg_void2(surface.secure_gradient, 'addAnimation:forKey:', rotation, nsstring('secureRotation'))
-	pulse := msg_id1(get_class('CABasicAnimation'), 'animationWithKeyPath:', nsstring('lineWidth'))
-	msg_void1(pulse, 'setFromValue:', msg_id_f64(get_class('NSNumber'), 'numberWithDouble:', 6))
-	msg_void1(pulse, 'setToValue:', msg_id_f64(get_class('NSNumber'), 'numberWithDouble:', 12))
-	msg_void1(pulse, 'setTimingFunction:', msg_id1(get_class('CAMediaTimingFunction'), 'functionWithName:', nsstring('linear')))
-	msg_void_f64(pulse, 'setDuration:', 2)
-	msg_void_bool(pulse, 'setAutoreverses:', true)
-	C.witty_action_repeat_forever(pulse)
-	msg_void2(surface.secure_mask, 'addAnimation:forKey:', pulse, nsstring('secureWidth'))
 }

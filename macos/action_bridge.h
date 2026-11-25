@@ -56,8 +56,6 @@ static inline void* witty_action_inspector_new(void* cls,void* device,double wid
 static inline witty_action_inspector_size witty_action_to_backing(void* view,double width,double height) {
  CGRect rect=((CGRect(*)(id,SEL,CGRect))objc_msgSend)((id)view,sel_registerName("convertRectToBacking:"),(CGRect){{0,0},{width,height}}); return (witty_action_inspector_size){rect.size.width,rect.size.height};
 }
-static inline void* witty_action_rounded_path(double width,double height,double radius) { return CGPathCreateWithRoundedRect((CGRect){{0,0},{width,height}},radius,radius,NULL); }
-static inline void witty_action_path_release(void* path) { CGPathRelease((CGPathRef)path); }
 static inline void witty_action_layer_anchor(void* layer,double x,double y) { ((void(*)(id,SEL,CGPoint))objc_msgSend)((id)layer,sel_registerName("setAnchorPoint:"),(CGPoint){x,y}); }
 #endif
 

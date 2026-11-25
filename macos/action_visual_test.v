@@ -1,6 +1,7 @@
 module macos
 
 import os
+import math
 
 #insert "@VMODROOT/macos/canvas_overlay_test_bridge.h"
 
@@ -39,6 +40,28 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	assert msg_rect(surface.progress_layer, 'frame').width == view_width(view)
 	assert msg_bool(surface.progress_track, 'isHidden')
 	assert objc_utf8_string(msg_id(surface.progress_view, 'accessibilityValue')) == '100 percent complete'
+	msg_void_bool(surface.secure_badge, 'setHidden:', false)
+	surface.refresh_secure_visuals()
+	assert !msg_bool(surface.secure_art, 'isHidden')
+	assert !msg_bool(surface.secure_symbol, 'isHidden')
+	assert !is_nil(msg_id(surface.secure_symbol, 'image'))
+	assert msg_id(surface.secure_badge, 'target') == surface.owner
+	assert !is_nil(msg_id(surface.secure_gradient, 'contents'))
+	assert !is_nil(msg_id(msg_id(surface.secure_wash, 'mask'), 'contents'))
+	rotation := msg_id1(surface.secure_gradient, 'animationForKey:', nsstring('secureRotation'))
+	pulse := msg_id1(surface.secure_wash, 'animationForKey:', nsstring('secureOpacity'))
+	assert msg_f64(rotation, 'duration') == 2
+	assert !msg_bool(rotation, 'autoreverses')
+	assert msg_f64(msg_id(rotation, 'toValue'), 'doubleValue') == -math.pi * 2
+	assert msg_f64(pulse, 'duration') == 2
+	assert msg_bool(pulse, 'autoreverses')
+	assert msg_f64(msg_id(pulse, 'fromValue'), 'doubleValue') == 0.5
+	assert msg_f64(msg_id(pulse, 'toValue'), 'doubleValue') == 1
+	msg_void_bool(surface.secure_badge, 'setHidden:', true)
+	surface.refresh_secure_visuals()
+	assert msg_bool(surface.secure_art, 'isHidden')
+	assert is_nil(msg_id1(surface.secure_gradient, 'animationForKey:', nsstring('secureRotation')))
+	assert is_nil(msg_id1(surface.secure_wash, 'animationForKey:', nsstring('secureOpacity')))
 	surface.mouse_over_link('https://example.com/long/path')
 	assert !is_nil(surface.hover_tracking)
 	assert msg_u64(msg_id(surface.hover_label, 'cell'), 'lineBreakMode') == 5
@@ -60,6 +83,53 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	set_cursor_shape(view, 8)
 	assert msg_id(surface.scroll.scroll, 'documentCursor') == msg_id(get_class('NSCursor'), 'IBeamCursor')
 	assert cursor_for_shape(4) == none
+}
+
+fn test_native_secure_badge_capture() {
+	output := os.getenv_opt('WITTY_SECURE_OVERLAY_OUTPUT') or { return }
+	app_init()
+	frame := objc_rect(0, 0, 61, 55)
+	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
+		frame, 0, ns_backing_store_buffered, false)
+	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
+	view := create_offscreen_terminal_view(61, 55)
+	msg_void1(window, 'setContentView:', view)
+	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{})
+	defer {
+		surface.deinit()
+		msg_void(window, 'close')
+		msg_void(window, 'release')
+		release_offscreen_terminal_view(view)
+	}
+	base := msg_id_rect(alloc('NSView'), 'initWithFrame:', frame)
+	msg_void_bool(base, 'setWantsLayer:', true)
+	msg_void1(msg_id(base, 'layer'), 'setBackgroundColor:', msg_id(native_color(0x161820, 1), 'CGColor'))
+	C.witty_canvas_place_overlay(view, base, nil_obj())
+	C.witty_canvas_place_overlay(view, surface.overlay, nil_obj())
+	msg_void(base, 'release')
+	surface.scroll.layout()
+	names := ['light', 'dark']
+	for index, appearance in ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
+		msg_void1(window, 'setAppearance:',
+			msg_id1(get_class('NSAppearance'), 'appearanceNamed:', nsstring(appearance)))
+		msg_void_bool(surface.secure_badge, 'setHidden:', false)
+		surface.refresh_secure_visuals()
+		msg_void(surface.secure_gradient, 'removeAllAnimations')
+		msg_void(surface.secure_wash, 'removeAllAnimations')
+		for phase_index, phase in ['base', 'wash', 'initial', 'peak', 'quarter'] {
+			opacity := [f32(0), 0.5, 0.5, 1, 0.625][phase_index]
+			rotation := if phase == 'quarter' { -math.pi / 2 } else { 0.0 }
+			msg_void_bool(surface.secure_symbol, 'setHidden:', phase_index < 2)
+			C.witty_macos_msg_void_f32(surface.secure_wash, sel('setOpacity:'), opacity)
+			msg_void2(surface.secure_gradient, 'setValue:forKeyPath:',
+				msg_id_f64(get_class('NSNumber'), 'numberWithDouble:', rotation), nsstring('transform.rotation.z'))
+			png := C.witty_overlay_test_png(surface.scroll.container)
+			assert !is_nil(png)
+			assert msg_bool2(png, 'writeToFile:atomically:',
+				nsstring(os.join_path(output, '${names[index]}-${phase}-witty.png')), ObjId(1))
+		}
+	}
 }
 
 fn test_native_highlight_overlay_capture() {

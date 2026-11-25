@@ -98,6 +98,27 @@ static inline void *witty_canvas_make_alpha_image(const uint32_t *pixels, int wi
     return image;
 }
 
+static inline void *witty_canvas_make_color_image(const uint32_t *pixels, int width, int height) {
+    const size_t count = (size_t)width * height;
+    const CFIndex bytes = (CFIndex)(count * 8);
+    CFMutableDataRef data = CFDataCreateMutable(NULL, bytes);
+    if (!data) return NULL;
+    CFDataSetLength(data, bytes);
+    uint16_t *rgba = (uint16_t *)CFDataGetMutableBytePtr(data);
+    for (size_t i = 0; i < count; i++) {
+        const uint32_t pixel = pixels[i];
+        rgba[4 * i] = ((pixel >> 16) & 255) * 257;
+        rgba[4 * i + 1] = ((pixel >> 8) & 255) * 257;
+        rgba[4 * i + 2] = (pixel & 255) * 257;
+        rgba[4 * i + 3] = (pixel >> 24) * 257;
+    }
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGImageRef image = witty_canvas_rgba16_image(data, width, height, space, true);
+    if (space) CGColorSpaceRelease(space);
+    CFRelease(data);
+    return image;
+}
+
 static inline void witty_canvas_present_tile(void *target, void *image, const void *positions, int count) {
     CGContextRef context = (CGContextRef)target;
     const CGRect *rects = positions;

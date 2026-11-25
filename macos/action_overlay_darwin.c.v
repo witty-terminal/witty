@@ -98,7 +98,13 @@ mut:
 	hover_tracking_rect ObjCRect
 	hover_tracking      ObjId
 	secure_gradient     ObjId
-	secure_mask         ObjId
+	secure_art          ObjId
+	secure_symbol       ObjId
+	secure_card         ObjId
+	secure_wash         ObjId
+	secure_outline      ObjId
+	secure_scale        f64
+	secure_palette      [5]u32
 	bell_layer          ObjId
 	bell_edges          [4]ObjId
 	highlighted         bool
@@ -227,8 +233,7 @@ pub fn new_action_surface(view voidptr, userdata voidptr, callbacks ActionCallba
 	msg_void1(state.overlay, 'addSubview:', state.readonly_badge)
 	state.health_label = new_health_overlay()
 	msg_void1(state.overlay, 'addSubview:', state.health_label)
-	state.secure_badge = action_button(state, '🔒', 'secureInfo:', objc_rect(8, 10, 35, 35))
-	msg_void1(state.overlay, 'addSubview:', state.secure_badge)
+	state.initialize_secure_visuals()
 	state.hover_label = action_label('', objc_rect(0, 0, 320, 24))
 	msg_void1(state.overlay, 'addSubview:', state.hover_label)
 	state.initialize_visuals()
@@ -290,6 +295,7 @@ fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
 		if state.progress_active { state.refresh_progress() }
 		state.highlight_accent = none
 		if state.highlighted { state.refresh_highlight() }
+		state.refresh_secure_visuals()
 		if !is_nil(msg_id(state.bell_edges[0], 'contents')) {
 			state.update_bell_tiles()
 			state.refresh_bell_visuals()
@@ -306,6 +312,7 @@ fn action_overlay_colors_changed(self ObjId, _cmd Sel, _notification ObjId) {
 	if mut state := action_owner_state(self) {
 		if state.progress_active { state.refresh_progress() }
 		if state.highlighted { state.refresh_highlight() }
+		state.refresh_secure_visuals()
 	}
 }
 
@@ -334,7 +341,6 @@ fn (mut state NativeActionSurface) refresh() {
 	msg_void_bool(state.secure_badge, 'setHidden:', !(g_secure_enabled && state.focused
 		&& state.secure_indication && msg_bool(view_window(state.view), 'isKeyWindow')))
 	state.refresh_secure_visuals()
-	msg_void_rect(state.secure_badge, 'setFrame:', objc_rect(width - 45, 10, 35, 35))
 	state.refresh_bell_visuals()
 	state.refresh_highlight()
 	state.refresh_progress()
