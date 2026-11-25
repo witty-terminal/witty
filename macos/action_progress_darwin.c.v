@@ -24,14 +24,6 @@ fn action_overlay_appearance_changed(self ObjId, _cmd Sel) {
 	action_progress_colors_changed(self, nil_obj(), nil_obj())
 }
 
-fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
-	view_super_void(self, 'WittyActionOverlay', 'viewDidChangeBackingProperties')
-	if mut state := action_owner_state(self) {
-		state.progress_color = none
-		if state.progress_active { state.refresh_progress() }
-	}
-}
-
 fn action_progress_colors_changed(self ObjId, _cmd Sel, _notification ObjId) {
 	if mut state := action_owner_state(self) {
 		if state.progress_active { state.refresh_progress() }

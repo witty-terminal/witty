@@ -281,9 +281,12 @@ fn (mut surface NativeActionSurface) initialize_visuals() {
 	msg_void_f64(readonly_layer, 'setBorderWidth:', 1.5)
 	msg_void1(readonly_layer, 'setBorderColor:', msg_id(msg_id_f64(msg_id(get_class('NSColor'), 'systemOrangeColor'), 'colorWithAlphaComponent:', 0.6), 'CGColor'))
 	msg_void1(readonly_layer, 'setBackgroundColor:', msg_id(msg_id(get_class('NSColor'), 'controlBackgroundColor'), 'CGColor'))
-	surface.bell_layer = msg_id(get_class('CALayer'), 'layer')
-	msg_void_f64(surface.bell_layer, 'setBorderWidth:', 3)
-	msg_void1(surface.bell_layer, 'setBorderColor:', msg_id(native_color(0xffcc00, 0.5), 'CGColor'))
+	layer_class := get_class('CALayer')
+	surface.bell_layer = msg_id(layer_class, 'layer')
+	for i in 0 .. surface.bell_edges.len {
+		surface.bell_edges[i] = msg_id(layer_class, 'layer')
+		msg_void1(surface.bell_layer, 'addSublayer:', surface.bell_edges[i])
+	}
 	C.witty_macos_msg_void_f32(surface.bell_layer, sel('setOpacity:'), 0)
 	msg_void1(msg_id(surface.overlay, 'layer'), 'addSublayer:', surface.bell_layer)
 	image := msg_id2(get_class('NSImage'), 'imageWithSystemSymbolName:accessibilityDescription:', nsstring('lock.shield.fill'), nsstring('Secure Input'))
@@ -323,17 +326,54 @@ fn (mut surface NativeActionSurface) initialize_visuals() {
 	msg_void_bool(msg_id(surface.hover_label, 'cell'), 'setUsesSingleLineMode:', true)
 }
 
-fn (mut surface NativeActionSurface) refresh_bell_visuals() {
-	msg_void_rect(surface.bell_layer, 'setFrame:', objc_rect(0, 0, view_width(surface.view), view_height(surface.view)))
-	msg_void(get_class('CATransaction'), 'begin')
-	msg_void_f64(get_class('CATransaction'), 'setAnimationDuration:', 0.3)
-	msg_void1(get_class('CATransaction'), 'setAnimationTimingFunction:', msg_id1(get_class('CAMediaTimingFunction'), 'functionWithName:', nsstring('easeInEaseOut')))
-	C.witty_macos_msg_void_f32(surface.bell_layer, sel('setOpacity:'), if surface.bell && surface.bell_border {
-		1
-	} else {
-		0
-	})
-	msg_void(get_class('CATransaction'), 'commit')
+fn (surface &NativeActionSurface) update_bell_tiles() {
+	tile := native_canvas_fill_tile(0xffcc00, target: surface.overlay, opacity: 0.5)
+	if is_nil(tile) { return }
+	transaction := get_class('CATransaction')
+	msg_void(transaction, 'begin')
+	msg_void_bool(transaction, 'setDisableActions:', true)
+	for edge in surface.bell_edges {
+		msg_void1(edge, 'setContents:', ObjId(tile))
+	}
+	msg_void(transaction, 'commit')
+	C.CFRelease(tile)
+}
+
+fn bell_edge_frames(frame ObjCRect) [4]ObjCRect {
+	w, h := frame.width, frame.height
+	t := 3.0
+	if w <= 2 * t || h <= 2 * t {
+		empty := objc_rect(0, 0, 0, 0)
+		return [frame, empty, empty, empty]!
+	}
+	// Keep the translucent corners in the horizontal strips so they blend once.
+	return [objc_rect(0, 0, w, t), objc_rect(0, h - t, w, t),
+		objc_rect(0, t, t, h - 2 * t), objc_rect(w - t, t, t, h - 2 * t)]!
+}
+
+fn (surface &NativeActionSurface) refresh_bell_visuals() {
+	lit := surface.bell && surface.bell_border
+	if lit && is_nil(msg_id(surface.bell_edges[0], 'contents')) {
+		surface.update_bell_tiles()
+	}
+	frame := native_canvas_overlay_rect(SplitBounds{
+		width: view_width(surface.view)
+		height: view_height(surface.view)
+	}, view_backing_scale(surface.view))
+	transaction := get_class('CATransaction')
+	msg_void(transaction, 'begin')
+	msg_void_bool(transaction, 'setDisableActions:', true)
+	msg_void_rect(surface.bell_layer, 'setFrame:', frame)
+	for i, edge in bell_edge_frames(frame) {
+		msg_void_rect(surface.bell_edges[i], 'setFrame:', edge)
+	}
+	msg_void(transaction, 'commit')
+	msg_void(transaction, 'begin')
+	msg_void_f64(transaction, 'setAnimationDuration:', 0.3)
+	msg_void1(transaction, 'setAnimationTimingFunction:',
+		msg_id1(get_class('CAMediaTimingFunction'), 'functionWithName:', nsstring('easeInEaseOut')))
+	C.witty_macos_msg_void_f32(surface.bell_layer, sel('setOpacity:'), if lit { f32(1) } else { f32(0) })
+	msg_void(transaction, 'commit')
 }
 
 pub fn (mut surface NativeActionSurface) presented() {

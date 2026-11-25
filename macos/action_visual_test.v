@@ -23,7 +23,9 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	assert !is_nil(surface.pulse_timer)
 	surface.bell_border = true
 	surface.ring_bell()
-	assert msg_f64(surface.bell_layer, 'borderWidth') == 3
+	assert msg_rect(surface.bell_edges[0], 'frame').height == 3
+	assert msg_rect(surface.bell_edges[2], 'frame').y == 3
+	assert C.witty_overlay_test_tile(surface.bell_edges[0]) >> 24 == 127
 	assert msg_f64(msg_id1(surface.bell_layer, 'valueForKey:', nsstring('opacity')), 'doubleValue') == 1
 	surface.begin_key_down()
 	assert msg_f64(msg_id1(surface.bell_layer, 'valueForKey:', nsstring('opacity')), 'doubleValue') == 0
@@ -48,6 +50,69 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	set_cursor_shape(view, 8)
 	assert msg_id(surface.scroll.scroll, 'documentCursor') == msg_id(get_class('NSCursor'), 'IBeamCursor')
 	assert cursor_for_shape(4) == none
+}
+
+struct NativeBellFixture {
+	name string
+	width f64 = 103
+	height f64 = 63
+	background u32 = 0x161820
+}
+
+fn test_native_bell_overlay_capture() {
+	output := os.getenv_opt('WITTY_BELL_OVERLAY_OUTPUT') or { return }
+	app_init()
+	frame := objc_rect(0, 0, 103, 63)
+	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
+		frame, 0, ns_backing_store_buffered, false)
+	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
+	view := create_offscreen_terminal_view(103, 63)
+	msg_void1(window, 'setContentView:', view)
+	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{})
+	root := msg_id_rect(alloc('NSView'), 'initWithFrame:', frame)
+	msg_void1(window, 'setContentView:', root)
+	msg_void1(root, 'addSubview:', surface.scroll.container)
+	msg_void(root, 'release')
+	defer {
+		surface.deinit()
+		msg_void(window, 'close')
+		msg_void(window, 'release')
+		release_offscreen_terminal_view(view)
+	}
+	base := msg_id_rect(alloc('NSView'), 'initWithFrame:', frame)
+	msg_void_bool(base, 'setWantsLayer:', true)
+	C.witty_canvas_place_overlay(view, base, nil_obj())
+	C.witty_canvas_place_overlay(view, surface.overlay, nil_obj())
+	msg_void(base, 'release')
+
+	fixtures := [
+		NativeBellFixture{name: 'lit-dark'},
+		NativeBellFixture{name: 'cleared-dark'},
+		NativeBellFixture{name: 'lit-light', width: 89, height: 41, background: 0xf9f3e5},
+		NativeBellFixture{name: 'resized', width: 73, height: 27, background: 0x3a87c0},
+		NativeBellFixture{name: 'narrow', width: 5, height: 19, background: 0x3a87c0},
+		NativeBellFixture{name: 'short', width: 31, height: 4},
+		NativeBellFixture{name: 'fractional', width: 81.5, height: 33.5},
+		NativeBellFixture{name: 'disabled'},
+	]
+	for fixture in fixtures {
+		surface.bell_border = fixture.name != 'disabled'
+		surface.ring_bell()
+		msg_void_size(window, 'setContentSize:', objc_size(fixture.width, fixture.height))
+		pane := objc_rect(0, 0, fixture.width, fixture.height)
+		msg_void_rect(surface.scroll.container, 'setFrame:', pane)
+		surface.scroll.layout()
+		surface.resize()
+		msg_void_rect(base, 'setFrame:', pane)
+		msg_void1(msg_id(base, 'layer'), 'setBackgroundColor:',
+			msg_id(native_color(fixture.background, 1), 'CGColor'))
+		if fixture.name == 'cleared-dark' { surface.begin_key_down() }
+		png := C.witty_overlay_test_png(surface.scroll.container)
+		assert !is_nil(png)
+		assert msg_bool2(png, 'writeToFile:atomically:',
+			nsstring(os.join_path(output, 'bell-${fixture.name}-witty.png')), ObjId(1))
+	}
 }
 
 fn test_native_progress_overlay_capture() {

@@ -100,6 +100,7 @@ mut:
 	secure_gradient     ObjId
 	secure_mask         ObjId
 	bell_layer          ObjId
+	bell_edges          [4]ObjId
 	highlighted         bool
 	highlight_layer     ObjId
 	highlight_radial    ObjId
@@ -275,6 +276,18 @@ pub fn (mut state NativeActionSurface) resize() {
 	msg_void_rect(state.overlay, 'setFrame:', objc_rect(0, 0, view_width(state.view),
 		view_height(state.view)))
 	state.refresh()
+}
+
+fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
+	view_super_void(self, 'WittyActionOverlay', 'viewDidChangeBackingProperties')
+	if mut state := action_owner_state(self) {
+		state.progress_color = none
+		if state.progress_active { state.refresh_progress() }
+		if !is_nil(msg_id(state.bell_edges[0], 'contents')) {
+			state.update_bell_tiles()
+			state.refresh_bell_visuals()
+		}
+	}
 }
 
 fn (mut state NativeActionSurface) refresh() {
