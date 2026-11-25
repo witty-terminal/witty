@@ -17,7 +17,7 @@ const update_pill_insets = update_pill_text_x + update_pill_horizontal_padding
 const update_badge_side = 18
 
 fn C.witty_update_draw_pill_text(context voidptr, text ObjId, color ObjId, x f64, baseline f64, width f64, height f64, scale f64, flipped bool)
-fn C.witty_update_draw_pill_symbol(context voidptr, name ObjId, tint voidptr, width f64, height f64, scale f64)
+fn C.witty_update_pill_symbol(name ObjId, width f64, height f64, scale f64, frame &ObjCRect) ObjId
 
 struct UpdateRingTransition {
 	start u64
@@ -191,14 +191,13 @@ fn update_badge_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 	if icon := state.icon_name() {
 		context := native_canvas_overlay_context()
 		if is_nil(context) { return }
-		mut opacity := 0.0
-		color := C.witty_canvas_resolve_srgb_alpha(self, update_color(state.foreground_color()), &opacity)
-		tint := native_canvas_fill_tile(color, target: self, opacity: opacity)
-		if is_nil(tint) { return }
 		bounds := msg_rect(self, 'bounds')
-		C.witty_update_draw_pill_symbol(context, nsstring(icon), tint, bounds.width, bounds.height,
-			view_backing_scale(voidptr(self)))
-		C.CFRelease(tint)
+		mut frame := ObjCRect{}
+		symbol := C.witty_update_pill_symbol(nsstring(icon), bounds.width, bounds.height,
+			view_backing_scale(voidptr(self)), &frame)
+		if !is_nil(symbol) {
+			native_canvas_draw_symbol(context, self, symbol, frame, update_color(state.foreground_color()))
+		}
 	}
 }
 

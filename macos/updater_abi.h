@@ -3,6 +3,7 @@
 #include <Block.h>
 #include <CoreText/CoreText.h>
 #include <math.h>
+#include "canvas_overlay_darwin.h"
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 extern id objc_initWeak(id*,id);
 extern id objc_loadWeakRetained(id*);
@@ -81,24 +82,14 @@ static inline void witty_update_draw_pill_text(CGContextRef context, NSString *t
     CFRelease(line);
 }
 
-static inline void witty_update_draw_pill_symbol(CGContextRef context, NSString *name, CGImageRef tint,
-        double width, double height, double scale) {
-    NSImage *image = [NSImage imageWithSystemSymbolName:name accessibilityDescription:nil];
-    if (!image) return;
-    NSImageSymbolConfiguration *font = [NSImageSymbolConfiguration configurationWithPointSize:13
-        weight:NSFontWeightRegular];
-    NSImageSymbolConfiguration *monochrome = [NSImageSymbolConfiguration configurationPreferringMonochrome];
-    image = [image imageWithSymbolConfiguration:[font configurationByApplyingConfiguration:monochrome]];
+static inline NSImage *witty_update_pill_symbol(NSString *name, double width, double height,
+        double scale, CGRect *frame) {
+    NSImage *image = witty_canvas_system_symbol(name, 13, NSFontWeightRegular);
+    if (!image) return nil;
     NSRect aligned = image.alignmentRect;
     double x = round(((width - aligned.size.width) / 2 - aligned.origin.x) * scale) / scale;
     double y = (height - image.size.height) / 2;
-    CGContextSaveGState(context);
-    // Tint the native glyph mask with the Canvas tile, preserving its transparent cutouts.
-    CGContextBeginTransparencyLayer(context, NULL);
-    [image drawInRect:NSMakeRect(x, y, image.size.width, image.size.height)];
-    CGContextSetBlendMode(context, kCGBlendModeSourceIn);
-    CGContextDrawImage(context, CGRectMake(0, 0, width, height), tint);
-    CGContextEndTransparencyLayer(context);
-    CGContextRestoreGState(context);
+    *frame = CGRectMake(x, y, image.size.width, image.size.height);
+    return image;
 }
 #endif

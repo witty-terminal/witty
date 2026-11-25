@@ -11,8 +11,13 @@ fn C.witty_canvas_resolve_srgb_alpha(view ObjId, color ObjId, alpha &f64) u32
 fn C.witty_canvas_make_tile(pixel &u32, target ObjId, opacity f64, blend_over_gray int) voidptr
 fn C.witty_canvas_make_alpha_image(pixels &u32, width int, height int, color u32, target ObjId) voidptr
 fn C.witty_canvas_make_color_image(pixels &u32, width int, height int) voidptr
+fn C.witty_canvas_make_native_color_mask(pixels &u32, width int, height int, view ObjId, color ObjId) voidptr
 fn C.witty_canvas_present_tile(target voidptr, image voidptr, positions voidptr, count int)
 fn C.witty_canvas_set_material_mask(view ObjId, image voidptr, width f64, height f64)
+fn C.witty_canvas_system_symbol(name ObjId, size f64, weight f64) ObjId
+fn C.witty_canvas_symbol_bounds(context voidptr, glyph &ObjCRect, bounds &ObjCRect, width &int, height &int)
+fn C.witty_canvas_symbol_mask(symbol ObjId, glyph &ObjCRect, bounds &ObjCRect, pixels &u32, width int, height int, flipped bool) bool
+fn C.witty_canvas_present_symbol(context voidptr, image voidptr, bounds &ObjCRect, flipped bool)
 
 fn native_canvas_material_view(frame ObjCRect) ObjId {
 	mut cls := get_class('WittyCanvasMaterial')
@@ -44,6 +49,20 @@ fn native_canvas_draw_mask(context voidptr, view ObjId, frame ObjCRect, mask can
 	image := C.witty_canvas_make_alpha_image(mask.pixels.data, mask.width, mask.height, color, view)
 	if is_nil(image) { return }
 	C.witty_canvas_present_tile(context, image, &frame, 1)
+	C.CFRelease(image)
+}
+
+fn native_canvas_draw_symbol(context voidptr, view ObjId, symbol ObjId, glyph ObjCRect, color ObjId) {
+	if is_nil(symbol) { return }
+	mut bounds := ObjCRect{}
+	mut width, mut height := 0, 0
+	C.witty_canvas_symbol_bounds(context, &glyph, &bounds, &width, &height)
+	mut mask := canvas.new_raster_surface(width: width, height: height) or { return }
+	flipped := msg_bool(view, 'isFlipped')
+	if !C.witty_canvas_symbol_mask(symbol, &glyph, &bounds, mask.pixels.data, width, height, flipped) { return }
+	image := C.witty_canvas_make_native_color_mask(mask.pixels.data, width, height, view, color)
+	if is_nil(image) { return }
+	C.witty_canvas_present_symbol(context, image, &bounds, flipped)
 	C.CFRelease(image)
 }
 

@@ -1,5 +1,6 @@
 #include <AppKit/AppKit.h>
 #include <CoreText/CoreText.h>
+#include "canvas_overlay_darwin.h"
 
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 static inline NSFont *witty_key_indicator_font(bool keycap) {
@@ -33,20 +34,14 @@ static inline void witty_key_indicator_draw_text(CGContextRef context, NSString 
     CFRelease(line);
 }
 
-static inline void witty_key_indicator_draw_symbol(bool chevron, double x, double height) {
-    NSImageSymbolConfiguration *font = [NSImageSymbolConfiguration
-        configurationWithPointSize:(chevron ? 10 : 13)
-        weight:(chevron ? NSFontWeightSemibold : NSFontWeightRegular)];
-    NSColor *ink = chevron ? [NSColor tertiaryLabelColor] : [NSColor secondaryLabelColor];
-    ink = [ink colorUsingColorSpace:[NSColorSpace sRGBColorSpace]] ?: [NSColor blackColor];
-    NSImageSymbolConfiguration *color = [NSImageSymbolConfiguration configurationWithPaletteColors:
-        @[[ink colorWithAlphaComponent:1]]];
-    NSImage *image = [NSImage imageWithSystemSymbolName:(chevron ? @"chevron.right" : @"keyboard.badge.ellipsis")
-        accessibilityDescription:nil];
-    image = [image imageWithSymbolConfiguration:[font configurationByApplyingConfiguration:color]];
+static inline NSImage *witty_key_indicator_symbol(bool chevron, double x, double height,
+        CGRect *frame) {
+    NSImage *image = witty_canvas_system_symbol(chevron ? @"chevron.right" : @"keyboard.badge.ellipsis",
+        chevron ? 10 : 13, chevron ? NSFontWeightSemibold : NSFontWeightRegular);
+    if (!image) return nil;
     NSRect alignment = image.alignmentRect;
     double y = (height - alignment.size.height) / 2 - alignment.origin.y + (chevron ? 0 : 0.5);
-    [image drawInRect:NSMakeRect(x - alignment.origin.x, y, image.size.width, image.size.height)
-        fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:ink.alphaComponent];
+    *frame = CGRectMake(x - alignment.origin.x, y, image.size.width, image.size.height);
+    return image;
 }
 #endif

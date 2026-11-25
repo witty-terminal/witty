@@ -7,8 +7,7 @@ import math
 fn C.witty_palette_row_text_width(text ObjId, size f64, medium bool) f64
 fn C.witty_palette_draw_row_text(context voidptr, text ObjId, color ObjId, size f64, medium bool, x f64, baseline f64, width f64, height f64)
 fn C.witty_palette_draw_matched_text(context voidptr, text ObjId, color ObjId, matches ObjId, accent ObjId, size f64, medium bool, x f64, baseline f64, width f64, height f64)
-fn C.witty_palette_draw_row_symbol(context voidptr, name ObjId, tint voidptr, x f64, height f64) f64
-fn C.witty_canvas_make_native_color_mask(pixels &u32, width int, height int, view ObjId, color ObjId) voidptr
+fn C.witty_palette_row_symbol(name ObjId, x f64, height f64, frame &ObjCRect, width &f64) ObjId
 
 const palette_row_padding = 8.0
 const palette_row_gap = 4.0
@@ -178,15 +177,12 @@ fn palette_draw_row(view ObjId, _cmd Sel, _rect ObjCRect) {
 		x += 8 + palette_row_padding
 	}
 	if option.leading_icon.len > 0 {
-		tint := if option.emphasis {
-			native_canvas_fill_tile(accent, target: view)
-		} else {
-			native_canvas_fill_tile(secondary, target: view, opacity: secondary_alpha)
-		}
-		if !is_nil(tint) {
-			width := C.witty_palette_draw_row_symbol(context, nsstring(option.leading_icon), tint, x,
-				bounds.height)
-			C.CFRelease(tint)
+		mut frame := ObjCRect{}
+		mut width := 0.0
+		symbol := C.witty_palette_row_symbol(nsstring(option.leading_icon), x, bounds.height, &frame, &width)
+		if !is_nil(symbol) {
+			tint := if option.emphasis { accent_color } else { secondary_color }
+			native_canvas_draw_symbol(context, view, symbol, frame, tint)
 			if width > 0 { x += width + palette_row_padding }
 		}
 	}

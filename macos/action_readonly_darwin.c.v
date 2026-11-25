@@ -5,7 +5,7 @@ import math
 #insert "@VMODROOT/macos/action_readonly_darwin.h"
 
 fn C.witty_readonly_title_width(title ObjId) f64
-fn C.witty_readonly_draw_content(context voidptr, title ObjId, height f64)
+fn C.witty_readonly_draw_title(context voidptr, title ObjId, height f64, tint ObjId)
 
 const readonly_title = 'Read-only'
 const readonly_height = 23.0
@@ -72,5 +72,9 @@ fn readonly_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 		stroke: readonly_border_width * scale, opacity: 0.6) or { return }
 	color := C.witty_canvas_resolve_srgb(self, msg_id(get_class('NSColor'), 'systemOrangeColor'))
 	native_canvas_draw_mask(context, self, bounds, border, color)
-	C.witty_readonly_draw_content(context, nsstring(readonly_title), bounds.height)
+	tint := C.witty_macos_color_rgba(0.8, 0.592, 0.4, 1)
+	symbol := C.witty_canvas_system_symbol(nsstring('eye.fill'), 12, 0)
+	native_canvas_draw_symbol(context, self, symbol, objc_rect(8, (bounds.height - 12) / 2, 18, 12),
+		tint)
+	C.witty_readonly_draw_title(context, nsstring(readonly_title), bounds.height, tint)
 }

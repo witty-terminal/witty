@@ -6,7 +6,7 @@ import math
 
 fn C.witty_key_indicator_width(text ObjId, keycap bool) f64
 fn C.witty_key_indicator_draw_text(context voidptr, text ObjId, keycap bool, x f64, width f64, height f64)
-fn C.witty_key_indicator_draw_symbol(chevron bool, x f64, height f64)
+fn C.witty_key_indicator_symbol(chevron bool, x f64, height f64, frame &ObjCRect) ObjId
 
 enum KeyIndicatorPartKind {
 	keyboard
@@ -209,7 +209,11 @@ fn key_indicator_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 		if part.x >= bounds.width { break }
 		match part.kind {
 			.keyboard, .chevron {
-				C.witty_key_indicator_draw_symbol(part.kind == .chevron, part.x, bounds.height)
+				chevron := part.kind == .chevron
+				mut frame := ObjCRect{}
+				symbol := C.witty_key_indicator_symbol(chevron, part.x, bounds.height, &frame)
+				tint := msg_id(get_class('NSColor'), if chevron { 'tertiaryLabelColor' } else { 'secondaryLabelColor' })
+				native_canvas_draw_symbol(context, self, symbol, frame, tint)
 			}
 			.table {
 				C.witty_key_indicator_draw_text(context, nsstring(part.label), false, part.x,

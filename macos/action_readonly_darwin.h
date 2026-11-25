@@ -10,14 +10,7 @@ static inline double witty_readonly_title_width(NSString *title) {
     return [title sizeWithAttributes:@{NSFontAttributeName: witty_readonly_font()}].width;
 }
 
-static inline void witty_readonly_draw_content(CGContextRef context, NSString *title, double height) {
-    NSColor *tint = [NSColor colorWithSRGBRed:0.8 green:0.592 blue:0.4 alpha:1];
-    NSImageSymbolConfiguration *font = [NSImageSymbolConfiguration configurationWithPointSize:12 weight:NSFontWeightRegular];
-    NSImageSymbolConfiguration *color = [NSImageSymbolConfiguration configurationWithPaletteColors:@[tint]];
-    NSImage *eye = [NSImage imageWithSystemSymbolName:@"eye.fill" accessibilityDescription:nil];
-    eye = [eye imageWithSymbolConfiguration:[font configurationByApplyingConfiguration:color]];
-    [eye drawInRect:NSMakeRect(8, (height - 12) / 2, 18, 12)];
-
+static inline void witty_readonly_draw_title(CGContextRef context, NSString *title, double height, NSColor *tint) {
     NSDictionary *attributes = @{NSFontAttributeName: witty_readonly_font(), NSForegroundColorAttributeName: tint};
     NSAttributedString *text = [[NSAttributedString alloc] initWithString:title attributes:attributes];
     CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)text);

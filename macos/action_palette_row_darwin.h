@@ -4,6 +4,7 @@
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 #include <AppKit/AppKit.h>
 #include <CoreText/CoreText.h>
+#include "canvas_overlay_darwin.h"
 
 static inline NSFont *witty_palette_row_font(double size, bool medium) {
     return [NSFont systemFontOfSize:size weight:(medium ? NSFontWeightMedium : NSFontWeightRegular)];
@@ -113,31 +114,16 @@ static inline void witty_palette_draw_row_text(CGContextRef context, NSString *t
     witty_palette_draw_matched_text(context, text, color, nil, nil, size, medium, x, baseline, width, height);
 }
 
-static inline NSImage *witty_palette_row_symbol(NSString *name) {
-    NSImage *symbol = [NSImage imageWithSystemSymbolName:name accessibilityDescription:nil];
-    NSImageSymbolConfiguration *font = [NSImageSymbolConfiguration configurationWithPointSize:14
-        weight:NSFontWeightMedium];
-    return [symbol imageWithSymbolConfiguration:[font configurationByApplyingConfiguration:
-        [NSImageSymbolConfiguration configurationPreferringMonochrome]]];
-}
-
-static inline double witty_palette_draw_row_symbol(CGContextRef context, NSString *name, CGImageRef tint,
-        double x, double height) {
-    NSImage *symbol = witty_palette_row_symbol(name);
-    if (!symbol) return 0;
+static inline NSImage *witty_palette_row_symbol(NSString *name, double x, double height,
+        CGRect *frame, double *width) {
+    NSImage *symbol = witty_canvas_system_symbol(name, 14, NSFontWeightMedium);
+    if (!symbol) return nil;
     NSRect alignment = symbol.alignmentRect;
-    NSRect rect = NSMakeRect(x - alignment.origin.x,
+    *frame = CGRectMake(x - alignment.origin.x,
         (height + alignment.size.height) / 2 + alignment.origin.y - symbol.size.height,
         symbol.size.width, symbol.size.height);
-    CGContextSaveGState(context);
-    CGContextBeginTransparencyLayer(context, NULL);
-    [symbol drawInRect:rect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver
-        fraction:1 respectFlipped:YES hints:nil];
-    CGContextSetBlendMode(context, kCGBlendModeSourceIn);
-    CGContextDrawImage(context, rect, tint);
-    CGContextEndTransparencyLayer(context);
-    CGContextRestoreGState(context);
-    return alignment.size.width;
+    *width = alignment.size.width;
+    return symbol;
 }
 #endif
 

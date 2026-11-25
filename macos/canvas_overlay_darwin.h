@@ -188,6 +188,43 @@ static inline CGImageRef witty_canvas_make_native_color_mask(const uint32_t *pix
         resolved.greenComponent, resolved.blueComponent, resolved.alphaComponent);
 }
 
+static inline NSImage *witty_canvas_system_symbol(NSString *name, double size, double weight) {
+    NSImage *symbol = [NSImage imageWithSystemSymbolName:name accessibilityDescription:nil];
+    NSImageSymbolConfiguration *font = [NSImageSymbolConfiguration configurationWithPointSize:size weight:weight];
+    return [symbol imageWithSymbolConfiguration:[font configurationByApplyingConfiguration:
+        [NSImageSymbolConfiguration configurationPreferringMonochrome]]];
+}
+
+static inline void witty_canvas_symbol_bounds(CGContextRef context, const CGRect *glyph,
+        CGRect *bounds, int *width, int *height) {
+    CGRect device = CGRectIntegral(CGContextConvertRectToDeviceSpace(context, *glyph));
+    *bounds = CGContextConvertRectToUserSpace(context, device);
+    *width = (int)device.size.width;
+    *height = (int)device.size.height;
+}
+
+static inline bool witty_canvas_symbol_mask(NSImage *symbol, const CGRect *glyph, const CGRect *bounds,
+        uint32_t *pixels, int width, int height, bool flipped) {
+    CGColorSpaceRef rgb = CGColorSpaceCreateDeviceRGB();
+    CGContextRef bitmap = CGBitmapContextCreate(pixels, width, height, 8, width * sizeof(*pixels), rgb,
+        kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst);
+    CGColorSpaceRelease(rgb);
+    if (!bitmap) return false;
+    if (flipped) CGContextTranslateCTM(bitmap, 0, height);
+    CGContextScaleCTM(bitmap, width / bounds->size.width,
+        (flipped ? -height : height) / bounds->size.height);
+    // Release AppKit's context wrapper before returning the Canvas-owned buffer.
+    @autoreleasepool {
+        [NSGraphicsContext saveGraphicsState];
+        [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithCGContext:bitmap flipped:flipped]];
+        [symbol drawInRect:CGRectOffset(*glyph, -bounds->origin.x, -bounds->origin.y)
+            fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1 respectFlipped:YES hints:nil];
+        [NSGraphicsContext restoreGraphicsState];
+    }
+    CGContextRelease(bitmap);
+    return true;
+}
+
 static inline void *witty_canvas_make_color_image(const uint32_t *pixels, int width, int height) {
     const size_t count = (size_t)width * height;
     const CFIndex bytes = (CFIndex)(count * 8);
@@ -215,6 +252,17 @@ static inline void witty_canvas_present_tile(void *target, void *image, const vo
     CGContextSaveGState(context);
     CGContextSetInterpolationQuality(context, kCGInterpolationNone);
     for (int i = 0; i < count; i++) CGContextDrawImage(context, rects[i], (CGImageRef)image);
+    CGContextRestoreGState(context);
+}
+
+static inline void witty_canvas_present_symbol(CGContextRef context, CGImageRef image,
+        const CGRect *bounds, bool flipped) {
+    CGContextSaveGState(context);
+    if (flipped) {
+        CGContextTranslateCTM(context, 0, 2 * bounds->origin.y + bounds->size.height);
+        CGContextScaleCTM(context, 1, -1);
+    }
+    witty_canvas_present_tile(context, image, bounds, 1);
     CGContextRestoreGState(context);
 }
 #endif
