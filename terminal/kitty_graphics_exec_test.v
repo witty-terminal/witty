@@ -113,6 +113,45 @@ fn test_graphics_execute_persists_transmitted_image() ! {
 	assert image.data == [u8(255), 255, 255]
 }
 
+fn test_graphics_retransmit_removes_placements_after_the_last_chunk() ! {
+	mut t := make_graphics_terminal()!
+	defer { t.deinit() }
+	tracked := t.screens.active.pages.count_tracked_pins()
+	storage := &t.screens.active.kitty_images
+
+	for command in [
+		'a=T,f=24,i=1,p=1,s=1,v=1,c=1,r=1,C=1;////',
+		'a=p,i=1,p=2,c=1,r=1,C=1',
+		'a=p,i=1,p=3,c=1,r=1,U=1',
+		'a=T,f=24,i=2,p=1,s=1,v=1,c=1,r=1,C=1;/wAA',
+	] {
+		cmd := CommandParser.parse_string(command)!
+		response := kitty_graphics_execute(mut t, &cmd) or { return error('expected response') }
+		assert response.ok()
+	}
+	assert storage.placement_count() == 4
+	assert t.screens.active.pages.count_tracked_pins() == tracked + 3
+
+	first := CommandParser.parse_string('a=t,f=24,i=1,s=1,v=2,m=1;AP8A')!
+	assert kitty_graphics_execute(mut t, &first) == none
+	assert storage.placement_count() == 4
+	last := CommandParser.parse_string('m=0;AP8A')!
+	reply := kitty_graphics_execute(mut t, &last) or { return error('expected transmit response') }
+	assert reply.ok()
+	assert storage.placement_count() == 1
+	assert storage.placements[0].key.image_id == 2
+	assert t.screens.active.pages.count_tracked_pins() == tracked + 1
+	assert (storage.image_by_id(1) or { return error('expected replacement') }).data == [
+		u8(0), 255, 0, 0, 255, 0,
+	]
+
+	t.set_cursor_pos(3, 3)
+	place := CommandParser.parse_string('a=p,i=1,p=1,c=1,r=2,C=1')!
+	placed := kitty_graphics_execute(mut t, &place) or { return error('expected display response') }
+	assert placed.ok()
+	assert graphics_placement_row(&t, 1)! == 2
+}
+
 fn test_graphics_execute_reports_invalid_image_length_as_invalid_data() ! {
 	mut t := make_graphics_terminal()!
 	defer {

@@ -371,11 +371,7 @@ pub mut:
 	// if it cares about this value.
 	dirty bool
 
-	// This is the next automatically assigned image ID. We start mid-way
-	// through the u32 range to avoid collisions with buggy programs.
-	// TODO: This isn't good enough, it's perfectly legal for programs
-	//       to use IDs in the latter half of the range and collisions
-	//       are not gracefully handled.
+	// This is the next candidate for an automatically assigned image ID.
 	next_image_id u32 = 2147483647
 
 	// This is the next automatically assigned placement ID. This is never
@@ -442,39 +438,50 @@ pub fn (mut self ImageStorage) set_limit(mut s Screen, limit uint) {
 	// If we're lowering our limit, check if we need to evict.
 	if limit < self.total_bytes {
 		req_bytes := self.total_bytes - limit
-		self.evict_image(req_bytes)
+		self.evict_image(mut s, req_bytes, none)
 	}
 
 	self.total_limit = limit
 }
 
-// Add an already-loaded image to the storage. This will automatically
-// free any existing image with the same ID.
-pub fn (mut self ImageStorage) add_image(img Image) ! {
-	// If the image itself is over the limit, then error immediately
-	if uint(img.data.len) > self.total_limit {
+fn (mut self ImageStorage) allocate_image_id() u32 {
+	mut id := self.next_image_id
+	for id == 0 || id in self.images {
+		id++
+	}
+	self.next_image_id = if id == max_u32 { u32(1) } else { id + 1 }
+	return id
+}
+
+// Store a completed transmission. Reusing an ID removes the old image and
+// its placements. The new data can be placed after the transmission commits.
+pub fn (mut self ImageStorage) add_image(mut s Screen, img Image) ! {
+	new_len := uint(img.data.len)
+	if new_len > self.total_limit {
 		return error('OutOfMemory: image exceeds total limit')
 	}
 
-	// If this would put us over the limit, then evict.
-	total_bytes := self.total_bytes + uint(img.data.len)
-	if total_bytes > self.total_limit {
-		req_bytes := total_bytes - self.total_limit
-		if !self.evict_image(req_bytes) {
+	existing := self.image_by_id(img.id)
+	old_len := if old := existing { uint(old.data.len) } else { uint(0) }
+	used_bytes := self.total_bytes - old_len
+	available_bytes := self.total_limit - new_len
+	if used_bytes > available_bytes {
+		if !self.evict_image(mut s, used_bytes - available_bytes, img.id) {
 			return error('OutOfMemory: failed to evict enough images')
 		}
 	}
 
-	// Check if image with this ID already exists
-	if img.id in self.images {
-		old := self.images[img.id]
-		self.total_bytes -= uint(old.data.len)
-		mut old_mut := self.images[img.id]
-		old_mut.deinit()
+	mut stored := img
+	if old := existing {
+		self.delete_by_id(mut s, img.id, 0, true)
+		// The renderer compares timestamps to detect replacement pixels.
+		if stored.transmit_time <= old.transmit_time {
+			stored.transmit_time = old.transmit_time + 1
+		}
 	}
 
-	self.images[img.id] = img
-	self.total_bytes += uint(img.data.len)
+	self.images[img.id] = stored
+	self.total_bytes += new_len
 	self.dirty = true
 }
 
@@ -853,11 +860,16 @@ fn (mut self ImageStorage) delete_intersecting(mut t Terminal, p Point, delete_u
 //
 // This will evict as many images as necessary to make space for
 // req bytes.
-fn (mut self ImageStorage) evict_image(req uint) bool {
+fn (mut self ImageStorage) evict_image(mut s Screen, req uint, exclude_id ?u32) bool {
 	// Build candidate list
 	mut candidates := []EvictCandidate{cap: self.images.len}
 
 	for _, img in self.images {
+		if id := exclude_id {
+			if img.id == id {
+				continue
+			}
+		}
 		// Check if image is in use
 		mut used := false
 		for entry in self.placements {
@@ -901,27 +913,11 @@ fn (mut self ImageStorage) evict_image(req uint) bool {
 	// They're in order of best to evict.
 	mut evicted := uint(0)
 	for c in candidates {
-		// Delete all the placements for this image and the image.
-		mut i := 0
-		for i < self.placements.len {
-			if self.placements[i].key.image_id == c.id {
-				self.placements.delete(i)
-			} else {
-				i++
-			}
-		}
-
-		if c.id in self.images {
-			img := self.images[c.id]
-			evicted += uint(img.data.len)
-			self.total_bytes -= uint(img.data.len)
-			mut img_mut := self.images[c.id]
-			img_mut.deinit()
-			self.images.delete(c.id)
-
-			if evicted > req {
-				return true
-			}
+		img := self.image_by_id(c.id) or { continue }
+		evicted += uint(img.data.len)
+		self.delete_by_id(mut s, c.id, 0, true)
+		if evicted >= req {
+			return true
 		}
 	}
 

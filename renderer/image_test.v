@@ -305,7 +305,7 @@ fn test_kitty_virtual_placement_uses_viewport_relative_row() ! {
 	})) or { panic('placeholder pin is off screen') }
 
 	mut storage := terminal.ImageStorage{}
-	storage.add_image(terminal.Image{
+	storage.add_image(mut t.screens.active, terminal.Image{
 		id: 7
 		width: 1
 		height: 1

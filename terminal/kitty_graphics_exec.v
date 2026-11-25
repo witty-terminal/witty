@@ -423,7 +423,7 @@ fn load_and_add_image(mut t Terminal, cmd &Command) !LoadResult {
 			return err
 		}
 		storage.loading = none
-		storage.add_image(img)!
+		storage.add_image(mut t.screens.active, img)!
 		return LoadResult{
 			image:   img
 			display: display
@@ -435,12 +435,7 @@ fn load_and_add_image(mut t Terminal, cmd &Command) !LoadResult {
 
 	// If the image has no ID, we assign one.
 	if loading.image.id == 0 {
-		loading.image.id = storage.next_image_id
-		storage.next_image_id = if storage.next_image_id == u32(0xffffffff) {
-			u32(0)
-		} else {
-			storage.next_image_id + 1
-		}
+		loading.image.id = storage.allocate_image_id()
 
 		// If the image also has no number then its auto-ID is "implicit".
 		// See the doc comment on the Image.implicit_id field for detail.
@@ -461,7 +456,7 @@ fn load_and_add_image(mut t Terminal, cmd &Command) !LoadResult {
 	// Single-shot transfer - validate and complete the image immediately.
 	display := loading.display
 	img := loading.complete()!
-	storage.add_image(img)!
+	storage.add_image(mut t.screens.active, img)!
 
 	return LoadResult{
 		image:   img
