@@ -589,7 +589,7 @@ fn runtime_action(app &apprt.App, target apprt.Target, action apprt.RuntimeActio
 			if current := state {
 				data := action.data
 				if data is apprt.CellSize {
-					macos.dispatch_main(native_cell_size_main, voidptr(&NativeCellSizeTask{state: current, width: data.width, height: data.height}))
+					queue_native_cell_size(current, data.width, data.height)
 				}
 			}
 			return true

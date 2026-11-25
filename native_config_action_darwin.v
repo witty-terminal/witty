@@ -98,20 +98,28 @@ fn native_focus_follows_mouse(current &TermState) {
 	if controller.focused != unsafe { nil } && controller.focused.actions != unsafe { nil } && controller.focused.actions.command_palette_is_showing() { return }
 	macos.move_focus(current.view,unsafe { nil },none)
 }
-@[heap]
 struct NativeCellSizeTask {
 	state &TermState
 	width u32
 	height u32
 }
+
+fn queue_native_cell_size(state &TermState, width u32, height u32) {
+	task := NativeCellSizeTask{state: state, width: width, height: height}
+	// libdispatch keeps this context outside V's garbage collector roots.
+	context := unsafe { memdup_uncollectable(&task, int($sizeof(NativeCellSizeTask))) }
+	macos.dispatch_main(native_cell_size_main, context)
+}
+
 fn native_cell_size_main(context voidptr) {
+	defer { unsafe { free(context) } }
 	task := unsafe { &NativeCellSizeTask(context) }
 	mut current := task.state
 	if current.closed { return }
 	scale := macos.view_backing_scale(current.view)
 	current.cell_width = f64(task.width) / scale
 	current.cell_height = f64(task.height) / scale
-    current.actions.set_scroll_cell_height(current.cell_height)
+	current.actions.set_scroll_cell_height(current.cell_height)
 	if current.controller != unsafe { nil } && current.controller.focused == current {
 		config := native_controller_config(current)
 		macos.set_native_cell_size(current.view, current.cell_width, current.cell_height, config.step_resize)
