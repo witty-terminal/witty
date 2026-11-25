@@ -4,7 +4,7 @@ module gtk
 import ascii
 import log
 // Translated Ghostty native command objects, list/filter model, and signal.
-// The live UI loads the unchanged compiled source blueprint from GResource.
+// The live UI loads the compiled blueprint from GResource.
 import input
 
 // --- New C bindings unique to this file -----------------------------------
@@ -187,6 +187,7 @@ fn command_palette_native_dispose(obj voidptr) {
 fn command_palette_native_class_init(klass voidptr, _ voidptr) {
 	g_command_palette_parent = C.g_type_class_peek_parent(klass)
 	_ = command_get_type()
+	C.witty_gtk_palette_canvas_register()
 	C.witty_gobject_class_set_get_property(klass, voidptr(command_palette_native_get_property))
 	C.witty_gobject_class_set_set_property(klass, voidptr(command_palette_native_set_property))
 	C.witty_gobject_class_set_dispose(klass, voidptr(command_palette_native_dispose))
@@ -310,16 +311,16 @@ pub fn Command.new(config &Config, command input.Command) &Command {
 
 // new_jump creates a jump command focusing a specific surface.
 pub fn Command.new_jump(config &Config, surface &SurfaceWidget) &Command {
-	mut jump := JumpData{
-		// TODO: replace with a surface id once Ghostty adds one (matches the
-		// source `@intFromPtr(surface)`).
-		sort_key:    uint(voidptr(surface))
-		surface_ptr: unsafe { surface }
-	}
-	jump.surface.set(GObject(surface.widget))
 	mut self := &Command{
 		config: unsafe { nil }
-		data:   jump
+		data: JumpData{
+			sort_key:    uint(voidptr(surface))
+			surface_ptr: unsafe { surface }
+		}
+	}
+	// GLib records the address of the weak reference.
+	if mut self.data is JumpData {
+		self.data.surface.set(GObject(surface.widget))
 	}
 	if !isnil(config) {
 		self.config = config_ref(config)
@@ -641,6 +642,8 @@ fn (mut self CommandPalette) set_config_reference(config &Config) {
 // prop_config is the config-changed handler: it clears and rebuilds the command
 // list from the new config. Mirrors `propConfig`.
 pub fn (mut self CommandPalette) prop_config() {
+	use_canvas := !isnil(self.config) && gtk_canvas_styles_enabled(self.config.get())
+	gtk_canvas_overlay_set_mask(GtkWidget(self.dialog), use_canvas)
 	if isnil(self.config) {
 		log.warn('command palette does not have a config!')
 		return
@@ -822,6 +825,11 @@ pub fn (mut self CommandPalette) row_activated(pos u32) {
 // position: jump commands present their surface, regular commands emit the
 // `trigger` signal with the action. Mirrors `activated`.
 fn (mut self CommandPalette) activated(pos u32) {
+	// Closing can release the palette's self-reference synchronously.
+	self.ref()
+	defer {
+		self.unref()
+	}
 	// SelectionModel.getItem returns a strong command reference, retained
 	// across close exactly as in the source activated handler.
 	obj := if isnil(self.model) {

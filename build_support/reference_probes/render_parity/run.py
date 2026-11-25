@@ -34,6 +34,7 @@ INTERACTIVE_FIXTURES = (
     "selection-wide", "wide-edit", "search-wrap", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES,
 )
 LINK_PREVIEW_FIXTURES = ("link-preview", "link-preview-right")
+COMMAND_PALETTE_FIXTURES = ("command-palette", "command-palette-compact")
 WALLPAPER_OPTIONS = {
     "wallpaper-stretch": ("--background-image-fit=stretch",),
     "wallpaper-repeat": (
@@ -46,7 +47,7 @@ WALLPAPER_OPTIONS = {
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
     *INTERACTIVE_FIXTURES, "split-search", "visual-bell", "progress-overlay", "resize-overlay", "key-state-overlay",
-    *LINK_PREVIEW_FIXTURES, "readonly-overlay",
+    *LINK_PREVIEW_FIXTURES, "readonly-overlay", *COMMAND_PALETTE_FIXTURES,
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -138,6 +139,19 @@ def fixture_args(name, work):
         options.append("--link-previews=true")
     if name == "readonly-overlay":
         options.append("--keybind=ctrl+alt+o=toggle_readonly")
+    if name in COMMAND_PALETTE_FIXTURES:
+        options.extend((
+            "--title=Palette Fixture",
+            "--keybind=ctrl+alt+p=toggle_command_palette",
+            "--keybind=alt+a=text:paletteA", "--keybind=alt+b=text:paletteB",
+            "--command-palette-entry=clear",
+            "--command-palette-entry=title:Palette Probe Alpha,action:text:paletteA",
+            "--command-palette-entry=title:Palette Probe Bravo,action:text:paletteB",
+        ))
+        if name == "command-palette-compact":
+            options.extend(("--window-width=53", "--window-height=17", "--window-theme=light"))
+        else:
+            options.extend(("--window-width=85", "--window-height=25"))
     if name == "shader":
         options.extend(
             (
@@ -356,6 +370,43 @@ def capture_surface_badge(binary, args, helper, prefix, name, settle, scale, *, 
         finally:
             if link_preview:
                 subprocess.run(["xdotool", "keyup", "Control_L"], check=True, timeout=5)
+
+
+def capture_command_palette(binary, args, helper, prefix, settle, config_dir, *, witty=False):
+    capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
+    fade = max(settle, 0.6)
+    # Capture the whole settled dialog after editing the query.
+    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
+    env = {**os.environ, "GSK_DEBUG": debug, "XDG_CONFIG_HOME": str(config_dir),
+           "SCREENSHOT_SETTLE_SECONDS": str(4 * fade + 8)}
+    with open_window([binary, *capture_args, *args], prefix.with_suffix(".log"), env=env) as (_, window):
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            idle = image.tobytes()
+            # The command's echoed text occupies the far left of the second line.
+            rest = (image.width // 4, 0, image.width, image.height)
+            idle_rest = image.crop(rest).tobytes()
+        subprocess.run(
+            ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window, "14", "80",
+             "key", "ctrl+alt+p"], check=True, timeout=5,
+        )
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            opened = image.tobytes()
+        if idle == opened:
+            raise RuntimeError("The command palette did not open")
+        # Match the configured entries regardless of the built-in command catalog.
+        subprocess.run(["xdotool", "type", "--delay", "0", "Palette Probe"], check=True, timeout=5)
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            if image.tobytes() in (opened, idle):
+                raise RuntimeError("The command palette did not filter its rows")
+            image.save(prefix.with_suffix(".png"))
+        subprocess.run(["xdotool", "key", "Return"], check=True, timeout=5)
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            if image.tobytes() == idle or image.crop(rest).tobytes() != idle_rest:
+                raise RuntimeError("The selected command did not execute and close the palette")
 
 
 def drag_wide_selection(window, padding, cell_width, cell_height):
@@ -616,6 +667,13 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name in (*LINK_PREVIEW_FIXTURES, "readonly-overlay"):
                 capture_surface_badge(ghostty, args, helper, expected, name, settle, scale)
                 capture_surface_badge(witty, args, helper, actual, name, settle, scale, witty=True)
+            elif name in COMMAND_PALETTE_FIXTURES:
+                config_dir = work / f"{name}-config"
+                gtk_config = config_dir / "gtk-4.0"
+                gtk_config.mkdir(parents=True)
+                (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
+                capture_command_palette(ghostty, args, helper, expected, settle, config_dir)
+                capture_command_palette(witty, args, helper, actual, settle, config_dir, witty=True)
             else:
                 capture_ghostty([ghostty, *args], helper, expected, settle)
                 capture_witty(witty, args, actual, settle)

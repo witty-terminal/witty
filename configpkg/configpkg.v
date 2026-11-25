@@ -2434,11 +2434,11 @@ const config_template = $embed_file('config-template').to_string()
 //
 // By default, the command palette is preloaded with most actions that might
 // be useful in an interactive setting yet do not have easily accessible or
-// memorizable shortcuts. The default entries can be cleared by setting this
-// setting to an empty value:
+// memorizable shortcuts. Use `clear` to remove the configured entries before
+// adding your own:
 //
 // ```ini
-// command-palette-entry =
+// command-palette-entry = clear
 // ```
 //
 // Available since: 1.2.0
@@ -5654,11 +5654,11 @@ pub fn (mut r RepeatableCommand) init() {
 	r.items_c = inputpkg.command_defaults_c.clone()
 }
 
-// parse_cli appends a title/action/description record. An empty value clears
-// the complete list, matching repeatable configuration semantics.
+// parse_cli appends a title/action/description record. The `clear` value
+// empties the list.
 pub fn (mut r RepeatableCommand) parse_cli(input ?string) ! {
 	input_value := input or { '' }
-	if input_value.len == 0 {
+	if input_value.len == 0 || input_value == 'clear' {
 		r.items.clear()
 		r.items_c.clear()
 		return

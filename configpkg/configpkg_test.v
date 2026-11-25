@@ -1161,6 +1161,11 @@ fn test_repeatable_command_parse_clear_clone_and_format() {
 	defaults.load_string('command-palette-entry =\ncommand-palette-entry = title:Only,action:ignore\n')
 	assert defaults.command_palette_entry.items.len == input.command_defaults.len + 1
 	assert defaults.command_palette_entry.items.last().title == 'Only'
+	defaults.load_string('command-palette-entry = clear\ncommand-palette-entry = title:Only,action:ignore\n')
+	assert defaults.diagnostics.len == 0
+	assert defaults.command_palette_entry.items.len == 1
+	assert defaults.command_palette_entry.cval().len == 1
+	assert defaults.command_palette_entry.items[0].title == 'Only'
 
 	mut commands := RepeatableCommand{}
 	commands.parse_cli('title:Foo,action:ignore')!
