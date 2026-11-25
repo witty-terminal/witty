@@ -8,6 +8,7 @@ fn C.witty_gtk_canvas_overlay_has_mask(bin GtkWidget) bool
 fn C.witty_gtk_canvas_overlay_set_mask(bin GtkWidget, mask voidptr)
 fn C.witty_gtk_terminal_overlay_new() GtkWidget
 fn C.witty_gtk_terminal_overlay_add(overlay GtkWidget, child GtkWidget, dimming bool)
+fn C.witty_gtk_terminal_overlay_add_bell(overlay GtkWidget, child GtkWidget)
 fn C.witty_gtk_split_canvas_new() GtkWidget
 
 fn gtk_canvas_overlay_set_mask(widget GtkWidget, enabled bool) {

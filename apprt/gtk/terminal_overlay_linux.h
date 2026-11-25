@@ -1,12 +1,13 @@
 #ifndef WITTY_GTK_TERMINAL_OVERLAY_H
 #define WITTY_GTK_TERMINAL_OVERLAY_H
 
-#include "canvas_overlay_linux.h"
+#include "bell_overlay_linux.h"
 
 typedef enum {
 	WITTY_OVERLAY_NATIVE,
 	WITTY_OVERLAY_BADGE,
 	WITTY_OVERLAY_DIMMING,
+	WITTY_OVERLAY_BELL,
 } WittyOverlayPaint;
 
 static inline WittyOverlayPaint witty_gtk_terminal_overlay_paint(GtkWidget *child) {
@@ -43,9 +44,13 @@ static inline void witty_gtk_terminal_overlay_snapshot(GtkWidget *widget, GtkSna
 			GtkSnapshot *layout = gtk_snapshot_new();
 			gtk_widget_snapshot_child(widget, child, layout);
 			g_autoptr(GskRenderNode) node = gtk_snapshot_free_to_node(layout);
-			if (node)
+			if (node && paint == WITTY_OVERLAY_BELL) {
+				GskRenderer *renderer = gtk_native_get_renderer(gtk_widget_get_native(widget));
+				witty_gtk_bell_append(snapshot, mask, node, GSK_IS_CAIRO_RENDERER(renderer));
+			} else if (node) {
 				witty_gtk_canvas_overlay_append(snapshot, mask, node, paint == WITTY_OVERLAY_BADGE,
 					paint == WITTY_OVERLAY_DIMMING);
+			}
 		} else {
 			gtk_widget_snapshot_child(widget, child, snapshot);
 		}
@@ -76,6 +81,11 @@ static inline GtkWidget *witty_gtk_terminal_overlay_new(void) {
 static inline void witty_gtk_terminal_overlay_add(GtkOverlay *overlay, GtkWidget *child, bool dimming) {
 	g_object_set_data(G_OBJECT(child), "witty-overlay-decoration",
 		GINT_TO_POINTER(dimming ? WITTY_OVERLAY_DIMMING : WITTY_OVERLAY_BADGE));
+	gtk_overlay_add_overlay(overlay, child);
+}
+
+static inline void witty_gtk_terminal_overlay_add_bell(GtkOverlay *overlay, GtkWidget *child) {
+	g_object_set_data(G_OBJECT(child), "witty-overlay-decoration", GINT_TO_POINTER(WITTY_OVERLAY_BELL));
 	gtk_overlay_add_overlay(overlay, child);
 }
 

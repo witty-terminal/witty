@@ -33,6 +33,8 @@ SEARCH_SELECTED_BACKGROUND = (242, 165, 126)
 PALETTE_THEME_BACKGROUND = (54, 87, 129)
 READONLY_THEME_BACKGROUND = (33, 128, 205)
 SPLIT_THEME_DIVIDER = (190, 115, 185)
+BELL_THEME_FILL = (33, 128, 205)
+BELL_THEME_BORDER = (214, 106, 69)
 PROGRESS_THEME_TROUGH = (90, 67, 90)
 PROGRESS_THEME_FILL = (33, 128, 205)
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
@@ -42,6 +44,7 @@ INTERACTIVE_FIXTURES = (
 LINK_PREVIEW_FIXTURES = ("link-preview", "link-preview-right")
 READONLY_FIXTURES = ("readonly-overlay", "readonly-overlay-themed")
 SPLIT_SEARCH_FIXTURES = ("split-search", "split-search-themed")
+BELL_FIXTURES = ("visual-bell", "visual-bell-themed")
 PROGRESS_FIXTURES = ("progress-overlay", "progress-overlay-themed")
 COMMAND_PALETTE_FIXTURES = (
     "command-palette", "command-palette-compact", "command-palette-resize", "command-palette-themed",
@@ -60,7 +63,7 @@ WALLPAPER_OPTIONS = {
 }
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
-    *INTERACTIVE_FIXTURES, *SPLIT_SEARCH_FIXTURES, "split-close", "visual-bell", *PROGRESS_FIXTURES,
+    *INTERACTIVE_FIXTURES, *SPLIT_SEARCH_FIXTURES, "split-close", *BELL_FIXTURES, *PROGRESS_FIXTURES,
     "resize-overlay", "key-state-overlay",
     *LINK_PREVIEW_FIXTURES, *READONLY_FIXTURES, *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
     *TITLE_DIALOG_ACTIONS, "gtk-toast",
@@ -191,10 +194,18 @@ def fixture_args(name, work):
             "--split-divider-color=47637c", f"--command={shlex.join([*command, 'Right'])}",
             "-e", *command, "Left",
         ]
-    if name == "visual-bell":
+    if name in BELL_FIXTURES:
+        if name == "visual-bell-themed":
+            css = work / "bell-theme.css"
+            css.write_text(
+                ".surface .bell-overlay { "
+                f"background-color: #{bytes(BELL_THEME_FILL).hex()}; "
+                f"border-color: #{bytes(BELL_THEME_BORDER).hex()}; border-radius: 9px; }}\n"
+            )
+            options.append(f"--gtk-custom-css={css}")
         return [
             *options, "--bell-features=border,no-title,no-attention",
-            "-e", sys.executable, str(PROBE / "fixtures.py"), name, str(work / "bell.trigger"),
+            "-e", sys.executable, str(PROBE / "fixtures.py"), "visual-bell", str(work / "bell.trigger"),
         ]
     if name == "clipboard-confirmation":
         return [
@@ -388,7 +399,7 @@ def capture_split_close(binary, args, helper, prefix, settle, scale, config_dir,
         restored.save(prefix.with_suffix(".png"))
 
 
-def capture_visual_bell(binary, args, helper, prefix, settle, scale, *, witty=False):
+def capture_visual_bell(binary, args, helper, prefix, settle, scale, *, themed=False, witty=False):
     capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
     fade = max(settle, 0.65)
     env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(4 * fade + 8)}
@@ -425,7 +436,10 @@ def capture_visual_bell(binary, args, helper, prefix, settle, scale, *, witty=Fa
         with read_window(helper, window) as image:
             image.save(prefix.with_suffix(".png"))
             body = image.getpixel(inside)
-            if body == background or image.getpixel(edge) == body:
+            border = image.getpixel(edge)
+            if themed and (body, border) != (BELL_THEME_FILL, BELL_THEME_BORDER):
+                raise RuntimeError("The themed visual bell colors did not render")
+            if body == background or border == body:
                 raise RuntimeError("BEL did not draw both the fill and border of the unfocused terminal")
 
         subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True, timeout=5)
@@ -1078,9 +1092,10 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
                     themed = name == "split-search-themed"
                     capture_split_search(ghostty, args, helper, expected, settle, scale, config_dir, themed=themed)
                     capture_split_search(witty, args, helper, actual, settle, scale, config_dir, themed=themed, witty=True)
-            elif name == "visual-bell":
-                capture_visual_bell(ghostty, args, helper, expected, settle, scale)
-                capture_visual_bell(witty, args, helper, actual, settle, scale, witty=True)
+            elif name in BELL_FIXTURES:
+                themed = name == "visual-bell-themed"
+                capture_visual_bell(ghostty, args, helper, expected, settle, scale, themed=themed)
+                capture_visual_bell(witty, args, helper, actual, settle, scale, themed=themed, witty=True)
             elif name in PROGRESS_FIXTURES:
                 themed = name == "progress-overlay-themed"
                 capture_progress_overlay(ghostty, args, helper, expected, settle, scale, themed=themed)

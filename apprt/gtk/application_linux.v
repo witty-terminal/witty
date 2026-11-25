@@ -1085,7 +1085,6 @@ fn application_runtime_css(config &configpkg.Config, gtk_416 bool) string {
 		css += 'windowhandle:backdrop {\n background-color: oklab(from rgb(${background.r},${background.g},${background.b}) calc(l * 0.9) a b / alpha);\n}\n'
 	}
 
-	css += '.surface .bell-overlay.bell-canvas {\n color: ${bell_tint};\n background-color: transparent;\n border-color: transparent;\n}\n'
 	css += '.child-exited.child-exited-canvas revealer widget { background-color: transparent; }\n'
 	css += '.child-exited.normal .child-exited-fill { color: ${success_tint}; }\n'
 	css += '.child-exited.abnormal .child-exited-fill { color: ${error_tint}; }\n'

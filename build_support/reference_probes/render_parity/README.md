@@ -32,6 +32,7 @@ The search fixture drives scrollback search through keybindings and checks both 
 The split search fixture captures the full GTK client window and compares both panes as Find takes focus in the right pane.
 The `split-search-themed` fixture also checks custom CSS colors for the divider and the unfocused pane.
 The `split-close` fixture closes a nested pane and verifies that the two surviving panes redraw with the expected focus.
+The `visual-bell-themed` fixture checks a CSS fill and rounded border during an unfocused bell and verifies that refocusing clears the overlay.
 The `progress-overlay-themed` fixture verifies the CSS colors of a paused progress fill and its trough.
 The `readonly-overlay-themed` fixture checks that a custom badge background and fractional outlines match when the terminal enters read-only mode.
 The resize fixtures narrow the window with the cursor after blank cells or near the bottom of the screen. They also check which row of a newly wrapped Bash prompt clears and where the next character appears after widening a full row.

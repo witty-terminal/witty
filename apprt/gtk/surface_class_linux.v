@@ -2612,9 +2612,6 @@ fn (mut self SurfaceWidget) apply_resize_overlay_config() {
 pub fn (mut self SurfaceWidget) apply_config() {
 	self.apply_resize_overlay_config()
 	use_canvas := !isnil(self.config) && gtk_canvas_styles_enabled(self.config.get())
-	if !isnil(self.bell_revealer) {
-		C.witty_gtk_bell_set_canvas(self.bell_revealer, use_canvas)
-	}
 	if !isnil(self.child_exited_overlay) {
 		self.child_exited_overlay.set_canvas(use_canvas)
 	}
@@ -3591,7 +3588,7 @@ fn surface_readonly_revealer_new() GtkWidget {
 }
 
 fn surface_bell_revealer_new() GtkWidget {
-	box := surface_bell_box_new()
+	box := C.gtk_box_new(0, 0)
 	C.gtk_widget_add_css_class(box, c'bell-overlay')
 	C.gtk_widget_set_halign(box, int(Align.fill))
 	C.gtk_widget_set_valign(box, int(Align.fill))
@@ -3638,7 +3635,7 @@ pub fn new_surface_widget(window &Window, split_tree &SplitTreeWidget, config &C
 	C.gtk_widget_set_visible(child_exited_overlay.widget, false)
 	C.witty_gtk_terminal_overlay_add(terminal_page, readonly_revealer, false)
 	C.gtk_overlay_add_overlay(terminal_page, progress_bar_overlay)
-	C.gtk_overlay_add_overlay(terminal_page, bell_revealer)
+	C.witty_gtk_terminal_overlay_add_bell(terminal_page, bell_revealer)
 	C.gtk_overlay_add_overlay(terminal_page, child_exited_overlay.widget)
 	C.gtk_overlay_add_overlay(terminal_page, resize_overlay.widget)
 	C.witty_gtk_terminal_overlay_add(terminal_page, GtkWidget(url_left), false)

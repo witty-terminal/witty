@@ -1,79 +1,56 @@
 #ifndef WITTY_GTK_BELL_OVERLAY_H
 #define WITTY_GTK_BELL_OVERLAY_H
 
-#include "canvas_linux.h"
-#include <stdbool.h>
+#include "canvas_overlay_linux.h"
 
-static inline void witty_gtk_bell_snapshot(GtkWidget *widget, GtkSnapshot *snapshot) {
-	if (!gtk_widget_has_css_class(widget, "bell-canvas"))
-		return;
-
-	GdkTexture *mask = g_object_get_data(G_OBJECT(widget), "witty-bell-mask");
-	if (!mask)
-		return;
-	GdkRGBA tint;
-	GtkBorder border;
-	gtk_widget_get_color(widget, &tint);
-	gtk_style_context_get_border(gtk_widget_get_style_context(widget), &border);
-
-	// GTK allocates the snapshot in content coordinates.
-	float x = -border.left;
-	float y = -border.top;
-	float width = gtk_widget_get_width(widget);
-	float height = gtk_widget_get_height(widget);
-	float outer_width = width + border.left + border.right;
-	float outer_height = height + border.top + border.bottom;
-	const graphene_rect_t bounds = GRAPHENE_RECT_INIT(x, y, outer_width, outer_height);
-
-	// The CSS background extends beneath the border. Keep the two paints
-	// separate so GTK applies the same blending before the revealer fades.
-	if (gtk_check_version(4, 16, 0) == NULL)
-		witty_gtk_canvas_snapshot_mask(snapshot, mask, &tint, &bounds, &bounds, 1);
-
-	GskRenderer *renderer = gtk_native_get_renderer(gtk_widget_get_native(widget));
-	if (!GSK_IS_CAIRO_RENDERER(renderer)) {
-		// GPU compositors use GSK's analytic coverage at the border edges.
-		GskRoundedRect outline;
-		gsk_rounded_rect_init_from_rect(&outline, &bounds, 0);
-		const float widths[] = {border.top, border.right, border.bottom, border.left};
-		const GdkRGBA colors[] = {tint, tint, tint, tint};
-		gtk_snapshot_append_border(snapshot, &outline, widths, colors);
+static inline void witty_gtk_bell_append(GtkSnapshot *snapshot, GdkTexture *mask,
+		GskRenderNode *node, bool cairo) {
+	const GskRenderNodeType type = gsk_render_node_get_node_type(node);
+	if (type == GSK_COLOR_NODE
+			|| (type == GSK_BORDER_NODE && cairo && gsk_rounded_rect_is_rectilinear(gsk_border_node_get_outline(node)))) {
+		graphene_rect_t bounds;
+		gsk_render_node_get_bounds(node, &bounds);
+		witty_gtk_canvas_overlay_append_masked_node(snapshot, mask, node, &bounds);
 		return;
 	}
-
-	const graphene_rect_t edges[] = {
-		GRAPHENE_RECT_INIT(x, y, outer_width, border.top),
-		GRAPHENE_RECT_INIT(x, height, outer_width, border.bottom),
-		GRAPHENE_RECT_INIT(x, 0, border.left, height),
-		GRAPHENE_RECT_INIT(width, 0, border.right, height),
-	};
-	witty_gtk_canvas_snapshot_mask(snapshot, mask, &tint, &bounds, edges, G_N_ELEMENTS(edges));
-}
-
-static inline void witty_gtk_bell_class_init(void *klass, void *data) {
-	(void)data;
-	GTK_WIDGET_CLASS(klass)->snapshot = witty_gtk_bell_snapshot;
-}
-
-// The widget takes ownership of the Canvas mask texture.
-static inline GtkWidget *witty_gtk_bell_box_new(GdkTexture *mask) {
-	static gsize type;
-	if (g_once_init_enter(&type)) {
-		GType registered = g_type_register_static_simple(GTK_TYPE_BOX, "WittyBellOverlay",
-			sizeof(GtkBoxClass), witty_gtk_bell_class_init, sizeof(GtkBox), NULL, 0);
-		g_once_init_leave(&type, registered);
+	if (type == GSK_CONTAINER_NODE) {
+		const guint count = gsk_container_node_get_n_children(node);
+		for (guint i = 0; i < count; ++i)
+			witty_gtk_bell_append(snapshot, mask, gsk_container_node_get_child(node, i), cairo);
+		return;
 	}
-	GtkWidget *box = g_object_new(type, NULL);
-	g_object_set_data_full(G_OBJECT(box), "witty-bell-mask", mask, g_object_unref);
-	return box;
-}
-
-static inline void witty_gtk_bell_set_canvas(GtkRevealer *revealer, bool enabled) {
-	GtkWidget *box = gtk_revealer_get_child(revealer);
-	if (enabled && g_object_get_data(G_OBJECT(box), "witty-bell-mask"))
-		gtk_widget_add_css_class(box, "bell-canvas");
-	else
-		gtk_widget_remove_css_class(box, "bell-canvas");
+	if (type == GSK_OPACITY_NODE || type == GSK_TRANSFORM_NODE) {
+		GskTransform *transform = NULL;
+		GskRenderNode *contents;
+		if (type == GSK_OPACITY_NODE) {
+			contents = gsk_opacity_node_get_child(node);
+		} else {
+			transform = gsk_transform_node_get_transform(node);
+			float x, y;
+			if (gsk_transform_get_category(transform) < GSK_TRANSFORM_CATEGORY_2D_TRANSLATE)
+				goto native_paint;
+			gsk_transform_to_translate(transform, &x, &y);
+			if (x != floorf(x) || y != floorf(y))
+				goto native_paint;
+			contents = gsk_transform_node_get_child(node);
+		}
+		// Keep both layers together as GTK fades the revealer.
+		GtkSnapshot *layout = gtk_snapshot_new();
+		witty_gtk_bell_append(layout, mask, contents, cairo);
+		g_autoptr(GskRenderNode) child = gtk_snapshot_free_to_node(layout);
+		if (child) {
+			g_autoptr(GskRenderNode) wrapped = type == GSK_OPACITY_NODE
+				? gsk_opacity_node_new(child, gsk_opacity_node_get_opacity(node))
+				: gsk_transform_node_new(child, transform);
+			gtk_snapshot_append_node(snapshot, wrapped);
+			return;
+		}
+	}
+	// Keep GTK's edge coverage for translucent rounded backgrounds and GPU borders.
+	if (type == GSK_ROUNDED_CLIP_NODE && witty_gtk_canvas_overlay_append_solid_background(snapshot, mask, node))
+		return;
+native_paint:
+	gtk_snapshot_append_node(snapshot, node);
 }
 
 #endif
