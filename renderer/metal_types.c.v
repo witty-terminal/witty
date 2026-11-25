@@ -189,7 +189,8 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 	// Metal Frame
 	// ============================================================
 
-	// MetalFrame wraps a Metal command buffer for encoding a frame.
+	// MetalFrame owns pass encoding and submission for a terminal frame.
+	// It uses GG's Metal backend when Witty owns that backend.
 	pub struct MetalFrame {
 	pub mut:
 		// The command buffer handle.
@@ -198,6 +199,8 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		renderer            voidptr = unsafe { nil }
 		target              voidptr = unsafe { nil }
 		completion_callback voidptr = unsafe { nil }
+	mut:
+		gg &GGMetalFrame = unsafe { nil }
 	}
 
 	pub fn MetalFrame.begin(queue voidptr, renderer_ptr voidptr, target voidptr, completion_callback voidptr) !MetalFrame {
@@ -220,11 +223,52 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		}
 	}
 
-	pub fn (self &MetalFrame) render_pass(attachments []MetalRenderPassAttachment) MetalRenderPass {
+	fn MetalFrame.begin_for_device(api &MetalAPI, renderer_ptr voidptr, target voidptr, callback voidptr) !MetalFrame {
+		$if macos && !renderer_opengl ? {
+			if api.gg_owned {
+				if renderer_ptr == unsafe { nil } || target == unsafe { nil } || callback == unsafe { nil } {
+					return error('Metal frame requires completion captures')
+				}
+				return MetalFrame{
+					renderer:            renderer_ptr
+					target:              target
+					completion_callback: callback
+					gg:                  gg_metal_begin()
+				}
+			}
+		}
+		return MetalFrame.begin(api.queue, renderer_ptr, target, callback)
+	}
+
+	pub fn (mut self MetalFrame) render_pass(attachments []MetalRenderPassAttachment) !MetalRenderPass {
+		$if macos && !renderer_opengl ? {
+			if self.gg != unsafe { nil } {
+				return self.gg.render_pass(attachments)
+			}
+		}
 		return MetalRenderPass.begin(MetalRenderPassOptions{
 			command_buffer: self.command_buffer
 			attachments:    attachments
 		})
+	}
+
+	fn (mut self MetalFrame) submit(pass &MetalRenderPass, sync_ bool) ! {
+		$if macos && !renderer_opengl ? {
+			if self.gg != unsafe { nil } {
+				self.gg.submit(pass, self, sync_)!
+				return
+			}
+		}
+		pass.complete()
+		self.complete(sync_)
+	}
+
+	fn (mut self MetalFrame) cancel() {
+		$if macos && !renderer_opengl ? {
+			if self.gg != unsafe { nil } {
+				self.gg.cancel()
+			}
+		}
 	}
 
 	pub fn (mut self MetalFrame) complete(sync_ bool) {
@@ -246,11 +290,13 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 	// Metal RenderPass
 	// ============================================================
 
-	// MetalRenderPass wraps a Metal render command encoder.
+	// MetalRenderPass wraps the Metal encoder for the terminal shaders.
 	pub struct MetalRenderPass {
 	pub mut:
 		// The render command encoder handle.
 		encoder voidptr = unsafe { nil }
+	mut:
+		gg bool
 	}
 
 	// MetalRenderStep describes a single step in a render pass.
@@ -339,6 +385,12 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 	}
 
 	pub fn (self &MetalRenderPass) complete() {
+		$if macos && !renderer_opengl ? {
+			if self.gg {
+				gg_metal_end_render_pass()
+				return
+			}
+		}
 		macos.metal_end_encoding(self.encoder)
 	}
 

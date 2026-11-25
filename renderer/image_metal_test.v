@@ -132,7 +132,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		defer {
 			target.deinit()
 		}
-		mut uniforms := MetalBuffer.init_fill(api.buffer_options(), []u8{len: int($sizeof(Uniforms))})!
+		mut uniforms := MetalBuffer.init_fill(api.buffer_options(), [metal_uniforms(Uniforms{})])!
 		defer {
 			uniforms.deinit()
 		}
@@ -142,7 +142,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		mut pass := frame.render_pass([MetalRenderPassAttachment{
 			target:      MetalRenderAttachmentTarget(target)
 			clear_color: [f64(0), 0, 0, 1]!
-		}])
+		}])!
 		pass.step(MetalRenderStep{
 			pipeline: shaders.bg_color
 			uniforms: uniforms

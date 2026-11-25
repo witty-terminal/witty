@@ -274,8 +274,9 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			frame_state.color_modified = self.font_grid.atlas_color.modified.load()
 		}
 
-		mut frame := MetalFrame.begin(self.api.queue, voidptr(self), voidptr(&frame_state.target),
+		mut frame := MetalFrame.begin_for_device(&self.api, voidptr(self), voidptr(&frame_state.target),
 			voidptr(renderer_metal_frame_completed_callback))!
+		defer { frame.cancel() }
 		mut terminal_target := MetalRenderAttachmentTarget(frame_state.target)
 		if state := frame_state.custom_shader_state {
 			terminal_target = MetalRenderAttachmentTarget(state.back_texture)
@@ -285,7 +286,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 				target:      terminal_target
 				clear_color: [f64(0), 0, 0, 0]!
 			},
-		])
+		])!
 
 		if image := self.bg_image {
 			if image is ImageReady {
@@ -339,21 +340,20 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		})
 		self.images.draw(&self.api, self.shaders.image, mut pass, .kitty_above_text)
 		self.images.draw(&self.api, self.shaders.image, mut pass, .overlay)
-		pass.complete()
-
 		if mut state := frame_state.custom_shader_state {
 			for index, pipeline in self.shaders.post_pipelines {
+				pass.complete()
 				mut output_texture := MetalRenderAttachmentTarget(frame_state.target)
 				if index < self.shaders.post_pipelines.len - 1 {
 					output_texture = MetalRenderAttachmentTarget(state.front_texture)
 				}
-				mut post_pass := frame.render_pass([
+				pass = frame.render_pass([
 					MetalRenderPassAttachment{
 						target:      output_texture
 						clear_color: [f64(0), 0, 0, 0]!
 					},
-				])
-				post_pass.step(MetalRenderStep{
+				])!
+				pass.step(MetalRenderStep{
 					pipeline: pipeline
 					uniforms: state.uniforms
 					textures: [?MetalTexture(state.back_texture)]
@@ -363,13 +363,12 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 						vertex_count: 3
 					}
 				})
-				post_pass.complete()
 				state.swap()
 			}
 			frame_state.custom_shader_state = state
 		}
 
-		frame.complete(sync_)
+		frame.submit(&pass, sync_)!
 		frame_submitted = true
 	}
 

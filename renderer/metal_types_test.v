@@ -1,14 +1,17 @@
 module renderer
 
+import configpkg
 import datastruct
 import font
 import macos
+import sync
 
 struct MetalFrameTestCapture {
 mut:
 	calls  int
 	status u64
 	sync_  bool
+	done   &sync.Semaphore = unsafe { nil }
 }
 
 fn metal_frame_test_completion(renderer_ptr voidptr, target_ptr voidptr, status u64, sync_ bool) {
@@ -17,6 +20,62 @@ fn metal_frame_test_completion(renderer_ptr voidptr, target_ptr voidptr, status 
 	capture.calls++
 	capture.status = status
 	capture.sync_ = sync_
+	if capture.done != unsafe { nil } {
+		capture.done.post()
+	}
+}
+
+$if macos && !renderer_opengl ? {
+	fn test_gg_metal_iosurface_passes_and_completion() ! {
+		mut api := MetalAPI.init()!
+		defer { api.deinit() }
+		assert api.gg_owned
+		mut sibling := MetalAPI.init()!
+		assert sibling.gg_owned
+		sibling.deinit()
+		api.draw_frame_start()
+		defer { api.draw_frame_end() }
+
+		for blending in [configpkg.AlphaBlending.native, .linear_corrected] {
+			api.blending = blending
+			mut target := api.init_target(4, 4)!
+			defer { target.deinit() }
+			mut done := sync.new_semaphore()
+			defer { done.destroy() }
+			mut capture := MetalFrameTestCapture{ done: done }
+
+			attachment := MetalRenderAttachmentTarget(target)
+			mut abandoned := MetalFrame.begin_for_device(&api, voidptr(&capture), voidptr(&target),
+				voidptr(metal_frame_test_completion))!
+			first := abandoned.render_pass([MetalRenderPassAttachment{ target: attachment }])!
+			first.complete()
+			abandoned.cancel()
+			assert capture.calls == 0
+
+			mut frame := MetalFrame.begin_for_device(&api, voidptr(&capture), voidptr(&target),
+				voidptr(metal_frame_test_completion))!
+			defer { frame.cancel() }
+
+			clear := frame.render_pass([
+				MetalRenderPassAttachment{
+					target:      attachment
+					clear_color: [f64(1), 0, 0, 1]!
+				},
+			])!
+			assert clear.gg
+			clear.complete()
+			load := frame.render_pass([MetalRenderPassAttachment{ target: attachment }])!
+			wait := blending.is_linear()
+			frame.submit(&load, wait)!
+			done.wait()
+			assert capture.calls == 1
+			assert capture.sync_ == wait
+			assert metal_command_buffer_status(capture.status) == .completed
+			mut pixel := []u8{len: 4}
+			macos.metal_texture_get_bytes(target.texture, mut pixel, 4, 0, 0, 1, 1)
+			assert pixel == [u8(0), 0, 255, 255]
+		}
+	}
 }
 
 fn capture_metal_health_event(data voidptr, event SurfaceEvent, timeout datastruct.BlockingQueueTimeout) u32 {
@@ -282,7 +341,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		mut pass := frame.render_pass([MetalRenderPassAttachment{
 			target:      MetalRenderAttachmentTarget(target)
 			clear_color: [f64(0.25), 0.5, 0.75, 1.0]!
-		}])
+		}])!
 		pass.complete()
 		mut texture := MetalTexture.init(api.texture_options(), 8, 6, none)!
 		defer {
@@ -291,7 +350,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		mut texture_pass := frame.render_pass([MetalRenderPassAttachment{
 			target:      MetalRenderAttachmentTarget(texture)
 			clear_color: [f64(0), 0, 0, 0]!
-		}])
+		}])!
 		texture_pass.complete()
 		frame.complete(true)
 		assert capture.calls == 1
@@ -326,7 +385,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		defer {
 			target.deinit()
 		}
-		mut uniforms := MetalBuffer.init_fill(api.buffer_options(), []u8{len: int($sizeof(Uniforms))})!
+		mut uniforms := MetalBuffer.init_fill(api.buffer_options(), [metal_uniforms(Uniforms{})])!
 		defer {
 			uniforms.deinit()
 		}
@@ -336,7 +395,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		mut pass := frame.render_pass([MetalRenderPassAttachment{
 			target:      MetalRenderAttachmentTarget(target)
 			clear_color: [f64(0), 0, 0, 1]!
-		}])
+		}])!
 		pass.step(MetalRenderStep{
 			pipeline: shaders.bg_color
 			uniforms: uniforms

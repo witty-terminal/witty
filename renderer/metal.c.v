@@ -6,12 +6,6 @@ import macos
 
 $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 
-	// Graphics API wrapper for Metal.
-	//
-	// In this V translation, Metal is used directly via Objective-C
-	// helpers in macos/appkit.m. The MetalAPI struct holds opaque
-	// pointers to MTLDevice, MTLCommandQueue, and CAMetalLayer.
-
 	// MetalAPI wraps the Metal graphics API implementation.
 	pub struct MetalAPI {
 	pub mut:
@@ -37,6 +31,9 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 
 		// True when this instance created and therefore owns device and queue.
 		owns_handles bool
+	mut:
+		// This surface shares Witty's GG submission backend.
+		gg_owned bool
 	}
 
 	// Storage mode for Metal resources.
@@ -142,6 +139,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			default_storage_mode: storage
 			max_texture_size:     max_tex
 			owns_handles:         true
+			gg_owned:             $if macos && !renderer_opengl ? { gg_metal_acquire(device) } $else { false }
 		}
 	}
 
@@ -163,10 +161,17 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			default_storage_mode: metal_default_storage_mode(device)
 			max_texture_size:     macos.metal_max_texture_size(device)
 			owns_handles:         true
+			gg_owned:             $if macos && !renderer_opengl ? { gg_metal_acquire(device) } $else { false }
 		}
 	}
 
 	pub fn (mut self MetalAPI) deinit() {
+		$if macos && !renderer_opengl ? {
+			if self.gg_owned {
+				gg_metal_release()
+				self.gg_owned = false
+			}
+		}
 		if self.owns_handles {
 			macos.metal_release(self.queue)
 			macos.metal_release(self.device)
