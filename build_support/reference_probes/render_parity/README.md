@@ -19,11 +19,11 @@ xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- \
   .witty-build/render-parity-witty/bin/witty "$(command -v ghostty)"
 ```
 
-The probe uses Witty’s `--screenshot` and captures Ghostty’s matching X11 client window. It compares decoded RGBA pixels for ANSI colors, text decorations, Unicode and emoji, wide characters wrapping at the right edge, block, bar, and underline cursors, Kitty images, colored `ls` output, Git diff, Vim, and a two-pass GLSL shader.
+The probe uses Witty’s `--screenshot` and captures Ghostty’s matching X11 client window. It compares decoded RGBA pixels for ANSI colors, text decorations, Unicode and emoji, wide characters wrapping at the right edge, block, bar, and underline cursors, Kitty images, stretched and repeated background images, colored `ls` output, Git diff, Vim, and a two-pass GLSL shader.
 
 Each run saves the PNGs, application logs, executable versions and hashes, and a `results.tsv` report under `.witty-build/render-parity/`. Differing pixels appear white in the corresponding `*-diff.png` mask. A size or pixel mismatch returns exit status 1.
 
-Use `--output` to choose a new directory, `--fixture` to repeat a single case, or `--settle-seconds` to allow more time for rendering on a slower host.
+Use `--output` to choose a new directory, `--fixture` to repeat a single case, or `--settle-seconds` to allow more time for rendering on a slower host. Pass `--scale 2` to compare HiDPI captures. The probe defaults to 1× and records the requested GTK scale in `versions.txt`.
 
 The regular Linux CI build checks two grid sizes with the default window settings and also verifies capture with a configured tab bar. Each screenshot must contain the colored terminal cell.
 
@@ -31,7 +31,7 @@ The [Linux render parity workflow](../../../.github/workflows/render-parity.yml)
 
 ```sh
 bash .github/scripts/linux-render-parity.sh \
-  .witty-build/render-parity-witty/bin/witty .witty-build/render-parity/ubuntu-26
+  .witty-build/render-parity-witty/bin/witty .witty-build/render-parity/ubuntu-26-hidpi --scale 2
 ```
 
 ## macOS

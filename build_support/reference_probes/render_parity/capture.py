@@ -5,11 +5,11 @@ import subprocess
 import tempfile
 
 
-def configure_xvfb_capture():
+def configure_xvfb_capture(scale=1):
     os.environ.update(
         GDK_BACKEND="x11",
         GSK_RENDERER="cairo",
-        GDK_SCALE="1",
+        GDK_SCALE=str(scale),
         GDK_DPI_SCALE="1",
         GSETTINGS_BACKEND="memory",
         GTK_A11Y="none",

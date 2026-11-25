@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 2 ]]; then
-  echo "Usage: $0 WITTY_BINARY OUTPUT_DIRECTORY" >&2
+if [[ $# -lt 2 ]]; then
+  echo "Usage: $0 WITTY_BINARY OUTPUT_DIRECTORY [PROBE_OPTIONS...]" >&2
   exit 2
 fi
+witty=$1
+output=$2
+shift 2
 
 case "$(dpkg --print-architecture)" in
   amd64)
@@ -32,4 +35,4 @@ dpkg-deb --extract "$reference_dir/$asset" "$reference_dir/root"
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- \
   python3 "$root/build_support/reference_probes/render_parity/run.py" \
-  "$1" "$reference_dir/root/usr/bin/ghostty" --output "$2"
+  "$witty" "$reference_dir/root/usr/bin/ghostty" --output "$output" "$@"

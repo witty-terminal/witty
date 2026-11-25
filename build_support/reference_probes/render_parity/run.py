@@ -16,9 +16,18 @@ from fixtures import CURSOR_STYLES
 
 
 PROBE = Path(__file__).resolve().parent
+WALLPAPER_OPTIONS = {
+    "wallpaper-stretch": ("--background-image-fit=stretch",),
+    "wallpaper-repeat": (
+        "--background-image-fit=none",
+        "--background-image-position=bottom-right",
+        "--background-image-repeat=true",
+        "--background-image-opacity=0.65",
+    ),
+}
 FIXTURES = (
     "ansi", "decorations", "unicode", "wide-wrap", *CURSOR_STYLES,
-    "kitty", "ls", "git", "vim", "shader",
+    "kitty", *WALLPAPER_OPTIONS, "ls", "git", "vim", "shader",
 )
 OPTIONS = (
     "--config-default-files=false",
@@ -72,6 +81,13 @@ def prepare_fixtures(path):
         "    fragColor = texture(iChannel0, fragCoord / iResolution.xy).bgra;\n"
         "}\n"
     )
+    wallpaper = Image.new("RGBA", (61, 39))
+    wallpaper.putdata([
+        (20 + x * 3, 30 + y * 4, 200 - x * 2, 70 + (x * 7 + y * 5) % 186)
+        for y in range(wallpaper.height)
+        for x in range(wallpaper.width)
+    ])
+    wallpaper.save(path / "wallpaper.png")
 
 
 def fixture_args(name, work):
@@ -93,6 +109,9 @@ def fixture_args(name, work):
             "-c", "set number laststatus=2 noshowmode noruler",
             "-c", "syntax on", "before.py",
         ]
+    if name in WALLPAPER_OPTIONS:
+        options.extend([f"--background-image={work / 'wallpaper.png'}", *WALLPAPER_OPTIONS[name]])
+        name = "ansi"
     return [*options, "-e", sys.executable, str(PROBE / "fixtures.py"), name]
 
 
@@ -165,8 +184,8 @@ def compare(name, actual_path, expected_path, difference_path):
     ), different == "0"
 
 
-def run(witty, ghostty, output, settle, fixtures):
-    configure_xvfb_capture()
+def run(witty, ghostty, output, settle, fixtures, scale=1):
+    configure_xvfb_capture(scale)
     work = output / "fixtures"
     prepare_fixtures(work)
     helper = output / "window_ppm"
@@ -175,6 +194,8 @@ def run(witty, ghostty, output, settle, fixtures):
         check=True,
     )
     write_versions(output, witty, ghostty)
+    with (output / "versions.txt").open("a") as versions:
+        versions.write(f"GTK scale: {scale}\n")
     print(f"Captures and logs: {output}", flush=True)
     matches = True
     with (output / "results.tsv").open("w") as report:
@@ -203,6 +224,7 @@ def main():
     parser.add_argument("ghostty", type=Path, help="path to the Ghostty reference executable")
     parser.add_argument("--output", type=Path, help="new directory for screenshots, logs, and the report")
     parser.add_argument("--settle-seconds", type=float, default=1.0)
+    parser.add_argument("--scale", type=int, choices=(1, 2), default=1, help="GTK display scale (default: 1)")
     parser.add_argument("--fixture", choices=FIXTURES, action="append", help="run only this fixture, repeatable")
     args = parser.parse_args()
     if sys.platform != "linux" or not os.environ.get("DISPLAY"):
@@ -219,7 +241,7 @@ def main():
             parser.error(f"missing {tool}")
     try:
         output = output_directory(args.output)
-        return run(args.witty.resolve(), args.ghostty.resolve(), output, args.settle_seconds, fixtures)
+        return run(args.witty.resolve(), args.ghostty.resolve(), output, args.settle_seconds, fixtures, args.scale)
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         print(f"Render comparison failed: {error}", file=sys.stderr)
         return 1
