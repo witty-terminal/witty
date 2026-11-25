@@ -4,7 +4,7 @@
 
 Run this probe on Linux with an installed [Ghostty GTK release](https://ghostty.org/download), Python 3 with Pillow, DejaVu Sans Mono, Xvfb, `xauth`, `dbus-run-session`, `xdotool`, a C compiler with X11 headers, GNU `ls`, Git, and Vim.
 
-Build Witty with release settings so both applications use the same terminal viewport dimensions.
+The probe works with debug and release builds. This command builds Witty with the settings used by the on-demand parity workflow.
 
 ```sh
 VFLAGS='-cc clang -nocache' v -path "$PWD|@vlib|@vmodules" run tools/build install \
@@ -24,6 +24,8 @@ The probe uses Witty’s `--screenshot` and captures Ghostty’s matching X11 cl
 Each run saves the PNGs, application logs, executable versions and hashes, and a `results.tsv` report under `.witty-build/render-parity/`. Differing pixels appear white in the corresponding `*-diff.png` mask. A size or pixel mismatch returns exit status 1.
 
 Use `--output` to choose a new directory, `--fixture` to repeat a single case, or `--settle-seconds` to allow more time for rendering on a slower host.
+
+The regular Linux CI build also captures two terminal sizes. Its screenshot check verifies the requested grid dimensions and a colored terminal cell.
 
 The [Linux render parity workflow](../../../.github/workflows/render-parity.yml) runs on demand in GitHub Actions. It builds Witty on Ubuntu 26.04, verifies and extracts the pinned Ghostty 1.4.0 reference package, and uploads the screenshots, logs, and report. On Ubuntu 26.04 with the capture dependencies installed, the same script can compare an existing Witty build locally.
 

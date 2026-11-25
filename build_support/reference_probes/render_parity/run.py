@@ -11,7 +11,7 @@ import time
 
 from PIL import Image
 
-from capture import capture_witty, output_directory, write_versions
+from capture import capture_witty, configure_xvfb_capture, output_directory, write_versions
 
 
 PROBE = Path(__file__).resolve().parent
@@ -162,16 +162,7 @@ def compare(name, actual_path, expected_path, difference_path):
 
 
 def run(witty, ghostty, output, settle, fixtures):
-    os.environ.update(
-        GDK_BACKEND="x11",
-        GSK_RENDERER="cairo",
-        GDK_SCALE="1",
-        GDK_DPI_SCALE="1",
-        GSETTINGS_BACKEND="memory",
-        GTK_A11Y="none",
-        LIBGL_ALWAYS_SOFTWARE="1",
-        LC_ALL="C.UTF-8",
-    )
+    configure_xvfb_capture()
     work = output / "fixtures"
     prepare_fixtures(work)
     helper = output / "window_ppm"
@@ -204,7 +195,7 @@ def run(witty, ghostty, output, settle, fixtures):
 
 def main():
     parser = argparse.ArgumentParser(description="Compare Witty and Ghostty terminal pixels in Xvfb.")
-    parser.add_argument("witty", type=Path, help="path to the release or ReleaseSafe Witty executable")
+    parser.add_argument("witty", type=Path, help="path to the Witty executable")
     parser.add_argument("ghostty", type=Path, help="path to the Ghostty reference executable")
     parser.add_argument("--output", type=Path, help="new directory for screenshots, logs, and the report")
     parser.add_argument("--settle-seconds", type=float, default=1.0)

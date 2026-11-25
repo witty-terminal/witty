@@ -724,7 +724,9 @@ pub fn Window.new(app &Application) &Window {
 	// Terminal body and debug-build warning.
 	content := C.gtk_box_new(1, 0)
 	debug_warning := GtkWidget(C.g_object_new(debug_warning_get_type(), &char(unsafe { nil })))
-	C.gtk_widget_set_visible(debug_warning, $if debug { 1 } $else { 0 })
+	// A visible banner consumes space from the terminal's screenshot grid.
+	show_debug_warning := $if debug { app.screenshot.options.path == '' } $else { false }
+	C.gtk_widget_set_visible(debug_warning, b2i(show_debug_warning))
 	C.gtk_box_append(content, debug_warning)
 	C.gtk_box_append(content, GtkWidget(toast_overlay))
 	C.adw_toolbar_view_set_content(toolbar, content)

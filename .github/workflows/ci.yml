@@ -89,7 +89,8 @@ jobs:
             libgtk-4-dev libadwaita-1-dev meson ninja-build \
             libfreetype-dev libharfbuzz-dev libfontconfig-dev libonig-dev \
             libx11-dev libxi-dev libxcursor-dev libwayland-dev wayland-protocols \
-            libegl-dev libgl-dev
+            libegl-dev libgl-dev libgl1-mesa-dri \
+            dbus-daemon python3-pil xauth xvfb
       - name: Build gtk4-layer-shell
         # Ubuntu 24.04 does not package it; 1.1.0 is the version Ghostty pins.
         run: |
@@ -125,6 +126,18 @@ jobs:
         run: |
           test -z "$(find "$RUNNER_TEMP/witty" -iname '*ghostty*' -print -quit)"
           "$RUNNER_TEMP/witty/bin/witty" --version
+      - name: Capture Linux terminal screenshots
+        run: |
+          xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- \
+            python3 build_support/reference_probes/render_parity/smoke_linux.py \
+            "$RUNNER_TEMP/witty/bin/witty" --output "$RUNNER_TEMP/linux-screenshot-smoke"
+      - name: Upload screenshot diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-screenshot-diagnostics
+          path: ${{ runner.temp }}/linux-screenshot-smoke
+          if-no-files-found: ignore
       - name: Package release
         if: inputs.release_tag != ''
         run: tar -czf "$RUNNER_TEMP/witty-linux-x86_64.tar.gz" -C "$RUNNER_TEMP" witty

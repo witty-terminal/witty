@@ -5,6 +5,19 @@ import subprocess
 import tempfile
 
 
+def configure_xvfb_capture():
+    os.environ.update(
+        GDK_BACKEND="x11",
+        GSK_RENDERER="cairo",
+        GDK_SCALE="1",
+        GDK_DPI_SCALE="1",
+        GSETTINGS_BACKEND="memory",
+        GTK_A11Y="none",
+        LIBGL_ALWAYS_SOFTWARE="1",
+        LC_ALL="C.UTF-8",
+    )
+
+
 def capture_witty(binary, args, prefix, settle):
     png = prefix.with_suffix(".png")
     log_path = prefix.with_suffix(".log")
