@@ -19,7 +19,9 @@ from fixtures import CURSOR_STYLES, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTUR
 
 PROBE = Path(__file__).resolve().parent
 PADDING = 2
+FOREGROUND = (228, 229, 233)
 SELECTION_BACKGROUND = (23, 81, 107)
+PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
 WALLPAPER_OPTIONS = {
     "wallpaper-stretch": ("--background-image-fit=stretch",),
     "wallpaper-repeat": (
@@ -30,7 +32,7 @@ WALLPAPER_OPTIONS = {
     ),
 }
 FIXTURES = (
-    "ansi", "decorations", "unicode", "wide-wrap", "selection-wide",
+    "ansi", "decorations", "unicode", "wide-wrap", "selection-wide", *PREEDIT_FIXTURES,
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -52,7 +54,7 @@ OPTIONS = (
     "--font-family=DejaVu Sans Mono",
     "--font-size=13",
     "--background=161820",
-    "--foreground=e4e5e9",
+    f"--foreground={bytes(FOREGROUND).hex()}",
     "--cursor-color=ffeeaa",
     "--cursor-style-blink=false",
     "--term=xterm-256color",
@@ -121,6 +123,8 @@ def fixture_args(name, work):
     if name in WALLPAPER_OPTIONS:
         options.extend([f"--background-image={work / 'wallpaper.png'}", *WALLPAPER_OPTIONS[name]])
         name = "ansi"
+    if name == "preedit-inline":
+        options.extend((f"--background-image={work / 'wallpaper.png'}", "--background-image-fit=stretch"))
     if name == "terminal-sprites-adjusted":
         options.extend(("--adjust-cell-width=1", "--adjust-cell-height=1"))
         name = "terminal-sprites"
@@ -140,10 +144,53 @@ def capture_ghostty(command, helper, prefix, settle):
             image.save(prefix.with_suffix(".png"))
 
 
-def capture_wide_selection(binary, args, helper, prefix, settle, scale, *, witty=False):
+def drag_wide_selection(window, padding, cell_width, cell_height):
+    # The emoji is in columns 13 and 14 (zero-based). Start on its
+    # spacer tail and drag past the space in column 15.
+    y = padding + 3 * cell_height + cell_height // 2
+    x_start = padding + 14 * cell_width + cell_width // 4
+    x_end = padding + 19 * cell_width + 4 * cell_width // 5
+    probe = (padding + 15 * cell_width + cell_width // 2, y)
+    subprocess.run(
+        ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window,
+         str(x_start), str(y), "mousedown", "1", "sleep", "0.1", "mousemove", "--window",
+         window, str(x_end), str(y), "sleep", "0.1", "mouseup", "1"],
+        check=True, timeout=5,
+    )
+
+    def rendered(image):
+        return image.getpixel(probe)[:3] == SELECTION_BACKGROUND
+
+    return rendered
+
+
+def type_unicode_preedit(window, fixture, padding, cell_width, cell_height):
+    # GTK's Unicode entry shows an underlined preview until Enter is pressed.
+    subprocess.run(
+        ["xdotool", "windowfocus", "--sync", window, "key", "ctrl+shift+u",
+         "sleep", "0.1", "key", "--delay", "80", "2", "6", "0", "3"],
+        check=True, timeout=5,
+    )
+    left, right, row = (16, 21, 2) if fixture == "preedit-inline" else (52, 60, 5)
+    area = (padding + left * cell_width, padding + row * cell_height,
+            padding + right * cell_width, padding + (row + 1) * cell_height)
+
+    def rendered(image):
+        crop = image.crop(area).convert("RGB")
+        colors = crop.getcolors(crop.width * crop.height)
+        return any(color == FOREGROUND and count >= 4 * cell_width for count, color in colors)
+
+    return rendered
+
+
+def capture_interactive(binary, args, helper, prefix, fixture, settle, scale, *, witty=False):
     png = prefix.with_suffix(".png")
     capture_args = [f"--screenshot={png}"] if witty else []
-    env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(settle + 3)} if witty else None
+    env = os.environ.copy()
+    if witty:
+        env["SCREENSHOT_SETTLE_SECONDS"] = str(settle + 3)
+    if fixture in PREEDIT_FIXTURES:
+        env["GTK_IM_MODULE"] = "gtk-im-context-simple"
     log = prefix.with_suffix(".log")
     with open_window([binary, *capture_args, *args], log, env=env) as (process, window):
         time.sleep(settle)
@@ -152,34 +199,26 @@ def capture_wide_selection(binary, args, helper, prefix, settle, scale, *, witty
             cell_width = (image.width - 2 * padding) // GRID_COLUMNS
             cell_height = (image.height - 2 * padding) // GRID_ROWS
 
-        # The emoji is in columns 13 and 14 (zero-based). Start on its
-        # spacer tail and drag past the space in column 15.
-        y = padding + 3 * cell_height + cell_height // 2
-        x_start = padding + 14 * cell_width + cell_width // 4
-        x_end = padding + 19 * cell_width + 4 * cell_width // 5
-        probe = (padding + 15 * cell_width + cell_width // 2, y)
-        subprocess.run(
-            ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window,
-             str(x_start), str(y), "mousedown", "1", "sleep", "0.1", "mousemove", "--window",
-             window, str(x_end), str(y), "sleep", "0.1", "mouseup", "1"],
-            check=True, timeout=5,
-        )
+        if fixture == "selection-wide":
+            rendered = drag_wide_selection(window, padding, cell_width, cell_height)
+        else:
+            rendered = type_unicode_preedit(window, fixture, padding, cell_width, cell_height)
 
         if witty:
             if process.wait(timeout=settle + 10) or not png.is_file():
-                raise RuntimeError(f"Witty selection capture failed. See {log}")
+                raise RuntimeError(f"Witty interactive capture failed. See {log}")
             with Image.open(png) as image:
-                if image.getpixel(probe)[:3] == SELECTION_BACKGROUND:
+                if rendered(image):
                     return
         else:
             deadline = time.monotonic() + 3
             while time.monotonic() < deadline:
                 with read_window(helper, window) as image:
                     image.save(png)
-                    if image.getpixel(probe)[:3] == SELECTION_BACKGROUND:
+                    if rendered(image):
                         return
                 time.sleep(0.05)
-        raise RuntimeError(f"Mouse drag did not highlight the fixture text. See {png} and {log}")
+        raise RuntimeError(f"Interaction did not render for {fixture}. See {png} and {log}")
 
 
 def compare(name, actual_path, expected_path, difference_path):
@@ -231,9 +270,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             args = fixture_args(name, work)
             actual = output / f"{name}-witty"
             expected = output / f"{name}-ghostty"
-            if name == "selection-wide":
-                capture_wide_selection(ghostty, args, helper, expected, settle, scale)
-                capture_wide_selection(witty, args, helper, actual, settle, scale, witty=True)
+            if name == "selection-wide" or name in PREEDIT_FIXTURES:
+                capture_interactive(ghostty, args, helper, expected, name, settle, scale)
+                capture_interactive(witty, args, helper, actual, name, settle, scale, witty=True)
             else:
                 capture_ghostty([ghostty, *args], helper, expected, settle)
                 capture_witty(witty, args, actual, settle)

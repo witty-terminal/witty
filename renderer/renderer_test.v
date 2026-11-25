@@ -686,7 +686,15 @@ fn test_preedit_range_fits() {
 	}
 	start, end, cp_offset := p.range(2, 9)
 	assert start == 2
-	assert end == 5
+	assert end == 4
+	assert cp_offset == 0
+}
+
+fn test_preedit_range_one_cell_at_right_edge() {
+	p := RenderPreedit{ codepoints: [RenderPreeditCodepoint{ codepoint: u32(`a`) }] }
+	start, end, cp_offset := p.range(9, 9)
+	assert start == 9
+	assert end == 9
 	assert cp_offset == 0
 }
 
@@ -706,7 +714,7 @@ fn test_preedit_range_keeps_trailing_codepoints_when_clipped() {
 		]
 	}
 	start, end, cp_offset := p.range(8, 9)
-	assert start == 6
+	assert start == 7
 	assert end == 9
 	assert cp_offset == 1
 }
@@ -1017,6 +1025,23 @@ fn test_rebuild_row_shapes_and_renders_text() ! {
 	assert channels in [3, 4]
 	last_pixel := png.data[png.data.len - channels..]
 	assert last_pixel[..3] == [u8(30), 60, 90]
+
+	// Keep the composing row intact when the renderer updates a clean frame.
+	render.terminal_state.rows = 1
+	render.terminal_state.cols = 3
+	render.terminal_state.row_data = [preedit_row]
+	render.terminal_state.cursor.viewport = terminal.ViewportPoint{ x: 1 }
+	render.terminal_state.dirty = .full
+	preedit := RenderPreedit{ codepoints: [RenderPreeditCodepoint{ codepoint: u32(`x`) }] }
+	render.rebuild_cells(preedit, none, &links)!
+	// Two surrounding glyphs, one composing glyph and its underline.
+	assert render.cells.fg_rows.lists[1].len == 4
+	bg := unsafe { *(&CellBg(render.cells.bg_cell(0, 1))) }
+	assert bg == CellBg([u8(0), 0, 0, 0]!)
+
+	render.terminal_state.dirty = .false_
+	render.rebuild_cells(preedit, none, &links)!
+	assert render.cells.fg_rows.lists[1].len == 4
 }
 
 }

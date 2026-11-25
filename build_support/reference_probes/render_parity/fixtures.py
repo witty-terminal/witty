@@ -337,6 +337,12 @@ def main():
             "wide glyphs  😀 + café  │██░▒▓│\n"
             "This line stays unselected\n"
         ).encode(),
+        "preedit-inline": (
+            b"Unicode input preview\n"
+            b"\x1b[3;1H\x1b[38;2;140;191;252;48;2;50;62;73m"
+            b" styled text: ABCDEFGHIJKLMNOPQRSTUVWX \x1b[0m\x1b[3;17H\x1b[?25h"
+        ),
+        "preedit-edge": b"Unicode input near the right edge\x1b[6;57H\x1b[?25h",
         "shader": b"Witty shader chain\n",
     }
     sys.stdout.buffer.write(CLEAR)

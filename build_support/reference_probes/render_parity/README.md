@@ -23,6 +23,7 @@ The probe uses Witty’s `--screenshot` and captures Ghostty’s matching X11 cl
 
 The terminal glyph fixtures cover box drawing, block elements, Braille patterns, and Powerline separators at default and adjusted cell sizes.
 The text selection fixture uses a mouse drag starting on the second cell of an emoji to verify the highlight covers the full glyph.
+The Unicode input fixtures capture GTK’s underlined preview over a terminal wallpaper and at the right edge before the character is committed.
 
 Each run saves the PNGs, application logs, executable versions and hashes, and a `results.tsv` report under `.witty-build/render-parity/`. Differing pixels appear white in the corresponding `*-diff.png` mask. A size or pixel mismatch returns exit status 1.
 

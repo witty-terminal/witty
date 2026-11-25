@@ -108,7 +108,7 @@ pub fn (self &RenderPreedit) width() uint {
 	return result
 }
 
-// Range returns the start and end x position of the preedit text
+// Range returns the inclusive start and end x positions of the preedit text
 // along with any codepoint offset necessary to fit the preedit
 // into the available space.
 pub fn (self &RenderPreedit) range(start u16, max u16) (u16, u16, uint) {
@@ -117,14 +117,14 @@ pub fn (self &RenderPreedit) range(start u16, max u16) (u16, u16, uint) {
 	// our width would be less than the number of cells we have.
 
 	// max is inclusive, so we need to add 1 to it.
-	max_width := max - start + 1
+	max_width := u32(max) - u32(start) + 1
 
 	// Rebuild our width in reverse order.
-	mut w := u16(0)
+	mut w := u32(0)
 	mut cp_offset := uint(0)
 	for i := self.codepoints.len - 1; i >= 0; i-- {
 		cp := self.codepoints[i]
-		w += if cp.wide { u16(2) } else { u16(1) }
+		w += if cp.wide { u32(2) } else { u32(1) }
 		if w > max_width {
 			cp_offset = uint(i)
 			break
@@ -133,9 +133,8 @@ pub fn (self &RenderPreedit) range(start u16, max u16) (u16, u16, uint) {
 
 	// If our preedit goes off the end of the screen, we adjust it so
 	// that it shifts left.
-	end := start + w
-	start_offset := if end > max { end - max } else { u16(0) }
-	result_start := if start > start_offset { start - start_offset } else { u16(0) }
-	result_end := if end > start_offset { end - start_offset } else { u16(0) }
-	return result_start, result_end, cp_offset
+	end := u32(start) + if w > 0 { w - 1 } else { u32(0) }
+	start_offset := if end > max { end - max } else { u32(0) }
+	result_start := if start > start_offset { u16(start - start_offset) } else { u16(0) }
+	return result_start, u16(end - start_offset), cp_offset
 }

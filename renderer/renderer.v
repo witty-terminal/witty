@@ -1960,23 +1960,6 @@ fn resolve_terminal_color(tc configpkg.TerminalColor, inverse bool, fg_style ter
 fn (mut self Renderer) rebuild_cells(preedit ?RenderPreedit, cursor_style_ ?Style, links &terminal.CellSet) ! {
 	state := &self.terminal_state
 
-	// Determine our x/y range for preedit. We don't want to render anything
-	// here because we will render the preedit separately.
-	mut preedit_range := ?PreeditRange(none)
-	if p := preedit {
-		// We base the preedit on the position of the cursor in the
-		// viewport. If the cursor isn't visible in the viewport we
-		// don't show it.
-		if cursor_vp := state.cursor.viewport {
-			r_start, r_end, cp_offset := p.range(cursor_vp.x, state.cols - 1)
-			preedit_range = PreeditRange{
-				y:         cursor_vp.y
-				x:         [u16(r_start), u16(r_end)]!
-				cp_offset: cp_offset
-			}
-		}
-	}
-
 	grid_size_diff := self.cells.size.rows != state.rows || self.cells.size.columns != state.cols
 
 	if grid_size_diff {
@@ -2021,6 +2004,22 @@ fn (mut self Renderer) rebuild_cells(preedit ?RenderPreedit, cursor_style_ ?Styl
 		int(self.cells.size.rows)
 	}
 
+	// Leave the preedit cells clear during the row pass. A clean row already
+	// contains its preedit glyphs and underlines from the previous frame.
+	mut preedit_range := ?PreeditRange(none)
+	if p := preedit {
+		if cursor_vp := state.cursor.viewport {
+			if int(cursor_vp.y) < row_len && (rebuild || state.row_data[cursor_vp.y].dirty) {
+				start, end, cp_offset := p.range(cursor_vp.x, state.cols - 1)
+				preedit_range = PreeditRange{
+					y:         cursor_vp.y
+					x:         [start, end]!
+					cp_offset: cp_offset
+				}
+			}
+		}
+	}
+
 	for y in 0 .. row_len {
 		mut row := &state.row_data[y]
 
@@ -2056,13 +2055,10 @@ fn (mut self Renderer) rebuild_cells(preedit ?RenderPreedit, cursor_style_ ?Styl
 			mut x := range.x[0]
 			for i := range.cp_offset; i < p.codepoints.len; i++ {
 				cp := p.codepoints[i]
-				self.add_preedit_cell(PreeditCodepoint{
-					codepoint: cp.codepoint
-					wide:      cp.wide
-				}, terminal.ViewportPoint{
+				self.add_preedit_cell(cp, terminal.ViewportPoint{
 					x: x
 					y: range.y
-				}, state.colors.background, state.colors.foreground) or {
+				}, state.colors.foreground) or {
 					log.warn('error building preedit cell, will be invalid x=${x} y=${range.y}, err=${err}')
 				}
 				x += if cp.wide { u16(2) } else { u16(1) }
@@ -2293,7 +2289,7 @@ fn (mut self Renderer) rebuild_row(y u16, row &terminal.RenderRow, preedit_range
 							shaper_cells = unsafe { self.shape_text_run(run)! }
 						}
 						shaped_cells := shaper_cells or { panic('preedit run was not shaped') }
-						for int(run.offset) + int(shaped_cells[shaper_cells_i].x) < x {
+						for shaper_cells_i < shaped_cells.len && int(run.offset) + int(shaped_cells[shaper_cells_i].x) < x {
 							shaper_cells_i++
 						}
 					}
@@ -2712,9 +2708,11 @@ fn (mut self Renderer) add_cursor(cursor_state &terminal.RenderCursor, cursor_st
 }
 
 // Add a preedit (IME composition) cell.
-fn (mut self Renderer) add_preedit_cell(cp PreeditCodepoint, coord terminal.ViewportPoint, screen_bg terminal.RGB, screen_fg terminal.RGB) ! {
+fn (mut self Renderer) add_preedit_cell(cp PreeditCodepoint, coord terminal.ViewportPoint, screen_fg terminal.RGB) ! {
 	value := self.font_grid.render_codepoint(cp.codepoint, .regular, .text, font.RenderOptions{
-		grid_metrics: self.grid_metrics
+		grid_metrics:     self.grid_metrics
+		thicken:          self.config.font_thicken
+		thicken_strength: self.config.font_thicken_strength
 	}) or {
 		log.warn('error rendering preedit glyph err=${err}')
 		return
@@ -2724,20 +2722,6 @@ fn (mut self Renderer) add_preedit_cell(cp PreeditCodepoint, coord terminal.View
 		return
 	}
 	render := value.render
-
-	// Add our opaque background cell
-	mut bg_cell := unsafe { &CellBg(self.cells.bg_cell(uint(coord.y), uint(coord.x))) }
-	unsafe {
-		*bg_cell = CellBg([screen_bg.r, screen_bg.g, screen_bg.b, u8(255)]!)
-	}
-	if cp.wide && coord.x < u16(self.cells.size.columns) - 1 {
-		mut wide_bg_cell := unsafe {
-			&CellBg(self.cells.bg_cell(uint(coord.y), uint(coord.x + 1)))
-		}
-		unsafe {
-			*wide_bg_cell = CellBg([screen_bg.r, screen_bg.g, screen_bg.b, u8(255)]!)
-		}
-	}
 
 	self.cells.add(.text, CellText{
 		atlas:      .grayscale
