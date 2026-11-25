@@ -3519,7 +3519,7 @@ fn surface_context_menu_new() GtkPopover {
 	object_unref(GObject(submenu))
 	surface_menu_section(root, section)
 
-	popover := C.witty_gtk_menu_canvas_new(GMenuModel(root), 1)
+	popover := C.witty_gtk_menu_canvas_new(GMenuModel(root), 1, gtk_canvas_solid_mask())
 	object_unref(GObject(root))
 	C.gtk_popover_set_has_arrow(GtkPopover(popover), 0)
 	C.gtk_widget_set_halign(popover, int(Align.start))
