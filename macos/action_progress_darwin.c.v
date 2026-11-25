@@ -86,7 +86,8 @@ fn (mut state NativeActionSurface) refresh_progress() {
 		if start := value_start {
 			previous_width := state.last_progress_width * (f64(state.last_progress_value) / 100)
 			previous_bar_width := math.round(previous_width * state.last_progress_scale) / state.last_progress_scale
-			animate_progress_width(state.progress_layer, previous_bar_width - bar_width, start)
+			animate_progress_width(state.progress_layer, previous_bar_width - bar_width, scale,
+				start)
 		}
 	} else {
 		if state.last_progress_value >= 0 {
@@ -126,17 +127,40 @@ fn progress_timing_function() ObjId {
 	return msg_id1(get_class('CAMediaTimingFunction'), 'functionWithName:', nsstring('easeInEaseOut'))
 }
 
-fn animate_progress_width(layer ObjId, from f64, start f64) {
+// Parametric time and position for the ease-in-out curve with control points
+// (0.42, 0) and (0.58, 1).
+fn progress_curve_time(t f64) f64 {
+	u := 1 - t
+	return 3 * u * t * (0.42 * u + 0.58 * t) + t * t * t
+}
+
+fn progress_curve_position(t f64) f64 {
+	return t * t * (3 - 2 * t)
+}
+
+fn animate_progress_width(layer ObjId, from f64, scale f64, start f64) {
+	if from == 0 { return }
+
 	// Each report contributes its own width change until its animation ends.
-	animation := msg_id1(get_class('CABasicAnimation'), 'animationWithKeyPath:',
-		nsstring('bounds.size.width'))
+	// Scale the sample count with the pixel displacement to keep the
+	// linear interpolation error bounded across pane sizes.
+	samples := int(math.max(16, math.ceil(128 * math.sqrt(math.abs(from) * scale))))
+	mut times := []voidptr{cap: samples + 1}
+	mut widths := []voidptr{cap: samples + 1}
 	number := get_class('NSNumber')
-	msg_void1(animation, 'setFromValue:', msg_id_f64(number, 'numberWithDouble:', from))
-	msg_void1(animation, 'setToValue:', msg_id_f64(number, 'numberWithDouble:', 0))
+	for i in 0 .. samples + 1 {
+		t := f64(i) / samples
+		times << voidptr(msg_id_f64(number, 'numberWithDouble:', progress_curve_time(t)))
+		widths << voidptr(msg_id_f64(number, 'numberWithDouble:',
+			from * (1 - progress_curve_position(t))))
+	}
+	animation := msg_id1(get_class('CAKeyframeAnimation'), 'animationWithKeyPath:',
+		nsstring('bounds.size.width'))
+	msg_void1(animation, 'setKeyTimes:', C.witty_macos_array(times.data, uint(times.len)))
+	msg_void1(animation, 'setValues:', C.witty_macos_array(widths.data, uint(widths.len)))
 	msg_void_bool(animation, 'setAdditive:', true)
 	msg_void_f64(animation, 'setBeginTime:', start)
 	msg_void_f64(animation, 'setDuration:', progress_value_duration)
-	msg_void1(animation, 'setTimingFunction:', progress_timing_function())
 	msg_void2(layer, 'addAnimation:forKey:', animation, nil_obj())
 }
 

@@ -721,13 +721,11 @@ fn progress_bounce_elapsed_fraction(phase f64) f64 {
 	mut low, mut high := 0.0, 1.0
 	for _ in 0 .. 40 {
 		t := (low + high) / 2
-		if t * t * (3 - 2 * t) < phase {
+		if progress_curve_position(t) < phase {
 			low = t
 		} else {
 			high = t
 		}
 	}
-	t := (low + high) / 2
-	u := 1 - t
-	return 3 * u * t * (0.42 * u + 0.58 * t) + t * t * t
+	return progress_curve_time((low + high) / 2)
 }
