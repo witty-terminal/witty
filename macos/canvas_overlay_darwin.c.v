@@ -7,6 +7,7 @@ import math
 
 fn C.witty_canvas_place_overlay(parent voidptr, child voidptr, above voidptr)
 fn C.witty_canvas_resolve_srgb(view ObjId, color ObjId) u32
+fn C.witty_canvas_resolve_srgb_alpha(view ObjId, color ObjId, alpha &f64) u32
 fn C.witty_canvas_make_tile(pixel &u32, target ObjId, opacity f64) voidptr
 fn C.witty_canvas_make_alpha_image(pixels &u32, width int, height int, color u32, target ObjId) voidptr
 fn C.witty_canvas_make_color_image(pixels &u32, width int, height int) voidptr

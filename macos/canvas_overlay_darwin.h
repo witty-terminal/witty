@@ -11,7 +11,7 @@ static inline void witty_canvas_place_overlay(void *parent, void *child, void *a
     [(NSView *)parent addSubview:(NSView *)child positioned:NSWindowAbove relativeTo:(NSView *)above];
 }
 
-static inline uint32_t witty_canvas_resolve_srgb(void *view, void *color) {
+static inline uint32_t witty_canvas_resolve_srgb_alpha(void *view, void *color, double *alpha) {
     __block uint32_t rgb = 0;
     [[(NSView *)view effectiveAppearance] performAsCurrentDrawingAppearance:^{
         NSColor *resolved = [(NSColor *)color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
@@ -20,9 +20,14 @@ static inline uint32_t witty_canvas_resolve_srgb(void *view, void *color) {
             uint32_t g = (uint32_t)(resolved.greenComponent * 255 + 0.5);
             uint32_t b = (uint32_t)(resolved.blueComponent * 255 + 0.5);
             rgb = (r << 16) | (g << 8) | b;
+            if (alpha) *alpha = resolved.alphaComponent;
         }
     }];
     return rgb;
+}
+
+static inline uint32_t witty_canvas_resolve_srgb(void *view, void *color) {
+    return witty_canvas_resolve_srgb_alpha(view, color, NULL);
 }
 
 static inline CGColorSpaceRef witty_canvas_convert_rgb(uint32_t rgb, void *target, double *r, double *g, double *b) {

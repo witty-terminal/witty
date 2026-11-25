@@ -5,11 +5,86 @@ import os
 import json2
 
 #insert "@VMODROOT/macos/updater_test_abi.h"
+#insert "@VMODROOT/macos/canvas_overlay_test_bridge.h"
 fn C.witty_update_test_block(kind int) voidptr
 fn C.witty_update_test_count() int
 fn C.witty_update_test_value() int
 fn C.witty_update_test_reset()
 fn C.witty_update_test_object() ObjId
+fn C.witty_overlay_test_png(view ObjId) ObjId
+
+fn test_update_badge_ring_progress_and_canvas_coverage() {
+	assert UpdateState{kind: .downloading}.ring_progress() == none
+	assert UpdateState{kind: .downloading, expected_length: 0}.ring_progress() == none
+	assert UpdateState{kind: .downloading, expected_length: 80, downloaded: 20}.ring_progress()? == 0.25
+	assert UpdateState{kind: .downloading, expected_length: 80, downloaded: 100}.ring_progress()? == 1
+	assert UpdateState{kind: .extracting, extraction_progress: -0.1}.ring_progress()? == 0
+	assert UpdateState{kind: .extracting, extraction_progress: 1.5}.ring_progress()? == 1
+
+	empty := update_ring_raster(32, 0, 1)!
+	quarter := update_ring_raster(32, 0.25, 1)!
+	full := update_ring_raster(32, 1, 1)!
+	assert empty.pixels[2 * 32 + 16] >> 24 == 51
+	assert quarter.pixels[2 * 32 + 16] >> 24 == 255
+	assert quarter.pixels[16 * 32 + 29] >> 24 == 255
+	assert quarter.pixels[29 * 32 + 16] >> 24 == 51
+	assert full.pixels[29 * 32 + 16] >> 24 == 255
+	assert full.pixels[16 * 32 + 16] == 0
+}
+
+fn test_update_badge_ring_progress_eases_and_settles() {
+	transition := UpdateRingTransition{start: 1, from: 0.25}
+	assert transition.progress_at(0.75, 1) == 0.25
+	assert transition.progress_at(0.75, 1 + update_ring_duration / 4) < 0.375
+	middle := transition.progress_at(0.75, 1 + update_ring_duration / 2)
+	assert middle > 0.4999 && middle < 0.5001
+	assert transition.progress_at(0.75, 1 + update_ring_duration * 3 / 4) > 0.625
+	assert transition.progress_at(0.75, 1 + update_ring_duration) == 0.75
+}
+
+fn test_native_update_badge_ring_capture() {
+	output := os.getenv_opt('WITTY_UPDATE_RING_OUTPUT') or { return }
+	app_init()
+	frame := objc_rect(0, 0, 32, 32)
+	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
+		frame, 0, ns_backing_store_buffered, false)
+	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
+	view := msg_id_rect(alloc('NSView'), 'initWithFrame:', frame)
+	msg_void_bool(view, 'setWantsLayer:', true)
+	msg_void1(window, 'setContentView:', view)
+	badge := update_badge_view()
+	msg_void_rect(badge, 'setFrame:', objc_rect(8, 8, update_ring_view_size, update_ring_view_size))
+	msg_void1(view, 'addSubview:', badge)
+	g_update_controller = &NativeUpdateController{}
+	defer {
+		stop_native_updater()
+		msg_void(window, 'close')
+		msg_void(window, 'release')
+		msg_void(badge, 'release')
+		msg_void(view, 'release')
+	}
+	appearances := ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua']
+	names := ['light', 'dark']
+	for i, appearance in appearances {
+		msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',
+			nsstring(appearance)))
+		gray := if i == 0 { 0.9 } else { 0.2 }
+		color := C.witty_macos_color_rgba(gray, gray, gray, 1)
+		msg_void1(msg_id(view, 'layer'), 'setBackgroundColor:', msg_id(color, 'CGColor'))
+		for percentage in [0, 12, 25, 50, 87, 100] {
+			g_update_controller.state = UpdateState{
+				kind: .extracting
+				extraction_progress: f64(percentage) / 100
+			}
+			msg_void_bool(badge, 'setNeedsDisplay:', true)
+			png := C.witty_overlay_test_png(view)
+			assert !is_nil(png)
+			assert msg_bool2(png, 'writeToFile:atomically:',
+				nsstring(os.join_path(output, '${names[i]}-${percentage}-witty.png')), ObjId(1))
+		}
+	}
+}
 
 fn audit_load_sparkle() {
 	path := os.getenv_opt('WITTY_SPARKLE_TEST_FRAMEWORK') or {

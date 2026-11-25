@@ -1,6 +1,5 @@
 // Objective-C message/block ABI only. Update policy and transitions are in V.
 #include <Block.h>
-#include <math.h>
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 extern id objc_initWeak(id*,id);
 extern id objc_loadWeakRetained(id*);
@@ -28,17 +27,6 @@ static inline void *witty_update_regex(void *string,void *pattern) { witty_updat
 static inline void witty_update_message3(void *object,void *selector,void *a,void *b,void *c) { ((void (*)(id,SEL,id,id,id))objc_msgSend)((id)object,(SEL)selector,(id)a,(id)b,(id)c); }
 static inline void *witty_update_blend(void *color,double fraction,void *other) { return ((id (*)(id,SEL,double,id))objc_msgSend)((id)color,sel_registerName("blendedColorWithFraction:ofColor:"),fraction,(id)other); }
 static inline double witty_update_text_width(void *text,void *font) { id attributes=((id (*)(id,SEL,id,id))objc_msgSend)((id)objc_getClass("NSDictionary"),sel_registerName("dictionaryWithObject:forKey:"),(id)font,(id)CFSTR("NSFont")); CGSize size=((CGSize (*)(id,SEL,id))objc_msgSend)((id)text,sel_registerName("sizeWithAttributes:"),attributes); return size.width; }
-static inline void witty_update_draw_ring(double progress,void *color) {
-    id context=((id (*)(id,SEL))objc_msgSend)((id)objc_getClass("NSGraphicsContext"),sel_registerName("currentContext"));
-    CGContextRef cg=((CGContextRef (*)(id,SEL))objc_msgSend)(context,sel_registerName("CGContext"));
-    if(!cg) return;
-    CGContextSaveGState(cg);
-    CGContextSetStrokeColorWithColor(cg,(CGColorRef)color); CGContextSetLineWidth(cg,2);
-    CGContextSetAlpha(cg,0.2); CGContextStrokeEllipseInRect(cg,CGRectMake(1,1,12,12));
-    CGContextSetAlpha(cg,1); CGContextSetLineCap(cg,kCGLineCapRound);
-    CGContextAddArc(cg,7,7,6,M_PI_2,M_PI_2-progress*2*M_PI,1); CGContextStrokePath(cg);
-    CGContextRestoreGState(cg);
-}
 typedef struct witty_update_os_version {long major,minor,patch;} witty_update_os_version;
 static inline bool witty_update_is_tahoe(void) { id process=((id (*)(id,SEL))objc_msgSend)((id)objc_getClass("NSProcessInfo"),sel_registerName("processInfo")); witty_update_os_version minimum={26,0,0}; return ((BOOL (*)(id,SEL,witty_update_os_version))objc_msgSend)(process,sel_registerName("isOperatingSystemAtLeastVersion:"),minimum); }
 extern const CGFloat NSFontWeightMedium;

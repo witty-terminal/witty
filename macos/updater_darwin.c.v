@@ -17,7 +17,6 @@ fn C.witty_update_regex(text ObjId, pattern ObjId) ObjId
 fn C.witty_update_blend(color ObjId, fraction f64, other ObjId) ObjId
 fn C.witty_update_text_width(text ObjId, font ObjId) f64
 fn C.witty_update_message3(object ObjId, selector Sel, a ObjId, b ObjId, c ObjId)
-fn C.witty_update_draw_ring(progress f64, color ObjId)
 fn C.witty_update_is_tahoe() bool
 fn C.witty_update_font() ObjId
 fn C.witty_update_title_font() ObjId
@@ -45,6 +44,8 @@ mut:
 	popover ObjId
 	reset_timer ObjId
 	reset_state UpdateState
+	ring_timer ObjId
+	ring_transition UpdateRingTransition
 }
 
 __global ( g_update_controller &NativeUpdateController )
@@ -123,6 +124,7 @@ pub fn (mut controller NativeUpdateController) set_state(state UpdateState) {
 	changed := !old.equals(state)
 	controller.state = retained_update_state(state)
 	if changed {
+		controller.update_ring_transition(old)
 		msg_void(controller.reset_timer, 'invalidate')
 		controller.reset_timer = nil_obj()
 		release_update_state(controller.reset_state)
@@ -185,6 +187,7 @@ pub fn (mut controller NativeUpdateController) deinit() {
 	center := msg_id(get_class('NSNotificationCenter'), 'defaultCenter')
 	msg_void1(center, 'removeObserver:', controller.driver)
 	msg_void(controller.reset_timer, 'invalidate')
+	controller.stop_ring_transition()
 	msg_void(controller.popover, 'close')
 	msg_void(controller.popover, 'release')
 	for _, pill in controller.pills { msg_void(pill, 'removeFromSuperview'); msg_void(pill, 'release') }
@@ -245,6 +248,7 @@ fn register_update_driver() ObjId {
 	add_method(cls, 'terminalWindowWillClose:', voidptr(update_terminal_will_close), 'v@:@')
 	add_method(cls, 'refreshWindows:', voidptr(update_refresh_windows), 'v@:@')
 	add_method(cls, 'resetNotFound:', voidptr(update_reset_not_found), 'v@:@')
+	add_method(cls, 'redrawProgress:', voidptr(update_badge_redraw_progress), 'v@:@')
 	add_method(cls, 'checkForUpdates:', voidptr(update_check_action), 'v@:@')
 	add_method(cls, 'installUpdate:', voidptr(update_install_action), 'v@:@')
 	add_method(cls, 'validateMenuItem:', voidptr(update_validate_menu), 'B@:@')
