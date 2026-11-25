@@ -6223,8 +6223,12 @@ fn test_erase_chars_repairs_wrapped_wide_boundaries() {
 	assert (t.plain_string() or { '' }) == '.......\n😀abcde\n😀......'
 	assert (t.plain_string_unwrapped() or { '' }) == '.......😀abcde😀......'
 	t.set_cursor_pos(2, 2)
+	t.clear_dirty()
 	t.erase_chars(3)
 	t.screens.active.assert_integrity()
+	assert t.is_dirty(active_point(0, 0))
+	assert t.is_dirty(active_point(0, 1))
+	assert !t.is_dirty(active_point(0, 2))
 	assert (t.plain_string() or { '' }) == '.......\n    cde\n😀......'
 	assert (t.plain_string_unwrapped() or { '' }) == '.......     cde\n😀......'
 }
@@ -6381,7 +6385,11 @@ fn test_delete_chars_wide_character_wrap_boundary_conditions() {
 	assert t.plain_string_unwrapped() or { '' } == '.......😀abcde😀......'
 
 	t.set_cursor_pos(2, 2)
+	t.clear_dirty()
 	t.delete_chars(3)
+	assert t.is_dirty(active_point(0, 0))
+	assert t.is_dirty(active_point(0, 1))
+	assert !t.is_dirty(active_point(0, 2))
 	assert t.plain_string() or { '' } == '.......\n cde\n😀......'
 	assert t.plain_string_unwrapped() or { '' } == '.......  cde\n😀......'
 }

@@ -18,6 +18,8 @@ RESIZE_FIXTURES = (
     "resize-cursor-in-blanks", "resize-cursor-near-bottom", "resize-pending-wrap", "resize-prompt-last",
 )
 RESIZE_WRAP_COLOR = (129, 68, 93)
+WIDE_EDIT_BEFORE = (153, 61, 77)
+WIDE_EDIT_AFTER = (58, 119, 97)
 
 
 def kitty_image():
@@ -391,6 +393,28 @@ def grapheme_sequences():
     ).encode()
 
 
+def edit_wrapped_wide():
+    wait_for_initial_grid()
+    attrs = termios.tcgetattr(sys.stdin)
+    tty.setraw(sys.stdin)
+    try:
+        r, g, b = WIDE_EDIT_BEFORE
+        background = f"\x1b[48;2;{r};{g};{b}m"
+        sys.stdout.write(
+            f"\x1b[1;1HErase a wrapped wide glyph\x1b[1;{GRID_COLUMNS}H{background}字\x1b[0m keep"
+            f"\x1b[3;1HDelete from its spacer tail\x1b[3;{GRID_COLUMNS}H{background}字\x1b[0m shift"
+        )
+        sys.stdout.flush()
+        # Wait until the initial frame has been captured before changing it.
+        if sys.stdin.read(1):
+            r, g, b = WIDE_EDIT_AFTER
+            sys.stdout.write(f"\x1b[48;2;{r};{g};{b}m\x1b[2;1H\x1b[X\x1b[4;2H\x1b[P\x1b[0m")
+            sys.stdout.flush()
+            sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(sys.stdin, termios.TCSANOW, attrs)
+
+
 def colored_line_erase():
     # An erase issued before the startup resize uses the old right edge.
     wait_for_initial_grid()
@@ -489,6 +513,9 @@ def main():
         sys.stdout.buffer.write(colored_line_erase())
     elif fixture == "grapheme-sequences":
         sys.stdout.buffer.write(grapheme_sequences())
+    elif fixture == "wide-edit":
+        edit_wrapped_wide()
+        return
     elif fixture == "resize-pending-wrap":
         sys.stdout.buffer.write(resize_pending_wrap())
     elif fixture == "resize-prompt-last":

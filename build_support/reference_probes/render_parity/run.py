@@ -16,7 +16,7 @@ from capture import (
 )
 from fixtures import (
     CURSOR_STYLES, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES, RESIZE_WRAP_COLOR,
-    SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED,
+    SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED, WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE,
 )
 
 
@@ -26,7 +26,7 @@ FOREGROUND = (228, 229, 233)
 CURSOR_COLOR = (255, 238, 170)
 SELECTION_BACKGROUND = (23, 81, 107)
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
-INTERACTIVE_FIXTURES = ("selection-wide", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES)
+INTERACTIVE_FIXTURES = ("selection-wide", "wide-edit", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES)
 WALLPAPER_OPTIONS = {
     "wallpaper-stretch": ("--background-image-fit=stretch",),
     "wallpaper-repeat": (
@@ -192,6 +192,24 @@ def type_unicode_preedit(window, fixture, padding, cell_width, cell_height):
     return rendered
 
 
+def edit_wrapped_wide(window, helper, padding, cell_width, cell_height):
+    x = padding + (GRID_COLUMNS - 1) * cell_width + cell_width // 2
+
+    def row_y(row):
+        return padding + row * cell_height + cell_height // 2
+
+    with read_window(helper, window) as image:
+        if any(image.getpixel((x, row_y(row)))[:3] != WIDE_EDIT_BEFORE for row in (0, 2)):
+            raise RuntimeError("The wrapped wide cells were missing before editing")
+    subprocess.run(["xdotool", "windowfocus", "--sync", window, "key", "space"], check=True, timeout=5)
+
+    def rendered(image):
+        # Delete-character inserts a blank with the new background at the margin.
+        return image.getpixel((x, row_y(3)))[:3] == WIDE_EDIT_AFTER
+
+    return rendered
+
+
 def scroll_history(window, helper, padding, cell_width, cell_height):
     x = padding + cell_width // 2
 
@@ -259,6 +277,8 @@ def capture_interactive(binary, args, helper, prefix, fixture, settle, scale, *,
 
         if fixture == "selection-wide":
             rendered = drag_wide_selection(window, padding, cell_width, cell_height)
+        elif fixture == "wide-edit":
+            rendered = edit_wrapped_wide(window, helper, padding, cell_width, cell_height)
         elif fixture in SCROLLBACK_FIXTURES:
             rendered = scroll_history(window, helper, padding, cell_width, cell_height)
         elif fixture == "resize-pending-wrap":

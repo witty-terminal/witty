@@ -24,6 +24,7 @@ The probe uses Witty’s `--screenshot` and captures Ghostty’s matching X11 cl
 The terminal glyph fixtures cover box drawing, block elements, Braille patterns, and Powerline separators at default and adjusted cell sizes.
 The grapheme fixture covers emoji presentation selectors and combining accents at the right edge, with grapheme clustering enabled and disabled.
 The colored line erase fixture waits for the configured PTY grid before erasing to either edge and across a full row.
+The wide glyph editing fixture renders a colored glyph across a wrap, then erases or deletes it and checks that the previous row redraws.
 The text selection fixture uses a mouse drag starting on the second cell of an emoji to verify the highlight covers the full glyph.
 The Unicode input fixtures capture GTK’s underlined preview over a terminal wallpaper and at the right edge before the character is committed.
 The scrollback fixtures update the palette and append a row after scrolling into history, with `scroll-to-bottom=output` enabled and disabled.

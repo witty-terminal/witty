@@ -3398,6 +3398,8 @@ pub fn (mut self Screen) split_cell_boundary(x u32) {
 					mut p_row_data := p_rac.row
 					mut last := unsafe { p_cells[p_cols - 1..p_cols] }
 					self.clear_cells(mut p_page, mut p_row_data, mut last)
+					// Callers mark the cursor row dirty. This cell is on the previous row.
+					p_row.mark_dirty()
 				}
 			}
 		}
