@@ -664,13 +664,13 @@ pub fn (mut self ImageRenderState) kitty_update(t &terminal.Terminal, cell_size 
 	top_y := (t.screens.active.pages.point_from_pin(.screen, top) or { panic('viewport top is off screen') }).coord().y
 	bot_y := (t.screens.active.pages.point_from_pin(.screen, bot) or { panic('viewport bottom is off screen') }).coord().y
 
-	mut pinned := []KittyPinnedPlacement{}
+	mut placements := []KittyStoredPlacement{}
 	mut has_virtual := false
 	for entry in storage.placements {
 		match entry.value.location {
-			terminal.PlacementPin {
+			terminal.PlacementPin, terminal.PlacementRelative {
 				image := storage.image_by_id(entry.key.image_id) or { continue }
-				pinned << KittyPinnedPlacement{
+				placements << KittyStoredPlacement{
 					image: image
 					placement: entry.value
 				}
@@ -691,7 +691,7 @@ pub fn (mut self ImageRenderState) kitty_update(t &terminal.Terminal, cell_size 
 		}
 	}
 
-	self.kitty_update_storage(mut storage, t, top_y, bot_y, cell_size, pinned, virtuals)
+	self.kitty_update_storage(mut storage, t, top_y, bot_y, cell_size, placements, virtuals)
 	// A virtual placement keeps this state hot even when the current viewport
 	// contains no matching Unicode placeholder cells.
 	if has_virtual {
@@ -699,17 +699,15 @@ pub fn (mut self ImageRenderState) kitty_update(t &terminal.Terminal, cell_size 
 	}
 }
 
-// A resolved (image, placement) pair for a pin-anchored Kitty placement.
-// The terminal-facing entry point resolves these from ImageStorage before
-// handing them to the shared CPU-side update routine.
-pub struct KittyPinnedPlacement {
+// The stored image and its fixed or relative placement.
+pub struct KittyStoredPlacement {
 pub:
 	image     terminal.Image
 	placement terminal.Placement
 }
 
 // Update the Kitty graphics state from the terminal, given the already
-// resolved pin-anchored placements and any virtual placements.
+// resolved images and their placements, plus the viewport's placeholder runs.
 //
 // This is a faithful translation of the CPU-side of Ghostty's
 // State.kittyUpdate: placement prep (viewport rect math + source rect +
@@ -719,7 +717,7 @@ pub:
 // `top_y` and `bot_y` are the screen-space Y coordinates of the top-left
 // and bottom-right corners of the viewport, computed by the caller (in
 // Ghostty via `pages.pointFromPin(.screen, ...)`).
-pub fn (mut self ImageRenderState) kitty_update_storage(mut storage terminal.ImageStorage, t &terminal.Terminal, top_y u32, bot_y u32, cell_size CellSize, pinned []KittyPinnedPlacement, virtuals []terminal.VirtualPlacement) {
+pub fn (mut self ImageRenderState) kitty_update_storage(mut storage terminal.ImageStorage, t &terminal.Terminal, top_y u32, bot_y u32, cell_size CellSize, placements []KittyStoredPlacement, virtuals []terminal.VirtualPlacement) {
 	// The terminal storage's dirty flag is consumed by this update.
 	defer {
 		storage.dirty = false
@@ -750,10 +748,9 @@ pub fn (mut self ImageRenderState) kitty_update_storage(mut storage terminal.Ima
 
 	// Go through the placements and ensure the image is
 	// on the GPU or else is ready to be sent to the GPU.
-	for pin in pinned {
-		// For errors we log and continue. We try to place
-		// other placements even if one fails.
-		self.prep_kitty_placement(t, top_y, bot_y, pin.image, pin.placement) or { continue }
+	for p in placements {
+		origin := kitty_placement_origin(&storage, t, p.placement.location, virtuals) or { continue }
+		self.prep_kitty_placement(t, top_y, bot_y, p.image, p.placement, origin) or { continue }
 	}
 
 	// If we have any virtual placements then we need to prep them. The
@@ -826,25 +823,64 @@ fn (mut self ImageRenderState) kitty_sort_and_index() {
 	self.kitty_text_end = text_end or { u32(self.kitty_placements.len) }
 }
 
-// Get the viewport-relative position for this placement and add it to
-// the placements list. Faithful translation of prepKittyPlacement.
-fn (mut self ImageRenderState) prep_kitty_placement(t &terminal.Terminal, top_y u32, bot_y u32, image terminal.Image, p terminal.Placement) ! {
-	// Skip virtual placements and anchors pruned from the retained rows.
-	rect := p.rect(image, t) or { return }
+struct KittyPlacementOrigin {
+mut:
+	x i64
+	y i64
+}
 
-	// This is expensive but necessary.
-	img_top_y := (t.screens.active.pages.point_from_pin(.screen, rect.top_left) or {
-		panic('placement top-left is off screen')
-	}).coord().y
-	img_bot_y := (t.screens.active.pages.point_from_pin(.screen, rect.bottom_right) or {
-		panic('placement bottom-right is off screen')
-	}).coord().y
-
-	// If the selection isn't within our viewport then skip it.
-	if img_top_y > bot_y {
-		return
+fn kitty_pin_origin(t &terminal.Terminal, pin &terminal.Pin) ?KittyPlacementOrigin {
+	if isnil(pin) || pin.garbage {
+		return none
 	}
-	if img_bot_y < top_y {
+	point := t.screens.active.pages.point_from_pin(.screen, *pin)?
+	return KittyPlacementOrigin{ x: i64(pin.x), y: i64(point.coord().y) }
+}
+
+fn kitty_placeholder_origin(storage &terminal.ImageStorage, t &terminal.Terminal, key terminal.PlacementKey, virtuals []terminal.VirtualPlacement) ?KittyPlacementOrigin {
+	mut origin := KittyPlacementOrigin{ x: max_i64, y: max_i64 }
+	for run in virtuals {
+		if run.image_id != key.image_id {
+			continue
+		}
+		target := storage.placeholder_target(run.image_id, run.placement_id) or { continue }
+		if target.key != key {
+			continue
+		}
+		pos := kitty_pin_origin(t, &run.pin) or { continue }
+		origin.x = if pos.x < origin.x { pos.x } else { origin.x }
+		origin.y = if pos.y < origin.y { pos.y } else { origin.y }
+	}
+	if origin.x == max_i64 {
+		return none
+	}
+	return origin
+}
+
+fn kitty_placement_origin(storage &terminal.ImageStorage, t &terminal.Terminal, location terminal.PlacementLocation, virtuals []terminal.VirtualPlacement) ?KittyPlacementOrigin {
+	match location {
+		terminal.PlacementPin { return kitty_pin_origin(t, location.pin) }
+		terminal.PlacementVirtual { return none }
+		terminal.PlacementRelative {
+			chain := storage.resolve_relative_chain(location)?
+			root := chain.root.value.location
+			origin := if root is terminal.PlacementPin {
+				kitty_pin_origin(t, root.pin)?
+			} else {
+				kitty_placeholder_origin(storage, t, chain.root.key, virtuals)?
+			}
+			return KittyPlacementOrigin{ x: origin.x + chain.column_offset, y: origin.y + chain.row_offset }
+		}
+	}
+}
+
+// Cull against the viewport in cell coordinates. Keep the signed origin of
+// partially visible placements so the renderer clips them at full scale.
+fn (mut self ImageRenderState) prep_kitty_placement(t &terminal.Terminal, top_y u32, bot_y u32, image terminal.Image, p terminal.Placement, origin KittyPlacementOrigin) ! {
+	cols, rows := p.grid_size(image, t)
+	x, y := origin.x, origin.y - i64(top_y)
+	if cols == 0 || rows == 0 || x >= t.cols || y > i64(bot_y) - i64(top_y)
+		|| x + cols <= 0 || y + rows <= 0 || y < min_i32 || x < min_i32 {
 		return
 	}
 
@@ -858,8 +894,8 @@ fn (mut self ImageRenderState) prep_kitty_placement(t &terminal.Terminal, top_y 
 	self.prep_kitty_image(image)!
 	self.kitty_placements << ImagePlacement{
 		image_id:      KittyImageId{ id: image.id }
-		x:             i32(rect.top_left.x)
-		y:             i32(img_top_y) - i32(top_y)
+		x:             i32(x)
+		y:             i32(y)
 		z:             p.z
 		width:         dest_w
 		height:        dest_h

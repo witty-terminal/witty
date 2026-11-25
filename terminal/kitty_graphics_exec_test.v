@@ -183,6 +183,76 @@ fn test_graphics_placement_overwrite_releases_the_old_anchor() ! {
 	assert t.screens.active.pages.count_tracked_pins() == tracked
 }
 
+fn test_graphics_relative_placement_follows_parent_and_cascades_removal() ! {
+	mut t := make_graphics_terminal()!
+	defer { t.deinit() }
+	storage := &t.screens.active.kitty_images
+	tracked := t.screens.active.pages.count_tracked_pins()
+	root := CommandParser.parse_string('a=T,f=24,i=1,p=1,s=1,v=1,c=1,r=1,C=1;////')!
+	assert (t.kitty_graphics(&root) or { panic('expected root response') }).ok()
+	t.set_cursor_pos(3, 4)
+	child := CommandParser.parse_string('a=T,f=24,i=2,p=1,P=1,Q=1,H=-2,V=1,s=1,v=1,c=1,r=1;////')!
+	grandchild := CommandParser.parse_string('a=T,f=24,i=3,p=1,P=2,H=3,V=-2,s=1,v=1,c=1,r=1;////')!
+	for command in [child, grandchild] {
+		assert (t.kitty_graphics(&command) or { panic('expected relative placement response') }).ok()
+	}
+	assert t.screens.active.cursor.x == 3
+	assert t.screens.active.cursor.y == 2
+	assert t.screens.active.pages.count_tracked_pins() == tracked + 1
+
+	move := CommandParser.parse_string('a=p,i=1,p=1,c=1,r=1,C=1')!
+	assert (t.kitty_graphics(&move) or { panic('expected move response') }).ok()
+	assert storage.placement_count() == 3
+	location := storage.placements[2].value.location as PlacementRelative
+	chain := storage.resolve_relative_chain(location) or { panic('expected relative chain') }
+	pin := (chain.root.value.location as PlacementPin).pin
+	assert chain.root.key.image_id == 1
+	assert pin.x == 3
+	assert graphics_placement_row(&t, 1)! == 2
+	assert chain.column_offset == 1
+	assert chain.row_offset == -1
+
+	remove := CommandParser.parse_string('a=d,d=i,i=1,p=1')!
+	assert t.kitty_graphics(&remove) == none
+	assert storage.placement_count() == 0
+	assert storage.image_count() == 3
+	assert t.screens.active.pages.count_tracked_pins() == tracked
+
+	assert (t.kitty_graphics(&move) or { panic('expected replacement response') }).ok()
+	assert storage.placement_count() == 1
+	for command in ['a=p,i=2,p=1,P=1', 'a=p,i=3,p=1,P=2'] {
+		cmd := CommandParser.parse_string(command)!
+		assert (t.kitty_graphics(&cmd) or { panic('expected relative placement response') }).ok()
+	}
+	free := CommandParser.parse_string('a=d,d=I,i=1,p=1')!
+	assert t.kitty_graphics(&free) == none
+	assert storage.placement_count() == 0
+	assert storage.image_count() == 0
+}
+
+fn test_graphics_relative_placement_validates_parent_links() ! {
+	mut t := make_graphics_terminal()!
+	defer { t.deinit() }
+	root := CommandParser.parse_string('a=T,f=24,i=1,p=1,s=1,v=1,c=1,r=1,C=1;////')!
+	assert (t.kitty_graphics(&root) or { panic('expected root response') }).ok()
+	for id in 2 .. 10 {
+		cmd := CommandParser.parse_string('a=p,i=1,p=${id},P=1,Q=${id - 1}')!
+		assert (t.kitty_graphics(&cmd) or { panic('expected relative placement response') }).ok()
+	}
+	for request, expected in {
+		'a=p,i=1,p=11,P=2': 'ENOPARENT: parent image not found'
+		'a=p,i=1,p=11,P=1,Q=22': 'ENOPARENT: parent placement not found'
+		'a=p,i=1,p=2,P=1,Q=2': 'EINVAL: placement cannot be its own parent'
+		'a=p,i=1,p=1,P=1,Q=2': 'ECYCLE: parent chain creates a cycle'
+		'a=p,i=1,p=10,P=1,Q=9': 'ETOODEEP: parent chain too deep'
+	} {
+		cmd := CommandParser.parse_string(request)!
+		response := t.kitty_graphics(&cmd) or { panic('expected relative placement error') }
+		assert response.message == expected
+	}
+	assert t.screens.active.kitty_images.placement_count() == 9
+}
+
 fn test_graphics_erase_scrollback_removes_history_anchors() ! {
 	mut t := make_graphics_terminal()!
 	defer { t.deinit() }

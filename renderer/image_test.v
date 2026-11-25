@@ -366,7 +366,7 @@ fn test_kitty_virtual_placement_uses_viewport_relative_row() ! {
 	state.kitty_update_storage(mut storage, &t, top_y, top_y + 4, CellSize{
 		width: 10
 		height: 20
-	}, []KittyPinnedPlacement{}, [terminal.VirtualPlacement{
+	}, []KittyStoredPlacement{}, [terminal.VirtualPlacement{
 		pin: pin
 		image_id: 7
 		placement_id: 9

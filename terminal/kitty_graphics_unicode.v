@@ -192,9 +192,10 @@ pub fn (self &VirtualPlacement) render_placement(storage &ImageStorage, img &Ima
 // This part of the code does NOT preserve any aspect ratios. Its
 // dumbly fitting the image into the grid size -- possibly user specified.
 fn (self &VirtualPlacement) grid(storage &ImageStorage, image &Image, cell_width u32, cell_height u32) !(u32, u32) {
-	p := storage.placeholder_target(self.image_id, self.placement_id) or {
+	target := storage.placeholder_target(self.image_id, self.placement_id) or {
 		return error('PlacementMissingPlacement')
 	}
+	p := target.value
 	if cell_width == 0 || cell_height == 0 {
 		return error('PlacementGridOutOfBounds')
 	}

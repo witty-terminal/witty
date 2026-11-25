@@ -176,6 +176,34 @@ def kitty_layers():
     return commands
 
 
+def kitty_relative():
+    commands = bytearray(b"Kitty relative placements")
+    for image_id, color in (
+        (471, (240, 73, 70)), (472, (78, 229, 119)), (473, (91, 137, 242)),
+        (474, (247, 201, 80)), (475, (192, 92, 241)),
+    ):
+        commands += kitty_solid(1, 1, image_id, color, place=False)
+    # Move the fixed root after attaching a child and grandchild.
+    commands += b"\x1b[3;4H\x1b_Ga=p,i=471,p=1,c=3,r=2,C=1,q=2;\x1b\\"
+    commands += b"\x1b[5;24H\x1b_Ga=p,i=472,p=1,P=471,Q=1,H=-2,V=1,c=3,r=2,q=2;\x1b\\Same cursor"
+    commands += b"\x1b_Ga=p,i=473,p=1,P=472,H=-1,V=-2,c=2,r=1,q=2;\x1b\\"
+    commands += b"\x1b[7;3H\x1b_Ga=p,i=471,p=1,c=3,r=2,C=1,q=2;\x1b\\"
+    commands += b"\x1b[2;12r\x1b[S\x1b[r"
+
+    # The virtual root takes its leftmost column and topmost row independently.
+    commands += b"\x1b_Ga=p,i=474,p=12,U=1,c=1,r=1,q=2;\x1b\\"
+    commands += b"\x1b_Ga=p,i=475,p=1,P=474,Q=12,H=-1,V=-1,c=3,r=1,q=2;\x1b\\"
+    for row, col in ((8, 23), (9, 20)):
+        commands += f"\x1b[{row};{col}H\x1b[38:2::0:1:218;58:5:12m\U0010eeee\u0305\u0305\x1b[0m".encode()
+
+    # Deleting a parent removes its children, and they stay gone if the ID is reused.
+    commands += b"\x1b[3;43H\x1b_Ga=p,i=471,p=2,c=2,r=1,C=1,q=2;\x1b\\"
+    commands += b"\x1b[5;43H\x1b_Ga=p,i=472,p=2,P=471,Q=2,H=1,V=1,c=2,r=1,q=2;\x1b\\"
+    commands += b"\x1b_Ga=d,d=i,i=471,p=2,q=2;\x1b\\"
+    commands += b"\x1b[3;45H\x1b_Ga=p,i=471,p=2,c=2,r=1,C=1,q=2;\x1b\\"
+    return commands
+
+
 def main():
     fixture = sys.argv[1]
     output = {
@@ -229,6 +257,8 @@ def main():
         sys.stdout.buffer.write(kitty_unicode_pinned())
     elif fixture == "kitty-layers":
         sys.stdout.buffer.write(kitty_layers())
+    elif fixture == "kitty-relative":
+        sys.stdout.buffer.write(kitty_relative())
     elif fixture in CURSOR_STYLES:
         # Reposition over an existing glyph and show a steady cursor.
         style = CURSOR_STYLES[fixture]

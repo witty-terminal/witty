@@ -93,7 +93,7 @@ pub mut:
 }
 
 // PlacementLocation describes where a placement is anchored.
-pub type PlacementLocation = PlacementPin | PlacementVirtual
+pub type PlacementLocation = PlacementPin | PlacementVirtual | PlacementRelative
 
 // Exactly placed on a screen pin.
 pub struct PlacementPin {
@@ -104,10 +104,17 @@ pub:
 // Virtual placement (U=1) for unicode placeholders.
 pub struct PlacementVirtual {}
 
+// Anchored to another Kitty placement.
+pub struct PlacementRelative {
+pub:
+	parent        PlacementKey
+	column_offset i32
+	row_offset    i32
+}
+
 pub fn (self &Placement) deinit(mut s Screen) {
-	match self.location {
-		PlacementPin { s.pages.untrack_pin(self.location.pin) }
-		PlacementVirtual {}
+	if self.location is PlacementPin {
+		s.pages.untrack_pin(self.location.pin)
 	}
 }
 
@@ -200,7 +207,7 @@ pub fn (self &Placement) grid_size(image Image, t &Terminal) (u32, u32) {
 pub fn (self &Placement) rect(image Image, t &Terminal) ?Rect {
 	pin := match self.location {
 		PlacementPin { self.location.pin }
-		PlacementVirtual { return none }
+		else { return none }
 	}
 	if isnil(pin) || pin.garbage {
 		return none
@@ -253,6 +260,7 @@ fn (t &Terminal) prepare_kitty_scroll(delta int, shifts_window bool) []KittyScro
 	}
 
 	mut restores := []KittyScrollPin{}
+	placement_count := storage.placements.len
 	mut i := 0
 	for i < storage.placements.len {
 		entry := storage.placements[i]
@@ -260,7 +268,7 @@ fn (t &Terminal) prepare_kitty_scroll(delta int, shifts_window bool) []KittyScro
 		i++
 		pin := match placement.location {
 			PlacementPin { placement.location.pin }
-			PlacementVirtual { continue }
+			else { continue }
 		}
 		if isnil(pin) || pin.garbage {
 			continue
@@ -286,6 +294,9 @@ fn (t &Terminal) prepare_kitty_scroll(delta int, shifts_window bool) []KittyScro
 			pin:      pin
 			position: position
 		}
+	}
+	if storage.placements.len != placement_count {
+		storage.remove_orphans(false)
 	}
 	return restores
 }
@@ -483,7 +494,8 @@ pub fn (mut self ImageStorage) add_image(mut s Screen, img Image) ! {
 
 	mut stored := img
 	if old := existing {
-		self.delete_by_id(mut s, img.id, 0, true)
+		self.delete_by_id(mut s, img.id, 0, false)
+		self.delete_if_unused(img.id)
 		// The renderer compares timestamps to detect replacement pixels.
 		if stored.transmit_time <= old.transmit_time {
 			stored.transmit_time = old.transmit_time + 1
@@ -538,6 +550,7 @@ pub fn (mut self ImageStorage) add_placement(mut s Screen, image_id u32, placeme
 // Keep image data while releasing anchors whose rows are gone. Before
 // erasing history, also release anchors still in the rows about to be erased.
 fn (mut self ImageStorage) reap_placements(mut s Screen, erase_history bool) {
+	placement_count := self.placements.len
 	mut i := 0
 	for i < self.placements.len {
 		placement := self.placements[i].value
@@ -552,6 +565,9 @@ fn (mut self ImageStorage) reap_placements(mut s Screen, erase_history bool) {
 			}
 		}
 		i++
+	}
+	if self.placements.len != placement_count {
+		self.remove_orphans(false)
 	}
 }
 
@@ -568,7 +584,7 @@ pub fn (mut self ImageStorage) clear_screen_images(mut s Screen) {
 	mut i := 0
 	for i < self.placements.len {
 		entry := self.placements[i]
-		if entry.value.location is PlacementVirtual {
+		if entry.value.location !is PlacementPin {
 			i++
 			continue
 		}
@@ -578,6 +594,7 @@ pub fn (mut self ImageStorage) clear_screen_images(mut s Screen) {
 		self.placements.delete(i)
 		self.delete_if_unused(image_id)
 	}
+	self.remove_orphans(true)
 
 	ids := self.images.keys()
 	for id in ids {
@@ -625,13 +642,14 @@ pub fn (mut self ImageStorage) delete(mut t Terminal, cmd Delete) {
 				mut i := 0
 				for i < self.placements.len {
 					entry := self.placements[i]
-					if entry.value.location is PlacementVirtual {
+					if entry.value.location !is PlacementPin {
 						i++
 						continue
 					}
 					entry.value.deinit(mut t.screens.active)
 					self.placements.delete(i)
 				}
+				self.remove_orphans(false)
 				self.dirty = true
 			}
 		}
@@ -698,6 +716,7 @@ pub fn (mut self ImageStorage) delete(mut t Terminal, cmd Delete) {
 					i++
 				}
 			}
+			self.remove_orphans(cmd.delete)
 			self.dirty = true
 		}
 		DeleteRow {
@@ -738,6 +757,7 @@ pub fn (mut self ImageStorage) delete(mut t Terminal, cmd Delete) {
 					i++
 				}
 			}
+			self.remove_orphans(cmd.delete)
 			self.dirty = true
 		}
 		DeleteZ {
@@ -760,6 +780,7 @@ pub fn (mut self ImageStorage) delete(mut t Terminal, cmd Delete) {
 					i++
 				}
 			}
+			self.remove_orphans(cmd.delete)
 			self.dirty = true
 		}
 		DeleteRange {
@@ -783,6 +804,7 @@ pub fn (mut self ImageStorage) delete(mut t Terminal, cmd Delete) {
 					i++
 				}
 			}
+			self.remove_orphans(cmd.delete)
 			self.dirty = true
 		}
 
@@ -820,6 +842,7 @@ fn (mut self ImageStorage) delete_by_id(mut s Screen, image_id u32, placement_id
 		}
 	}
 
+	self.remove_orphans(delete_unused)
 	// If this is specified, then we also delete the image
 	// if it is no longer in use.
 	if delete_unused {
@@ -883,6 +906,7 @@ fn (mut self ImageStorage) delete_intersecting(mut t Terminal, p Point, delete_u
 		}
 	}
 
+	self.remove_orphans(delete_unused)
 	// Mark dirty to force redraw
 	self.dirty = true
 }
@@ -948,7 +972,8 @@ fn (mut self ImageStorage) evict_image(mut s Screen, req uint, exclude_id ?u32) 
 	for c in candidates {
 		img := self.image_by_id(c.id) or { continue }
 		evicted += uint(img.data.len)
-		self.delete_by_id(mut s, c.id, 0, true)
+		self.delete_by_id(mut s, c.id, 0, false)
+		self.delete_if_unused(c.id)
 		if evicted >= req {
 			return true
 		}
@@ -967,19 +992,11 @@ pub fn (self &ImageStorage) get_placement(key PlacementKey) ?Placement {
 	return none
 }
 
-// A placeholder with no placement ID selects a virtual placement.
 // Prefer explicit IDs, then the lowest ID within each kind.
-fn (self &ImageStorage) placeholder_target(image_id u32, placement_id u32) ?Placement {
-	if placement_id > 0 {
-		return self.get_placement(PlacementKey{
-			image_id:     image_id
-			placement_id: PlacementId.init(.external, placement_id)
-		})
-	}
-
+fn (self &ImageStorage) best_placement(image_id u32, virtual_only bool) ?PlacementEntry {
 	mut best := ?PlacementEntry(none)
 	for entry in self.placements {
-		if entry.key.image_id != image_id || entry.value.location !is PlacementVirtual {
+		if entry.key.image_id != image_id || (virtual_only && entry.value.location !is PlacementVirtual) {
 			continue
 		}
 		if current := best {
@@ -989,8 +1006,113 @@ fn (self &ImageStorage) placeholder_target(image_id u32, placement_id u32) ?Plac
 		}
 		best = entry
 	}
-	entry := best or { return none }
-	return entry.value
+	return best
+}
+
+// A placeholder with no placement ID selects a virtual placement.
+pub fn (self &ImageStorage) placeholder_target(image_id u32, placement_id u32) ?PlacementEntry {
+	if placement_id == 0 {
+		return self.best_placement(image_id, true)
+	}
+	key := PlacementKey{
+		image_id:     image_id
+		placement_id: PlacementId.init(.external, placement_id)
+	}
+	return PlacementEntry{ key: key, value: self.get_placement(key)? }
+}
+
+const kitty_parent_chain_limit = 8
+
+fn (mut self ImageStorage) resolve_parent(mut screen Screen, child ?PlacementKey, image_id u32, placement_id u32) !PlacementKey {
+	self.reap_placements(mut screen, false)
+	if image_id !in self.images {
+		return error('ENOPARENT: parent image not found')
+	}
+	missing := 'ENOPARENT: parent placement not found'
+	parent := if placement_id == 0 {
+		entry := self.best_placement(image_id, false) or { return error(missing) }
+		entry.key
+	} else {
+		key := PlacementKey{ image_id: image_id, placement_id: PlacementId.init(.external, placement_id) }
+		self.get_placement(key) or { return error(missing) }
+		key
+	}
+	if child_key := child {
+		if child_key == parent {
+			return error('EINVAL: placement cannot be its own parent')
+		}
+	}
+	mut key := parent
+	for _ in 0 .. kitty_parent_chain_limit {
+		if child_key := child {
+			if child_key == key {
+				return error('ECYCLE: parent chain creates a cycle')
+			}
+		}
+		placement := self.get_placement(key) or { return error('ENOENT: parent chain ancestor not found') }
+		location := placement.location
+		if location is PlacementRelative {
+			key = location.parent
+		} else {
+			return parent
+		}
+	}
+	return error('ETOODEEP: parent chain too deep')
+}
+
+pub struct KittyRelativeChain {
+pub:
+	root          PlacementEntry
+	column_offset i64
+	row_offset    i64
+}
+
+// Follow the parent chain to a fixed or virtual root and accumulate cell offsets.
+pub fn (self &ImageStorage) resolve_relative_chain(relative PlacementRelative) ?KittyRelativeChain {
+	mut key := relative.parent
+	mut x := i64(relative.column_offset)
+	mut y := i64(relative.row_offset)
+	for _ in 0 .. kitty_parent_chain_limit {
+		placement := self.get_placement(key)?
+		location := placement.location
+		if location is PlacementRelative {
+			x = math.min(math.max(x + location.column_offset, i64(min_i32)), i64(max_i32))
+			y = math.min(math.max(y + location.row_offset, i64(min_i32)), i64(max_i32))
+			key = location.parent
+			continue
+		}
+		return KittyRelativeChain{
+			root:          PlacementEntry{ key: key, value: placement }
+			column_offset: x
+			row_offset:    y
+		}
+	}
+	return none
+}
+
+// A parent removal can leave an entire chain orphaned.
+fn (mut self ImageStorage) remove_orphans(delete_unused bool) {
+	for {
+		mut removed := false
+		mut i := 0
+		for i < self.placements.len {
+			entry := self.placements[i]
+			location := entry.value.location
+			if location is PlacementRelative && self.get_placement(location.parent) == none {
+				self.placements.delete(i)
+				if delete_unused {
+					self.delete_if_unused(entry.key.image_id)
+				}
+				removed = true
+				continue
+			}
+			i++
+		}
+		if !removed {
+			return
+		}
+		self.dirty = true
+	}
 }
 
 // Count the number of placements.

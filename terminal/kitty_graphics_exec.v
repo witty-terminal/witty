@@ -333,6 +333,24 @@ fn exec_display(mut t Terminal, cmd &Command) Response {
 			return result
 		}
 		PlacementLocation(PlacementVirtual{})
+	} else if d.parent_id > 0 {
+		child := if d.placement_id == 0 {
+			?PlacementKey(none)
+		} else {
+			?PlacementKey(PlacementKey{
+				image_id:     img.id
+				placement_id: PlacementId.init(.external, d.placement_id)
+			})
+		}
+		parent := storage.resolve_parent(mut t.screens.active, child, d.parent_id, d.parent_placement_id) or {
+			result.message = err.msg()
+			return result
+		}
+		PlacementLocation(PlacementRelative{
+			parent:        parent
+			column_offset: d.horizontal_offset
+			row_offset:    d.vertical_offset
+		})
 	} else {
 		PlacementLocation(PlacementPin{
 			pin: t.screens.active.pages.track_pin(*t.screens.active.cursor.page_pin) or {

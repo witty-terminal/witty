@@ -30,7 +30,7 @@ WALLPAPER_OPTIONS = {
 FIXTURES = (
     "ansi", "decorations", "unicode", "wide-wrap", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
-    "kitty-unicode", "kitty-unicode-pinned", "kitty-layers",
+    "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
     *WALLPAPER_OPTIONS, "ls", "git", "vim", "shader",
 )
 OPTIONS = (
