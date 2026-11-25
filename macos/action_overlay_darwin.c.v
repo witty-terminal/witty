@@ -314,10 +314,7 @@ fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
 		state.highlight_accent = none
 		if state.highlighted { state.refresh_highlight() }
 		state.refresh_secure_visuals()
-		if !is_nil(msg_id(state.bell_edges[0], 'contents')) {
-			state.update_bell_tiles()
-			state.refresh_bell_visuals()
-		}
+		if !is_nil(state.bell_layer) { state.refresh_bell_visuals() }
 		state.refresh_hover_visuals()
 		state.refresh_readonly_badge()
 		state.refresh_key_visuals()

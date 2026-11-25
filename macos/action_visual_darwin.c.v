@@ -43,25 +43,16 @@ fn new_health_overlay() ObjId {
 fn (mut surface NativeActionSurface) initialize_visuals() {
 	layer_class := get_class('CALayer')
 	surface.bell_layer = msg_id(layer_class, 'layer')
+	// Keep the color and alpha in the layer so the window can blend them at
+	// native precision without dithering a translucent texture.
+	fill := msg_id(native_color(0xffcc00, 0.5), 'CGColor')
 	for i in 0 .. surface.bell_edges.len {
 		surface.bell_edges[i] = msg_id(layer_class, 'layer')
+		msg_void1(surface.bell_edges[i], 'setBackgroundColor:', fill)
 		msg_void1(surface.bell_layer, 'addSublayer:', surface.bell_edges[i])
 	}
 	C.witty_macos_msg_void_f32(surface.bell_layer, sel('setOpacity:'), 0)
 	msg_void1(msg_id(surface.overlay, 'layer'), 'addSublayer:', surface.bell_layer)
-}
-
-fn (surface &NativeActionSurface) update_bell_tiles() {
-	tile := native_canvas_fill_tile(0xffcc00, target: surface.overlay, opacity: 0.5)
-	if is_nil(tile) { return }
-	transaction := get_class('CATransaction')
-	msg_void(transaction, 'begin')
-	msg_void_bool(transaction, 'setDisableActions:', true)
-	for edge in surface.bell_edges {
-		msg_void1(edge, 'setContents:', ObjId(tile))
-	}
-	msg_void(transaction, 'commit')
-	C.CFRelease(tile)
 }
 
 fn bell_edge_frames(frame ObjCRect) [4]ObjCRect {
@@ -78,9 +69,6 @@ fn bell_edge_frames(frame ObjCRect) [4]ObjCRect {
 
 fn (surface &NativeActionSurface) refresh_bell_visuals() {
 	lit := surface.bell && surface.bell_border
-	if lit && is_nil(msg_id(surface.bell_edges[0], 'contents')) {
-		surface.update_bell_tiles()
-	}
 	frame := native_canvas_overlay_rect(SplitBounds{
 		width: view_width(surface.view)
 		height: view_height(surface.view)

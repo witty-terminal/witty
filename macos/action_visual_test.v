@@ -38,7 +38,9 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	surface.ring_bell()
 	assert msg_rect(surface.bell_edges[0], 'frame').height == 3
 	assert msg_rect(surface.bell_edges[2], 'frame').y == 3
-	assert C.witty_overlay_test_tile(surface.bell_edges[0]) >> 24 == 127
+	for edge in surface.bell_edges {
+		assert C.witty_overlay_test_window_fill_matches(edge, native_color(0xffcc00, 0.5))
+	}
 	assert msg_f64(msg_id1(surface.bell_layer, 'valueForKey:', nsstring('opacity')), 'doubleValue') == 1
 	surface.begin_key_down()
 	assert msg_f64(msg_id1(surface.bell_layer, 'valueForKey:', nsstring('opacity')), 'doubleValue') == 0
@@ -429,6 +431,7 @@ struct NativeBellFixture {
 
 fn test_native_bell_overlay_capture() {
 	output := os.getenv_opt('WITTY_BELL_OVERLAY_OUTPUT') or { return }
+	window_output := os.getenv('WITTY_BELL_WINDOW_OUTPUT')
 	app_init()
 	frame := objc_rect(0, 0, 103, 63)
 	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
@@ -480,6 +483,12 @@ fn test_native_bell_overlay_capture() {
 		assert !is_nil(png)
 		assert msg_bool2(png, 'writeToFile:atomically:',
 			nsstring(os.join_path(output, 'bell-${fixture.name}-witty.png')), ObjId(1))
+		if window_output != '' {
+			window_png := C.witty_overlay_test_window_png(window)
+			assert !is_nil(window_png)
+			assert msg_bool2(window_png, 'writeToFile:atomically:',
+				nsstring(os.join_path(window_output, 'bell-${fixture.name}-witty.png')), ObjId(1))
+		}
 	}
 }
 
