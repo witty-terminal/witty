@@ -505,6 +505,11 @@ pub fn Application.new(rt_app &App, core_app &core.App) !&Application {
 		config.initial_window = true
 		config.wait_after_command = true
 		config.window_save_state = .never
+		// Allocate the requested grid directly to the viewport being captured.
+		config.window_decoration = .none_
+		config.gtk_titlebar = false
+		config.gtk_titlebar_style = .native
+		config.window_show_tab_bar = .never
 	}
 
 	// Setup our GTK init env vars. This must happen BEFORE GTK init.

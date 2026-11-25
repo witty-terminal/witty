@@ -25,7 +25,7 @@ Each run saves the PNGs, application logs, executable versions and hashes, and a
 
 Use `--output` to choose a new directory, `--fixture` to repeat a single case, or `--settle-seconds` to allow more time for rendering on a slower host.
 
-The regular Linux CI build also captures two terminal sizes. Its screenshot check verifies the requested grid dimensions and a colored terminal cell.
+The regular Linux CI build checks two grid sizes with the default window settings and also verifies capture with a configured tab bar. Each screenshot must contain the colored terminal cell.
 
 The [Linux render parity workflow](../../../.github/workflows/render-parity.yml) runs on demand in GitHub Actions. It builds Witty on Ubuntu 26.04, verifies and extracts the pinned Ghostty 1.4.0 reference package, and uploads the screenshots, logs, and report. On Ubuntu 26.04 with the capture dependencies installed, the same script can compare an existing Witty build locally.
 

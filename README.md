@@ -32,7 +32,7 @@ On macOS, capture writes a Display P3 PNG offscreen and works without Screen Rec
 ./Witty.app/Contents/MacOS/witty --screenshot=/tmp/witty.png -e /bin/ls -G
 ```
 
-On Linux, capture reads the OpenGL frame from a GTK window. Run it on a desktop or use Xvfb for automation.
+On Linux, capture uses a GTK window that gives the requested grid the full content area. Run it on a desktop or use Xvfb for automation.
 
 ```sh
 xvfb-run -a ./v-out/bin/witty --screenshot=/tmp/witty.png -e /bin/ls --color=always
