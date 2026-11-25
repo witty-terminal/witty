@@ -20,8 +20,8 @@ from capture import (
 )
 from fixtures import (
     CURSOR_STYLES, FONT_ZOOM_MARKER, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES, RESIZE_WRAP_COLOR,
-    SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED, SHADER_RELOAD_MARKER, SPLIT_RIGHT_COLOR,
-    WALLPAPER_RELOAD_MARKER, WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE,
+    SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED, SCROLLBAR_MARKER,
+    SHADER_RELOAD_MARKER, SPLIT_RIGHT_COLOR, WALLPAPER_RELOAD_MARKER, WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE,
 )
 
 
@@ -46,11 +46,15 @@ FONT_ZOOM_ACTIONS = (
 )
 WALLPAPER_RELOAD_STAGES = ("", "-load", "-repeat", "-fade", "-replace", "-remove", "-restore")
 SHADER_RELOAD_STAGES = ("", "-enable", "-chain", "-reorder", "-replace", "-remove", "-restore")
+SCROLLBAR_FIXTURES = ("scrollbar", "scrollbar-themed")
+SCROLLBAR_STAGES = ("", "-drag", "-top")
+SCROLLBAR_THUMB = (33, 128, 205)
 CAPTURE_STAGES = {
     **APPLICATION_STAGES,
     "font-zoom": tuple(stage for stage, _, _ in FONT_ZOOM_ACTIONS),
     "wallpaper-reload": WALLPAPER_RELOAD_STAGES,
     "shader-reload": SHADER_RELOAD_STAGES,
+    **dict.fromkeys(SCROLLBAR_FIXTURES, SCROLLBAR_STAGES),
 }
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
 INTERACTIVE_FIXTURES = (
@@ -79,7 +83,7 @@ WALLPAPER_OPTIONS = {
 }
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "font-zoom", "wide-wrap", "colored-line-erase",
-    *INTERACTIVE_FIXTURES, *SPLIT_SEARCH_FIXTURES, "split-close", *BELL_FIXTURES, *PROGRESS_FIXTURES,
+    *INTERACTIVE_FIXTURES, *SCROLLBAR_FIXTURES, *SPLIT_SEARCH_FIXTURES, "split-close", *BELL_FIXTURES, *PROGRESS_FIXTURES,
     "resize-overlay", "key-state-overlay", *COMMAND_EXIT_FIXTURES,
     *LINK_PREVIEW_FIXTURES, *READONLY_FIXTURES, *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
     *TITLE_DIALOG_ACTIONS, "gtk-toast",
@@ -350,6 +354,19 @@ def fixture_args(name, work):
     if name in SCROLLBACK_FIXTURES:
         output = "output" if name == "scrollback-follow-output" else "no-output"
         options.append(f"--scroll-to-bottom=no-keystroke,{output}")
+    if name in SCROLLBAR_FIXTURES:
+        options.append("--scrollbar=system")
+        if name == "scrollbar-themed":
+            css = work / "scrollbar.css"
+            css.write_text(
+                "scrollbar.vertical { min-width: 16px; padding: 2px; background-color: #43304a; }\n"
+                "scrollbar.vertical trough { background-color: #534355; border-radius: 4px; }\n"
+                "scrollbar.vertical slider { "
+                f"background: #{bytes(SCROLLBAR_THUMB).hex()}; min-width: 12px; margin: 0; "
+                "border: 1px solid #ffb94a; border-radius: 4px; }\n"
+            )
+            options.append(f"--gtk-custom-css={css}")
+        name = "scrollbar"
     return [*options, "-e", sys.executable, str(PROBE / "fixtures.py"), name]
 
 
@@ -468,6 +485,58 @@ def capture_shader_reload(binary, args, helper, output, work, app, settle, scale
                 subprocess.run(["xdotool", "key", "ctrl+alt+r"], check=True, timeout=5)
             capture_application_frame(helper, window, output / f"shader-reload{stage}-{app}.png", settle,
                                       lambda image: image.getpixel(point) == color)
+
+
+def capture_scrollbar(binary, args, helper, output, name, app, settle, scale):
+    themed = name == "scrollbar-themed"
+    env = {
+        **os.environ,
+        "GTK_OVERLAY_SCROLLING": "0" if themed else "1",
+        "SCREENSHOT_SETTLE_SECONDS": str(len(SCROLLBAR_STAGES) * (settle + 5) + 5),
+    }
+    capture_args = [f"--screenshot={output / f'{name}-terminal.png'}"] if app == "witty" else []
+    with open_window([binary, *capture_args, *args], output / f"{name}-{app}.log", env=env) as (_, window):
+        subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True, timeout=5)
+        time.sleep(settle)
+        with read_window(helper, window) as frame:
+            width, height = frame.size
+
+        def thumb_pixels(image, y):
+            # The default dark-theme thumb is brighter than the empty cells underneath it.
+            pixels = [(x, image.getpixel((x, y))) for x in range(width - 40 * scale, width)]
+            return [x for x, rgb in pixels if rgb == SCROLLBAR_THUMB or (not themed and rgb[0] > 64)]
+
+        point = ((PADDING + 1) * scale, (PADDING + 1) * scale)
+        red, green, blue = SCROLLBAR_MARKER
+        stages = (
+            (height - 20 * scale, range(red + 3 * 48, red + 3 * 50)),
+            (height // 2, range(red + 3, red + 3 * 48)),
+            (20 * scale, range(red, red + 1)),
+        )
+        x = width - 4 * scale
+        for stage, (y, marker_range) in zip(SCROLLBAR_STAGES, stages, strict=True):
+            move = ["mousemove", "--window", window]
+            keys = [*move, str(x), str(y)]
+            if not stage:
+                keys = [*move, str(width // 2), str(height // 2), *move, str(x), str(height - 10 * scale)]
+            if stage == "-drag":
+                keys = [*move, str(x), str(height - 20 * scale), "mousedown", "1", *keys]
+            if stage == "-top":
+                keys = [*move, str(x), str(5 * scale), "mouseup", "1",
+                        *move, str(width // 2), str(height // 2), "sleep", "0.2",
+                        *move, str(width - 4 * scale), str(height // 2)]
+            subprocess.run(["xdotool", *keys], check=True, timeout=5)
+
+            def rendered(image):
+                color = image.getpixel(point)
+                return color[0] in marker_range and color[1:] == (green, blue) and thumb_pixels(image, y)
+
+            path = output / f"{name}{stage}-{app}.png"
+            capture_application_frame(helper, window, path, settle, rendered)
+            if not stage:
+                with Image.open(path) as frame:
+                    pixels = thumb_pixels(frame, y)
+                    x = pixels[len(pixels) // 2]
 
 
 def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir, *, themed=False, witty=False):
@@ -1276,6 +1345,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name == "shader-reload":
                 capture_shader_reload(ghostty, args, helper, output, work, "ghostty", settle, scale)
                 capture_shader_reload(witty, args, helper, output, work, "witty", settle, scale)
+            elif name in SCROLLBAR_FIXTURES:
+                capture_scrollbar(ghostty, args, helper, output, name, "ghostty", settle, scale)
+                capture_scrollbar(witty, args, helper, output, name, "witty", settle, scale)
             elif name in INTERACTIVE_FIXTURES:
                 capture_interactive(ghostty, args, helper, expected, name, settle, scale)
                 capture_interactive(witty, args, helper, actual, name, settle, scale, witty=True)

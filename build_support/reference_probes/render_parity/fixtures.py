@@ -13,6 +13,7 @@ GRID_ROWS, GRID_COLUMNS = 12, 60
 FONT_ZOOM_MARKER = (37, 147, 112)
 WALLPAPER_RELOAD_MARKER = (55, 89, 143)
 SHADER_RELOAD_MARKER = (56, 128, 211)
+SCROLLBAR_MARKER = (30, 78, 120)
 CURSOR_STYLES = {"cursor-block": 2, "cursor-bar": 6, "cursor-underline": 4}
 KITTY_SCROLL_FIXTURES = ("kitty-scroll-up", "kitty-scroll-down")
 SCROLLBACK_FIXTURES = ("scrollback-follow-output", "scrollback-keep-position")
@@ -578,6 +579,13 @@ def main():
             (f"\x1b[48;2;{color}m    \x1b[0m Shader reload\r\n"
              "\x1b[38;2;235;174;114mTerminal text across multiple passes\x1b[0m\r\n").encode()
         )
+    elif fixture == "scrollbar":
+        wait_for_initial_grid()
+        red, green, blue = SCROLLBAR_MARKER
+        for row in range(60):
+            sys.stdout.buffer.write(
+                f"\x1b[48;2;{red + row * 3};{green};{blue}m   \x1b[0m Row {row + 1:02d}\r\n".encode()
+            )
     elif fixture == "search-wrap":
         sys.stdout.buffer.write(search_wrap())
     elif fixture == "split-search":

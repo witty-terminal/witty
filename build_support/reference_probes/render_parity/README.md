@@ -28,6 +28,7 @@ The wide glyph editing fixture renders a colored glyph across a wrap, then erase
 The text selection fixture uses a mouse drag starting on the second cell of an emoji to verify the highlight covers the full glyph.
 The Unicode input fixtures capture GTK’s underlined preview over a terminal wallpaper and at the right edge before the character is committed.
 The scrollback fixtures update the palette and append a row after scrolling into history, with `scroll-to-bottom=output` enabled and disabled.
+The scrollbar fixtures drag through terminal history and compare the visible text and scrollbar at the bottom, during the drag, and at the top. They cover the default GTK overlay scrollbar and a fixed scrollbar with a CSS track, thumb, and border.
 The search fixture drives scrollback search through keybindings and checks both highlight colors as navigation wraps from the newest match to the oldest and back.
 The split search fixture captures the full GTK client window and compares both panes as Find takes focus in the right pane.
 The `split-search-themed` fixture also checks custom CSS colors for the divider and the unfocused pane.

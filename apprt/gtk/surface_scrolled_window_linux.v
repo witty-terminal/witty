@@ -409,6 +409,7 @@ fn surface_scrolled_window_class_init(klass voidptr, class_data voidptr) {
 	g_surface_scrolled_window_pspec_surface = C.g_param_spec_object(c'surface', c'surface', c'The embedded surface', terminal_surface_get_type(), g_param_readwrite)
 	C.witty_gobject_class_set_get_property(klass, voidptr(surface_scrolled_window_get_property))
 	C.witty_gobject_class_set_set_property(klass, voidptr(surface_scrolled_window_set_property))
+	C.witty_gtk_scrollbar_canvas_class_init(klass)
 	C.witty_gobject_class_set_dispose(klass, voidptr(surface_scrolled_window_dispose))
 	C.witty_gobject_class_set_finalize(klass, voidptr(surface_scrolled_window_finalize))
 	C.g_object_class_install_property(klass, surface_scrolled_window_prop_config, g_surface_scrolled_window_pspec_config)
@@ -417,6 +418,7 @@ fn surface_scrolled_window_class_init(klass voidptr, class_data voidptr) {
 
 fn surface_scrolled_window_instance_init(instance voidptr, klass voidptr) {
 	C.gtk_widget_init_template(instance)
+	gtk_canvas_overlay_set_mask(GtkWidget(instance), true)
 }
 
 // surface_scrolled_window_get_type lazily registers the
