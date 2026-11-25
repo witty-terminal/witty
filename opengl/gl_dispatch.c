@@ -126,8 +126,12 @@ static const GLubyte *witty_gl_test_get_string(GLenum name) {
 }
 
 static void witty_gl_test_get_integerv(GLenum name, GLint *value) {
-	(void)name;
-	if (value != 0) {
+	if (name == GL_VIEWPORT) {
+		value[0] = 7;
+		value[1] = 11;
+		value[2] = 640;
+		value[3] = 480;
+	} else if (value != 0) {
 		*value = 0;
 	}
 }

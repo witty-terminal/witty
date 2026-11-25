@@ -47,7 +47,7 @@ fn C.witty_gl_unload()
 
 fn C.witty_glGetError() u32
 
-fn C.witty_glGetIntegerv(pname u32, data &int)
+fn C.witty_glGetIntegerv(pname u32, data &i32)
 
 fn C.witty_glGetStringi(name u32, index u32) &u8
 
@@ -278,7 +278,7 @@ pub fn must_error() ! {
 // ============================================================
 
 pub fn extensions_len() !u32 {
-	mut n := int(0)
+	mut n := i32(0)
 	C.witty_glGetIntegerv(C.GL_NUM_EXTENSIONS, &n)
 	get_error()!
 	return u32(n)
@@ -390,10 +390,10 @@ pub fn viewport(x int, y int, width int, height int) ! {
 }
 
 pub fn viewport_rect() ![4]int {
-	mut values := [4]int{}
+	mut values := [4]i32{}
 	C.witty_glGetIntegerv(C.GL_VIEWPORT, &values[0])
 	get_error()!
-	return values
+	return [int(values[0]), int(values[1]), int(values[2]), int(values[3])]!
 }
 
 pub fn pixel_store[T](mode u32, value T) ! {
@@ -1049,7 +1049,7 @@ pub fn (r Renderbuffer) destroy() {
 }
 
 pub fn (r Renderbuffer) bind() !RenderbufferBinding {
-	mut current := int(0)
+	mut current := i32(0)
 	C.witty_glGetIntegerv(C.GL_RENDERBUFFER_BINDING, &current)
 	C.witty_glBindRenderbuffer(C.GL_RENDERBUFFER, r.id)
 	return RenderbufferBinding{
@@ -1105,6 +1105,7 @@ pub struct FramebufferBinding {
 pub:
 	target   FramebufferTarget
 	previous u32
+	previous_read ?u32
 }
 
 pub fn Framebuffer.create() !Framebuffer {
@@ -1121,17 +1122,29 @@ pub fn (f Framebuffer) destroy() {
 }
 
 pub fn (f Framebuffer) bind(target FramebufferTarget) !FramebufferBinding {
-	mut current := int(0)
-	C.witty_glGetIntegerv(C.GL_FRAMEBUFFER_BINDING, &current)
+	mut current := i32(0)
+	C.witty_glGetIntegerv(if target == .read { C.GL_READ_FRAMEBUFFER_BINDING } else {
+		C.GL_FRAMEBUFFER_BINDING
+	}, &current)
+	mut previous_read := ?u32(none)
+	if target == .framebuffer {
+		mut read := i32(0)
+		C.witty_glGetIntegerv(C.GL_READ_FRAMEBUFFER_BINDING, &read)
+		previous_read = u32(read)
+	}
 	C.witty_glBindFramebuffer(u32(target), f.id)
 	return FramebufferBinding{
 		target: target
 		previous: u32(current)
+		previous_read: previous_read
 	}
 }
 
 pub fn (b FramebufferBinding) unbind() {
 	C.witty_glBindFramebuffer(u32(b.target), b.previous)
+	if previous_read := b.previous_read {
+		C.witty_glBindFramebuffer(u32(FramebufferTarget.read), previous_read)
+	}
 }
 
 pub fn (b FramebufferBinding) texture_2d(attachment FramebufferAttachment, textarget TextureTarget, texture Texture, level int) ! {

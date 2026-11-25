@@ -10,6 +10,8 @@ fn test_glad_custom_loader_lifecycle() {
 	assert version_minor(version) == 3
 	assert C.witty_gl_test_context_loaded() == 1
 	get_error() or { panic(err) }
+	viewport := viewport_rect() or { panic(err) }
+	assert viewport == [7, 11, 640, 480]!
 	unload()
 	assert C.witty_gl_test_context_loaded() == 0
 }
