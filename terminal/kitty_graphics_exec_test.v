@@ -32,6 +32,64 @@ fn graphics_placement_row(t &Terminal, id u32) !u32 {
 	return error('placement was removed')
 }
 
+fn test_graphics_cursor_ends_at_the_last_image_row_and_wraps_at_the_edge() ! {
+	mut t := make_graphics_terminal()!
+	defer { t.deinit() }
+	mut screen := t.screens.active
+
+	t.set_cursor_pos(2, 2)
+	tall := CommandParser.parse_string('a=T,f=24,i=1,s=1,v=1,c=2,r=2;////')!
+	reply := kitty_graphics_execute(mut t, &tall) or { return error('expected transmit response') }
+	assert reply.ok()
+	assert screen.cursor.x == 3 && screen.cursor.y == 2
+
+	t.set_cursor_pos(2, 4)
+	edge := CommandParser.parse_string('a=p,i=1,c=2,r=1')!
+	edge_reply := kitty_graphics_execute(mut t, &edge) or { return error('expected display response') }
+	assert edge_reply.ok()
+	assert screen.cursor.x == 0 && screen.cursor.y == 2
+	assert !screen.cursor.pending_wrap
+
+	t.set_cursor_pos(5, 2)
+	bottom_reply := kitty_graphics_execute(mut t, &edge) or { return error('expected display response') }
+	assert bottom_reply.ok()
+	assert screen.cursor.x == 3 && screen.cursor.y == 4
+	assert screen.pages.total_rows == 5
+}
+
+fn test_graphics_cursor_uses_absolute_columns_with_origin_mode() ! {
+	mut t := make_graphics_terminal()!
+	defer { t.deinit() }
+	t.set_top_and_bottom_margin(2, 4)
+	t.modes.set(.enable_left_and_right_margin, true)
+	t.set_left_and_right_margin(2, 4)
+	t.modes.set(.origin, true)
+	t.set_cursor_pos(1, 1)
+
+	move := CommandParser.parse_string('a=T,f=24,i=1,s=1,v=1,c=1,r=2;////')!
+	reply := kitty_graphics_execute(mut t, &move) or { return error('expected transmit response') }
+	assert reply.ok()
+	screen := t.screens.active
+	assert screen.cursor.x == 2 && screen.cursor.y == 2
+
+	stay := CommandParser.parse_string('a=p,i=1,c=2,r=2,C=1')!
+	stay_reply := kitty_graphics_execute(mut t, &stay) or { return error('expected display response') }
+	assert stay_reply.ok()
+	assert screen.cursor.x == 2 && screen.cursor.y == 2
+}
+
+fn test_graphics_cursor_limits_scrolling_for_tall_placements() ! {
+	mut t := make_graphics_terminal()!
+	defer { t.deinit() }
+	t.set_cursor_pos(5, 3)
+	tall := CommandParser.parse_string('a=T,f=24,i=1,s=1,v=1,c=1,r=30;////')!
+	reply := kitty_graphics_execute(mut t, &tall) or { return error('expected transmit response') }
+	assert reply.ok()
+	screen := t.screens.active
+	assert screen.cursor.x == 3 && screen.cursor.y == 4
+	assert screen.pages.total_rows == 10
+}
+
 fn test_graphics_scroll_respects_rectangular_margins() ! {
 	mut t := make_graphics_terminal()!
 	defer { t.deinit() }

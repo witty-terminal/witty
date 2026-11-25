@@ -1191,7 +1191,7 @@ fn test_protected_erases_update_managed_row_flags() {
 	t.modes.set(.grapheme_cluster, true)
 	t.screens.active.start_hyperlink('http://example.com', none) or { assert false }
 	for y in 0 .. 2 {
-		t.set_cursor_pos(y + 1, 1)
+		t.set_cursor_pos(uint(y + 1), 1)
 		t.print(u32(`x`)) or { assert false }
 		t.print(0x0301) or { assert false }
 		row := active_row(&t, y)

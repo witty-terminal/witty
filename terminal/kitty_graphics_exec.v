@@ -1,5 +1,7 @@
 module terminal
 
+import math
+
 // --- Original Ghostty Comments Start: src/terminal/kitty/graphics_exec.zig
 //
 // Source: /Users/alexander/code/3rd/ghostty/src/terminal/kitty/graphics_exec.zig
@@ -359,12 +361,30 @@ fn exec_display(mut t Terminal, cmd &Command) Response {
 
 	// Apply cursor movement setting. This only applies to pin placements.
 	if p.location is PlacementPin && d.cursor_movement == .after {
-		pin := (p.location as PlacementPin).pin
+		mut screen := t.screens.active
 		cols, rows := p.grid_size(img, &t)
-		for _ in 0 .. rows {
+		target_x := u64(screen.cursor.x) + cols
+		wraps := target_x >= u64(t.cols)
+
+		// End on the last image row, with a further index at the right edge.
+		mut requested_rows := u64(math.max(rows, u32(1)) - 1)
+		if wraps {
+			requested_rows++
+		}
+		region := t.scrolling_region
+		rows_before_scroll := if screen.cursor.y >= region.top && screen.cursor.y <= region.bottom
+			&& screen.cursor.x >= region.left && screen.cursor.x <= region.right {
+			u64(region.bottom) - screen.cursor.y
+		} else {
+			u64(0)
+		}
+		// After reaching the margin, scroll at most one screen of rows.
+		rows_to_move := math.min(requested_rows, rows_before_scroll + u64(t.rows))
+		for _ in u64(0) .. rows_to_move {
 			t.index() or { break }
 		}
-		t.set_cursor_pos(uint(t.screens.active.cursor.y), uint(pin.x + cols + 1))
+		screen.cursor.pending_wrap = false
+		screen.cursor_horizontal_absolute(if wraps { u32(0) } else { u32(target_x) })
 	}
 
 	return result

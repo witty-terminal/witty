@@ -88,6 +88,21 @@ def kitty_layout():
     return commands
 
 
+def kitty_cursor():
+    commands = bytearray(kitty_solid(1, 1, 411, (205, 135, 245), place=False))
+    for row, col, cols, rows, label in (
+        (2, 4, 3, 2, "Below and right"),
+        (5, GRID_COLUMNS - 1, 2, 1, "Wrapped caption"),
+    ):
+        commands += f"\x1b[{row};{col}H\x1b_Ga=p,i=411,c={cols},r={rows},q=2;\x1b\\{label}".encode()
+
+    # Use cursor-origin mode with both vertical and horizontal margins.
+    commands += b"\x1b[8;11r\x1b[?69h\x1b[10;40s\x1b[?6h"
+    commands += b"\x1b[1;3H\x1b_Ga=p,i=411,c=2,r=2,q=2;\x1b\\Inside margins"
+    commands += b"\x1b[4;3H\x1b_Ga=p,i=411,c=2,r=1,q=2;\x1b\\Bottom row"
+    return commands
+
+
 def main():
     fixture = sys.argv[1]
     output = {
@@ -133,6 +148,8 @@ def main():
         sys.stdout.buffer.write(kitty_history())
     elif fixture == "kitty-layout":
         sys.stdout.buffer.write(kitty_layout())
+    elif fixture == "kitty-cursor":
+        sys.stdout.buffer.write(kitty_cursor())
     elif fixture in CURSOR_STYLES:
         # Reposition over an existing glyph and show a steady cursor.
         style = CURSOR_STYLES[fixture]
