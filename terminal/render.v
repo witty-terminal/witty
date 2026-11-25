@@ -468,7 +468,7 @@ pub fn (mut self RenderState) update(mut t Terminal) {
 	// For example, `containedRow` recalculates a bunch of information
 	// we can cache.
 	if sel := s.selection {
-		self.update_selection(s, sel, redraw, any_dirty)
+		any_dirty = self.update_selection(s, sel, redraw, any_dirty)
 	}
 
 	// Handle dirty state.
@@ -531,7 +531,7 @@ fn (self &RenderState) update_redraw(t &Terminal, viewport_pin Pin) bool {
 }
 
 // The `selection:` block of RenderState.update.
-fn (mut self RenderState) update_selection(s &Screen, sel Selection, redraw bool, any_dirty bool) {
+fn (mut self RenderState) update_selection(s &Screen, sel Selection, redraw bool, any_dirty bool) bool {
 	// Populate our selection cache to avoid some expensive
 	// recalculation.
 	mut cache := RenderSelectionCache{}
@@ -544,7 +544,7 @@ fn (mut self RenderState) update_selection(s &Screen, sel Selection, redraw bool
 		if !redraw && c.selection.eql(sel) {
 			// If we have no dirty rows, we can not recalculate.
 			if !any_dirty {
-				return
+				return false
 			}
 
 			// We have dirty rows, we can utilize the cache.
@@ -567,25 +567,45 @@ fn (mut self RenderState) update_selection(s &Screen, sel Selection, redraw bool
 	// Grab the inefficient data we need from the selection. At
 	// least we can cache it.
 	tl := (s.pages.point_from_pin(.screen, cache.tl_pin) or { panic('selection top-left is off screen') }).coord()
-	br := (s.pages.point_from_pin(.screen, cache.br_pin) or { panic('selection bottom-right is off screen') }).coord()
+	// A spacer at the right edge precedes a wide glyph on the next row.
+	// Resolve it on each update because text may change under the selection.
+	br_pin := if !sel.rectangle && cache.br_pin.row_and_cell().cell.wide == .spacer_head {
+		cache.br_pin.right_wrap(1) or { cache.br_pin }
+	} else {
+		cache.br_pin
+	}
+	br := (s.pages.point_from_pin(.screen, br_pin) or { panic('selection bottom-right is off screen') }).coord()
 
 	// We need to determine if our selection is within the viewport.
 	// The viewport is generally very small so the efficient way to
 	// do this is to traverse the viewport pages and check for the
 	// matching selection pages.
+	mut selection_dirty := false
 	for mut row in self.row_data {
 		pin := row.pin
 		p := (s.pages.point_from_pin(.screen, pin) or { panic('render row pin is off screen') }).coord()
-		row_sel := sel.contained_row_cached(s, cache.tl_pin, cache.br_pin, pin, tl, br, p) or {
-			continue
+		mut bounds := ?[2]u16(none)
+		if row_sel := sel.contained_row_cached(s, cache.tl_pin, br_pin, pin, tl, br, p) {
+			start := row_sel.start()
+			end := row_sel.end()
+			assert voidptr(start.node) == voidptr(end.node)
+			assert start.x <= end.x
+			assert start.y == end.y
+			// Include the glyph when the selection starts on its second cell.
+			start_x := if start.x > 0 && start.row_and_cell().cell.wide == .spacer_tail {
+				start.x - 1
+			} else {
+				start.x
+			}
+			bounds = [start_x, end.x]!
 		}
-		start := row_sel.start()
-		end := row_sel.end()
-		assert voidptr(start.node) == voidptr(end.node)
-		assert start.x <= end.x
-		assert start.y == end.y
-		row.selection = [start.x, end.x]!
+		if bounds != row.selection {
+			row.selection = bounds
+			row.dirty = true
+			selection_dirty = true
+		}
 	}
+	return any_dirty || selection_dirty
 }
 
 // Update the highlights in the render state from the given flattened

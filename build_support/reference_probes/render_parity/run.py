@@ -18,6 +18,8 @@ from fixtures import CURSOR_STYLES, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTUR
 
 
 PROBE = Path(__file__).resolve().parent
+PADDING = 2
+SELECTION_BACKGROUND = (23, 81, 107)
 WALLPAPER_OPTIONS = {
     "wallpaper-stretch": ("--background-image-fit=stretch",),
     "wallpaper-repeat": (
@@ -28,7 +30,8 @@ WALLPAPER_OPTIONS = {
     ),
 }
 FIXTURES = (
-    "ansi", "decorations", "unicode", "wide-wrap", "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
+    "ansi", "decorations", "unicode", "wide-wrap", "selection-wide",
+    "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
     "kitty-delete-selection", "kitty-delete-visible", "kitty-chunked", "kitty-animation",
@@ -44,8 +47,8 @@ OPTIONS = (
     f"--window-width={GRID_COLUMNS}",
     f"--window-height={GRID_ROWS}",
     "--window-theme=dark",
-    "--window-padding-x=2",
-    "--window-padding-y=2",
+    f"--window-padding-x={PADDING}",
+    f"--window-padding-y={PADDING}",
     "--font-family=DejaVu Sans Mono",
     "--font-size=13",
     "--background=161820",
@@ -121,6 +124,12 @@ def fixture_args(name, work):
     if name == "terminal-sprites-adjusted":
         options.extend(("--adjust-cell-width=1", "--adjust-cell-height=1"))
         name = "terminal-sprites"
+    if name == "selection-wide":
+        options.extend((
+            "--copy-on-select=false",
+            "--selection-foreground=fef1d4",
+            f"--selection-background={bytes(SELECTION_BACKGROUND).hex()}",
+        ))
     return [*options, "-e", sys.executable, str(PROBE / "fixtures.py"), name]
 
 
@@ -129,6 +138,48 @@ def capture_ghostty(command, helper, prefix, settle):
         time.sleep(settle)
         with read_window(helper, window) as image:
             image.save(prefix.with_suffix(".png"))
+
+
+def capture_wide_selection(binary, args, helper, prefix, settle, scale, *, witty=False):
+    png = prefix.with_suffix(".png")
+    capture_args = [f"--screenshot={png}"] if witty else []
+    env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(settle + 3)} if witty else None
+    log = prefix.with_suffix(".log")
+    with open_window([binary, *capture_args, *args], log, env=env) as (process, window):
+        time.sleep(settle)
+        with read_window(helper, window) as image:
+            padding = PADDING * scale
+            cell_width = (image.width - 2 * padding) // GRID_COLUMNS
+            cell_height = (image.height - 2 * padding) // GRID_ROWS
+
+        # The emoji is in columns 13 and 14 (zero-based). Start on its
+        # spacer tail and drag past the space in column 15.
+        y = padding + 3 * cell_height + cell_height // 2
+        x_start = padding + 14 * cell_width + cell_width // 4
+        x_end = padding + 19 * cell_width + 4 * cell_width // 5
+        probe = (padding + 15 * cell_width + cell_width // 2, y)
+        subprocess.run(
+            ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window,
+             str(x_start), str(y), "mousedown", "1", "sleep", "0.1", "mousemove", "--window",
+             window, str(x_end), str(y), "sleep", "0.1", "mouseup", "1"],
+            check=True, timeout=5,
+        )
+
+        if witty:
+            if process.wait(timeout=settle + 10) or not png.is_file():
+                raise RuntimeError(f"Witty selection capture failed. See {log}")
+            with Image.open(png) as image:
+                if image.getpixel(probe)[:3] == SELECTION_BACKGROUND:
+                    return
+        else:
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                with read_window(helper, window) as image:
+                    image.save(png)
+                    if image.getpixel(probe)[:3] == SELECTION_BACKGROUND:
+                        return
+                time.sleep(0.05)
+        raise RuntimeError(f"Mouse drag did not highlight the fixture text. See {png} and {log}")
 
 
 def compare(name, actual_path, expected_path, difference_path):
@@ -180,8 +231,12 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             args = fixture_args(name, work)
             actual = output / f"{name}-witty"
             expected = output / f"{name}-ghostty"
-            capture_ghostty([ghostty, *args], helper, expected, settle)
-            capture_witty(witty, args, actual, settle)
+            if name == "selection-wide":
+                capture_wide_selection(ghostty, args, helper, expected, settle, scale)
+                capture_wide_selection(witty, args, helper, actual, settle, scale, witty=True)
+            else:
+                capture_ghostty([ghostty, *args], helper, expected, settle)
+                capture_witty(witty, args, actual, settle)
             row, match = compare(
                 name, actual.with_suffix(".png"), expected.with_suffix(".png"),
                 output / f"{name}-diff.png",

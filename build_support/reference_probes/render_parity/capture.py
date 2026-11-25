@@ -64,9 +64,9 @@ def find_window(process, log_path):
 
 
 @contextmanager
-def open_window(command, log_path):
+def open_window(command, log_path, *, env=None):
     with log_path.open("wb") as log:
-        process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
+        process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, env=env)
         try:
             yield process, find_window(process, log_path)
         finally:

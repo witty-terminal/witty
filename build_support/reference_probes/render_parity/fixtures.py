@@ -330,6 +330,13 @@ def main():
         "unicode": "café · 日本語 · Σ · 😀\n─ ║ █ ░ ☀\n".encode(),
         # Leave one column at the right edge before printing a two-cell glyph.
         "wide-wrap": ("60 column wrap\n" + "X" * 59 + "日本語 😀 café\n").encode(),
+        "selection-wide": (
+            "Select across the second cell of a wide glyph\n"
+            "0123456789ABCDEFGHIJKLMNOPQRST\n"
+            "Default  \x1b[31;44mstyled text\x1b[0m  \x1b[7;33;45minverse colors\x1b[0m\n"
+            "wide glyphs  😀 + café  │██░▒▓│\n"
+            "This line stays unselected\n"
+        ).encode(),
         "shader": b"Witty shader chain\n",
     }
     sys.stdout.buffer.write(CLEAR)

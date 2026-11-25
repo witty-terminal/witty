@@ -370,6 +370,44 @@ fn test_render_state_selection_single_line() {
 	assert state.row_data[2].selection == none
 }
 
+fn test_render_state_selection_starts_on_wide_glyph_tail() ! {
+	mut t := Terminal.init(Options{ cols: 8, rows: 3 })!
+	defer { t.deinit() }
+	t.print_string('A界B')!
+	mut screen := t.screens.active
+	tail := screen.pages.pin(Point.new(.active, Coordinate{ x: 2, y: 0 })) or { panic('no pin') }
+	end := screen.pages.pin(Point.new(.active, Coordinate{ x: 3, y: 0 })) or { panic('no pin') }
+	assert tail.row_and_cell().cell.wide == .spacer_tail
+	screen.select(Selection.init(tail, end, false))!
+
+	mut state := RenderState.empty()
+	defer { state.deinit() }
+	state.update(mut t)
+	assert state.row_data[0].selection or { panic('missing selection') } == [u16(1), u16(3)]!
+}
+
+fn test_render_state_selection_ends_on_wrapped_wide_glyph() ! {
+	mut t := Terminal.init(Options{ cols: 5, rows: 3 })!
+	defer { t.deinit() }
+	t.print_string('ABCD界')!
+	mut screen := t.screens.active
+	start := screen.pages.pin(Point.new(.active, Coordinate{ x: 2, y: 0 })) or { panic('no pin') }
+	head := screen.pages.pin(Point.new(.active, Coordinate{ x: 4, y: 0 })) or { panic('no pin') }
+	assert head.row_and_cell().cell.wide == .spacer_head
+
+	mut state := RenderState.empty()
+	defer { state.deinit() }
+	screen.select(Selection.init(start, head, false))!
+	state.update(mut t)
+	assert state.row_data[0].selection or { panic('missing selection') } == [u16(2), u16(4)]!
+	assert state.row_data[1].selection or { panic('missing wrapped selection') } == [u16(0), u16(0)]!
+
+	screen.select(Selection.init(start, head, true))!
+	state.update(mut t)
+	assert state.row_data[0].selection or { panic('missing rectangle') } == [u16(2), u16(4)]!
+	assert state.row_data[1].selection == none
+}
+
 // ============================================================
 // selection multiple lines
 // ============================================================
