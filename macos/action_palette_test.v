@@ -7,6 +7,7 @@ import input
 
 fn C.witty_overlay_test_png(view ObjId) ObjId
 fn C.witty_overlay_test_window_png(window ObjId) ObjId
+fn C.witty_overlay_test_display_p3_color(r f64, g f64, b f64, a f64) ObjId
 
 fn test_native_palette_uses_localized_filter_and_source_title_order() {
 	options := [NativeCommandOption{ title: 'Foo Bar: Two' }, NativeCommandOption{ title: 'Foo: One' },
@@ -257,9 +258,10 @@ fn test_native_palette_row_capture() {
 		emphasis:     true
 	}
 	names := ['plain', 'selected', 'hover', 'swatch', 'update', 'update-selected', 'title-match',
-		'initials', 'description-match', 'unicode-match', 'shortcuts', 'shortcut-badge', 'badge-only']
+		'initials', 'description-match', 'unicode-match', 'shortcuts', 'shortcut-badge', 'badge-only',
+		'swatch-p3', 'swatch-system']
 	queries := ['', '', '', '', '', '', 'configuration', 'srt', 'config', 'cafe\u0301', '', 'up',
-		'']
+		'', '', '']
 	options := [
 		NativeCommandOption{ title: 'Copy Selection' },
 		NativeCommandOption{ title: 'Reload Configuration', subtitle: 'Apply the configuration file' },
@@ -284,6 +286,14 @@ fn test_native_palette_row_capture() {
 			symbols:      ['⌘', '⏎']
 		},
 		NativeCommandOption{ title: 'Preview Badge', badge: '1.4.0', symbols: ['⌥', 'D'] },
+		NativeCommandOption{
+			title: 'Rose'
+			leading_color: voidptr(C.witty_overlay_test_display_p3_color(0.95, 0.08, 0.25, 0.55))
+		},
+		NativeCommandOption{
+			title: 'Green'
+			leading_color: voidptr(msg_id(get_class('NSColor'), 'systemGreenColor'))
+		},
 	]
 	for i, appearance in ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
 		msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',

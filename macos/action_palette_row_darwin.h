@@ -5,16 +5,6 @@
 #include <AppKit/AppKit.h>
 #include <CoreText/CoreText.h>
 
-static inline void witty_palette_draw_swatch(CGContextRef context, const CGRect *rect, CGImageRef mask,
-        NSColor *color) {
-    CGContextSaveGState(context);
-    CGContextSetInterpolationQuality(context, kCGInterpolationNone);
-    CGContextClipToMask(context, *rect, mask);
-    CGContextSetFillColorWithColor(context, color.CGColor);
-    CGContextFillRect(context, *rect);
-    CGContextRestoreGState(context);
-}
-
 static inline NSFont *witty_palette_row_font(double size, bool medium) {
     return [NSFont systemFontOfSize:size weight:(medium ? NSFontWeightMedium : NSFontWeightRegular)];
 }

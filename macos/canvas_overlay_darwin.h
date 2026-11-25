@@ -142,29 +142,50 @@ static inline void *witty_canvas_make_tile(const uint32_t *pixel, void *target, 
     return tile;
 }
 
-static inline void *witty_canvas_make_alpha_image(const uint32_t *pixels, int width, int height, uint32_t color, void *target) {
+static inline CGImageRef witty_canvas_alpha_image(const uint32_t *pixels, int width, int height,
+        CGColorSpaceRef space, double r, double g, double b, double opacity) {
     const size_t count = (size_t)width * height;
     const CFIndex bytes = (CFIndex)(count * 8);
     CFMutableDataRef data = CFDataCreateMutable(NULL, bytes);
     if (!data) return NULL;
     CFDataSetLength(data, bytes);
     uint16_t *rgba = (uint16_t *)CFDataGetMutableBytePtr(data);
-    double r, g, b;
-    CGColorSpaceRef space = witty_canvas_convert_rgb(color, target, &r, &g, &b);
     r = fmin(fmax(r, 0), 1);
     g = fmin(fmax(g, 0), 1);
     b = fmin(fmax(b, 0), 1);
+    const double alpha_scale = 257 * fmin(fmax(opacity, 0), 1);
     for (size_t i = 0; i < count; i++) {
-        const uint16_t a = (pixels[i] >> 24) * 257;
+        const uint16_t a = (uint16_t)((pixels[i] >> 24) * alpha_scale + 0.5);
         rgba[4 * i] = (uint16_t)lround(r * a);
         rgba[4 * i + 1] = (uint16_t)lround(g * a);
         rgba[4 * i + 2] = (uint16_t)lround(b * a);
         rgba[4 * i + 3] = a;
     }
     CGImageRef image = witty_canvas_rgba_image(data, width, height, 16, space, true);
-    if (space) CGColorSpaceRelease(space);
     CFRelease(data);
     return image;
+}
+
+static inline void *witty_canvas_make_alpha_image(const uint32_t *pixels, int width, int height,
+        uint32_t color, void *target) {
+    double r, g, b;
+    CGColorSpaceRef space = witty_canvas_convert_rgb(color, target, &r, &g, &b);
+    CGImageRef image = witty_canvas_alpha_image(pixels, width, height, space, r, g, b, 1);
+    if (space) CGColorSpaceRelease(space);
+    return image;
+}
+
+static inline CGImageRef witty_canvas_make_native_color_mask(const uint32_t *pixels, int width,
+        int height, NSView *view, NSColor *color) {
+    // Native swatches can be appearance-dependent or outside the sRGB gamut.
+    NSColorSpace *space = NSColorSpace.displayP3ColorSpace;
+    __block NSColor *resolved = nil;
+    [view.effectiveAppearance performAsCurrentDrawingAppearance:^{
+        resolved = [color colorUsingColorSpace:space];
+    }];
+    if (!resolved) return NULL;
+    return witty_canvas_alpha_image(pixels, width, height, space.CGColorSpace, resolved.redComponent,
+        resolved.greenComponent, resolved.blueComponent, resolved.alphaComponent);
 }
 
 static inline void *witty_canvas_make_color_image(const uint32_t *pixels, int width, int height) {

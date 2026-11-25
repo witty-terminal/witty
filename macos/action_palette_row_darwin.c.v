@@ -8,7 +8,7 @@ fn C.witty_palette_row_text_width(text ObjId, size f64, medium bool) f64
 fn C.witty_palette_draw_row_text(context voidptr, text ObjId, color ObjId, size f64, medium bool, x f64, baseline f64, width f64, height f64)
 fn C.witty_palette_draw_matched_text(context voidptr, text ObjId, color ObjId, matches ObjId, accent ObjId, size f64, medium bool, x f64, baseline f64, width f64, height f64)
 fn C.witty_palette_draw_row_symbol(context voidptr, name ObjId, tint voidptr, x f64, height f64) f64
-fn C.witty_palette_draw_swatch(context voidptr, frame &ObjCRect, mask voidptr, color ObjId)
+fn C.witty_canvas_make_native_color_mask(pixels &u32, width int, height int, view ObjId, color ObjId) voidptr
 
 const palette_row_padding = 8.0
 const palette_row_gap = 4.0
@@ -104,12 +104,13 @@ fn draw_palette_row_mask(context voidptr, view ObjId, frame ObjCRect, scale f64,
 	native_canvas_draw_mask(context, view, frame, mask, color)
 }
 
-fn draw_palette_row_swatch(context voidptr, frame ObjCRect, scale f64, color ObjId) {
+fn draw_palette_row_swatch(context voidptr, view ObjId, frame ObjCRect, scale f64, color ObjId) {
 	size := int(math.round(frame.width * scale))
-	mask := native_canvas_rounded_mask(size, size, frame.width * scale / 2) or { return }
-	image := C.witty_canvas_make_alpha_image(mask.pixels.data, size, size, 0xffffff, nil_obj())
+	style := if size == 16 { NativeCanvasRoundedStyle.segmented_circle } else { .circular }
+	mask := native_canvas_rounded_mask(size, size, size / 2.0, style: style) or { return }
+	image := C.witty_canvas_make_native_color_mask(mask.pixels.data, size, size, view, color)
 	if is_nil(image) { return }
-	C.witty_palette_draw_swatch(context, &frame, image, color)
+	C.witty_canvas_present_tile(context, image, &frame, 1)
 	C.CFRelease(image)
 }
 
@@ -172,7 +173,7 @@ fn palette_draw_row(view ObjId, _cmd Sel, _rect ObjCRect) {
 
 	mut x := palette_row_padding
 	if leading := option.leading_color {
-		draw_palette_row_swatch(context, objc_rect(x, (bounds.height - 8) / 2, 8, 8),
+		draw_palette_row_swatch(context, view, objc_rect(x, (bounds.height - 8) / 2, 8, 8),
 			scale, ObjId(leading))
 		x += 8 + palette_row_padding
 	}

@@ -6,6 +6,10 @@
 #include <string.h>
 #include <unistd.h>
 
+static inline NSColor *witty_overlay_test_display_p3_color(double r, double g, double b, double a) {
+    return [NSColor colorWithDisplayP3Red:r green:g blue:b alpha:a];
+}
+
 static inline uint32_t witty_overlay_test_tile(void *object) {
     CGImageRef image = (CGImageRef)[(CALayer *)object contents];
     if (!image || CGImageGetWidth(image) != 1 || CGImageGetHeight(image) != 1) return 0;

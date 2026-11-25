@@ -13,6 +13,7 @@ const canvas_corner_x = [[1.5286650, 1.0884900, 0.8684070, 0.6314940]!,
 
 enum NativeCanvasRoundedStyle {
 	circular
+	segmented_circle
 	continuous
 	continuous_capsule
 }
@@ -26,9 +27,19 @@ fn canvas_corner_cubic(a [4]f64, t f64) f64 {
 fn canvas_rounded_inset(y f64, height f64, radius f64, margin f64, style NativeCanvasRoundedStyle) f64 {
 	edge := math.min(y, height - y) - margin
 	if edge < 0 { return -1 }
-	if radius == 0 || (edge >= radius && style == .circular) { return margin }
-	if style == .circular {
+	if radius == 0 || (edge >= radius && style in [.circular, .segmented_circle]) { return margin }
+	if style in [.circular, .segmented_circle] {
 		dy := radius - edge
+		if style == .segmented_circle {
+			// The system's 16-pixel circle has eight straight segments per quadrant.
+			step := math.pi / 16
+			cosine := dy / radius
+			start := step * math.floor(math.acos(cosine) / step)
+			end := start + step
+			fraction := (math.cos(start) - cosine) / (math.cos(start) - math.cos(end))
+			return margin + radius * (1 - math.sin(start) -
+				fraction * (math.sin(end) - math.sin(start)))
+		}
 		return margin + radius - math.sqrt(radius * radius - dy * dy)
 	}
 	distance := edge / radius
