@@ -86,6 +86,67 @@ fn test_native_update_badge_ring_capture() {
 	}
 }
 
+fn test_native_update_pill_capture() {
+	output := os.getenv_opt('WITTY_UPDATE_PILL_OUTPUT') or { return }
+	app_init()
+	frame := objc_rect(0, 0, 290, 64)
+	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
+		frame, 0, ns_backing_store_buffered, false)
+	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
+	view := msg_id_rect(alloc('NSView'), 'initWithFrame:', frame)
+	msg_void_bool(view, 'setWantsLayer:', true)
+	background := C.witty_macos_color_rgba(0.2, 0.3, 0.4, 1)
+	msg_void1(msg_id(view, 'layer'), 'setBackgroundColor:', msg_id(background, 'CGColor'))
+	msg_void1(window, 'setContentView:', view)
+	pill := update_pill_view()
+	msg_void1(view, 'addSubview:', pill)
+	badge := update_badge_view()
+	msg_void1(pill, 'addSubview:', badge)
+	g_update_controller = &NativeUpdateController{}
+	defer {
+		stop_native_updater()
+		msg_void(window, 'close')
+		msg_void(window, 'release')
+		msg_void(badge, 'release')
+		msg_void(pill, 'release')
+		msg_void(view, 'release')
+	}
+
+	names := ['permission', 'checking', 'available', 'not-found', 'error', 'download',
+		'download-unknown', 'extract', 'install']
+	states := [
+		UpdateState{kind: .permission_request},
+		UpdateState{kind: .checking},
+		UpdateState{kind: .update_available, version: '1.4.0'},
+		UpdateState{kind: .not_found},
+		UpdateState{kind: .error, error_description: 'Connection failed'},
+		UpdateState{kind: .downloading, expected_length: 100, downloaded: 25},
+		UpdateState{kind: .downloading},
+		UpdateState{kind: .extracting, extraction_progress: 0.75},
+		UpdateState{kind: .installing},
+	]
+	scale := view_backing_scale(voidptr(view))
+	assert states[5].pill_width(scale) == states[6].pill_width(scale)
+	for i, appearance in ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
+		msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',
+			nsstring(appearance)))
+		mode := if i == 0 { 'light' } else { 'dark' }
+		for j, state in states {
+			g_update_controller.state = state
+			width := state.pill_width(scale)
+			msg_void_rect(pill, 'setFrame:', objc_rect(12, frame.height - 12 - update_pill_height,
+				width, update_pill_height))
+			msg_void_bool(pill, 'setNeedsDisplay:', true)
+			msg_void_bool(badge, 'setNeedsDisplay:', true)
+			png := C.witty_overlay_test_png(view)
+			assert !is_nil(png)
+			assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(output,
+				'${mode}-${names[j]}-witty.png')), ObjId(1))
+		}
+	}
+}
+
 fn audit_load_sparkle() {
 	path := os.getenv_opt('WITTY_SPARKLE_TEST_FRAMEWORK') or {
 		os.join_path(@VMODROOT, '.witty-build', 'native', 'Sparkle.xcframework', 'macos-arm64_x86_64', 'Sparkle.framework')
@@ -192,8 +253,12 @@ fn test_native_update_install_chain_and_protocol_driver_callbacks() {
 	assert C.witty_update_test_count() == 2
 	assert update_install_on_quit(driver, sel(''), nil_obj(), nil_obj(), ObjId(C.witty_update_test_block(0)))
 	assert native_update_text() == 'Restart to Complete Update'
+	pill := g_update_controller.pills[u64(view_window(view))] or { panic('missing update pill') }
+	assert msg_bool(pill, 'isHidden')
 	update_show_installing(driver, sel(''), false, ObjId(C.witty_update_test_block(0)))
 	assert native_update_text() == 'Installing…'
+	assert !msg_bool(pill, 'isHidden')
+	assert msg_rect(pill, 'frame').height == update_pill_height
 	update_show_error(driver, sel(''), nil_obj(), ObjId(C.witty_update_test_block(0)))
 	assert !g_update_controller.is_installing()
 	assert !g_update_is_installing

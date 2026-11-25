@@ -4,11 +4,20 @@ import gg.canvas
 import math
 import time
 
-const update_ring_view_size = 16
-const update_ring_radius = 7
+const update_badge_slot = 14
+const update_ring_view_size = update_badge_slot + 2
+const update_ring_radius = update_badge_slot / 2
 const update_ring_half_stroke = 1
 const update_ring_samples = 8
 const update_ring_duration = u64(200 * time.millisecond)
+const update_pill_horizontal_padding = 8
+const update_pill_height = update_badge_slot + 2 * 4
+const update_pill_text_x = update_pill_horizontal_padding + update_badge_slot + 6
+const update_pill_insets = update_pill_text_x + update_pill_horizontal_padding
+const update_badge_side = 18
+
+fn C.witty_update_draw_pill_text(context voidptr, text ObjId, color ObjId, x f64, baseline f64, width f64, height f64, scale f64, flipped bool)
+fn C.witty_update_draw_pill_symbol(context voidptr, name ObjId, tint voidptr, width f64, height f64, scale f64)
 
 struct UpdateRingTransition {
 	start u64
@@ -88,15 +97,53 @@ fn update_pill_view() ObjId {
 	if is_nil(cls) {
 		cls = C.macos_objc_allocate_class_pair(get_class('NSButton'), cstr('WittyUpdatePill'), 0)
 		add_method(cls, 'drawRect:', voidptr(update_pill_draw), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
+		add_method(cls, 'viewDidChangeEffectiveAppearance', voidptr(update_pill_appearance_changed), 'v@:')
 		C.macos_objc_register_class_pair(cls)
 	}
-	return msg_id_rect(msg_id(cls, 'alloc'), 'initWithFrame:', objc_rect(0, 0, 200, 28))
+	pill := msg_id_rect(msg_id(cls, 'alloc'), 'initWithFrame:', objc_rect(0, 0, 0, update_pill_height))
+	msg_void_bool(pill, 'setBordered:', false)
+	msg_void_bool(pill, 'setWantsLayer:', true)
+	return pill
+}
+
+fn (state UpdateState) pill_text_width() f64 {
+	return C.witty_update_text_width(nsstring(state.max_width_text()), C.witty_update_font())
+}
+
+fn (state UpdateState) pill_width(scale f64) f64 {
+	return math.round((state.pill_text_width() + update_pill_insets) * scale) / scale
+}
+
+fn (state UpdateState) pill_hidden() bool {
+	return state.kind == .idle || (state.kind == .installing && state.auto_update)
+}
+
+fn update_pill_appearance_changed(self ObjId, _cmd Sel) {
+	view_super_void(self, 'WittyUpdatePill', 'viewDidChangeEffectiveAppearance')
+	msg_void_bool(self, 'setNeedsDisplay:', true)
+	if g_update_controller == unsafe { nil } { return }
+	key := u64(msg_id(self, 'window'))
+	if badge := g_update_controller.badges[key] {
+		msg_void_bool(badge, 'setNeedsDisplay:', true)
+	}
 }
 
 fn update_pill_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 	if g_update_controller == unsafe { nil } { return }
 	state := g_update_controller.state
-	C.witty_update_draw_text(nsstring(state.text()), update_color(state.foreground_color()), msg_rect(self, 'bounds').width)
+	context := native_canvas_overlay_context()
+	if is_nil(context) { return }
+	bounds := msg_rect(self, 'bounds')
+	scale := view_backing_scale(voidptr(self))
+	w := int(math.round(bounds.width * scale))
+	h := int(math.round(bounds.height * scale))
+	mut opacity := 0.0
+	color := C.witty_canvas_resolve_srgb_alpha(self, update_color(state.background_color()), &opacity)
+	mask := native_canvas_rounded_mask(w, h, h / 2.0, style: .continuous_capsule,
+		opacity: opacity) or { return }
+	native_canvas_draw_mask(context, self, bounds, mask, color)
+	C.witty_update_draw_pill_text(context, nsstring(state.text()), update_color(state.foreground_color()),
+		update_pill_text_x, 7, state.pill_text_width(), bounds.height, scale, msg_bool(self, 'isFlipped'))
 }
 
 // UpdateBadge.swift: the source's 14-point symbol, clamped progress ring with
@@ -109,9 +156,11 @@ fn update_badge_view() ObjId {
 		add_method(cls, 'hitTest:', voidptr(action_passive_hit), '@@:{CGPoint=dd}')
 		C.macos_objc_register_class_pair(cls)
 	}
-	// Leave one point around the symbol for the centered ring stroke.
+	// The native symbol may extend beyond the 14-point layout slot.
 	view := msg_id_rect(msg_id(cls, 'alloc'), 'initWithFrame:',
-		objc_rect(7, 6, update_ring_view_size, update_ring_view_size))
+		objc_rect(update_pill_horizontal_padding + (update_badge_slot - update_badge_side) / 2,
+			(update_pill_height - update_badge_side) / 2,
+			update_badge_side, update_badge_side))
 	msg_void_bool(view, 'setWantsLayer:', true)
 	return view
 }
@@ -140,11 +189,16 @@ fn update_badge_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 		return
 	}
 	if icon := state.icon_name() {
-		image := msg_id2(get_class('NSImage'), 'imageWithSystemSymbolName:accessibilityDescription:', nsstring(icon), nsstring(state.text()))
-		colors := [voidptr(update_color(state.icon_color()))]
-		configuration := msg_id1(get_class('NSImageSymbolConfiguration'), 'configurationWithPaletteColors:', C.witty_macos_array(colors.data, 1))
-		colored := msg_id1(image, 'imageWithSymbolConfiguration:', configuration)
-		msg_void_rect(colored, 'drawInRect:', objc_rect(1, 1, 14, 14))
+		context := native_canvas_overlay_context()
+		if is_nil(context) { return }
+		mut opacity := 0.0
+		color := C.witty_canvas_resolve_srgb_alpha(self, update_color(state.foreground_color()), &opacity)
+		tint := native_canvas_fill_tile(color, target: self, opacity: opacity)
+		if is_nil(tint) { return }
+		bounds := msg_rect(self, 'bounds')
+		C.witty_update_draw_pill_symbol(context, nsstring(icon), tint, bounds.width, bounds.height,
+			view_backing_scale(voidptr(self)))
+		C.CFRelease(tint)
 	}
 }
 
@@ -163,7 +217,9 @@ fn update_badge_draw_ring(view ObjId, progress f64) {
 		return
 	}
 	bounds := msg_rect(view, 'bounds')
-	C.witty_canvas_present_tile(context, image, &bounds, 1)
+	frame := objc_rect((bounds.width - update_ring_view_size) / 2, (bounds.height - update_ring_view_size) / 2,
+		update_ring_view_size, update_ring_view_size)
+	C.witty_canvas_present_tile(context, image, &frame, 1)
 	C.CFRelease(image)
 }
 

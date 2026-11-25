@@ -20,7 +20,6 @@ fn C.witty_update_message3(object ObjId, selector Sel, a ObjId, b ObjId, c ObjId
 fn C.witty_update_is_tahoe() bool
 fn C.witty_update_font() ObjId
 fn C.witty_update_title_font() ObjId
-fn C.witty_update_draw_text(text ObjId, color ObjId, width f64)
 fn C.witty_update_weak_new(owner ObjId) voidptr
 fn C.witty_update_weak_retain(owner voidptr) voidptr
 fn C.witty_update_weak_release(owner voidptr)
@@ -472,8 +471,6 @@ fn (mut controller NativeUpdateController) refresh_presentation() {
 			msg_void1(pill, 'setTarget:', controller.driver)
 			msg_void1(pill, 'setAction:', sel('pill:'))
 			msg_void_u64(pill, 'setBezelStyle:', 13)
-			msg_void_bool(pill, 'setBordered:', false)
-			msg_void_bool(pill, 'setWantsLayer:', true)
 			msg_void1(content, 'addSubview:', pill)
 			controller.pills[u64(window)] = pill
 			badge := update_badge_view()
@@ -481,13 +478,12 @@ fn (mut controller NativeUpdateController) refresh_presentation() {
 			controller.badges[u64(window)] = badge
 			msg_void(badge, 'release')
 		}
-		msg_void_bool(pill, 'setHidden:', controller.state.kind == .idle)
+		hidden := controller.state.pill_hidden()
+		msg_void_bool(pill, 'setHidden:', hidden)
 		msg_void_bool(pill, 'setNeedsDisplay:', true)
 		msg_void1(pill, 'setToolTip:', nsstring(controller.state.text()))
 		msg_void1(pill, 'setAccessibilityLabel:', nsstring(controller.state.text()))
-		font := C.witty_update_font()
-		msg_void1(pill, 'setFont:', font)
-		width := C.witty_update_text_width(nsstring(controller.state.max_width_text()), font) + 36
+		width := controller.state.pill_width(view_backing_scale(voidptr(pill)))
 		bounds := msg_rect(content, 'bounds')
 		mut supports_accessory := true
 		if data := native_window_data(window) { supports_accessory = !data.tabs_tahoe && data.config.titlebar_style in [0, 1] && data.config.decorations }
@@ -499,7 +495,7 @@ fn (mut controller NativeUpdateController) refresh_presentation() {
 			if is_nil(accessory) {
 				accessory = msg_id(alloc('NSTitlebarAccessoryViewController'), 'init')
 				msg_void_u64(accessory, 'setLayoutAttribute:', 2)
-				container := msg_id_rect(alloc('NSView'), 'initWithFrame:', objc_rect(0, 0, width + 5, 33))
+				container := msg_id_rect(alloc('NSView'), 'initWithFrame:', objc_rect(0, 0, width + 5, update_pill_height + 5))
 				msg_void1(accessory, 'setView:', container)
 				msg_void(container, 'release')
 				msg_void1(window, 'addTitlebarAccessoryViewController:', accessory)
@@ -508,18 +504,14 @@ fn (mut controller NativeUpdateController) refresh_presentation() {
 			padding := if C.witty_update_is_tahoe() { if !is_nil(msg_id(window, 'toolbar')) { 10.0 } else { 5.0 } } else { if !is_nil(msg_id(window, 'toolbar')) { 9.0 } else { 4.0 } }
 			container := msg_id(accessory, 'view')
 			if msg_id(pill, 'superview') != container { msg_void(pill, 'removeFromSuperview'); msg_void1(container, 'addSubview:', pill) }
-			msg_void_rect(container, 'setFrame:', objc_rect(0, 0, width + padding, 28 + padding))
-			msg_void_rect(pill, 'setFrame:', objc_rect(0, 0, width, 28))
-			msg_void_bool(accessory, 'setHidden:', controller.state.kind == .idle)
+			msg_void_rect(container, 'setFrame:', objc_rect(0, 0, width + padding, update_pill_height + padding))
+			msg_void_rect(pill, 'setFrame:', objc_rect(0, 0, width, update_pill_height))
+			msg_void_bool(accessory, 'setHidden:', hidden)
 		} else {
 			if msg_id(pill, 'superview') != content { msg_void(pill, 'removeFromSuperview'); msg_void1(content, 'addSubview:', pill) }
-			msg_void_rect(pill, 'setFrame:', objc_rect(bounds.width - width - 9, 9, width, 28))
+			msg_void_rect(pill, 'setFrame:', objc_rect(bounds.width - width - 9, 9, width, update_pill_height))
 			if accessory := controller.accessories[u64(window)] { msg_void_bool(accessory, 'setHidden:', true) }
 		}
-		layer := msg_id(pill, 'layer')
-		msg_void_f64(layer, 'setCornerRadius:', 14)
-		msg_void1(layer, 'setBackgroundColor:', msg_id(update_color(controller.state.background_color()), 'CGColor'))
-		msg_void1(pill, 'setContentTintColor:', update_color(controller.state.foreground_color()))
 		badge := controller.badges[u64(window)] or { nil_obj() }
 		msg_void_bool(badge, 'setNeedsDisplay:', true)
 		msg_void1(badge, 'setAccessibilityLabel:', nsstring(controller.state.text()))

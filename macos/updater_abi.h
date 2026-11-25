@@ -1,5 +1,8 @@
 // Objective-C message/block ABI only. Update policy and transitions are in V.
+#include <AppKit/AppKit.h>
 #include <Block.h>
+#include <CoreText/CoreText.h>
+#include <math.h>
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 extern id objc_initWeak(id*,id);
 extern id objc_loadWeakRetained(id*);
@@ -33,10 +36,69 @@ extern const CGFloat NSFontWeightMedium;
 extern const CGFloat NSFontWeightSemibold;
 static inline void *witty_update_font(void) { return ((id (*)(id,SEL,double,double))objc_msgSend)((id)objc_getClass("NSFont"),sel_registerName("systemFontOfSize:weight:"),11,NSFontWeightMedium); }
 static inline void *witty_update_title_font(void) { return ((id (*)(id,SEL,double,double))objc_msgSend)((id)objc_getClass("NSFont"),sel_registerName("systemFontOfSize:weight:"),13,NSFontWeightSemibold); }
-static inline void witty_update_draw_text(void *text,void *color,double width) {
-    id values[]={witty_update_font(),(id)color};
-    id keys[]={(id)CFSTR("NSFont"),(id)CFSTR("NSColor")};
-    id attributes=((id (*)(id,SEL,const id*,const id*,unsigned long))objc_msgSend)((id)objc_getClass("NSDictionary"),sel_registerName("dictionaryWithObjects:forKeys:count:"),values,keys,2);
-    ((void (*)(id,SEL,CGRect,id))objc_msgSend)((id)text,sel_registerName("drawInRect:withAttributes:"),CGRectMake(28,6,width-36,16),attributes);
+static inline CTLineRef witty_update_line(NSString *text, NSDictionary *attributes) {
+    NSAttributedString *value = [[NSAttributedString alloc] initWithString:text attributes:attributes];
+    CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)value);
+    [value release];
+    return line;
+}
+
+static inline void witty_update_draw_pill_text(CGContextRef context, NSString *text, NSColor *color,
+        double origin, double baseline, double width, double height, double scale, bool flipped) {
+    if (width <= 0) return;
+    NSRange newline = [text rangeOfCharacterFromSet:[NSCharacterSet newlineCharacterSet]];
+    if (newline.location != NSNotFound) {
+        text = [[text substringToIndex:newline.location] stringByAppendingString:@"…"];
+    }
+    NSDictionary *attributes = @{
+        NSFontAttributeName: (NSFont *)witty_update_font(),
+        NSForegroundColorAttributeName: color,
+    };
+    CTLineRef line = witty_update_line(text, attributes);
+    if (!line) return;
+    double advance = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
+    if (advance > width + 0.0001) {
+        CTLineRef token = witty_update_line(@"…", attributes);
+        CTLineRef truncated = token ? CTLineCreateTruncatedLine(line, width, kCTLineTruncationEnd, token) : NULL;
+        if (token) CFRelease(token);
+        CFRelease(line);
+        line = truncated;
+        if (!line) return;
+        advance = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
+    }
+    double laidOutWidth = ceil(advance * scale) / scale;
+    double x = round((origin + (width - laidOutWidth) / 2) * scale) / scale;
+    CGContextSaveGState(context);
+    if (flipped) {
+        CGContextTranslateCTM(context, 0, height);
+        CGContextScaleCTM(context, 1, -1);
+    }
+    CGContextClipToRect(context, CGRectMake(origin, 0, width, height));
+    CGContextSetTextMatrix(context, CGAffineTransformIdentity);
+    CGContextSetTextPosition(context, x, baseline);
+    CTLineDraw(line, context);
+    CGContextRestoreGState(context);
+    CFRelease(line);
+}
+
+static inline void witty_update_draw_pill_symbol(CGContextRef context, NSString *name, CGImageRef tint,
+        double width, double height, double scale) {
+    NSImage *image = [NSImage imageWithSystemSymbolName:name accessibilityDescription:nil];
+    if (!image) return;
+    NSImageSymbolConfiguration *font = [NSImageSymbolConfiguration configurationWithPointSize:13
+        weight:NSFontWeightRegular];
+    NSImageSymbolConfiguration *monochrome = [NSImageSymbolConfiguration configurationPreferringMonochrome];
+    image = [image imageWithSymbolConfiguration:[font configurationByApplyingConfiguration:monochrome]];
+    NSRect aligned = image.alignmentRect;
+    double x = round(((width - aligned.size.width) / 2 - aligned.origin.x) * scale) / scale;
+    double y = (height - image.size.height) / 2;
+    CGContextSaveGState(context);
+    // Tint the native glyph mask with the Canvas tile, preserving its transparent cutouts.
+    CGContextBeginTransparencyLayer(context, NULL);
+    [image drawInRect:NSMakeRect(x, y, image.size.width, image.size.height)];
+    CGContextSetBlendMode(context, kCGBlendModeSourceIn);
+    CGContextDrawImage(context, CGRectMake(0, 0, width, height), tint);
+    CGContextEndTransparencyLayer(context);
+    CGContextRestoreGState(context);
 }
 #endif
