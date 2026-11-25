@@ -49,9 +49,10 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			font_shaper.deinit()
 			return err
 		}
+		has_custom_shaders := shaders.post_pipelines.len > 0
 		mut frames := []MetalFrameState{cap: metal_swap_chain_count}
 		for _ in 0 .. metal_swap_chain_count {
-			frame := MetalFrameState.init(&metal, post_shaders.len > 0) or {
+			frame := MetalFrameState.init(&metal, has_custom_shaders) or {
 				for mut initialized in frames {
 					initialized.deinit()
 				}
@@ -66,8 +67,6 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		// Get font metrics from the grid
 		grid := opts.font_grid
 		metrics := grid.metrics
-
-		has_custom_shaders := post_shaders.len > 0
 
 		mut display_link := unsafe { &DisplayLink(nil) }
 		$if macos {
@@ -213,7 +212,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 				[]string{}
 			}
 			self.shaders = self.api.init_shaders(post_shaders)!
-			self.has_custom_shaders = post_shaders.len > 0
+		self.has_custom_shaders = self.shaders.post_pipelines.len > 0
 		}
 
 		if self.has_custom_shaders {

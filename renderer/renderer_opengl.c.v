@@ -33,9 +33,10 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 			font_shaper.deinit()
 			return err
 		}
+		has_custom_shaders := shaders.post_pipelines.len > 0
 		mut frames := []GLFrameState{cap: opengl_swap_chain_count}
 		for _ in 0 .. opengl_swap_chain_count {
-			frame := GLFrameState.init(&api, post_shaders.len > 0) or {
+			frame := GLFrameState.init(&api, has_custom_shaders) or {
 				for mut initialized in frames {
 					initialized.deinit()
 				}
@@ -99,7 +100,7 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 			font_grid:              opts.font_grid
 			font_shaper:            font_shaper
 			font_shaper_cache:      font.ShaperCache.init()
-			has_custom_shaders:     post_shaders.len > 0
+			has_custom_shaders:     has_custom_shaders
 		}
 		result.update_font_grid_uniforms()
 		result.update_screen_size_uniforms()
@@ -167,7 +168,7 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 				[]string{}
 			}
 			self.shaders = self.api.init_shaders(post_shaders)!
-			self.has_custom_shaders = post_shaders.len > 0
+			self.has_custom_shaders = self.shaders.post_pipelines.len > 0
 		}
 
 		if self.has_custom_shaders {

@@ -11,6 +11,12 @@ COLUMNS = 60
 ROWS = 12
 PADDING = 2
 COMMAND = r'printf "\033[2J\033[H\033[?25l\033[48;2;255;0;0m     \033[0m"; exec /bin/sleep 20'
+UNLINKABLE_SHADER = """\
+layout(location = 2) in vec4 input_color;
+void mainImage(out vec4 color, in vec2 uv) {
+    color = input_color;
+}
+"""
 
 
 def capture_grid(binary, name, columns, rows, *options):
@@ -63,9 +69,19 @@ def main():
         )
         if with_tabs != (width, height):
             raise RuntimeError(f"The configured tabs changed the capture size to {with_tabs}. See {output}")
+
+        shader = output / "missing-vertex-output.glsl"
+        shader.write_text(UNLINKABLE_SHADER)
+        fallback = output / "shader-fallback"
+        # The fragment shader compiles, but its input has no matching vertex output.
+        if capture_grid(binary, fallback, COLUMNS, ROWS, f"--custom-shader={shader}") != (width, height):
+            raise RuntimeError(f"Post-processing fallback changed the capture size. See {output}")
+        log = fallback.with_suffix(".log")
+        if "error initializing postprocess shaders" not in log.read_text():
+            raise RuntimeError(f"Expected OpenGL to reject the post-processing pipeline. See {log}")
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         parser.exit(1, f"Linux screenshot check failed: {error}\n")
-    print(f"Captured the requested terminal grids with default and tabbed titlebar settings. See {output}")
+    print(f"Verified terminal grid sizing and rendering after a shader link failure. See {output}")
 
 
 if __name__ == "__main__":

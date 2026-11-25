@@ -902,7 +902,7 @@ pub mut:
 	font_shaper       fontshaper.NativeShaper
 	font_shaper_cache font.ShaperCache
 
-	// Whether or not we have custom shaders.
+	// Whether any custom shader pipelines were successfully initialized.
 	has_custom_shaders bool
 
 	// If something happened that requires us to reinitialize our shaders,
@@ -2858,7 +2858,7 @@ pub fn (mut r Renderer) display_realized() ! {
 			[]string{}
 		}
 		r.shaders = r.api.init_shaders(post_shaders)!
-		r.has_custom_shaders = post_shaders.len > 0
+		r.has_custom_shaders = r.shaders.post_pipelines.len > 0
 		r.frames = []GLFrameState{cap: opengl_swap_chain_count}
 		for _ in 0 .. opengl_swap_chain_count {
 			r.frames << GLFrameState.init(&r.api, r.has_custom_shaders)!
