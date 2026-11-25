@@ -12,10 +12,14 @@ import time
 from PIL import Image
 
 from capture import capture_witty, configure_xvfb_capture, output_directory, write_versions
+from fixtures import CURSOR_STYLES
 
 
 PROBE = Path(__file__).resolve().parent
-FIXTURES = ("ansi", "unicode", "kitty", "ls", "git", "vim", "shader")
+FIXTURES = (
+    "ansi", "decorations", "unicode", "wide-wrap", *CURSOR_STYLES,
+    "kitty", "ls", "git", "vim", "shader",
+)
 OPTIONS = (
     "--config-default-files=false",
     "--gtk-single-instance=false",

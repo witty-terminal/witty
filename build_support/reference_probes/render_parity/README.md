@@ -19,7 +19,7 @@ xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- \
   .witty-build/render-parity-witty/bin/witty "$(command -v ghostty)"
 ```
 
-The probe uses Witty’s `--screenshot` and captures Ghostty’s matching X11 client window. It compares decoded RGBA pixels for ANSI colors, Unicode and emoji, Kitty images, colored `ls` output, Git diff, Vim, and a two-pass GLSL shader.
+The probe uses Witty’s `--screenshot` and captures Ghostty’s matching X11 client window. It compares decoded RGBA pixels for ANSI colors, text decorations, Unicode and emoji, wide characters wrapping at the right edge, block, bar, and underline cursors, Kitty images, colored `ls` output, Git diff, Vim, and a two-pass GLSL shader.
 
 Each run saves the PNGs, application logs, executable versions and hashes, and a `results.tsv` report under `.witty-build/render-parity/`. Differing pixels appear white in the corresponding `*-diff.png` mask. A size or pixel mismatch returns exit status 1.
 
