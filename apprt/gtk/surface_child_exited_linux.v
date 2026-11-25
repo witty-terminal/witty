@@ -37,8 +37,6 @@ fn C.adw_banner_set_title(banner AdwBanner, title &char)
 // adw_banner_get_type binds the `banner` template child.
 fn C.adw_banner_get_type() GType
 
-fn C.gtk_overlay_set_measure_overlay(overlay GtkWidget, child GtkWidget, measure bool)
-
 fn C.g_malloc0(n_bytes uint) voidptr
 
 struct C.GhosttyApprtChildExited {
@@ -59,10 +57,6 @@ pub struct SurfaceChildExited {
 	// The GtkWidget (adw.Bin) pointer for this instance.
 pub mut:
 	widget GtkWidget = unsafe { nil }
-
-	// The banner widget (template child).
-	banner   AdwBanner = unsafe { nil }
-	backdrop GtkWidget = unsafe { nil }
 }
 
 // new_surface_child_exited creates a new SurfaceChildExited. Mirrors
@@ -71,43 +65,9 @@ pub mut:
 // the template child back into the wrapper.
 pub fn new_surface_child_exited() &SurfaceChildExited {
 	obj := C.g_object_new(surface_child_exited_get_type(), &char(unsafe { nil }))
-	priv := surface_child_exited_priv(obj)
 	return &SurfaceChildExited{
 		widget: obj
-		banner: priv.banner
 	}
-}
-
-fn (mut self SurfaceChildExited) set_canvas(enabled bool) {
-	if isnil(self.banner) { return }
-	if enabled && isnil(self.backdrop) {
-		fill := gtk_canvas_fill_new()
-		if isnil(fill) { return }
-		C.gtk_widget_add_css_class(fill, c'child-exited-fill')
-
-		banner := GtkWidget(self.banner)
-		parent := AdwBin(C.gtk_widget_get_parent(banner))
-		overlay := C.gtk_overlay_new()
-		C.gtk_widget_set_valign(overlay, int(Align.end))
-		C.gtk_overlay_set_child(overlay, fill)
-
-		// Measure the native banner so the backdrop follows the revealer.
-		object_ref(GObject(banner))
-		C.adw_bin_set_child(parent, unsafe { nil })
-		C.gtk_overlay_add_overlay(overlay, banner)
-		C.gtk_overlay_set_measure_overlay(overlay, banner, true)
-		C.adw_bin_set_child(parent, overlay)
-		object_unref(GObject(banner))
-		self.backdrop = fill
-	}
-	if isnil(self.backdrop) { return }
-
-	if enabled {
-		C.gtk_widget_add_css_class(self.widget, c'child-exited-canvas')
-	} else {
-		C.gtk_widget_remove_css_class(self.widget, c'child-exited-canvas')
-	}
-	C.gtk_widget_set_visible(self.backdrop, enabled)
 }
 
 pub fn (mut self SurfaceChildExited) ref() &SurfaceChildExited {

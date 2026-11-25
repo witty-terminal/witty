@@ -2611,10 +2611,6 @@ fn (mut self SurfaceWidget) apply_resize_overlay_config() {
 // every programmatic binding that depends on the shared Config object.
 pub fn (mut self SurfaceWidget) apply_config() {
 	self.apply_resize_overlay_config()
-	use_canvas := !isnil(self.config) && gtk_canvas_styles_enabled(self.config.get())
-	if !isnil(self.child_exited_overlay) {
-		self.child_exited_overlay.set_canvas(use_canvas)
-	}
 	self.sync_bell_border_overlay()
 }
 
@@ -3633,16 +3629,16 @@ pub fn new_surface_widget(window &Window, split_tree &SplitTreeWidget, config &C
 	child_exited_overlay := new_surface_child_exited()
 	unfocused_revealer := surface_unfocused_revealer_new()
 	C.gtk_widget_set_visible(child_exited_overlay.widget, false)
-	C.witty_gtk_terminal_overlay_add(terminal_page, readonly_revealer, false)
+	C.witty_gtk_terminal_overlay_add(terminal_page, readonly_revealer, int(C.WITTY_OVERLAY_BADGE))
 	C.gtk_overlay_add_overlay(terminal_page, progress_bar_overlay)
-	C.witty_gtk_terminal_overlay_add_bell(terminal_page, bell_revealer)
-	C.gtk_overlay_add_overlay(terminal_page, child_exited_overlay.widget)
+	C.witty_gtk_terminal_overlay_add(terminal_page, bell_revealer, int(C.WITTY_OVERLAY_BELL))
+	C.witty_gtk_terminal_overlay_add(terminal_page, child_exited_overlay.widget, int(C.WITTY_OVERLAY_CHILD_EXITED))
 	C.gtk_overlay_add_overlay(terminal_page, resize_overlay.widget)
-	C.witty_gtk_terminal_overlay_add(terminal_page, GtkWidget(url_left), false)
-	C.witty_gtk_terminal_overlay_add(terminal_page, GtkWidget(url_right), false)
+	C.witty_gtk_terminal_overlay_add(terminal_page, GtkWidget(url_left), int(C.WITTY_OVERLAY_BADGE))
+	C.witty_gtk_terminal_overlay_add(terminal_page, GtkWidget(url_right), int(C.WITTY_OVERLAY_BADGE))
 	C.gtk_overlay_add_overlay(terminal_page, search_overlay.widget)
 	C.gtk_overlay_add_overlay(terminal_page, key_state_overlay.widget)
-	C.witty_gtk_terminal_overlay_add(terminal_page, unfocused_revealer, true)
+	C.witty_gtk_terminal_overlay_add(terminal_page, unfocused_revealer, int(C.WITTY_OVERLAY_DIMMING))
 	C.g_object_ref_sink(GObject(terminal_page))
 	C.adw_bin_set_child(AdwBin(obj), terminal_page)
 	error_page := surface_error_page_new()

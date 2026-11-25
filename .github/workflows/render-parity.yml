@@ -49,6 +49,7 @@ jobs:
             --fixture split-search --fixture split-search-themed --fixture split-close --fixture key-state-overlay \
             --fixture visual-bell --fixture visual-bell-themed \
             --fixture progress-overlay --fixture progress-overlay-themed \
+            --fixture command-exit-banner --fixture command-exit-banner-themed \
             --fixture link-preview --fixture link-preview-right --fixture readonly-overlay --fixture readonly-overlay-themed \
             --fixture command-palette --fixture command-palette-compact --fixture clipboard-confirmation \
             --fixture config-errors --fixture terminal-title --fixture tab-title \

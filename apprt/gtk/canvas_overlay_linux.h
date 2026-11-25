@@ -4,7 +4,6 @@
 #include <adwaita.h>
 #include <math.h>
 #include <stdbool.h>
-#include "canvas_linux.h"
 
 static inline void witty_gtk_canvas_overlay_append_strip(GtkSnapshot *snapshot,
 		GskRenderNode *node, const graphene_rect_t *clip) {
@@ -213,6 +212,7 @@ static inline void witty_gtk_canvas_overlay_register(void) {
 
 typedef enum {
 	WITTY_CANVAS_FIRST_FILL,
+	WITTY_CANVAS_FIRST_BACKGROUND, // A flat background may be translucent.
 	WITTY_CANVAS_LAST_FILL,
 	WITTY_CANVAS_LAST_CLIPPED_FILL,
 } WittyCanvasFillSearch;
@@ -233,8 +233,9 @@ static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
 	switch (type) {
 	case GSK_COLOR_NODE: {
 		const GdkRGBA *color = gsk_color_node_get_color(node);
-		if (color->alpha != 1 || (search != WITTY_CANVAS_LAST_CLIPPED_FILL
-				&& !graphene_rect_equal(&bounds, area)))
+		if ((search != WITTY_CANVAS_FIRST_BACKGROUND && color->alpha != 1)
+				|| (search != WITTY_CANVAS_LAST_CLIPPED_FILL
+					&& !graphene_rect_equal(&bounds, area)))
 			return NULL;
 		GtkSnapshot *snapshot = gtk_snapshot_new();
 		witty_gtk_canvas_overlay_append_masked_node(snapshot, mask, node, &bounds);
@@ -242,8 +243,9 @@ static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
 	}
 	case GSK_CONTAINER_NODE: {
 		const guint count = gsk_container_node_get_n_children(node);
+		const bool first = search == WITTY_CANVAS_FIRST_FILL || search == WITTY_CANVAS_FIRST_BACKGROUND;
 		for (guint i = 0; i < count; ++i) {
-			const guint index = search == WITTY_CANVAS_FIRST_FILL ? i : count - i - 1;
+			const guint index = first ? i : count - i - 1;
 			GskRenderNode *child = gsk_container_node_get_child(node, index);
 			g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_fill(child, mask, area, search);
 			if (!fill)

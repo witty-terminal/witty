@@ -35,6 +35,7 @@ READONLY_THEME_BACKGROUND = (33, 128, 205)
 SPLIT_THEME_DIVIDER = (190, 115, 185)
 BELL_THEME_FILL = (33, 128, 205)
 BELL_THEME_BORDER = (214, 106, 69)
+COMMAND_EXIT_THEME_BACKGROUND = (33, 128, 205)
 PROGRESS_THEME_TROUGH = (90, 67, 90)
 PROGRESS_THEME_FILL = (33, 128, 205)
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
@@ -45,6 +46,7 @@ LINK_PREVIEW_FIXTURES = ("link-preview", "link-preview-right")
 READONLY_FIXTURES = ("readonly-overlay", "readonly-overlay-themed")
 SPLIT_SEARCH_FIXTURES = ("split-search", "split-search-themed")
 BELL_FIXTURES = ("visual-bell", "visual-bell-themed")
+COMMAND_EXIT_FIXTURES = ("command-exit-banner", "command-exit-banner-themed")
 PROGRESS_FIXTURES = ("progress-overlay", "progress-overlay-themed")
 COMMAND_PALETTE_FIXTURES = (
     "command-palette", "command-palette-compact", "command-palette-resize", "command-palette-themed",
@@ -64,7 +66,7 @@ WALLPAPER_OPTIONS = {
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
     *INTERACTIVE_FIXTURES, *SPLIT_SEARCH_FIXTURES, "split-close", *BELL_FIXTURES, *PROGRESS_FIXTURES,
-    "resize-overlay", "key-state-overlay",
+    "resize-overlay", "key-state-overlay", *COMMAND_EXIT_FIXTURES,
     *LINK_PREVIEW_FIXTURES, *READONLY_FIXTURES, *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
     *TITLE_DIALOG_ACTIONS, "gtk-toast",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
@@ -211,6 +213,21 @@ def fixture_args(name, work):
         return [
             *options, "--window-width=85", "--window-height=28", "--clipboard-write=ask",
             "-e", sys.executable, str(PROBE / "fixtures.py"), name, str(work / "clipboard.trigger"),
+        ]
+    if name in COMMAND_EXIT_FIXTURES:
+        themed = name == "command-exit-banner-themed"
+        if themed:
+            css = work / "command-exit-theme.css"
+            css.write_text(
+                ".child-exited.abnormal banner revealer > widget { "
+                f"background-color: #{bytes(COMMAND_EXIT_THEME_BACKGROUND).hex()}; "
+                "border-radius: 6px; }\n"
+            )
+            options.append(f"--gtk-custom-css={css}")
+        return [
+            *options, "--wait-after-command=true", "--confirm-close-surface=false",
+            "-e", sys.executable, str(PROBE / "fixtures.py"), "command-exit-banner",
+            str(work / "command-exit.trigger"), "7" if themed else "0",
         ]
     if name == "gtk-toast":
         return [
@@ -467,6 +484,41 @@ def capture_progress_overlay(binary, args, helper, prefix, settle, scale, *, the
             time.sleep(0.05)
         message = "The themed progress colors did not render" if themed else "The paused progress fill did not reach 51%"
         raise RuntimeError(message)
+
+
+def capture_command_exit_banner(binary, args, helper, prefix, settle, scale, *, themed=False):
+    # Launch normally so the Close button can exit the app after capture.
+    trigger = Path(args[-2])
+    trigger.unlink(missing_ok=True)
+    fade = max(settle, 0.65)
+    with open_window([binary, *args], prefix.with_suffix(".log")) as (process, window):
+        subprocess.run(["xdotool", "mousemove", "--window", window, "8", "80"], check=True, timeout=5)
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            probe = (image.width // 8, image.height - 12 * scale)
+            idle = image.getpixel(probe)
+        trigger.touch()
+        deadline = time.monotonic() + 4
+        while time.monotonic() < deadline:
+            with read_window(helper, window) as image:
+                if image.getpixel(probe) != idle:
+                    break
+            time.sleep(0.05)
+        else:
+            raise RuntimeError("The command exit banner did not appear")
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            image.save(prefix.with_suffix(".png"))
+            if themed and image.getpixel(probe) != COMMAND_EXIT_THEME_BACKGROUND:
+                raise RuntimeError("The themed command exit banner background did not render")
+            close_x = image.width - 42 * scale
+            close_y = image.height - 23 * scale
+        subprocess.run(
+            ["xdotool", "mousemove", "--window", window, str(close_x), str(close_y), "click", "1"],
+            check=True, timeout=5,
+        )
+        if process.wait(timeout=5) != 0:
+            raise RuntimeError("Closing the command exit banner failed")
 
 
 def capture_mode_overlay(binary, args, helper, prefix, name, settle, scale, *, witty=False):
@@ -1100,6 +1152,10 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
                 themed = name == "progress-overlay-themed"
                 capture_progress_overlay(ghostty, args, helper, expected, settle, scale, themed=themed)
                 capture_progress_overlay(witty, args, helper, actual, settle, scale, themed=themed, witty=True)
+            elif name in COMMAND_EXIT_FIXTURES:
+                themed = name == "command-exit-banner-themed"
+                capture_command_exit_banner(ghostty, args, helper, expected, settle, scale, themed=themed)
+                capture_command_exit_banner(witty, args, helper, actual, settle, scale, themed=themed)
             elif name in ("resize-overlay", "key-state-overlay"):
                 capture_mode_overlay(ghostty, args, helper, expected, name, settle, scale)
                 capture_mode_overlay(witty, args, helper, actual, name, settle, scale, witty=True)

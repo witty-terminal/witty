@@ -8,6 +8,7 @@ typedef enum {
 	WITTY_OVERLAY_BADGE,
 	WITTY_OVERLAY_DIMMING,
 	WITTY_OVERLAY_BELL,
+	WITTY_OVERLAY_CHILD_EXITED,
 } WittyOverlayPaint;
 
 static inline WittyOverlayPaint witty_gtk_terminal_overlay_paint(GtkWidget *child) {
@@ -18,6 +19,31 @@ static inline WittyOverlayPaint witty_gtk_terminal_overlay_paint(GtkWidget *chil
 			return WITTY_OVERLAY_NATIVE;
 	}
 	return paint;
+}
+
+static inline GskRenderNode *witty_gtk_child_exited_replace_background(GskRenderNode *node,
+		GdkTexture *mask, GtkWidget *widget, GtkWidget *child) {
+	if (!ADW_IS_BIN(child))
+		return NULL;
+	GtkWidget *bin = adw_bin_get_child(ADW_BIN(child));
+	if (!ADW_IS_BIN(bin))
+		return NULL;
+	GtkWidget *banner = adw_bin_get_child(ADW_BIN(bin));
+	if (!banner || g_strcmp0(gtk_widget_get_css_name(banner), "banner") != 0)
+		return NULL;
+	GtkWidget *revealer = gtk_widget_get_first_child(banner);
+	if (!GTK_IS_REVEALER(revealer))
+		return NULL;
+	// The banner's styling targets the content of its native revealer.
+	GtkWidget *content = gtk_revealer_get_child(GTK_REVEALER(revealer));
+	graphene_rect_t area;
+	if (!content || !gtk_widget_get_mapped(content) || !gtk_widget_compute_bounds(content, widget, &area)
+			|| area.size.width <= 0 || area.size.height <= 0)
+		return NULL;
+	GskRenderNode *paint = witty_gtk_canvas_replace_widget_fill(node, mask, content, &area,
+		WITTY_CANVAS_FIRST_BACKGROUND);
+	return paint ? paint : witty_gtk_canvas_replace_widget_content_fill(node, mask, content, widget,
+		&area, WITTY_CANVAS_FIRST_BACKGROUND);
 }
 
 static inline void witty_gtk_terminal_overlay_snapshot(GtkWidget *widget, GtkSnapshot *snapshot) {
@@ -47,6 +73,10 @@ static inline void witty_gtk_terminal_overlay_snapshot(GtkWidget *widget, GtkSna
 			if (node && paint == WITTY_OVERLAY_BELL) {
 				GskRenderer *renderer = gtk_native_get_renderer(gtk_widget_get_native(widget));
 				witty_gtk_bell_append(snapshot, mask, node, GSK_IS_CAIRO_RENDERER(renderer));
+			} else if (node && paint == WITTY_OVERLAY_CHILD_EXITED) {
+				g_autoptr(GskRenderNode) background = witty_gtk_child_exited_replace_background(node,
+					mask, widget, child);
+				gtk_snapshot_append_node(snapshot, background ? background : node);
 			} else if (node) {
 				witty_gtk_canvas_overlay_append(snapshot, mask, node, paint == WITTY_OVERLAY_BADGE,
 					paint == WITTY_OVERLAY_DIMMING);
@@ -78,14 +108,8 @@ static inline GtkWidget *witty_gtk_terminal_overlay_new(void) {
 	return g_object_new(type, NULL);
 }
 
-static inline void witty_gtk_terminal_overlay_add(GtkOverlay *overlay, GtkWidget *child, bool dimming) {
-	g_object_set_data(G_OBJECT(child), "witty-overlay-decoration",
-		GINT_TO_POINTER(dimming ? WITTY_OVERLAY_DIMMING : WITTY_OVERLAY_BADGE));
-	gtk_overlay_add_overlay(overlay, child);
-}
-
-static inline void witty_gtk_terminal_overlay_add_bell(GtkOverlay *overlay, GtkWidget *child) {
-	g_object_set_data(G_OBJECT(child), "witty-overlay-decoration", GINT_TO_POINTER(WITTY_OVERLAY_BELL));
+static inline void witty_gtk_terminal_overlay_add(GtkOverlay *overlay, GtkWidget *child, WittyOverlayPaint paint) {
+	g_object_set_data(G_OBJECT(child), "witty-overlay-decoration", GINT_TO_POINTER(paint));
 	gtk_overlay_add_overlay(overlay, child);
 }
 

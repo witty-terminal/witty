@@ -560,6 +560,18 @@ def main():
     elif fixture == "visual-bell":
         visual_bell(sys.argv[2])
         return
+    elif fixture == "command-exit-banner":
+        wait_for_initial_grid()
+        sys.stdout.buffer.write(
+            f"Command exit banner\r\n\x1b[{GRID_ROWS};22H"
+            "\x1b[48;2;72;113;170m\x1b[38;2;235;222;161mText behind the banner\x1b[0m".encode()
+        )
+        sys.stdout.flush()
+        trigger = Path(sys.argv[2])
+        while not trigger.exists():
+            time.sleep(0.02)
+        trigger.unlink()
+        sys.exit(int(sys.argv[3]))
     elif fixture == "clipboard-confirmation":
         sys.stdout.buffer.write(b"GTK Clipboard Fixture\r\n")
         sys.stdout.flush()

@@ -34,6 +34,7 @@ The `split-search-themed` fixture also checks custom CSS colors for the divider 
 The `split-close` fixture closes a nested pane and verifies that the two surviving panes redraw with the expected focus.
 The `visual-bell-themed` fixture checks a CSS fill and rounded border during an unfocused bell and verifies that refocusing clears the overlay.
 The `progress-overlay-themed` fixture verifies the CSS colors of a paused progress fill and its trough.
+The command exit fixtures capture the banner over terminal text after a successful command and a failed command with custom CSS. They also verify that the Close button exits the terminal.
 The `readonly-overlay-themed` fixture checks that a custom badge background and fractional outlines match when the terminal enters read-only mode.
 The resize fixtures narrow the window with the cursor after blank cells or near the bottom of the screen. They also check which row of a newly wrapped Bash prompt clears and where the next character appears after widening a full row.
 

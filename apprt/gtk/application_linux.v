@@ -1048,17 +1048,10 @@ fn application_runtime_css(config &configpkg.Config, gtk_416 bool) string {
 	mut css := ''
 	background := config.window_titlebar_background or { config.background }
 	foreground := config.window_titlebar_foreground or { config.foreground }
-	bell_tint := if gtk_416 { 'color-mix(in srgb, var(--accent-color), transparent 50%)' } else {
-		'rgba(58, 148, 74, 0.5)'
-	}
-	success_tint := if gtk_416 { 'color-mix(in srgb, var(--success-bg-color), transparent 50%)' } else {
-		'rgba(38, 162, 105, 0.5)'
-	}
-	error_tint := if gtk_416 { 'color-mix(in srgb, var(--error-bg-color), transparent 50%)' } else {
-		'rgba(192, 28, 40, 0.5)'
-	}
-
 	if gtk_416 {
+		bell_tint := 'color-mix(in srgb, var(--accent-color), transparent 50%)'
+		success_tint := 'color-mix(in srgb, var(--success-bg-color), transparent 50%)'
+		error_tint := 'color-mix(in srgb, var(--error-bg-color), transparent 50%)'
 		css += '/*\n * Child Exited Overlay\n */\n\n'
 		css += '.child-exited.normal revealer widget {\n  background-color: ${success_tint};\n}\n\n'
 		css += '.child-exited.abnormal revealer widget {\n  background-color: ${error_tint};\n}\n\n'
@@ -1084,10 +1077,6 @@ fn application_runtime_css(config &configpkg.Config, gtk_416 bool) string {
 		css += '  color: rgb(${foreground.r},${foreground.g},${foreground.b});\n}\n'
 		css += 'windowhandle:backdrop {\n background-color: oklab(from rgb(${background.r},${background.g},${background.b}) calc(l * 0.9) a b / alpha);\n}\n'
 	}
-
-	css += '.child-exited.child-exited-canvas revealer widget { background-color: transparent; }\n'
-	css += '.child-exited.normal .child-exited-fill { color: ${success_tint}; }\n'
-	css += '.child-exited.abnormal .child-exited-fill { color: ${error_tint}; }\n'
 
 	fill := config.unfocused_split_fill or { config.background }
 	css += 'widget.unfocused-split {\n opacity: ${1.0 - config.unfocused_split_opacity:.2f};\n'
