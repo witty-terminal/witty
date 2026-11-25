@@ -35,6 +35,7 @@ INTERACTIVE_FIXTURES = (
 )
 LINK_PREVIEW_FIXTURES = ("link-preview", "link-preview-right")
 COMMAND_PALETTE_FIXTURES = ("command-palette", "command-palette-compact")
+WINDOW_CHROME_FIXTURES = ("gtk-chrome-tabs", "gtk-chrome-native")
 WALLPAPER_OPTIONS = {
     "wallpaper-stretch": ("--background-image-fit=stretch",),
     "wallpaper-repeat": (
@@ -119,6 +120,21 @@ def prepare_fixtures(path):
 def fixture_args(name, work):
     blend = "native" if name == "ansi" or name.startswith("kitty") else "linear-corrected"
     options = [*OPTIONS, f"--alpha-blending={blend}", f"--working-directory={work}"]
+    if name in WINDOW_CHROME_FIXTURES:
+        program = shlex.join([sys.executable, str(PROBE / "fixtures.py"), "window-chrome"])
+        options.extend((
+            "--window-decoration=client", "--window-width=80", "--window-height=22",
+            "--window-show-tab-bar=always", "--title=Chrome Fixture", "--keybind=ctrl+alt+t=new_tab",
+            f"--command={program}",
+        ))
+        if name == "gtk-chrome-tabs":
+            options.extend((
+                "--gtk-titlebar-style=tabs", "--gtk-tabs-location=top", "--window-theme=ghostty",
+                "--window-titlebar-background=3b294f", "--window-titlebar-foreground=e2c6a5",
+            ))
+        else:
+            options.extend(("--gtk-titlebar-style=native", "--gtk-tabs-location=bottom", "--window-theme=light"))
+        return options
     if name == "split-search":
         command = [sys.executable, str(PROBE / "fixtures.py"), name]
         return [
@@ -409,6 +425,23 @@ def capture_command_palette(binary, args, helper, prefix, settle, config_dir, *,
                 raise RuntimeError("The selected command did not execute and close the palette")
 
 
+def capture_window_chrome(binary, args, helper, prefix, settle):
+    with open_window([binary, *args], prefix.with_suffix(".log")) as (_, window):
+        subprocess.run(
+            ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window, "14", "150"],
+            check=True, timeout=5,
+        )
+        time.sleep(settle)
+        with read_window(helper, window) as image:
+            single_tab = image.tobytes()
+        subprocess.run(["xdotool", "key", "ctrl+alt+t"], check=True, timeout=5)
+        time.sleep(settle)
+        with read_window(helper, window) as image:
+            if image.tobytes() == single_tab:
+                raise RuntimeError("Opening a second tab did not change the window chrome")
+            image.save(prefix.with_suffix(".png"))
+
+
 def drag_wide_selection(window, padding, cell_width, cell_height):
     # The emoji is in columns 13 and 14 (zero-based). Start on its
     # spacer tail and drag past the space in column 15.
@@ -674,6 +707,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
                 (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
                 capture_command_palette(ghostty, args, helper, expected, settle, config_dir)
                 capture_command_palette(witty, args, helper, actual, settle, config_dir, witty=True)
+            elif name in WINDOW_CHROME_FIXTURES:
+                capture_window_chrome(ghostty, args, helper, expected, settle)
+                capture_window_chrome(witty, args, helper, actual, settle)
             else:
                 capture_ghostty([ghostty, *args], helper, expected, settle)
                 capture_witty(witty, args, actual, settle)
@@ -694,7 +730,8 @@ def main():
     parser.add_argument("--output", type=Path, help="new directory for screenshots, logs, and the report")
     parser.add_argument("--settle-seconds", type=float, default=1.0)
     parser.add_argument("--scale", type=int, choices=(1, 2), default=1, help="GTK display scale (default: 1)")
-    parser.add_argument("--fixture", choices=FIXTURES, action="append", help="run only this fixture, repeatable")
+    parser.add_argument("--fixture", choices=(*FIXTURES, *WINDOW_CHROME_FIXTURES), action="append",
+                        help="run only this fixture, repeatable")
     args = parser.parse_args()
     if sys.platform != "linux" or not os.environ.get("DISPLAY"):
         parser.error("run on Linux inside xvfb-run")

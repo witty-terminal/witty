@@ -497,6 +497,7 @@ def main():
         "readonly-overlay": b"Toggle read-only mode\r\n",
         "command-palette": b"GTK command palette\r\n",
         "command-palette-compact": b"GTK command palette\r\n",
+        "window-chrome": b"GTK window chrome\r\n",
     }
     sys.stdout.buffer.write(CLEAR)
     sys.stdout.flush()

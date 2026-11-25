@@ -386,6 +386,7 @@ fn window_class_init(klass voidptr, class_data voidptr) {
 	C.witty_gobject_class_set_set_property(klass, voidptr(window_set_property))
 	C.witty_gobject_class_set_dispose(klass, voidptr(window_dispose_object))
 	C.witty_gobject_class_set_finalize(klass, voidptr(window_finalize_object))
+	C.witty_gtk_window_canvas_class_init(klass)
 	readable := g_param_readable | window_param_static_strings
 	readwrite := g_param_readwrite | window_param_static_strings
 	nil_str := &char(unsafe { nil })
@@ -737,6 +738,7 @@ pub fn Window.new(app &Application) &Window {
 	object_unref(GObject(main_menu))
 
 	self.header_bar = header_bar
+	C.witty_gtk_window_canvas_set_bars(GtkWidget(obj), header_bar, GtkWidget(tab_bar))
 	self.window_title = window_title
 	self.tab_bar_start = tab_bar_start
 	self.tab_bar_end = tab_bar_end
@@ -1761,6 +1763,7 @@ fn (mut self Window) sync_appearance() {
 		return
 	}
 	config := self.config.get()
+	gtk_canvas_overlay_set_mask(widget, gtk_canvas_styles_enabled(config))
 	C.adw_tab_bar_set_autohide(self.tab_bar, b2i(self.get_tabs_autohide()))
 	C.adw_tab_bar_set_expand_tabs(self.tab_bar, b2i(self.get_tabs_wide()))
 	C.gtk_widget_set_visible(self.as_tab_bar_widget(), b2i(self.get_tabs_visible()))
@@ -2414,6 +2417,7 @@ fn (mut self Window) dispose_resources() {
 		return
 	}
 	self.disposed = true
+	C.witty_gtk_window_canvas_set_bars(self.as_widget(), unsafe { nil }, unsafe { nil })
 	if self.tab_overview_focus_timer != 0 {
 		C.g_source_remove(self.tab_overview_focus_timer)
 		self.tab_overview_focus_timer = 0
