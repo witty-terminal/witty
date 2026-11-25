@@ -44,7 +44,7 @@ WALLPAPER_OPTIONS = {
 }
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
-    *INTERACTIVE_FIXTURES, "split-search",
+    *INTERACTIVE_FIXTURES, "split-search", "visual-bell",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -122,6 +122,11 @@ def fixture_args(name, work):
             *options, "--keybind=ctrl+alt+d=new_split:right", "--unfocused-split-fill=81315a",
             "--split-divider-color=47637c", f"--command={shlex.join([*command, 'Right'])}",
             "-e", *command, "Left",
+        ]
+    if name == "visual-bell":
+        return [
+            *options, "--bell-features=border,no-title,no-attention",
+            "-e", sys.executable, str(PROBE / "fixtures.py"), name, str(work / "bell.trigger"),
         ]
     if name == "shader":
         options.extend(
@@ -204,6 +209,54 @@ def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir
             if image.getpixel(probe) == divider:
                 raise RuntimeError("The search bar did not render in the split")
             image.save(prefix.with_suffix(".png"))
+
+
+def capture_visual_bell(binary, args, helper, prefix, settle, scale, *, witty=False):
+    capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
+    fade = max(settle, 0.65)
+    env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(4 * fade + 8)}
+    trigger = Path(args[-1])
+    trigger.unlink(missing_ok=True)
+    root = subprocess.check_output([helper, "--root-id"], text=True, timeout=5).strip()
+
+    def ring():
+        trigger.touch()
+        deadline = time.monotonic() + 3
+        while trigger.exists():
+            if time.monotonic() >= deadline:
+                raise RuntimeError("The bell fixture did not send BEL")
+            time.sleep(0.05)
+        time.sleep(fade)
+
+    with open_window([binary, *capture_args, *args], prefix.with_suffix(".log"), env=env) as (_, window):
+        subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True, timeout=5)
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            idle = image.tobytes()
+            edge = (image.width // 2, scale)
+            inside = (image.width // 2, 3 * scale)
+            background = image.getpixel(inside)
+        ring()
+        with read_window(helper, window) as image:
+            if image.tobytes() != idle:
+                image.save(prefix.with_name(f"{prefix.name}-focused.png"))
+                raise RuntimeError("BEL changed the appearance of the focused terminal")
+
+        subprocess.run(["xdotool", "windowfocus", "--sync", root], check=True, timeout=5)
+        time.sleep(0.1)
+        ring()
+        with read_window(helper, window) as image:
+            image.save(prefix.with_suffix(".png"))
+            body = image.getpixel(inside)
+            if body == background or image.getpixel(edge) == body:
+                raise RuntimeError("BEL did not draw both the fill and border of the unfocused terminal")
+
+        subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True, timeout=5)
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            if image.tobytes() != idle:
+                image.save(prefix.with_name(f"{prefix.name}-refocused.png"))
+                raise RuntimeError("Refocusing the terminal did not clear the bell overlay")
 
 
 def drag_wide_selection(window, padding, cell_width, cell_height):
@@ -451,6 +504,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
                 (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
                 capture_split_search(ghostty, args, helper, expected, settle, scale, config_dir)
                 capture_split_search(witty, args, helper, actual, settle, scale, config_dir, witty=True)
+            elif name == "visual-bell":
+                capture_visual_bell(ghostty, args, helper, expected, settle, scale)
+                capture_visual_bell(witty, args, helper, actual, settle, scale, witty=True)
             else:
                 capture_ghostty([ghostty, *args], helper, expected, settle)
                 capture_witty(witty, args, actual, settle)

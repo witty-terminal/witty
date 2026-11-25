@@ -1492,6 +1492,9 @@ pub fn (mut self SurfaceWidget) set_bell_ringing(ringing bool) {
 	// ringing.
 	if ringing {
 		self.ring_bell()
+		if self.focused {
+			return
+		}
 	}
 
 	// Property change only happens on actual state change.
@@ -2577,6 +2580,10 @@ fn (mut self SurfaceWidget) apply_resize_overlay_config() {
 // every programmatic binding that depends on the shared Config object.
 pub fn (mut self SurfaceWidget) apply_config() {
 	self.apply_resize_overlay_config()
+	if !isnil(self.bell_revealer) {
+		use_canvas := !isnil(self.config) && gtk_canvas_styles_enabled(self.config.get())
+		C.witty_gtk_bell_set_canvas(self.bell_revealer, use_canvas)
+	}
 	self.sync_bell_border_overlay()
 }
 
@@ -3559,7 +3566,7 @@ fn surface_progress_bar_new() GtkWidget {
 }
 
 fn surface_bell_revealer_new() GtkWidget {
-	box := C.gtk_box_new(0, 0)
+	box := surface_bell_box_new()
 	C.gtk_widget_add_css_class(box, c'bell-overlay')
 	C.gtk_widget_set_halign(box, int(Align.fill))
 	C.gtk_widget_set_valign(box, int(Align.fill))

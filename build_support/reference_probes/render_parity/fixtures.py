@@ -411,6 +411,17 @@ def split_pane(side):
     ).encode()
 
 
+def visual_bell(trigger):
+    sys.stdout.buffer.write(b"Visual bell\r\n")
+    sys.stdout.flush()
+    while True:
+        if os.path.exists(trigger):
+            sys.stdout.buffer.write(b"\x07")
+            sys.stdout.flush()
+            os.unlink(trigger)
+        time.sleep(0.02)
+
+
 def edit_wrapped_wide():
     wait_for_initial_grid()
     attrs = termios.tcgetattr(sys.stdin)
@@ -535,6 +546,9 @@ def main():
         sys.stdout.buffer.write(search_wrap())
     elif fixture == "split-search":
         sys.stdout.buffer.write(split_pane(sys.argv[2]))
+    elif fixture == "visual-bell":
+        visual_bell(sys.argv[2])
+        return
     elif fixture == "wide-edit":
         edit_wrapped_wide()
         return

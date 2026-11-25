@@ -1047,6 +1047,9 @@ fn application_runtime_css(config &configpkg.Config, gtk_416 bool) string {
 	mut css := ''
 	background := config.window_titlebar_background or { config.background }
 	foreground := config.window_titlebar_foreground or { config.foreground }
+	bell_tint := if gtk_416 { 'color-mix(in srgb, var(--accent-color), transparent 50%)' } else {
+		'rgba(58, 148, 74, 0.5)'
+	}
 
 	if gtk_416 {
 		css += '/*\n * Child Exited Overlay\n */\n\n'
@@ -1054,7 +1057,7 @@ fn application_runtime_css(config &configpkg.Config, gtk_416 bool) string {
 		css += '.child-exited.abnormal revealer widget {\n  background-color: color-mix(\n    in srgb,\n    var(--error-bg-color),\n    transparent 50%\n  );\n}\n\n'
 		css += '/*\n * Surface\n */\n\n'
 		css += '.surface progressbar.error trough progress {\n  background-color: color-mix(\n    in srgb,\n    var(--error-bg-color),\n    transparent 50%\n  );\n}\n\n'
-		css += '.surface .bell-overlay {\n  border-color: color-mix(\n    in srgb,\n    var(--accent-color),\n    transparent 50%\n  );\n}\n\n'
+		css += '.surface .bell-overlay {\n  background-color: ${bell_tint};\n  border-color: ${bell_tint};\n}\n\n'
 		css += '/*\n * Splits\n */\n\n'
 		css += '.window .split paned > separator {\n  background-color: color-mix(\n    in srgb,\n    var(--window-bg-color),\n    transparent 0%\n  );\n}\n\n'
 		if config.window_theme == .witty {
@@ -1075,10 +1078,12 @@ fn application_runtime_css(config &configpkg.Config, gtk_416 bool) string {
 		css += 'windowhandle:backdrop {\n background-color: oklab(from rgb(${background.r},${background.g},${background.b}) calc(l * 0.9) a b / alpha);\n}\n'
 	}
 
+	css += '.surface .bell-overlay.bell-canvas {\n color: ${bell_tint};\n background-color: transparent;\n border-color: transparent;\n}\n'
+
 	fill := config.unfocused_split_fill or { config.background }
 	css += 'widget.unfocused-split {\n opacity: ${1.0 - config.unfocused_split_opacity:.2f};\n'
 	// Keep background-color available to custom stylesheets that override it.
-	use_canvas := config.gtk_custom_css.items.len == 0 && !has_gtk_user_stylesheet()
+	use_canvas := gtk_canvas_styles_enabled(config)
 	css += split_background_style(fill, use_canvas, 'background-color') + '}\n'
 	if divider := config.split_divider_color {
 		css += '.window .split paned > separator {\n  color: rgb(${divider.r},${divider.g},${divider.b});\n'

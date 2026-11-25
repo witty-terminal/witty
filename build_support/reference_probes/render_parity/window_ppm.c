@@ -2,6 +2,7 @@
 #include <X11/Xutil.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static unsigned char component(unsigned long pixel, unsigned long mask) {
     while ((mask & 1) == 0) {
@@ -12,9 +13,10 @@ static unsigned char component(unsigned long pixel, unsigned long mask) {
 }
 
 int main(int argc, char **argv) {
+    int root_id = argc == 2 && strcmp(argv[1], "--root-id") == 0;
     char *end;
-    Window window = argc == 2 ? strtoul(argv[1], &end, 0) : 0;
-    if (!window || *end) {
+    Window window = argc == 2 && !root_id ? strtoul(argv[1], &end, 0) : 0;
+    if (!root_id && (!window || *end)) {
         fprintf(stderr, "Expected an X11 window ID\n");
         return 1;
     }
@@ -23,6 +25,11 @@ int main(int argc, char **argv) {
     if (!display) {
         fprintf(stderr, "Could not connect to the X11 display\n");
         return 1;
+    }
+    if (root_id) {
+        printf("%lu\n", DefaultRootWindow(display));
+        XCloseDisplay(display);
+        return fflush(stdout) == EOF ? 1 : 0;
     }
 
     XWindowAttributes attr;
