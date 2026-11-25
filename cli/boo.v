@@ -57,8 +57,9 @@ struct Boo {
 		}
 	}
 mut:
-	frame  u8
-	buffer [4100]vaxis.Cell
+	frame u8
+	// A fixed array emits thousands of separate Cell initializers in C.
+	buffer []vaxis.Cell = []vaxis.Cell{len: boo_frame_width * boo_frame_height}
 }
 
 fn (boo &Boo) widget() vxfw.Widget {
@@ -101,7 +102,7 @@ fn boo_draw(ptr voidptr, ctx vxfw.DrawContext) !vxfw.Surface {
 	}
 	mut buffer := []vaxis.Cell{}
 	unsafe {
-		buffer.data = voidptr(&boo.buffer[0])
+		buffer.data = boo.buffer.data
 		buffer.len = boo.buffer.len
 		buffer.cap = boo.buffer.len
 		buffer.flags = .nofree
