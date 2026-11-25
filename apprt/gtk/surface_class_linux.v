@@ -330,8 +330,6 @@ fn C.gtk_revealer_set_transition_type(revealer GtkWidget, transition int)
 
 fn C.gtk_revealer_set_transition_duration(revealer GtkWidget, duration u32)
 
-fn C.gtk_progress_bar_new() GtkWidget
-
 fn C.gtk_progress_bar_set_fraction(progress_bar GtkWidget, fraction f64)
 
 fn C.gtk_progress_bar_pulse(progress_bar GtkWidget)
@@ -2581,6 +2579,9 @@ fn (mut self SurfaceWidget) apply_resize_overlay_config() {
 pub fn (mut self SurfaceWidget) apply_config() {
 	self.apply_resize_overlay_config()
 	use_canvas := !isnil(self.config) && gtk_canvas_styles_enabled(self.config.get())
+	if !isnil(self.progress_bar_overlay) {
+		C.witty_gtk_progress_set_canvas(self.progress_bar_overlay, use_canvas)
+	}
 	if !isnil(self.bell_revealer) {
 		C.witty_gtk_bell_set_canvas(self.bell_revealer, use_canvas)
 	}
@@ -3557,15 +3558,6 @@ fn surface_readonly_revealer_new() GtkWidget {
 	label := i18n_('Read-only')
 	C.gtk_box_append(box, C.gtk_label_new(&char(label.str)))
 	return surface_revealer_new(box, 500, true)
-}
-
-fn surface_progress_bar_new() GtkWidget {
-	progress_bar := C.gtk_progress_bar_new()
-	C.gtk_widget_add_css_class(progress_bar, c'osd')
-	C.gtk_widget_set_visible(progress_bar, false)
-	C.gtk_widget_set_halign(progress_bar, int(Align.fill))
-	C.gtk_widget_set_valign(progress_bar, int(Align.start))
-	return progress_bar
 }
 
 fn surface_bell_revealer_new() GtkWidget {

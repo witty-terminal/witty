@@ -44,7 +44,7 @@ WALLPAPER_OPTIONS = {
 }
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
-    *INTERACTIVE_FIXTURES, "split-search", "visual-bell",
+    *INTERACTIVE_FIXTURES, "split-search", "visual-bell", "progress-overlay",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -257,6 +257,23 @@ def capture_visual_bell(binary, args, helper, prefix, settle, scale, *, witty=Fa
             if image.tobytes() != idle:
                 image.save(prefix.with_name(f"{prefix.name}-refocused.png"))
                 raise RuntimeError("Refocusing the terminal did not clear the bell overlay")
+
+
+def capture_progress_overlay(binary, args, helper, prefix, settle, scale, *, witty=False):
+    capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
+    env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(settle + 8)}
+    with open_window([binary, *capture_args, *args], prefix.with_suffix(".log"), env=env) as (_, window):
+        time.sleep(settle)
+        deadline = time.monotonic() + 4
+        while time.monotonic() < deadline:
+            with read_window(helper, window) as image:
+                fill = image.getpixel((image.width * 48 // 100, scale))
+                rest = image.getpixel((image.width * 54 // 100, scale))
+                if fill != rest:
+                    image.save(prefix.with_suffix(".png"))
+                    return
+            time.sleep(0.05)
+        raise RuntimeError("The paused progress fill did not reach 51%")
 
 
 def drag_wide_selection(window, padding, cell_width, cell_height):
@@ -507,6 +524,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name == "visual-bell":
                 capture_visual_bell(ghostty, args, helper, expected, settle, scale)
                 capture_visual_bell(witty, args, helper, actual, settle, scale, witty=True)
+            elif name == "progress-overlay":
+                capture_progress_overlay(ghostty, args, helper, expected, settle, scale)
+                capture_progress_overlay(witty, args, helper, actual, settle, scale, witty=True)
             else:
                 capture_ghostty([ghostty, *args], helper, expected, settle)
                 capture_witty(witty, args, actual, settle)

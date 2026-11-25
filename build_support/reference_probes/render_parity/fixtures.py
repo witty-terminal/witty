@@ -549,6 +549,8 @@ def main():
     elif fixture == "visual-bell":
         visual_bell(sys.argv[2])
         return
+    elif fixture == "progress-overlay":
+        sys.stdout.buffer.write(b"Paused progress\r\n\x1b]9;4;1;32\x07\x1b]9;4;2;71\x07\x1b]9;4;4;51\x07")
     elif fixture == "wide-edit":
         edit_wrapped_wide()
         return
