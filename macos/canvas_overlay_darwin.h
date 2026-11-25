@@ -10,26 +10,33 @@ static inline void witty_canvas_place_overlay(void *parent, void *child, void *a
     [(NSView *)parent addSubview:(NSView *)child positioned:NSWindowAbove relativeTo:(NSView *)above];
 }
 
-static inline void witty_canvas_present_tile(void *target, const uint32_t *pixel, const void *positions, int count) {
-    CGContextRef context = (CGContextRef)target;
-    if (!context || count <= 0) return;
-    const CGRect *rects = positions;
-    CFDataRef data = CFDataCreate(NULL, (const UInt8 *)pixel, sizeof(*pixel));
+static inline void *witty_canvas_make_tile(const uint32_t *pixel) {
+    // Preserve component precision when Core Graphics converts sRGB to the window profile.
+    const uint16_t rgba[] = {
+        ((*pixel >> 16) & 255) * 257,
+        ((*pixel >> 8) & 255) * 257,
+        (*pixel & 255) * 257,
+        65535,
+    };
+    CFDataRef data = CFDataCreate(NULL, (const UInt8 *)rgba, sizeof(rgba));
     CGDataProviderRef provider = data ? CGDataProviderCreateWithCFData(data) : NULL;
     CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGImageRef tile = provider && space ? CGImageCreate(1, 1, 8, 32, sizeof(*pixel), space,
-        kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst, provider, NULL, false,
+    CGImageRef tile = provider && space ? CGImageCreate(1, 1, 16, 64, sizeof(rgba), space,
+        kCGBitmapByteOrder16Little | kCGImageAlphaPremultipliedLast, provider, NULL, false,
         kCGRenderingIntentDefault) : NULL;
-    if (tile) {
-        CGContextSaveGState(context);
-        CGContextSetInterpolationQuality(context, kCGInterpolationNone);
-        for (int i = 0; i < count; i++) CGContextDrawImage(context, rects[i], tile);
-        CGContextRestoreGState(context);
-        CGImageRelease(tile);
-    }
     if (space) CGColorSpaceRelease(space);
     if (provider) CGDataProviderRelease(provider);
     if (data) CFRelease(data);
+    return tile;
+}
+
+static inline void witty_canvas_present_tile(void *target, void *image, const void *positions, int count) {
+    CGContextRef context = (CGContextRef)target;
+    const CGRect *rects = positions;
+    CGContextSaveGState(context);
+    CGContextSetInterpolationQuality(context, kCGInterpolationNone);
+    for (int i = 0; i < count; i++) CGContextDrawImage(context, rects[i], (CGImageRef)image);
+    CGContextRestoreGState(context);
 }
 #endif
 

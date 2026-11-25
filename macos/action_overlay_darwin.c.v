@@ -496,10 +496,8 @@ fn search_drag_end(self ObjId, _cmd Sel, _event ObjId) {
 
 fn action_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 	state := action_owner_state(self) or { return }
-	bounds := msg_rect(self, 'bounds')
 	if !state.healthy {
-		msg_void(native_color(state.visual_background, 1), 'setFill')
-		msg_void_rect(get_class('NSBezierPath'), 'fillRect:', bounds)
+		native_canvas_fill_rects(native_canvas_overlay_context(), state.visual_background, [msg_rect(self, 'bounds')])
 	}
 }
 

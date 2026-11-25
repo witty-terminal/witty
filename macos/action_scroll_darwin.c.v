@@ -24,6 +24,7 @@ mut:
  inspector_divider ObjId
  inspector_divider_color u32
  split_dimming ObjId
+ split_dimming_fill ?u32
 }
 fn C.witty_action_scroll_point(clip voidptr, y f64)
 fn C.witty_action_content_height(scroll voidptr) f64
@@ -127,14 +128,25 @@ fn set_surface_split_dimming(view voidptr, fill u32, opacity f64) {
 	}
 	if is_nil(scroll.split_dimming) {
 		scroll.split_dimming = msg_id_rect(alloc('WittyPassiveOverlay'), 'initWithFrame:', msg_rect(scroll.scroll, 'frame'))
+		msg_void1(scroll.split_dimming, 'setLayer:', msg_id(get_class('CALayer'), 'layer'))
 		msg_void_bool(scroll.split_dimming, 'setWantsLayer:', true)
 		C.witty_canvas_place_overlay(scroll.container, scroll.split_dimming, scroll.scroll)
 		msg_void(scroll.split_dimming, 'release')
 	}
+	layer := msg_id(scroll.split_dimming, 'layer')
 	transaction := get_class('CATransaction')
 	msg_void(transaction, 'begin')
 	msg_void_bool(transaction, 'setDisableActions:', true)
-	msg_void1(msg_id(scroll.split_dimming, 'layer'), 'setBackgroundColor:', msg_id(native_color(fill, opacity), 'CGColor'))
+	if scroll.split_dimming_fill != ?u32(fill) {
+		tile := native_canvas_fill_tile(fill)
+		if !is_nil(tile) {
+			msg_void1(layer, 'setContents:', ObjId(tile))
+			C.CFRelease(tile)
+			scroll.split_dimming_fill = fill
+		}
+	}
+	// Apply opacity during composition so the opaque tile transforms to the window color space first.
+	C.witty_macos_msg_void_f32(layer, sel('setOpacity:'), f32(opacity))
 	msg_void_bool(scroll.split_dimming, 'setHidden:', false)
 	msg_void(transaction, 'commit')
 }
