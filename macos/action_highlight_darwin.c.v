@@ -88,16 +88,28 @@ fn (mut surface NativeActionSurface) update_highlight_gradients(width f64, heigh
 	surface.highlight_texture_size = size
 }
 
-fn repeating_highlight_animation(layer ObjId, key string, from f64, to f64) {
+fn animate_highlight_property(layer ObjId, key string, rest f64, peak f64, pulsing bool) {
+	path := nsstring(key)
+	mut from, mut to := rest, peak
+	if !pulsing {
+		// Retarget the visible pulse while the overlay fades.
+		presentation := msg_id(layer, 'presentationLayer')
+		value := msg_id1(presentation, 'valueForKeyPath:', path)
+		if !is_nil(value) { from = msg_f64(value, 'doubleValue') }
+		to = rest
+	}
 	number := get_class('NSNumber')
-	animation := msg_id1(get_class('CABasicAnimation'), 'animationWithKeyPath:', nsstring(key))
+	animation := msg_id1(get_class('CABasicAnimation'), 'animationWithKeyPath:', path)
 	msg_void1(animation, 'setFromValue:', msg_id_f64(number, 'numberWithDouble:', from))
 	msg_void1(animation, 'setToValue:', msg_id_f64(number, 'numberWithDouble:', to))
 	msg_void_f64(animation, 'setDuration:', 0.4)
-	msg_void_bool(animation, 'setAutoreverses:', true)
-	msg_void1(animation, 'setTimingFunction:', msg_id1(get_class('CAMediaTimingFunction'), 'functionWithName:', nsstring('easeInEaseOut')))
-	C.witty_action_repeat_forever(animation)
-	msg_void2(layer, 'addAnimation:forKey:', animation, nsstring(key))
+	msg_void1(animation, 'setTimingFunction:', msg_id1(get_class('CAMediaTimingFunction'),
+		'functionWithName:', nsstring(if pulsing { 'easeInEaseOut' } else { 'easeOut' })))
+	if pulsing {
+		msg_void_bool(animation, 'setAutoreverses:', true)
+		C.witty_action_repeat_forever(animation)
+	}
+	msg_void2(layer, 'addAnimation:forKey:', animation, path)
 }
 
 fn (mut surface NativeActionSurface) initialize_highlight() {
@@ -157,17 +169,18 @@ fn (surface &NativeActionSurface) layout_highlight_edges(frame ObjCRect, thickne
 	}
 }
 
-fn (surface &NativeActionSurface) start_highlight_pulse(frame ObjCRect) {
+fn (surface &NativeActionSurface) animate_highlight_pulse(frame ObjCRect, pulsing bool) {
 	for i, edge in surface.highlight_edges {
 		dimension := if i < 2 { frame.height } else { frame.width }
 		key := if i < 2 { 'bounds.size.height' } else { 'bounds.size.width' }
-		repeating_highlight_animation(edge, key, math.min(2, dimension), math.min(4, dimension))
+		animate_highlight_property(edge, key, math.min(2, dimension), math.min(4, dimension),
+			pulsing)
 	}
 	for i, shadow in surface.highlight_shadows {
-		repeating_highlight_animation(shadow, 'shadowRadius', if i == 0 { 8 } else { 16 },
-			if i == 0 { 12 } else { 24 })
-		repeating_highlight_animation(shadow, 'shadowOpacity', if i == 0 { 0.6 } else { 0.3 },
-			if i == 0 { 0.8 } else { 0.5 })
+		animate_highlight_property(shadow, 'shadowRadius', if i == 0 { 8 } else { 16 },
+			if i == 0 { 12 } else { 24 }, pulsing)
+		animate_highlight_property(shadow, 'shadowOpacity', if i == 0 { 0.6 } else { 0.3 },
+			if i == 0 { 0.8 } else { 0.5 }, pulsing)
 	}
 }
 
@@ -179,12 +192,15 @@ fn (mut surface NativeActionSurface) refresh_highlight() {
 	transaction := get_class('CATransaction')
 	msg_void(transaction, 'begin')
 	msg_void_bool(transaction, 'setDisableActions:', true)
-	mask_ready := if surface.highlighted { surface.prepare_highlight_mask() } else { false }
+	mask_ready := !is_nil(surface.highlight_edges[0])
+		|| (surface.highlighted && surface.prepare_highlight_mask())
 	msg_void_rect(surface.highlight_layer, 'setFrame:', frame)
 	msg_void_rect(surface.highlight_radial, 'setFrame:', frame)
 	msg_void_rect(surface.highlight_border, 'setFrame:', frame)
 	msg_void_rect(surface.highlight_mask, 'setFrame:', frame)
-	if mask_ready { surface.layout_highlight_edges(frame, 2) }
+	if mask_ready && (surface.highlighted || size_changed) {
+		surface.layout_highlight_edges(frame, 2)
+	}
 	for shadow in surface.highlight_shadows { msg_void_rect(shadow, 'setFrame:', frame) }
 	msg_void(transaction, 'commit')
 	if surface.highlighted && width > 0 && height > 0 {
@@ -199,12 +215,12 @@ fn (mut surface NativeActionSurface) refresh_highlight() {
 	} else {
 		f32(0)
 	})
-	msg_void(transaction, 'commit')
-	if !surface.highlighted {
-		for edge in surface.highlight_edges { msg_void(edge, 'removeAllAnimations') }
-		for shadow in surface.highlight_shadows { msg_void(shadow, 'removeAllAnimations') }
-	} else if mask_ready && (size_changed
-		|| is_nil(msg_id1(surface.highlight_edges[0], 'animationForKey:', nsstring('bounds.size.height')))) {
-		surface.start_highlight_pulse(frame)
+	pulse := msg_id1(surface.highlight_edges[0], 'animationForKey:', nsstring('bounds.size.height'))
+	pulsing := msg_bool(pulse, 'autoreverses')
+	if surface.highlighted && mask_ready && (size_changed || !pulsing) {
+		surface.animate_highlight_pulse(frame, true)
+	} else if !surface.highlighted && pulsing {
+		surface.animate_highlight_pulse(frame, false)
 	}
+	msg_void(transaction, 'commit')
 }

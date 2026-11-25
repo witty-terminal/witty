@@ -91,14 +91,10 @@ static inline void *witty_overlay_test_png(void *object) {
 
 // The test window belongs to this process, so its composited image can be
 // captured without recording the display or another application's windows.
-static inline void *witty_overlay_test_window_png(NSWindow *window) {
+static inline void *witty_overlay_test_current_window_png(NSWindow *window) {
     typedef CGImageRef (*WindowImage)(CGRect, CGWindowListOption, CGWindowID, CGWindowImageOption);
     WindowImage capture = (WindowImage)dlsym(RTLD_DEFAULT, "CGWindowListCreateImage");
     if (!capture) return nil;
-    [window orderBack:nil];
-    [window displayIfNeeded];
-    [CATransaction flush];
-    [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.4]];
     CGWindowID identifier = (CGWindowID)window.windowNumber;
     CGWindowListOption options = kCGWindowListOptionIncludingWindow;
     NSArray *info = (NSArray *)CGWindowListCopyWindowInfo(options, identifier);
@@ -112,4 +108,12 @@ static inline void *witty_overlay_test_window_png(NSWindow *window) {
     NSData *png = [bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
     [bitmap release];
     return png;
+}
+
+static inline void *witty_overlay_test_window_png(NSWindow *window) {
+    [window orderBack:nil];
+    [window displayIfNeeded];
+    [CATransaction flush];
+    [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.4]];
+    return witty_overlay_test_current_window_png(window);
 }

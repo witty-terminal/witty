@@ -12,6 +12,8 @@ fn C.witty_overlay_test_has_16bit_coverage(layer ObjId) bool
 fn C.witty_overlay_test_window_fill_matches(layer ObjId, color ObjId) bool
 fn C.witty_overlay_test_png(view ObjId) ObjId
 fn C.witty_overlay_test_window_png(window ObjId) ObjId
+fn C.witty_overlay_test_current_window_png(window ObjId) ObjId
+fn C.CACurrentMediaTime() f64
 
 fn test_source_native_visual_layers_and_cursor_consumers() {
 	app_init()
@@ -108,7 +110,20 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	}
 	msg_void(surface.highlight_timer, 'fire')
 	assert !surface.highlighted
-	assert is_nil(msg_id1(surface.highlight_edges[0], 'animationForKey:', nsstring('bounds.size.height')))
+	surface.refresh()
+	for i, edge in surface.highlight_edges {
+		key := if i < 2 { 'bounds.size.height' } else { 'bounds.size.width' }
+		fade := msg_id1(edge, 'animationForKey:', nsstring(key))
+		assert msg_f64(fade, 'duration') == 0.4
+		assert !msg_bool(fade, 'autoreverses')
+		assert msg_f64(msg_id(fade, 'toValue'), 'doubleValue') == 2
+	}
+	for i, shadow in surface.highlight_shadows {
+		fade := msg_id1(shadow, 'animationForKey:', nsstring('shadowRadius'))
+		assert msg_f64(fade, 'duration') == 0.4
+		assert !msg_bool(fade, 'autoreverses')
+		assert msg_f64(msg_id(fade, 'toValue'), 'doubleValue') == if i == 0 { 8 } else { 16 }
+	}
 	set_cursor_shape(view, 8)
 	assert msg_id(surface.scroll.scroll, 'documentCursor') == msg_id(get_class('NSCursor'), 'IBeamCursor')
 	assert cursor_for_shape(4) == none
@@ -386,6 +401,22 @@ fn test_native_highlight_overlay_capture() {
 	C.witty_canvas_place_overlay(view, base, nil_obj())
 	C.witty_canvas_place_overlay(view, surface.overlay, nil_obj())
 	msg_void(base, 'release')
+	fade_output := os.getenv('WITTY_HIGHLIGHT_FADE_OUTPUT')
+	if fade_output != '' {
+		assert !is_nil(C.witty_overlay_test_window_png(window))
+		loop := msg_id(get_class('NSRunLoop'), 'currentRunLoop')
+		start := C.CACurrentMediaTime()
+		surface.presented()
+		for ms in [200, 300, 360, 395, 420, 440, 470, 520, 600, 750, 850] {
+			wait := f64(ms) / 1000 - (C.CACurrentMediaTime() - start)
+			msg_void1(loop, 'runUntilDate:', msg_id_f64(get_class('NSDate'),
+				'dateWithTimeIntervalSinceNow:', wait))
+			png := C.witty_overlay_test_current_window_png(window)
+			assert !is_nil(png)
+			assert msg_bool2(png, 'writeToFile:atomically:',
+				nsstring(os.join_path(fade_output, 'witty-${ms}.png')), ObjId(1))
+		}
+	}
 	for size_index, name in ['small', 'medium', 'large'] {
 		width := [103, 320, 1030][size_index]
 		height := [63, 240, 800][size_index]
