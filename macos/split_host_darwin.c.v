@@ -13,6 +13,10 @@ pub mut:
 	drag_path []bool
 	dragging bool
 	drag_bounds SplitBounds
+mut:
+	focused_view voidptr
+	dim_fill u32
+	dim_opacity f64
 }
 
 fn split_host(self ObjId) ?&NativeSplitHost {
@@ -41,7 +45,7 @@ pub fn create_split_host(view voidptr) &NativeSplitHost {
 	window := msg_id(view, 'window')
 	bounds := msg_rect(view, 'bounds')
 	container := msg_id_rect(alloc('VTTerminalSplitHost'), 'initWithFrame:', bounds)
-	host := &NativeSplitHost{container: voidptr(container), tree: NativeSplitTree{root: native_split_leaf(view)}}
+	host := &NativeSplitHost{container: voidptr(container), tree: NativeSplitTree{root: native_split_leaf(view)}, focused_view: view}
 	C.macos_objc_set_ptr_ivar(container, cstr('vtSplitHost'), voidptr(host))
 	// The immutable tree owns the views just as the Swift SurfaceTree does.
 	msg_void(view, 'retain')
@@ -80,6 +84,28 @@ pub fn (mut host NativeSplitHost) layout() {
 		b := slot.bounds
 		msg_void_rect(surface_container(slot.node.view), 'setFrame:', objc_rect(b.x, b.y, b.width, b.height))
 		surface_container_layout(slot.node.view)
+	}
+	host.refresh_dimming()
+}
+
+pub fn (mut host NativeSplitHost) set_dimming(config NativeWindowConfig, focused_view voidptr) {
+	fill := config.unfocused_split_fill or { config.background }
+	opacity := 1.0 - config.unfocused_split_opacity
+	if host.focused_view == focused_view && host.dim_fill == fill && host.dim_opacity == opacity {
+		return
+	}
+	host.focused_view = focused_view
+	host.dim_fill = fill
+	host.dim_opacity = opacity
+	host.refresh_dimming()
+}
+
+fn (host &NativeSplitHost) refresh_dimming() {
+	leaves := host.tree.root.leaves()
+	focused := if host.focused_view in leaves { host.focused_view } else if leaves.len > 0 { leaves[0] } else { unsafe { nil } }
+	for view in leaves {
+		dim := leaves.len > 1 && host.tree.zoomed == unsafe { nil } && view != focused
+		set_surface_split_dimming(view, host.dim_fill, if dim { host.dim_opacity } else { 0.0 })
 	}
 }
 pub fn view_window(view voidptr) voidptr { return msg_id(view, 'window') }

@@ -19,6 +19,7 @@ mut:
  inspector ObjId
  inspector_ratio f64 = 0.5
  inspector_dragging bool
+ split_dimming ObjId
 }
 fn C.witty_action_scroll_point(clip voidptr, y f64)
 fn C.witty_action_content_height(scroll voidptr) f64
@@ -103,13 +104,40 @@ pub fn surface_container(view voidptr) voidptr {
 pub fn surface_container_layout(view voidptr) {
  if mut surface := g_action_surfaces[u64(view)] { if surface.scroll != unsafe { nil } { surface.scroll.layout() } }
 }
+
+fn set_surface_split_dimming(view voidptr, fill u32, opacity f64) {
+	mut surface := g_action_surfaces[u64(view)] or { return }
+	if surface.scroll == unsafe { nil } { return }
+	mut scroll := surface.scroll
+	if opacity <= 0 {
+		if !is_nil(scroll.split_dimming) {
+			msg_void_bool(scroll.split_dimming, 'setHidden:', true)
+		}
+		return
+	}
+	if is_nil(scroll.split_dimming) {
+		scroll.split_dimming = msg_id_rect(alloc('WittyPassiveOverlay'), 'initWithFrame:', msg_rect(scroll.scroll, 'frame'))
+		msg_void_bool(scroll.split_dimming, 'setWantsLayer:', true)
+		msg_void1(scroll.container, 'addSubview:', scroll.split_dimming)
+		msg_void(scroll.split_dimming, 'release')
+	}
+	transaction := get_class('CATransaction')
+	msg_void(transaction, 'begin')
+	msg_void_bool(transaction, 'setDisableActions:', true)
+	msg_void1(msg_id(scroll.split_dimming, 'layer'), 'setBackgroundColor:', msg_id(native_color(fill, opacity), 'CGColor'))
+	msg_void_bool(scroll.split_dimming, 'setHidden:', false)
+	msg_void(transaction, 'commit')
+}
+
 fn surface_scroll_resize(self ObjId,_cmd Sel,_size ObjCSize) { if mut state := native_surface_scroll(self) { state.layout() } }
 fn surface_scroll_layout(self ObjId,_cmd Sel) { if mut state := native_surface_scroll(self) { state.layout() } }
 fn (mut state NativeSurfaceScroll) layout() {
  bounds := msg_rect(state.container,'bounds')
  height := if is_nil(state.inspector) { bounds.height } else { bounds.height * state.inspector_ratio - 0.5 }
  scroll_y := if is_nil(state.inspector) { 0.0 } else { bounds.height - height }
- msg_void_rect(state.scroll,'setFrame:',objc_rect(0,scroll_y,bounds.width,height))
+ scroll_frame := objc_rect(0,scroll_y,bounds.width,height)
+ msg_void_rect(state.scroll,'setFrame:',scroll_frame)
+ if !is_nil(state.split_dimming) { msg_void_rect(state.split_dimming, 'setFrame:', scroll_frame) }
  if !is_nil(state.inspector) { msg_void_rect(state.inspector,'setFrame:',objc_rect(0,0,bounds.width,scroll_y-1)) }
  visible := msg_rect(state.scroll,'bounds')
  doc := msg_rect(state.document,'frame')

@@ -7,7 +7,12 @@ fn native_window_config(config &configpkg.Config) macos.NativeWindowConfig {
 	c := config.background
 	// Ghostty.Config's title and windowTitleFontFamily getters use Swift's
 	// repairing String(cString:), including its first-NUL boundary.
-	return macos.NativeWindowConfig{title: if title := config.title { macos.source_c_utf8_repair(title) } else { none }, window_title_font_family: if family := config.window_title_font_family { macos.source_c_utf8_repair(family) } else { none }, decorations: config.window_decoration != .none_, position_x: config.window_position_x, position_y: config.window_position_y, buttons_hidden: config.macos_window_buttons == .hidden, shadow: config.macos_window_shadow, titlebar_style: int(config.macos_titlebar_style), theme: int(config.window_theme), background: u32(c.r) << 16 | u32(c.g) << 8 | c.b, opacity: config.background_opacity, blur: config.background_blur.cval(), step_resize: config.window_step_resize, proxy_icon: config.macos_titlebar_proxy_icon == .visible, preserve_split_zoom: config.split_preserve_zoom.navigation(), focus_follows_mouse: config.focus_follows_mouse, maximize: config.maximize}
+	return macos.NativeWindowConfig{title: if title := config.title { macos.source_c_utf8_repair(title) } else { none }, window_title_font_family: if family := config.window_title_font_family { macos.source_c_utf8_repair(family) } else { none }, decorations: config.window_decoration != .none_, position_x: config.window_position_x, position_y: config.window_position_y, buttons_hidden: config.macos_window_buttons == .hidden, shadow: config.macos_window_shadow, titlebar_style: int(config.macos_titlebar_style), theme: int(config.window_theme), background: u32(c.r) << 16 | u32(c.g) << 8 | c.b, opacity: config.background_opacity, blur: config.background_blur.cval(), step_resize: config.window_step_resize, proxy_icon: config.macos_titlebar_proxy_icon == .visible, preserve_split_zoom: config.split_preserve_zoom.navigation(), focus_follows_mouse: config.focus_follows_mouse, maximize: config.maximize
+		unfocused_split_opacity: config.unfocused_split_opacity
+		unfocused_split_fill: if fill := config.unfocused_split_fill {
+			?u32(u32(fill.r) << 16 | u32(fill.g) << 8 | fill.b)
+		} else { none }
+	}
 }
 fn native_controller_config(current &TermState) macos.NativeWindowConfig {
 	if current.controller != unsafe { nil } { return current.controller.app_config }
@@ -20,9 +25,17 @@ fn native_surface_appearance_config(current &TermState) macos.NativeWindowConfig
 	base := current.controller.creation_config
 	return macos.NativeWindowConfig{...base, window_title_font_family: current.native_config.window_title_font_family, shadow: current.native_config.shadow, theme: current.native_config.theme, background: current.native_config.background, opacity: current.native_config.opacity, blur: current.native_config.blur}
 }
+fn sync_native_split_dimming(mut controller TerminalController) {
+	if controller.host == unsafe { nil } { return }
+	// Find and other native controls can temporarily own the first responder.
+	focused := if controller.focused == unsafe { nil } { unsafe { nil } } else { controller.focused.view }
+	controller.host.set_dimming(controller.app_config, focused)
+}
+
 fn sync_native_window(current &TermState) {
 	if current.controller == unsafe { nil } { return }
 	mut controller := current.controller
+	sync_native_split_dimming(mut controller)
 	if current.controller.quick {
 		macos.sync_quick_terminal_appearance(current.controller.force_opaque)
 		sync_native_surface_color_scheme(mut controller)

@@ -97,6 +97,7 @@ fn attach_restored_controller(view voidptr,saved NativeRestoredController,quick 
 		state.closing=false
 		if controller.focused == unsafe { nil } || state.actions.uuid == (saved.focused_uuid or { '' }) { controller.focused=state }
 	}
+	sync_native_split_dimming(mut controller)
 	if controller.focused != unsafe { nil } {
 		state:=controller.focused
 		if !quick { macos.set_native_window_title_font(state.view, state.native_config.window_title_font_family) }

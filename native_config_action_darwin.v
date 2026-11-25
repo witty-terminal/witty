@@ -47,6 +47,7 @@ fn native_config_change_main(context voidptr) {
 		for mut controller in runtime.controllers {
 			if controller.closed { continue }
 			controller.app_config = projection
+			sync_native_split_dimming(mut controller)
 			// QuickTerminalWindow is an NSPanel, so the regular TerminalWindow
 			// empty-tree branch is excluded regardless of focusedSurface.
 			if controller.quick {
