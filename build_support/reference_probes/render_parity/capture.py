@@ -13,7 +13,7 @@ from PIL import Image
 def configure_xvfb_capture(scale=1):
     os.environ.update(
         GDK_BACKEND="x11",
-        GSK_RENDERER="cairo",
+        GSK_RENDERER=os.environ.get("GSK_RENDERER", "cairo"),
         GDK_SCALE=str(scale),
         GDK_DPI_SCALE="1",
         GSETTINGS_BACKEND="memory",

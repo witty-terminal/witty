@@ -234,7 +234,7 @@ const resize_overlay_ui = '<?xml version="1.0" encoding="UTF-8"?>
     <property name="overlay-halign">center</property>
     <property name="overlay-valign">center</property>
     <child>
-      <object class="AdwBin">
+      <object class="WittyCanvasOverlayBin">
         <child>
           <object class="GtkLabel" id="label">
             <style>
@@ -372,6 +372,7 @@ fn resize_overlay_finalize(obj voidptr) {
 // registers the five properties, and overrides the get/set/dispose/finalize
 // vfuncs. Mirrors the ghostty `Class.init`.
 fn resize_overlay_class_init(klass voidptr, class_data voidptr) {
+	C.witty_gtk_canvas_overlay_register()
 	C.g_type_class_adjust_private_offset(klass, &g_resize_overlay_priv_offset)
 	bytes := C.g_bytes_new_static(resize_overlay_ui.str, uint(resize_overlay_ui.len))
 	C.gtk_widget_class_set_template(klass, bytes)

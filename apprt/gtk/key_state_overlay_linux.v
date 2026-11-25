@@ -263,7 +263,7 @@ const key_state_overlay_ui = '<?xml version="1.0" encoding="UTF-8"?>
       </object>
     </child>
     <child>
-      <object class="AdwBin">
+      <object class="WittyCanvasOverlayBin">
         <child>
           <object class="GtkBox" id="container">
             <style>
@@ -506,6 +506,7 @@ fn key_state_overlay_finalize(obj voidptr) {
 // callbacks, registers the five properties, and overrides the
 // get/set/dispose/finalize vfuncs. Mirrors the ghostty `Class.init`.
 fn key_state_overlay_class_init(klass voidptr, class_data voidptr) {
+	C.witty_gtk_canvas_overlay_register()
 	C.g_type_class_adjust_private_offset(klass, &g_key_state_overlay_priv_offset)
 	bytes := C.g_bytes_new_static(key_state_overlay_ui.str, uint(key_state_overlay_ui.len))
 	C.gtk_widget_class_set_template(klass, bytes)

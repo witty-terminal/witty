@@ -44,7 +44,7 @@ WALLPAPER_OPTIONS = {
 }
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
-    *INTERACTIVE_FIXTURES, "split-search", "visual-bell", "progress-overlay",
+    *INTERACTIVE_FIXTURES, "split-search", "visual-bell", "progress-overlay", "resize-overlay", "key-state-overlay",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -128,6 +128,10 @@ def fixture_args(name, work):
             *options, "--bell-features=border,no-title,no-attention",
             "-e", sys.executable, str(PROBE / "fixtures.py"), name, str(work / "bell.trigger"),
         ]
+    if name == "resize-overlay":
+        options.extend(("--resize-overlay=always", "--resize-overlay-duration=5s"))
+    if name == "key-state-overlay":
+        options.extend(("--keybind=copy/escape=deactivate_key_table", "--keybind=ctrl+alt+k=activate_key_table:copy"))
     if name == "shader":
         options.extend(
             (
@@ -274,6 +278,33 @@ def capture_progress_overlay(binary, args, helper, prefix, settle, scale, *, wit
                     return
             time.sleep(0.05)
         raise RuntimeError("The paused progress fill did not reach 51%")
+
+
+def capture_mode_overlay(binary, args, helper, prefix, name, settle, scale, *, witty=False):
+    capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
+    env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(settle + 8)}
+    with open_window([binary, *capture_args, *args], prefix.with_suffix(".log"), env=env) as (_, window):
+        time.sleep(settle)
+        with read_window(helper, window) as idle:
+            width, height = idle.size
+        command = ["xdotool", "windowfocus", "--sync", window]
+        if name == "resize-overlay":
+            width += 100 * scale
+            command.extend(("windowsize", "--sync", window, str(width), str(height)))
+            y = height // 2
+        else:
+            command.extend(("key", "ctrl+alt+k"))
+            y = height - 18 * scale
+        subprocess.run(command, check=True, timeout=5)
+        probe = (width // 2 - 10 * scale, y - 4 * scale, width // 2 + 10 * scale, y + 4 * scale)
+        deadline = time.monotonic() + 4
+        while time.monotonic() < deadline:
+            with read_window(helper, window) as image:
+                if image.size == (width, height) and image.crop(probe).getcolors(1) is None:
+                    image.save(prefix.with_suffix(".png"))
+                    return
+            time.sleep(0.05)
+        raise RuntimeError(f"The {name} did not render")
 
 
 def drag_wide_selection(window, padding, cell_width, cell_height):
@@ -501,6 +532,7 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
     write_versions(output, witty, ghostty)
     with (output / "versions.txt").open("a") as versions:
         versions.write(f"GTK scale: {scale}\n")
+        versions.write(f"GTK renderer: {os.environ['GSK_RENDERER']}\n")
     print(f"Captures and logs: {output}", flush=True)
     matches = True
     with (output / "results.tsv").open("w") as report:
@@ -527,6 +559,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name == "progress-overlay":
                 capture_progress_overlay(ghostty, args, helper, expected, settle, scale)
                 capture_progress_overlay(witty, args, helper, actual, settle, scale, witty=True)
+            elif name in ("resize-overlay", "key-state-overlay"):
+                capture_mode_overlay(ghostty, args, helper, expected, name, settle, scale)
+                capture_mode_overlay(witty, args, helper, actual, name, settle, scale, witty=True)
             else:
                 capture_ghostty([ghostty, *args], helper, expected, settle)
                 capture_witty(witty, args, actual, settle)

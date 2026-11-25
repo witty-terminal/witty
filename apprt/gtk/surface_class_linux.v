@@ -2579,6 +2579,15 @@ fn (mut self SurfaceWidget) apply_resize_overlay_config() {
 pub fn (mut self SurfaceWidget) apply_config() {
 	self.apply_resize_overlay_config()
 	use_canvas := !isnil(self.config) && gtk_canvas_styles_enabled(self.config.get())
+	if !isnil(self.resize_overlay) {
+		gtk_canvas_overlay_set_enabled(self.resize_overlay.widget, use_canvas)
+	}
+	if !isnil(self.search_overlay) {
+		gtk_canvas_overlay_set_enabled(self.search_overlay.widget, use_canvas)
+	}
+	if !isnil(self.key_state_overlay) {
+		gtk_canvas_overlay_set_enabled(self.key_state_overlay.widget, use_canvas)
+	}
 	if !isnil(self.progress_bar_overlay) {
 		C.witty_gtk_progress_set_canvas(self.progress_bar_overlay, use_canvas)
 	}

@@ -492,6 +492,8 @@ def main():
             b"\x1b[33mline that should remain visible after resize\x1b[0m\x1b[2 q\x1b[?25h"
         ),
         "shader": b"Witty shader chain\n",
+        "resize-overlay": b"Resize the terminal\r\n",
+        "key-state-overlay": b"Activate a key table\r\n",
     }
     sys.stdout.buffer.write(CLEAR)
     sys.stdout.flush()
