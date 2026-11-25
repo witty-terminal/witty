@@ -7,10 +7,11 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 
 from PIL import Image
+
+from capture import capture_witty, output_directory, write_versions
 
 
 PROBE = Path(__file__).resolve().parent
@@ -130,21 +131,6 @@ def capture_ghostty(command, helper, prefix, settle):
                     process.wait()
 
 
-def capture_witty(binary, args, prefix, settle):
-    png = prefix.with_suffix(".png")
-    log_path = prefix.with_suffix(".log")
-    with log_path.open("wb") as log:
-        result = subprocess.run(
-            [binary, f"--screenshot={png}", *args],
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            env={**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(settle)},
-            timeout=15 + settle,
-        )
-    if result.returncode or not png.is_file():
-        raise RuntimeError(f"Witty capture failed with status {result.returncode}. See {log_path}")
-
-
 def compare(name, actual_path, expected_path, difference_path):
     with Image.open(actual_path) as png:
         actual = png.convert("RGBA")
@@ -193,19 +179,7 @@ def run(witty, ghostty, output, settle, fixtures):
         ["cc", "-Wall", "-Wextra", "-Werror", PROBE / "window_ppm.c", "-o", helper, "-lX11"],
         check=True,
     )
-    with (output / "versions.txt").open("w") as versions:
-        for binary in (witty, ghostty):
-            digest = hashlib.sha256()
-            with binary.open("rb") as executable:
-                for chunk in iter(lambda: executable.read(1024 * 1024), b""):
-                    digest.update(chunk)
-            versions.write(f"{digest.hexdigest()}  {binary}\n")
-            versions.write(
-                subprocess.check_output(
-                    [binary, "--version"], text=True, stderr=subprocess.STDOUT, timeout=10
-                )
-            )
-            versions.write("\n")
+    write_versions(output, witty, ghostty)
     print(f"Captures and logs: {output}", flush=True)
     matches = True
     with (output / "results.tsv").open("w") as report:
@@ -249,13 +223,7 @@ def main():
         if not shutil.which(tool):
             parser.error(f"missing {tool}")
     try:
-        if args.output:
-            output = args.output.resolve()
-            output.mkdir(parents=True)
-        else:
-            base = PROBE.parents[2] / ".witty-build" / "render-parity"
-            base.mkdir(parents=True, exist_ok=True)
-            output = Path(tempfile.mkdtemp(prefix="run-", dir=base))
+        output = output_directory(args.output)
         return run(args.witty.resolve(), args.ghostty.resolve(), output, args.settle_seconds, fixtures)
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         print(f"Render comparison failed: {error}", file=sys.stderr)

@@ -40,4 +40,4 @@ xvfb-run -a ./v-out/bin/witty --screenshot=/tmp/witty.png -e /bin/ls --color=alw
 
 Set `SCREENSHOT_SETTLE_SECONDS` to change the default two-second wait before capture.
 
-The [Linux render comparison probe](build_support/reference_probes/render_parity/README.md) replays common terminal workloads in Witty and Ghostty and compares their decoded pixels.
+The [render comparison probes](build_support/reference_probes/render_parity/README.md) replay common workloads and compare Witty’s screenshots with freshly captured Ghostty windows on Linux and recorded Ghostty reference hashes on macOS.
