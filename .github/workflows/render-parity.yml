@@ -63,7 +63,7 @@ jobs:
           bash .github/scripts/linux-render-parity.sh \
             "$RUNNER_TEMP/witty/bin/witty" "$RUNNER_TEMP/render-parity-gl-hidpi" \
             --scale 2 --fixture font-zoom --fixture wallpaper-reload --fixture shader-reload \
-            --fixture scrollbar --fixture scrollbar-themed \
+            --fixture scrollbar --fixture scrollbar-themed --fixture terminal-colors \
             --fixture command-palette-resize --fixture command-palette-themed
       - name: Upload screenshots and comparison report
         if: ${{ !cancelled() }}

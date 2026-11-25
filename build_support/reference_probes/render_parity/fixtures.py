@@ -369,6 +369,31 @@ def wait_for_initial_grid():
     wait_for_terminal_size(lambda size: size == (GRID_COLUMNS, GRID_ROWS), f"a {GRID_COLUMNS}×{GRID_ROWS} PTY")
 
 
+def terminal_colors(commands):
+    wait_for_initial_grid()
+    output = sys.stdout.buffer
+    screen = (
+        b"\x1b[7m    \x1b[0m Default foreground\r\n"
+        b"\x1b[41m    \x1b[0m ANSI palette entry\r\n"
+        b"\x1b[2mFaint text\x1b[0m  \x1b[1;31mBold red\x1b[0m"
+        b"\x1b[5;5H\x1b[2 q\x1b[?25h"
+    )
+    output.write(screen)
+    output.flush()
+    while True:
+        try:
+            update = commands.read_bytes()
+        except FileNotFoundError:
+            time.sleep(0.05)
+            continue
+        commands.unlink()
+        output.write(update)
+        if update.startswith(b"\x1b]10;"):
+            # Repaint as a full-screen application would after setting its foreground.
+            output.write(CLEAR + screen)
+        output.flush()
+
+
 def resize_pending_wrap():
     wait_for_initial_grid()
     # The next printable character would normally wrap to the next row.
@@ -579,6 +604,9 @@ def main():
             (f"\x1b[48;2;{color}m    \x1b[0m Shader reload\r\n"
              "\x1b[38;2;235;174;114mTerminal text across multiple passes\x1b[0m\r\n").encode()
         )
+    elif fixture == "terminal-colors":
+        terminal_colors(Path(sys.argv[2]))
+        return
     elif fixture == "scrollbar":
         wait_for_initial_grid()
         red, green, blue = SCROLLBAR_MARKER

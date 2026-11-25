@@ -41,6 +41,7 @@ The resize fixtures narrow the window with the cursor after blank cells or near 
 The `font-zoom` fixture enlarges, shrinks, and resets the font while the terminal is open. It checks live reflow and compares text, emoji, and sprites after the glyph atlases change.
 The `wallpaper-reload` fixture loads a PNG, turns on tiling, changes its opacity, and replaces it with a progressive JPEG. It then removes the wallpaper and reloads the original PNG while the terminal text stays on screen.
 The `shader-reload` fixture enables a custom shader, adds and reorders a second pass, and replaces the chain with a single pass. It then removes and restores the shader while comparing the terminal text and colors at each stage.
+The `terminal-colors` fixture applies OSC palette, foreground, background, and cursor colors to the running terminal. It compares the rendered colors after resetting the overrides and after reloading new defaults from the configuration file.
 
 The `less` fixture captures an ANSI-colored file when it opens, after searching, and after advancing to the next match. The `tmux` fixture captures a two-pane session with box drawing, a colored status line, and focus switching with Ctrl+B followed by O.
 

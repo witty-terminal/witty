@@ -46,6 +46,7 @@ FONT_ZOOM_ACTIONS = (
 )
 WALLPAPER_RELOAD_STAGES = ("", "-load", "-repeat", "-fade", "-replace", "-remove", "-restore")
 SHADER_RELOAD_STAGES = ("", "-enable", "-chain", "-reorder", "-replace", "-remove", "-restore")
+TERMINAL_COLOR_STAGES = ("", "-palette", "-foreground", "-background", "-cursor", "-reset", "-reload")
 SCROLLBAR_FIXTURES = ("scrollbar", "scrollbar-themed")
 SCROLLBAR_STAGES = ("", "-drag", "-top")
 SCROLLBAR_THUMB = (33, 128, 205)
@@ -54,6 +55,7 @@ CAPTURE_STAGES = {
     "font-zoom": tuple(stage for stage, _, _ in FONT_ZOOM_ACTIONS),
     "wallpaper-reload": WALLPAPER_RELOAD_STAGES,
     "shader-reload": SHADER_RELOAD_STAGES,
+    "terminal-colors": TERMINAL_COLOR_STAGES,
     **dict.fromkeys(SCROLLBAR_FIXTURES, SCROLLBAR_STAGES),
 }
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
@@ -91,7 +93,8 @@ FIXTURES = (
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
     "kitty-delete-selection", "kitty-delete-visible", "kitty-chunked", "kitty-animation",
-    *WALLPAPER_OPTIONS, "wallpaper-reload", "ls", "git", "vim", *APPLICATION_STAGES, "shader", "shader-reload",
+    *WALLPAPER_OPTIONS, "wallpaper-reload", "ls", "git", "vim", *APPLICATION_STAGES,
+    "shader", "shader-reload", "terminal-colors",
 )
 OPTIONS = (
     "--config-default-files=false",
@@ -166,12 +169,18 @@ def fixture_args(name, work):
             "--keybind=ctrl+alt+2=decrease_font_size:3",
             "--keybind=ctrl+alt+3=reset_font_size",
         ))
-    if name in ("wallpaper-reload", "shader-reload"):
+    if name == "terminal-colors":
+        options = [option for option in options if not option.startswith((
+            "--foreground=", "--background=", "--cursor-color=",
+        ))]
+    if name in ("wallpaper-reload", "shader-reload", "terminal-colors"):
         options.extend((
             f"--config-file={work / f'{name}.conf'}",
             "--keybind=ctrl+alt+r=reload_config",
             "--app-notifications=no-config-reload",
         ))
+    if name == "terminal-colors":
+        return [*options, "-e", sys.executable, str(PROBE / "fixtures.py"), name, str(work / f"{name}.input")]
     if name == "tab-overview":
         program = shlex.join([sys.executable, str(PROBE / "fixtures.py"), name, str(work / "overview-tab-count")])
         return [
@@ -537,6 +546,57 @@ def capture_scrollbar(binary, args, helper, output, name, app, settle, scale):
                 with Image.open(path) as frame:
                     pixels = thumb_pixels(frame, y)
                     x = pixels[len(pixels) // 2]
+
+
+def capture_terminal_colors(binary, args, helper, output, work, app, settle, scale):
+    config = work / "terminal-colors.conf"
+    commands = work / "terminal-colors.input"
+    commands.unlink(missing_ok=True)
+    pending = commands.with_suffix(".tmp")
+
+    def write_colors(colors):
+        fg, bg, cursor, palette = (bytes(color).hex() for color in colors)
+        config.write_text(f"foreground = {fg}\nbackground = {bg}\ncursor-color = {cursor}\npalette = 1={palette}\n")
+
+    palette = (195, 67, 101)
+    original = (FOREGROUND, BACKGROUND, CURSOR_COLOR, palette)
+    configured = ((197, 233, 214), (28, 42, 46), (240, 156, 91), (184, 103, 189))
+    foreground, background, cursor, palette_override = (
+        (249, 155, 128), (56, 32, 49), (125, 167, 252), (109, 196, 134),
+    )
+    write_colors(original)
+    stages = (
+        (None, original),
+        (f"\x1b]4;1;#{bytes(palette_override).hex()}\x1b\\", (FOREGROUND, BACKGROUND, CURSOR_COLOR, palette_override)),
+        (f"\x1b]10;#{bytes(foreground).hex()}\x1b\\", (foreground, BACKGROUND, CURSOR_COLOR, palette_override)),
+        (f"\x1b]11;#{bytes(background).hex()}\x1b\\", (foreground, background, CURSOR_COLOR, palette_override)),
+        (f"\x1b]12;#{bytes(cursor).hex()}\x1b\\", (foreground, background, cursor, palette_override)),
+        ("\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\\x1b]104;1\x1b\\", original),
+        (None, configured),
+    )
+    capture_args = [f"--screenshot={output / 'terminal-colors-surface.png'}"] if app == "witty" else []
+    env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(len(stages) * (settle + 5) + 5)}
+    with open_window([binary, *capture_args, *args], output / f"terminal-colors-{app}.log", env=env) as (_, window):
+        subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True, timeout=5)
+        for stage, (command, expected) in zip(TERMINAL_COLOR_STAGES, stages, strict=True):
+            if command:
+                pending.write_bytes(command.encode())
+                pending.replace(commands)
+            if stage == "-reload":
+                write_colors(configured)
+                subprocess.run(["xdotool", "key", "ctrl+alt+r"], check=True, timeout=5)
+
+            def rendered(image):
+                padding = PADDING * scale
+                cell_width = (image.width - 2 * padding) // GRID_COLUMNS
+                cell_height = (image.height - 2 * padding) // GRID_ROWS
+                x = padding + scale
+                y = padding + scale
+                samples = ((x, y), (image.width // 2, image.height // 2),
+                           (x + 4 * cell_width, y + 4 * cell_height), (x, y + cell_height))
+                return tuple(image.getpixel(point) for point in samples) == expected
+
+            capture_application_frame(helper, window, output / f"terminal-colors{stage}-{app}.png", settle, rendered)
 
 
 def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir, *, themed=False, witty=False):
@@ -1348,6 +1408,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name in SCROLLBAR_FIXTURES:
                 capture_scrollbar(ghostty, args, helper, output, name, "ghostty", settle, scale)
                 capture_scrollbar(witty, args, helper, output, name, "witty", settle, scale)
+            elif name == "terminal-colors":
+                capture_terminal_colors(ghostty, args, helper, output, work, "ghostty", settle, scale)
+                capture_terminal_colors(witty, args, helper, output, work, "witty", settle, scale)
             elif name in INTERACTIVE_FIXTURES:
                 capture_interactive(ghostty, args, helper, expected, name, settle, scale)
                 capture_interactive(witty, args, helper, actual, name, settle, scale, witty=True)

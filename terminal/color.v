@@ -211,9 +211,9 @@ pub fn (mut self DynamicRGB) set(color RGB) {
 	self.override_color = color
 }
 
-// reset resets the override to the default color.
+// reset clears the override so the effective color follows the configured default.
 pub fn (mut self DynamicRGB) reset() {
-	self.override_color = self.default_color
+	self.override_color = none
 }
 
 // ============================================================

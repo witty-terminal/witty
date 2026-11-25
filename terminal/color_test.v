@@ -361,3 +361,19 @@ fn test_dynamic_palette_change_default_multiple_changes() {
 	assert p.current[3].eql(blue)
 	assert p.mask_count() == 3
 }
+
+fn test_dynamic_rgb_reset_follows_default_changes() {
+	initial := RGB{ r: 22, g: 24, b: 32 }
+	configured := RGB{ r: 28, g: 42, b: 46 }
+	custom := RGB{ r: 56, g: 32, b: 49 }
+	mut color := DynamicRGB.init(initial)
+	color.set(custom)
+	assert color.get() == ?RGB(custom)
+
+	color.reset()
+	assert color.get() == ?RGB(initial)
+	color.default_color = configured
+	assert color.get() == ?RGB(configured)
+	color.default_color = none
+	assert color.get() == none
+}
