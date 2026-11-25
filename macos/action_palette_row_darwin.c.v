@@ -6,6 +6,7 @@ import math
 
 fn C.witty_palette_row_text_width(text ObjId, size f64, medium bool) f64
 fn C.witty_palette_draw_row_text(context voidptr, text ObjId, color ObjId, size f64, medium bool, x f64, baseline f64, width f64, height f64)
+fn C.witty_palette_draw_matched_text(context voidptr, text ObjId, color ObjId, matches ObjId, accent ObjId, size f64, medium bool, x f64, baseline f64, width f64, height f64)
 fn C.witty_palette_draw_row_symbol(context voidptr, name ObjId, tint voidptr, x f64, height f64) f64
 fn C.witty_palette_draw_swatch(context voidptr, frame &ObjCRect, mask voidptr, color ObjId)
 
@@ -24,12 +25,14 @@ fn (option NativeCommandOption) row_subtitle() string {
 }
 
 fn (option NativeCommandOption) row_height() f64 {
-	height := palette_title_height + 2 * palette_row_padding
-	return if option.row_subtitle().len == 0 {
-		height
+	height := if option.row_subtitle().len == 0 {
+		palette_title_height
 	} else {
-		height + palette_subtitle_spacing + palette_subtitle_height
+		palette_title_height + palette_subtitle_spacing + palette_subtitle_height
 	}
+	badge := option.badge or { '' }
+	return (if badge.len > 0 { math.max(height, palette_badge_height) } else { height }) +
+		2 * palette_row_padding
 }
 
 fn new_palette_row(palette &NativeCommandPalette, index int, frame ObjCRect) ObjId {
@@ -110,6 +113,30 @@ fn draw_palette_row_swatch(context voidptr, frame ObjCRect, scale f64, color Obj
 	C.CFRelease(image)
 }
 
+fn draw_palette_shortcuts(context voidptr, symbols []string, color ObjId, right f64, left f64, height f64, scale f64) f64 {
+	if symbols.len == 0 { return right }
+	mut widths := []f64{cap: symbols.len}
+	mut width := f64(symbols.len - 1)
+	for symbol in symbols {
+		text_width := C.witty_palette_row_text_width(nsstring(symbol), 13, false)
+		widths << text_width
+		width += math.max(13.0, math.ceil(text_width * scale) / scale)
+	}
+	start := right - width
+	if start - palette_row_padding <= left { return right }
+
+	mut x := start
+	baseline := math.round(((height - palette_title_height) / 2 + 13) * scale) / scale
+	for i, symbol in symbols {
+		cell := math.max(13.0, math.ceil(widths[i] * scale) / scale)
+		centered := math.round((x + (cell - widths[i]) / 2) * scale) / scale
+		C.witty_palette_draw_row_text(context, nsstring(symbol), color, 13, false, centered, baseline,
+			cell, height)
+		x += cell + 1
+	}
+	return start - palette_row_padding
+}
+
 fn palette_draw_row(view ObjId, _cmd Sel, _rect ObjCRect) {
 	palette := palette_state(view) or { return }
 	context := native_canvas_overlay_context()
@@ -162,7 +189,8 @@ fn palette_draw_row(view ObjId, _cmd Sel, _rect ObjCRect) {
 			if width > 0 { x += width + palette_row_padding }
 		}
 	}
-	mut right := bounds.width - palette_row_padding
+	mut right := draw_palette_shortcuts(context, option.symbols, secondary_color,
+		bounds.width - palette_row_padding, x, bounds.height, scale)
 	if badge := option.badge {
 		if badge.len > 0 {
 			text := nsstring(badge)
@@ -179,11 +207,25 @@ fn palette_draw_row(view ObjId, _cmd Sel, _rect ObjCRect) {
 			}
 		}
 	}
-	C.witty_palette_draw_row_text(context, nsstring(option.title), msg_id(colors, 'labelColor'), 13,
-		option.emphasis, x, palette_row_padding + palette_title_height - 3, right - x, bounds.height)
+	query := nsstring(palette.query)
+	title := nsstring(option.title)
 	subtitle := option.row_subtitle()
+	title_matches := C.witty_palette_match_ranges(title, query)
+	title_baseline := if subtitle.len > 0 {
+		palette_row_padding + palette_title_height - 3
+	} else {
+		(bounds.height - palette_title_height) / 2 + 13
+	}
+	C.witty_palette_draw_matched_text(context, title, msg_id(colors, 'labelColor'), title_matches,
+		accent_color, 13, option.emphasis, x, title_baseline, right - x, bounds.height)
 	if subtitle.len > 0 {
-		C.witty_palette_draw_row_text(context, nsstring(subtitle), secondary_color, 10, false, x,
-			bounds.height - palette_row_padding - 3, right - x, bounds.height)
+		text := nsstring(subtitle)
+		matches := if is_nil(title_matches) {
+			C.witty_palette_match_ranges(text, query)
+		} else {
+			nil_obj()
+		}
+		C.witty_palette_draw_matched_text(context, text, secondary_color, matches, accent_color, 10,
+			false, x, bounds.height - palette_row_padding - 3, right - x, bounds.height)
 	}
 }

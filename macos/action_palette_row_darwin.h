@@ -44,16 +44,65 @@ static inline CTLineRef witty_palette_row_line(NSString *text, NSDictionary *att
     return line;
 }
 
-static inline void witty_palette_draw_row_text(CGContextRef context, NSString *text, NSColor *color,
+static inline NSArray<NSValue *> *witty_palette_match_ranges(NSString *text, NSString *query) {
+    if (query.length == 0 || text.length == 0) return nil;
+    NSRange found = [text rangeOfString:query options:NSCaseInsensitiveSearch];
+    if (found.location != NSNotFound) {
+        return @[[NSValue valueWithRange:[text rangeOfComposedCharacterSequencesForRange:found]]];
+    }
+
+    NSMutableArray<NSValue *> *matches = [NSMutableArray array];
+    NSCharacterSet *whitespace = [NSCharacterSet whitespaceAndNewlineCharacterSet];
+    __block NSUInteger offset = 0;
+    __block BOOL wordStart = YES;
+    [text enumerateSubstringsInRange:NSMakeRange(0, text.length)
+        options:NSStringEnumerationByComposedCharacterSequences
+        usingBlock:^(NSString *grapheme, NSRange range, NSRange enclosing, BOOL *stop) {
+            if ([grapheme rangeOfCharacterFromSet:whitespace].location != NSNotFound) {
+                wordStart = YES;
+                return;
+            }
+            if (!wordStart) return;
+            wordStart = NO;
+            NSRange next = [query rangeOfComposedCharacterSequenceAtIndex:offset];
+            NSString *initial = [query substringWithRange:next];
+            if ([grapheme.lowercaseString compare:initial.lowercaseString] == NSOrderedSame) {
+                [matches addObject:[NSValue valueWithRange:range]];
+                offset = NSMaxRange(next);
+                *stop = offset == query.length;
+            }
+        }];
+    return offset == query.length ? matches : nil;
+}
+
+static inline void witty_palette_draw_matched_text(CGContextRef context, NSString *text, NSColor *color,
+        NSArray<NSValue *> *matches, NSColor *accent,
         double size, bool medium, double x, double baseline, double width, double height) {
     if (width <= 0 || text.length == 0) return;
     NSRange newline = [text rangeOfCharacterFromSet:[NSCharacterSet newlineCharacterSet]];
+    NSRange visible = NSMakeRange(0, text.length);
     if (newline.location != NSNotFound) {
+        visible.length = newline.location;
         text = [[text substringToIndex:newline.location] stringByAppendingString:@"…"];
     }
     NSDictionary *attrs = @{NSFontAttributeName:witty_palette_row_font(size, medium),
         NSForegroundColorAttributeName:color};
-    CTLineRef line = witty_palette_row_line(text, attrs);
+    CTLineRef line;
+    if (matches.count > 0) {
+        NSMutableAttributedString *attributed = [[NSMutableAttributedString alloc] initWithString:text attributes:attrs];
+        // SwiftUI resolves the emphasized caption and body weights differently.
+        NSFontWeight weight = size == 10 ? NSFontWeightMedium : NSFontWeightSemibold;
+        NSDictionary *highlight = @{NSFontAttributeName:[NSFont systemFontOfSize:size weight:weight],
+            NSForegroundColorAttributeName:accent};
+        for (NSValue *value in matches) {
+            NSRange span = NSIntersectionRange(value.rangeValue, visible);
+            if (span.length > 0) [attributed addAttributes:highlight range:span];
+        }
+        line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)attributed);
+        [attributed release];
+    } else {
+        line = witty_palette_row_line(text, attrs);
+    }
     if (!line) return;
     if (CTLineGetTypographicBounds(line, NULL, NULL, NULL) > width) {
         CTLineRef token = witty_palette_row_line(@"…", attrs);
@@ -67,11 +116,25 @@ static inline void witty_palette_draw_row_text(CGContextRef context, NSString *t
     CGContextClipToRect(context, CGRectMake(x, 0, width, height));
     CGContextTranslateCTM(context, 0, height);
     CGContextScaleCTM(context, 1, -1);
-    CGContextSetTextMatrix(context, CGAffineTransformIdentity);
-    CGContextSetTextPosition(context, x, height - baseline);
-    CTLineDraw(line, context);
+    CFArrayRef runs = CTLineGetGlyphRuns(line);
+    for (CFIndex i = 0; i < CFArrayGetCount(runs); ++i) {
+        CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runs, i);
+        CTFontRef font = CFDictionaryGetValue(CTRunGetAttributes(run), kCTFontAttributeName);
+        // SwiftUI positions the color emoji fallback half a point lower.
+        bool colorGlyphs = font && (CTFontGetSymbolicTraits(font) & kCTFontColorGlyphsTrait);
+        CGContextSaveGState(context);
+        CGContextSetTextMatrix(context, CGAffineTransformIdentity);
+        CGContextSetTextPosition(context, x, height - baseline - (colorGlyphs ? 0.5 : 0));
+        CTRunDraw(run, context, CFRangeMake(0, 0));
+        CGContextRestoreGState(context);
+    }
     CGContextRestoreGState(context);
     CFRelease(line);
+}
+
+static inline void witty_palette_draw_row_text(CGContextRef context, NSString *text, NSColor *color,
+        double size, bool medium, double x, double baseline, double width, double height) {
+    witty_palette_draw_matched_text(context, text, color, nil, nil, size, medium, x, baseline, width, height);
 }
 
 static inline NSImage *witty_palette_row_symbol(NSString *name) {

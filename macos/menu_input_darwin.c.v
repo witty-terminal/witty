@@ -2,6 +2,10 @@ module macos
 
 import input
 
+#insert "@VMODROOT/macos/menu_input_darwin.h"
+
+fn C.witty_macos_writing_key_equivalent(code u16, command bool) ObjId
+
 // Ghostty.Input.keyboardShortcut and AppDelegate.syncMenuShortcut. The menu
 // stores its action so later native menu additions share the same conversion.
 pub struct MenuShortcut {
@@ -79,16 +83,44 @@ pub fn event_modifier_flags(mods int) u64 {
 // KeyboardShortcut+Extension.keyList / description used by key-sequence caps.
 pub fn shortcut_description(trigger input.Trigger) ?string {
 	shortcut := menu_shortcut(trigger) or { return none }
+	return shortcut_symbols(shortcut.key, trigger.mods).join('')
+}
+
+// Palette labels also resolve physical writing-system keys through the current
+// keyboard layout. The command modifier can select a different layout table.
+pub fn command_shortcut_symbols(trigger input.Trigger) []string {
+	if trigger.key is input.TriggerKeyPhysical {
+		physical := trigger.key.key
+		if physical == .delete {
+			return shortcut_symbols('\uF728', trigger.mods)
+		}
+		if int(physical) >= int(input.Key.backquote) && int(physical) <= int(input.Key.slash) {
+			for entry in input.keycodes_entries {
+				if entry.key == physical && entry.native != 0xffff {
+					key := C.witty_macos_writing_key_equivalent(u16(entry.native), trigger.mods.super_())
+					if !is_nil(key) { return shortcut_symbols(objc_utf8_string(key), trigger.mods) }
+					break
+				}
+			}
+			return []string{}
+		}
+	}
+	shortcut := menu_shortcut(trigger) or { return []string{} }
+	return shortcut_symbols(shortcut.key, trigger.mods)
+}
+
+fn shortcut_symbols(key string, modifiers input.Mods) []string {
 	mut parts := []string{}
-	mods := int(trigger.mods.int())
+	mods := int(modifiers.int())
 	if mods & 2 != 0 { parts << '⌃' }
 	if mods & 4 != 0 { parts << '⌥' }
 	if mods & 1 != 0 { parts << '⇧' }
 	if mods & 8 != 0 { parts << '⌘' }
-	parts << match shortcut.key {
+	parts << match key {
 		'\r' { '⏎' }
 		'\x1b' { '⎋' }
 		'\x7f' { '⌫' }
+		'\uF728' { '⌦' }
 		' ' { '␣' }
 		'\t' { '⇥' }
 		'\uF700' { '▲' }
@@ -99,7 +131,7 @@ pub fn shortcut_description(trigger input.Trigger) ?string {
 		'\uF72D' { '↓' }
 		'\uF729' { '⤒' }
 		'\uF72B' { '⤓' }
-		else { objc_utf8_string(msg_id(nsstring(shortcut.key), 'uppercaseString')) }
+		else { objc_utf8_string(msg_id(nsstring(key), 'uppercaseString')) }
 	}
-	return parts.join('')
+	return parts
 }

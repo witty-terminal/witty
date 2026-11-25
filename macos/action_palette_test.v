@@ -1,6 +1,7 @@
 module macos
 
 import os
+import input
 
 #insert "@VMODROOT/macos/canvas_overlay_test_bridge.h"
 
@@ -19,6 +20,55 @@ fn test_native_palette_uses_localized_filter_and_source_title_order() {
 	assert filtered_command_options(sorted, 'absent').len == 0
 	assert palette_color_score(voidptr(native_color(0xff0000, 1)), 'red') > 0
 	assert filtered_command_options(sorted, 'red')[0].title == 'Colored'
+}
+
+fn test_native_palette_ranks_initials_and_description_matches() {
+	options := [
+		NativeCommandOption{ title: 'Description', description: 'Open a red tab' },
+		NativeCommandOption{ title: 'Subtitle', subtitle: 'red' },
+		NativeCommandOption{ title: 'Reload Editor Defaults' },
+		NativeCommandOption{ title: 'Red Tab' },
+		NativeCommandOption{ title: 'Color', leading_color: voidptr(native_color(0xff0000, 1)) },
+	]
+	assert filtered_command_options(options, ' RED \n').map(it.title) == [
+		'Color',
+		'Reload Editor Defaults',
+		'Red Tab',
+		'Subtitle',
+		'Description',
+	]
+	assert filtered_command_options(options, '   ').len == options.len
+
+	text := nsstring('🌊 Édit 👩🏽‍💻 Terminal')
+	matches := C.witty_palette_match_ranges(text, nsstring('e\u0301t'))
+	assert msg_u64(matches, 'count') == 2
+	first := C.witty_macos_msg_range(msg_id_u64(matches, 'objectAtIndex:', 0), sel('rangeValue'))
+	assert first.location == 3 && first.length == 1
+	emoji := C.witty_palette_match_ranges(text, nsstring('👩🏽‍💻'))
+	range := C.witty_macos_msg_range(msg_id_u64(emoji, 'objectAtIndex:', 0), sel('rangeValue'))
+	assert range.location == 8 && range.length == 7
+	assert is_nil(C.witty_palette_match_ranges(text, nsstring('e\u0301z')))
+}
+
+fn test_native_palette_symbols_from_configured_triggers() {
+	assert command_shortcut_symbols(input.Trigger.parse('ctrl+alt+shift+super+right')!) == [
+		'⌃',
+		'⌥',
+		'⇧',
+		'⌘',
+		'▶',
+	]
+	assert command_shortcut_symbols(input.Trigger.parse('super+c')!) == ['⌘', 'C']
+	assert command_shortcut_symbols(input.Trigger.parse('super+delete')!) == ['⌘', '⌦']
+	assert command_shortcut_symbols(input.Trigger{ key: input.TriggerKeyCatchAll{} }).len == 0
+
+	app_init()
+	key := C.witty_macos_writing_key_equivalent(0, true)
+	if !is_nil(key) {
+		trigger := input.Trigger{ key: input.TriggerKeyPhysical{ key: .key_a }, mods: input.Mods.from_int(8) }
+		assert command_shortcut_symbols(trigger) == ['⌘',
+			objc_utf8_string(msg_id(key, 'uppercaseString'))]
+	}
 }
 
 fn test_native_palette_edit_and_wrapping_selection_consumers() {
@@ -148,7 +198,10 @@ fn test_native_palette_row_capture() {
 		badge:        '1.4.0'
 		emphasis:     true
 	}
-	names := ['plain', 'selected', 'hover', 'swatch', 'update', 'update-selected']
+	names := ['plain', 'selected', 'hover', 'swatch', 'update', 'update-selected', 'title-match',
+		'initials', 'description-match', 'unicode-match', 'shortcuts', 'shortcut-badge', 'badge-only']
+	queries := ['', '', '', '', '', '', 'configuration', 'srt', 'config', 'cafe\u0301', '', 'up',
+		'']
 	options := [
 		NativeCommandOption{ title: 'Copy Selection' },
 		NativeCommandOption{ title: 'Reload Configuration', subtitle: 'Apply the configuration file' },
@@ -156,6 +209,21 @@ fn test_native_palette_row_capture() {
 		NativeCommandOption{ title: 'Ocean', leading_color: voidptr(C.witty_macos_color_rgba(0.25, 0.57, 0.82, 1)) },
 		update,
 		update,
+		NativeCommandOption{ title: 'Reload Configuration', subtitle: 'Apply the configuration file' },
+		NativeCommandOption{ title: 'Split Right Terminal', symbols: ['⌘', 'D'] },
+		NativeCommandOption{ title: 'Reload', description: 'Apply the configuration file' },
+		NativeCommandOption{ title: 'Ångström: Café 👩🏽‍💻' },
+		NativeCommandOption{ title: 'Focus Right Split', symbols: ['⌃', '⌥', '⇧', '⌘',
+			'▶'] },
+		NativeCommandOption{
+			title:        update.title
+			subtitle:     update.subtitle
+			leading_icon: update.leading_icon
+			badge:        update.badge
+			emphasis:     update.emphasis
+			symbols:      ['⌘', '⏎']
+		},
+		NativeCommandOption{ title: 'Preview Badge', badge: '1.4.0', symbols: ['⌥', 'D'] },
 	]
 	for i, appearance in ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
 		msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',
@@ -164,7 +232,8 @@ fn test_native_palette_row_capture() {
 		for j, option in options {
 			palette := &NativeCommandPalette{
 				filtered: [option]
-				selected: if j in [1, 5] { ?uint(uint(0)) } else { none }
+				query:    queries[j]
+				selected: if j in [1, 5, 6, 7, 8, 9, 11] { ?uint(uint(0)) } else { none }
 				hovered:  if j in [2, 5] { ?uint(uint(0)) } else { none }
 			}
 			height := option.row_height()

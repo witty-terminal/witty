@@ -332,10 +332,16 @@ fn native_command_options(app &apprt.App) []macos.NativeCommandOption {
 			.show_gtk_inspector] {
 			continue
 		}
+		symbols := if trigger := app.config.keybind.set.get_trigger(command.action) {
+			macos.command_shortcut_symbols(trigger)
+		} else {
+			[]string{}
+		}
 		options << macos.NativeCommandOption{
 			title:       macos.source_c_utf8_repair(command.title)
 			description: macos.source_c_utf8_repair(command.description)
 			action:      command.action.format()
+			symbols:     symbols
 		}
 	}
 	mut updates := []macos.NativeCommandOption{}

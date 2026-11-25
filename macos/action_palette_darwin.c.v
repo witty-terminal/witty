@@ -9,6 +9,7 @@ import math
 fn C.witty_action_id_f64_f64(obj voidptr, selector voidptr, a f64, b f64) voidptr
 fn C.witty_action_compare(a voidptr, b voidptr) i64
 fn C.witty_palette_set_search_prompt(field ObjId, prompt ObjId)
+fn C.witty_palette_match_ranges(text ObjId, query ObjId) ObjId
 
 pub struct NativeCommandOption {
 pub:
@@ -18,6 +19,7 @@ pub:
 	action        string
 	invoke        fn () = unsafe { nil }
 	leading_icon  string
+	symbols       []string
 	badge         ?string
 	emphasis      bool
 	focus_view    voidptr
@@ -108,28 +110,44 @@ fn palette_color_score(color ?voidptr, query string) f64 {
 	return best
 }
 
+fn trim_palette_query(value ObjId) ObjId {
+	whitespace := msg_id(get_class('NSCharacterSet'), 'whitespaceAndNewlineCharacterSet')
+	return msg_id1(value, 'stringByTrimmingCharactersInSet:', whitespace)
+}
+
+struct PaletteOptionMatch {
+	option NativeCommandOption
+	color  f64
+	text   int
+}
+
+fn (match_ PaletteOptionMatch) ranks_before(other PaletteOptionMatch) bool {
+	return match_.color > other.color || (match_.color == other.color && match_.text > other.text)
+}
+
 pub fn filtered_command_options(options []NativeCommandOption, query string) []NativeCommandOption {
-	if query.len == 0 { return options.clone() }
-	needle := nsstring(query)
-	mut result := options.filter(msg_bool1(nsstring(it.title), 'localizedCaseInsensitiveContainsString:', needle)
-		|| msg_bool1(nsstring(it.subtitle), 'localizedCaseInsensitiveContainsString:', needle)
-		|| palette_color_score(it.leading_color, query) > 0)
-	// Stable color ranking preserves the previously sorted option order on ties.
-	for i := 1; i < result.len; i++ {
-		value := result[i]
-		score := palette_color_score(value.leading_color, query)
-		mut j := i
-		for j > 0 && palette_color_score(result[j - 1].leading_color, query) < score {
-			unsafe {
-				result[j] = result[j - 1]
-			}
-			j--
+	needle := trim_palette_query(nsstring(query))
+	trimmed := objc_utf8_string(needle)
+	if trimmed.len == 0 { return options.clone() }
+	mut matches := []PaletteOptionMatch{cap: options.len}
+	for option in options {
+		color := palette_color_score(option.leading_color, trimmed)
+		text := if !is_nil(C.witty_palette_match_ranges(nsstring(option.title), needle)) {
+			3
+		} else if !is_nil(C.witty_palette_match_ranges(nsstring(option.subtitle), needle)) {
+			2
+		} else if !is_nil(C.witty_palette_match_ranges(nsstring(option.description), needle)) {
+			1
+		} else {
+			0
 		}
-		unsafe {
-			result[j] = value
-		}
+		if color <= 0 && text == 0 { continue }
+		value := PaletteOptionMatch{option: option, color: color, text: text}
+		mut position := matches.len
+		for position > 0 && value.ranks_before(matches[position - 1]) { position-- }
+		matches.insert(position, value)
 	}
-	return result
+	return matches.map(it.option)
 }
 
 pub fn (mut surface NativeActionSurface) toggle_command_palette(options []NativeCommandOption) {
@@ -295,7 +313,7 @@ fn palette_hover(self ObjId, cmd Sel, event ObjId) {
 
 fn palette_edit(self ObjId, _cmd Sel, _notification ObjId) {
 	mut palette := palette_state(self) or { return }
-	palette.query = objc_utf8_string(msg_id(palette.field, 'stringValue'))
+	palette.query = objc_utf8_string(trim_palette_query(msg_id(palette.field, 'stringValue')))
 	if palette.query.len > 0 {
 		if palette.selected == none { palette.selected = uint(0) }
 	} else if value := palette.selected {
