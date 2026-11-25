@@ -784,38 +784,10 @@ pub fn (mut c Canvas) stroke_path(path Path, opts StrokeOptions, color Color) ! 
 	z2d_multisample_fill(mut c, polygon, color)
 }
 
-// inner_stroke_path strokes only the portion of a path that lies inside
-// the shape produced by closing it. Ghostty uses the same two-surface mask
-// technique around z2d; the V renderer performs that alpha multiplication
-// directly on two temporary canvases.
+// Stroke a path after moving its centerline inward by half the stroke width.
 pub fn (mut c Canvas) inner_stroke_path(path Path, opts StrokeOptions, color Color) ! {
-	mut closed_nodes := path.nodes.clone()
-	closed_nodes << PathClose{}
-	if path.nodes.len > 0 {
-		for node in path.nodes {
-			if node is PathMoveTo {
-				closed_nodes << node
-				break
-			}
-		}
-	}
-
-	mut fill_canvas := Canvas.init(c.width, c.height, c.padding_x, c.padding_y)
-	fill_canvas.fill_path(Path{ nodes: closed_nodes }, FillOptions{}, .on)!
-
-	mut stroke_canvas := Canvas.init(c.width, c.height, c.padding_x, c.padding_y)
-	stroke_canvas.stroke_path(path, StrokeOptions{
-		line_cap_mode: opts.line_cap_mode
-		line_width:    opts.line_width * 2.0
-	}, color)!
-
-	for i, pixel in c.surface.pixels {
-		fill := fill_canvas.surface.pixels[i] >> 24
-		stroke := stroke_canvas.surface.pixels[i] >> 24
-		src := u32(math.round(f64(fill) * f64(stroke) / 255.0))
-		dst := pixel >> 24
-		c.surface.pixels[i] = (src + dst - src * dst / 255) << 24
-	}
+	inset := inset_sprite_path(path, opts.line_width / 2.0)!
+	c.stroke_path(inset, opts, color)!
 }
 
 fn points_equal(a Point, b Point) bool {

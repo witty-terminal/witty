@@ -28,7 +28,7 @@ WALLPAPER_OPTIONS = {
     ),
 }
 FIXTURES = (
-    "ansi", "decorations", "unicode", "wide-wrap", *CURSOR_STYLES,
+    "ansi", "decorations", "unicode", "wide-wrap", "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
     "kitty-delete-selection", "kitty-delete-visible", "kitty-chunked", "kitty-animation",
@@ -118,6 +118,9 @@ def fixture_args(name, work):
     if name in WALLPAPER_OPTIONS:
         options.extend([f"--background-image={work / 'wallpaper.png'}", *WALLPAPER_OPTIONS[name]])
         name = "ansi"
+    if name == "terminal-sprites-adjusted":
+        options.extend(("--adjust-cell-width=1", "--adjust-cell-height=1"))
+        name = "terminal-sprites"
     return [*options, "-e", sys.executable, str(PROBE / "fixtures.py"), name]
 
 

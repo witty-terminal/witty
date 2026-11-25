@@ -180,11 +180,14 @@ pub fn draw_e0b5(cp u32, mut canvas Canvas, width u32, height u32, metrics font.
 	c := (math.sqrt2 - 1.0) * 4.0 / 3.0
 	radius := math.min(float_width, float_height / 2)
 
-	mut path := canvas.static_path(4)
+	// Horizontal endpoint segments keep the inset stroke's butt caps square.
+	mut path := canvas.static_path(6)
 	path.move_to(0, 0)
+	path.line_to(1, 0)
 	path.curve_to(radius * c, 0, radius, radius - radius * c, radius, radius)
 	path.line_to(radius, float_height - radius)
-	path.curve_to(radius, float_height - radius + radius * c, radius * c, float_height, 0, float_height)
+	path.curve_to(radius, float_height - radius + radius * c, radius * c, float_height, 1, float_height)
+	path.line_to(0, float_height)
 
 	canvas.inner_stroke_path(path.wrapped_path, StrokeOptions{
 		line_width: f64(metrics.box_thickness)

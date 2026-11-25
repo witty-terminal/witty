@@ -297,6 +297,21 @@ def kitty_animation():
     return commands
 
 
+def terminal_sprites():
+    lines = []
+    for start in (0x2500, 0x2520, 0x2540, 0x2560, 0x2580, 0x1FB00):
+        lines.append("".join(chr(cp) for cp in range(start, start + 32)))
+    lines.extend((
+        "⠁⠂⠄⡀⠈⠐⠠⢀ ⡇⢸⣿⣄⣤⣶⣷⣾⣽⣻⡿⢿⠀ ◸◹◺◿",
+        "\x1b[38;2;106;201;170m\x1b[48;2;31;47;59m"
+        + "".join(chr(cp) for cp in range(0xE0B0, 0xE0C0)) + "\x1b[0m",
+        "╭──────────┬──────╮ ╔════╦════╗",
+        "│ ▓▒░ ▏▎▍▌ │ ⠗⣷⣿⡇ │ ╠════╬════╣",
+        "╰──────────┴──────╯ ╚════╩════╝",
+    ))
+    return "".join(f"\x1b[{row};1H{text}" for row, text in enumerate(lines, 1)).encode()
+
+
 def main():
     fixture = sys.argv[1]
     output = {
@@ -360,6 +375,8 @@ def main():
         sys.stdout.buffer.write(kitty_chunked())
     elif fixture == "kitty-animation":
         sys.stdout.buffer.write(kitty_animation())
+    elif fixture == "terminal-sprites":
+        sys.stdout.buffer.write(terminal_sprites())
     elif fixture in CURSOR_STYLES:
         # Reposition over an existing glyph and show a steady cursor.
         style = CURSOR_STYLES[fixture]

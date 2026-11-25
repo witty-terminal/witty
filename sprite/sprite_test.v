@@ -465,7 +465,7 @@ fn test_stroke_path_round_caps_extend_past_endpoints() {
 	assert data_at(&rounded, 2, 6) > 0
 }
 
-fn test_inner_stroke_path_masks_the_outer_half() {
+fn test_inner_stroke_open_path_moves_the_centerline_inward() {
 	mut c := Canvas.init(12, 12, 0, 0)
 	mut path := c.static_path(3)
 	path.move_to(2, 2)
@@ -475,6 +475,33 @@ fn test_inner_stroke_path_masks_the_outer_half() {
 
 	assert data_at(&c, 5, 1) == 0
 	assert data_at(&c, 5, 2) > 0
+	assert data_at(&c, 5, 3) > 0
+	assert data_at(&c, 5, 4) == 0
+}
+
+fn test_inner_stroke_closed_path_uses_the_same_inset_for_both_windings() {
+	points := [Point{ x: 2, y: 2 }, Point{ x: 10, y: 2 }, Point{ x: 10, y: 10 }, Point{ x: 2, y: 10 }]
+	mut expected := Canvas.init(12, 12, 0, 0)
+	mut centerline := expected.static_path(6)
+	centerline.move_to(3, 3)
+	centerline.line_to(9, 3)
+	centerline.line_to(9, 9)
+	centerline.line_to(3, 9)
+	centerline.close()
+	opts := StrokeOptions{ line_width: 2 }
+	expected.stroke_path(centerline.wrapped_path, opts, .on)!
+
+	for winding in [points, points.reverse()] {
+		mut actual := Canvas.init(12, 12, 0, 0)
+		mut path := actual.static_path(6)
+		path.move_to(winding[0].x, winding[0].y)
+		for point in winding[1..] {
+			path.line_to(point.x, point.y)
+		}
+		path.close()
+		actual.inner_stroke_path(path.wrapped_path, opts, .on)!
+		assert actual.surface.pixels == expected.surface.pixels
+	}
 }
 
 fn test_powerline_mirrored_variants_are_exact_flips() {

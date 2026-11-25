@@ -21,6 +21,8 @@ xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- \
 
 The probe uses Witty’s `--screenshot` and captures Ghostty’s matching X11 client window with decorations and the scrollbar hidden. It compares decoded RGBA pixels for ANSI colors, text decorations, Unicode and emoji, wide characters wrapping at the right edge, block, bar, and underline cursors, Kitty images and Unicode placeholders, stretched and repeated background images, colored `ls` output, Git diff, Vim, and a two-pass GLSL shader. The Kitty fixtures also cover clipping, retransmission, interrupted chunked uploads, relative placement, cursor movement, image deletion, scrollback clearing, and z-index ordering across cell backgrounds, text, and overlapping images. The animation fixture covers chunked frame edits, frame composition, and playback through a finite loop.
 
+The terminal glyph fixtures cover box drawing, block elements, Braille patterns, and Powerline separators at default and adjusted cell sizes.
+
 Each run saves the PNGs, application logs, executable versions and hashes, and a `results.tsv` report under `.witty-build/render-parity/`. Differing pixels appear white in the corresponding `*-diff.png` mask. A size or pixel mismatch returns exit status 1.
 
 Use `--output` to choose a new directory, `--fixture` to repeat a single case, or `--settle-seconds` to allow more time for rendering on a slower host. Pass `--scale 2` to compare HiDPI captures. The probe defaults to 1× and records the requested GTK scale in `versions.txt`.

@@ -18,6 +18,26 @@ import math
 #include <math.h>
 
 fn C.hypot(f64, f64) f64
+fn C.fma(f64, f64, f64) f64
+
+// Use z2d's compensated norm for sprite-sized vectors. A one-ULP change
+// can move a stroke edge across a multisample rounding boundary.
+fn z2d_slope_magnitude(dx f64, dy f64) f64 {
+	x := math.max(math.abs(dx), math.abs(dy))
+	y := math.min(math.abs(dx), math.abs(dy))
+	if x * math.sqrt(2.220446049250313e-16 / 2) >= y {
+		return x
+	}
+	sum_squares := C.fma(x, x, y * y)
+	if sum_squares <= 2.2250738585072014e-308 || math.is_inf(sum_squares, 1) {
+		return C.hypot(dx, dy)
+	}
+	r := math.sqrt(sum_squares)
+	rr := r * r
+	xx := x * x
+	error_ := C.fma(-y, y, rr - xx) + C.fma(r, r, -rr) - C.fma(x, x, -xx)
+	return r - error_ / (2 * r)
+}
 
 enum Z2dJoinMode as u8 {
 	miter
@@ -58,10 +78,7 @@ fn (mut slope Z2dSlope) normalize() f64 {
 			slope.dx = -1.0
 		}
 	} else {
-		// Zig's std.math.hypot is correctly rounded; V's scaled sqrt helper
-		// differs by one ULP for common diagonal slopes. The platform hypot
-		// has the same result as Zig's implementation.
-		magnitude = C.hypot(slope.dx, slope.dy)
+		magnitude = z2d_slope_magnitude(slope.dx, slope.dy)
 		slope.dx /= magnitude
 		slope.dy /= magnitude
 	}
