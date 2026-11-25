@@ -750,6 +750,7 @@ pub fn Window.new(app &Application) &Window {
 	self.header_bar = header_bar
 	C.witty_gtk_window_canvas_set_widgets(GtkWidget(obj), header_bar, GtkWidget(tab_bar),
 		GtkWidget(toast_overlay))
+	gtk_canvas_overlay_set_mask(GtkWidget(obj), true)
 	self.window_title = window_title
 	self.tab_bar_start = tab_bar_start
 	self.tab_bar_end = tab_bar_end
@@ -1827,7 +1828,6 @@ fn (mut self Window) sync_appearance() {
 		return
 	}
 	config := self.config.get()
-	gtk_canvas_overlay_set_mask(widget, gtk_canvas_styles_enabled(config))
 	C.adw_tab_bar_set_autohide(self.tab_bar, b2i(self.get_tabs_autohide()))
 	C.adw_tab_bar_set_expand_tabs(self.tab_bar, b2i(self.get_tabs_wide()))
 	C.gtk_widget_set_visible(self.as_tab_bar_widget(), b2i(self.get_tabs_visible()))

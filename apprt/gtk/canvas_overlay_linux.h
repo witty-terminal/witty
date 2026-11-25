@@ -175,10 +175,14 @@ static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
 		GdkTexture *mask, const graphene_rect_t *area, WittyCanvasFillSearch search) {
 	graphene_rect_t bounds;
 	gsk_render_node_get_bounds(node, &bounds);
-	if (!graphene_rect_contains_rect(&bounds, area))
+	const GskRenderNodeType type = gsk_render_node_get_node_type(node);
+	// A rectangular window clip can trim a header that overlaps its edge.
+	if (!graphene_rect_contains_rect(&bounds, area)
+			&& !(type == GSK_CLIP_NODE && search == WITTY_CANVAS_LAST_FILL
+				&& graphene_rect_intersection(&bounds, area, NULL)))
 		return NULL;
 
-	switch (gsk_render_node_get_node_type(node)) {
+	switch (type) {
 	case GSK_COLOR_NODE: {
 		const GdkRGBA *color = gsk_color_node_get_color(node);
 		if (color->alpha != 1 || (search != WITTY_CANVAS_LAST_CLIPPED_FILL
@@ -246,23 +250,37 @@ static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
 	}
 }
 
-static inline GskRenderNode *witty_gtk_canvas_replace_widget_fill(GskRenderNode *node,
-		GdkTexture *mask, GtkWidget *widget, const graphene_rect_t *area) {
-	GskRenderNode *fill = witty_gtk_canvas_replace_fill(node, mask, area, WITTY_CANVAS_FIRST_FILL);
-	if (fill)
-		return fill;
-
+static inline bool witty_gtk_canvas_widget_padding_bounds(GtkWidget *widget,
+		const graphene_rect_t *area, graphene_rect_t *padding) {
 	// Themes can clip the background to the padding box inside the border.
 	GtkBorder border;
 	gtk_style_context_get_border(gtk_widget_get_style_context(widget), &border);
 	if (!border.left && !border.right && !border.top && !border.bottom)
-		return NULL;
-	const graphene_rect_t padding = GRAPHENE_RECT_INIT(area->origin.x + border.left,
+		return false;
+	*padding = GRAPHENE_RECT_INIT(area->origin.x + border.left,
 		area->origin.y + border.top, area->size.width - border.left - border.right,
 		area->size.height - border.top - border.bottom);
-	if (padding.size.width <= 0 || padding.size.height <= 0)
-		return NULL;
-	return witty_gtk_canvas_replace_fill(node, mask, &padding, WITTY_CANVAS_FIRST_FILL);
+	return padding->size.width > 0 && padding->size.height > 0;
+}
+
+static inline GskRenderNode *witty_gtk_canvas_replace_widget_fill(GskRenderNode *node,
+		GdkTexture *mask, GtkWidget *widget, const graphene_rect_t *area,
+		WittyCanvasFillSearch search) {
+	graphene_rect_t padding;
+	if (search == WITTY_CANVAS_LAST_FILL) {
+		// A toolbar can paint its backing behind a separately styled handle.
+		if (witty_gtk_canvas_widget_padding_bounds(widget, area, &padding)) {
+			GskRenderNode *fill = witty_gtk_canvas_replace_fill(node, mask, &padding, search);
+			if (fill)
+				return fill;
+		}
+		return witty_gtk_canvas_replace_fill(node, mask, area, search);
+	}
+
+	GskRenderNode *fill = witty_gtk_canvas_replace_fill(node, mask, area, search);
+	if (fill || !witty_gtk_canvas_widget_padding_bounds(widget, area, &padding))
+		return fill;
+	return witty_gtk_canvas_replace_fill(node, mask, &padding, search);
 }
 
 static inline bool witty_gtk_canvas_overlay_has_mask(GtkWidget *bin) {

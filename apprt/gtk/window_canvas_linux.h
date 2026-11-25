@@ -12,8 +12,14 @@ static inline GtkWidget *witty_gtk_window_canvas_next_toast(GtkWidget *child, Gt
 }
 
 static inline void witty_gtk_window_canvas_replace_fill(GskRenderNode **node, GdkTexture *mask,
-		const graphene_rect_t *area) {
-	GskRenderNode *updated = witty_gtk_canvas_replace_fill(*node, mask, area, WITTY_CANVAS_FIRST_FILL);
+		GtkWidget *window, GtkWidget *target) {
+	graphene_rect_t area;
+	if (!gtk_widget_compute_bounds(target, window, &area)
+			|| area.size.width <= 0 || area.size.height <= 0)
+		return;
+	const WittyCanvasFillSearch search = GTK_IS_WINDOW_HANDLE(target)
+		? WITTY_CANVAS_LAST_FILL : WITTY_CANVAS_FIRST_FILL;
+	GskRenderNode *updated = witty_gtk_canvas_replace_widget_fill(*node, mask, target, &area, search);
 	if (updated) {
 		gsk_render_node_unref(*node);
 		*node = updated;
@@ -32,14 +38,12 @@ static inline void witty_gtk_window_canvas_snapshot(GtkWidget *widget, GtkSnapsh
 		g_object_get_data(G_OBJECT(widget), "witty-canvas-headerbar"),
 		g_object_get_data(G_OBJECT(widget), "witty-canvas-tabbar"),
 	};
-	graphene_rect_t areas[G_N_ELEMENTS(bars)];
+	GtkWidget *targets[G_N_ELEMENTS(bars) + 1];
 	guint count = 0;
 	GtkWidget *content = adw_application_window_get_content(ADW_APPLICATION_WINDOW(widget));
 	if (ADW_IS_TAB_OVERVIEW(content) && adw_tab_overview_get_open(ADW_TAB_OVERVIEW(content))) {
 		// The open overview replaces the title bars with its own backdrop.
-		if (gtk_widget_compute_bounds(content, widget, &areas[0])
-				&& areas[0].size.width > 0 && areas[0].size.height > 0)
-			count = 1;
+		targets[count++] = content;
 	} else {
 		GtkWidget *last_handle = NULL;
 		for (guint i = 0; i < G_N_ELEMENTS(bars); ++i) {
@@ -48,13 +52,14 @@ static inline void witty_gtk_window_canvas_snapshot(GtkWidget *widget, GtkSnapsh
 			GtkWidget *handle = gtk_widget_get_ancestor(bars[i], GTK_TYPE_WINDOW_HANDLE);
 			if (!handle || handle == last_handle)
 				continue;
-			graphene_rect_t area;
-			if (gtk_widget_compute_bounds(handle, widget, &area)
-					&& area.size.width > 0 && area.size.height > 0) {
-				areas[count++] = area;
-				last_handle = handle;
-			}
+			targets[count++] = handle;
+			last_handle = handle;
 		}
+		// Adwaita's header bar also has its own drag handle inside the toolbar.
+		GtkWidget *header_handle = bars[0] && gtk_widget_get_mapped(bars[0])
+			? gtk_widget_get_first_child(bars[0]) : NULL;
+		if (GTK_IS_WINDOW_HANDLE(header_handle) && gtk_widget_get_mapped(header_handle))
+			targets[count++] = header_handle;
 	}
 	GtkWidget *overlay = g_object_get_data(G_OBJECT(widget), "witty-canvas-toast-overlay");
 	GtkWidget *toast_content = NULL;
@@ -74,13 +79,10 @@ static inline void witty_gtk_window_canvas_snapshot(GtkWidget *widget, GtkSnapsh
 	if (!node)
 		return;
 	for (guint i = 0; i < count; ++i)
-		witty_gtk_window_canvas_replace_fill(&node, mask, &areas[i]);
+		witty_gtk_window_canvas_replace_fill(&node, mask, widget, targets[i]);
 	// A disappearing toast may still be mapped while its replacement enters.
-	for (; toast; toast = witty_gtk_window_canvas_next_toast(gtk_widget_get_next_sibling(toast), toast_content)) {
-		graphene_rect_t area;
-		if (gtk_widget_compute_bounds(toast, widget, &area))
-			witty_gtk_window_canvas_replace_fill(&node, mask, &area);
-	}
+	for (; toast; toast = witty_gtk_window_canvas_next_toast(gtk_widget_get_next_sibling(toast), toast_content))
+		witty_gtk_window_canvas_replace_fill(&node, mask, widget, toast);
 	gtk_snapshot_append_node(snapshot, node);
 }
 

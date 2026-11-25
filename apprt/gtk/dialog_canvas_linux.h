@@ -37,7 +37,8 @@ static inline void witty_gtk_dialog_canvas_snapshot(GtkWidget *widget, GtkSnapsh
 	g_autoptr(GskRenderNode) node = gtk_snapshot_free_to_node(layout);
 	if (!node)
 		return;
-	g_autoptr(GskRenderNode) fill = panel ? witty_gtk_canvas_replace_widget_fill(node, mask, content, &area)
+	g_autoptr(GskRenderNode) fill = panel ? witty_gtk_canvas_replace_widget_fill(node, mask, content, &area,
+		WITTY_CANVAS_FIRST_FILL)
 		: witty_gtk_canvas_replace_fill(node, mask, &area, WITTY_CANVAS_LAST_FILL);
 	gtk_snapshot_append_node(snapshot, fill ? fill : node);
 }

@@ -21,7 +21,8 @@ static inline void witty_gtk_menu_canvas_snapshot(GtkWidget *widget, GtkSnapshot
 	native_class->snapshot(widget, layout);
 	g_autoptr(GskRenderNode) node = gtk_snapshot_free_to_node(layout);
 	if (node) {
-		g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_widget_fill(node, mask, contents, &area);
+		g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_widget_fill(node, mask, contents, &area,
+			WITTY_CANVAS_FIRST_FILL);
 		gtk_snapshot_append_node(snapshot, fill ? fill : node);
 	}
 }
