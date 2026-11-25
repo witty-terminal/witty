@@ -188,10 +188,12 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 
 	// init_target creates an off-screen render target suitable for presentation.
 	pub fn (self &OpenGLAPI) init_target(width uint, height uint) !GLTarget {
+		_ = self
+		// The final target is sRGB for every blending mode in Ghostty 1.4.
 		return GLTarget.init(GLTargetOptions{
 			width:           width
 			height:          height
-			internal_format: if self.blending.is_linear() { .srgba } else { .rgba }
+			internal_format: .srgba
 		})
 	}
 
