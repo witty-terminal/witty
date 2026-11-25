@@ -65,27 +65,51 @@ static inline CGColorSpaceRef witty_canvas_convert_rgb(uint32_t rgb, void *targe
     return space;
 }
 
-static inline CGImageRef witty_canvas_rgba16_image(CFDataRef data, int width, int height, CGColorSpaceRef space, bool interpolate) {
+static inline CGImageRef witty_canvas_rgba_image(CFDataRef data, int width, int height, int depth,
+        CGColorSpaceRef space, bool interpolate) {
     CGDataProviderRef provider = data ? CGDataProviderCreateWithCFData(data) : NULL;
-    CGImageRef image = provider && space ? CGImageCreate(width, height, 16, 64, (size_t)width * 8, space,
-        kCGBitmapByteOrder16Little | kCGImageAlphaPremultipliedLast, provider, NULL, interpolate,
-        kCGRenderingIntentDefault) : NULL;
+    CGBitmapInfo info = kCGImageAlphaPremultipliedLast;
+    if (depth == 16) info |= kCGBitmapByteOrder16Little;
+    CGImageRef image = provider && space ? CGImageCreate(width, height, depth, depth * 4,
+        (size_t)width * depth / 2, space, info, provider, NULL, interpolate, kCGRenderingIntentDefault) : NULL;
     if (provider) CGDataProviderRelease(provider);
     return image;
 }
 
-static inline void *witty_canvas_make_tile(const uint32_t *pixel, void *target, double opacity) {
+static inline void *witty_canvas_make_tile(const uint32_t *pixel, void *target, double opacity,
+        int blend_over_gray) {
     double r, g, b;
     CGColorSpaceRef space = witty_canvas_convert_rgb(*pixel, target, &r, &g, &b);
-    double alpha = opacity * 65535;
+    if (blend_over_gray >= 0) {
+        // Resolve the color blend in the output profile. Moving its luminosity
+        // into range preserves hue when the adjusted tint exceeds the gamut.
+        double gr, gg, gb;
+        CGColorSpaceRef graySpace = witty_canvas_convert_rgb((uint32_t)blend_over_gray * 0x010101,
+            target, &gr, &gg, &gb);
+        if (graySpace) CGColorSpaceRelease(graySpace);
+        double luma = .30 * r + .59 * g + .11 * b;
+        double base = .30 * gr + .59 * gg + .11 * gb;
+        double low = fmin(r, fmin(g, b)) - luma;
+        double high = fmax(r, fmax(g, b)) - luma;
+        double scale = 1;
+        if (base + low < 0) scale = base / -low;
+        if (base + high > 1) scale = fmin(scale, (1 - base) / high);
+        r = base + (r - luma) * scale;
+        g = base + (g - luma) * scale;
+        b = base + (b - luma) * scale;
+    }
+    int depth = blend_over_gray >= 0 ? 8 : 16;
+    double alpha = opacity * (depth == 8 ? 255 : 65535);
     const uint16_t rgba[] = {
         (uint16_t)lround(fmin(fmax(r, 0), 1) * alpha),
         (uint16_t)lround(fmin(fmax(g, 0), 1) * alpha),
         (uint16_t)lround(fmin(fmax(b, 0), 1) * alpha),
         (uint16_t)lround(alpha),
     };
-    CFDataRef data = CFDataCreate(NULL, (const UInt8 *)rgba, sizeof(rgba));
-    CGImageRef tile = witty_canvas_rgba16_image(data, 1, 1, space, false);
+    const UInt8 narrow[] = { (UInt8)rgba[0], (UInt8)rgba[1], (UInt8)rgba[2], (UInt8)rgba[3] };
+    CFDataRef data = depth == 8 ? CFDataCreate(NULL, narrow, sizeof(narrow))
+        : CFDataCreate(NULL, (const UInt8 *)rgba, sizeof(rgba));
+    CGImageRef tile = witty_canvas_rgba_image(data, 1, 1, depth, space, false);
     if (space) CGColorSpaceRelease(space);
     if (data) CFRelease(data);
     return tile;
@@ -110,7 +134,7 @@ static inline void *witty_canvas_make_alpha_image(const uint32_t *pixels, int wi
         rgba[4 * i + 2] = (uint16_t)lround(b * a);
         rgba[4 * i + 3] = a;
     }
-    CGImageRef image = witty_canvas_rgba16_image(data, width, height, space, true);
+    CGImageRef image = witty_canvas_rgba_image(data, width, height, 16, space, true);
     if (space) CGColorSpaceRelease(space);
     CFRelease(data);
     return image;
@@ -131,7 +155,7 @@ static inline void *witty_canvas_make_color_image(const uint32_t *pixels, int wi
         rgba[4 * i + 3] = (pixel >> 24) * 257;
     }
     CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGImageRef image = witty_canvas_rgba16_image(data, width, height, space, true);
+    CGImageRef image = witty_canvas_rgba_image(data, width, height, 16, space, true);
     if (space) CGColorSpaceRelease(space);
     CFRelease(data);
     return image;

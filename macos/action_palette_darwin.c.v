@@ -8,7 +8,6 @@ import math
 // focus restoration. Native AppKit views implement the same event consumers.
 fn C.witty_action_id_f64_f64(obj voidptr, selector voidptr, a f64, b f64) voidptr
 fn C.witty_action_compare(a voidptr, b voidptr) i64
-fn C.witty_palette_set_search_prompt(field ObjId, prompt ObjId)
 fn C.witty_palette_match_ranges(text ObjId, query ObjId) ObjId
 
 pub struct NativeCommandOption {
@@ -166,6 +165,7 @@ pub fn (mut surface NativeActionSurface) toggle_command_palette(options []Native
 		add_method(cls, 'submit:', voidptr(palette_submit), 'v@:@')
 		add_method(cls, 'mouseEntered:', voidptr(palette_hover), 'v@:@')
 		add_method(cls, 'mouseExited:', voidptr(palette_hover), 'v@:@')
+		add_method(cls, 'accessibilityDisplayChanged:', voidptr(palette_accessibility_display_changed), 'v@:@')
 		C.macos_objc_register_class_pair(cls)
 	}
 	mut container_class := get_class('WittyPaletteContainer')
@@ -205,6 +205,8 @@ pub fn (mut surface NativeActionSurface) toggle_command_palette(options []Native
 	msg_void(palette.scroll, 'release')
 	surface.palette = palette
 	msg_void1(surface.overlay, 'addSubview:', palette.container)
+	C.witty_macos_observe(palette_accessibility_center(), palette.owner,
+		sel('accessibilityDisplayChanged:'), nsstring('NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification'), nil_obj())
 	palette.rebuild()
 	msg_bool1(view_window(surface.view), 'makeFirstResponder:', palette.field)
 }
@@ -224,13 +226,8 @@ fn (mut palette NativeCommandPalette) layout() {
 		height: palette_header_height + scroll_height
 	}, scale)
 	msg_void_rect(palette.container, 'setFrame:', frame)
-	background := palette.surface.visual_background
-	appearance_changed := palette.chrome.background != ?u32(background)
-	palette.chrome.layout(palette.container, frame.width, frame.height, scale, background)
-	if appearance_changed {
-		C.witty_palette_set_search_prompt(palette.field, nsstring('Execute a command…'))
-	}
-	msg_void_rect(palette.field, 'setFrame:', objc_rect(14, 12.5, math.max(0.0, frame.width - 28), 34))
+	palette.chrome.layout(palette.container, frame.width, frame.height, scale, palette.surface.visual_background)
+	msg_void_rect(palette.field, 'setFrame:', objc_rect(14, 11.5, math.max(0.0, frame.width - 28), 34))
 	msg_void_rect(palette.scroll, 'setFrame:', objc_rect(0, palette_header_height, frame.width, scroll_height))
 	msg_void_rect(palette.document, 'setFrame:',
 		objc_rect(0, 0, frame.width, msg_rect(palette.document, 'frame').height))
@@ -242,10 +239,19 @@ fn (mut palette NativeCommandPalette) close() {
 	msg_bool1(view_window(palette.surface.view), 'makeFirstResponder:', palette.surface.view)
 	palette.clear_rows()
 	msg_void1(palette.field, 'setDelegate:', nil_obj())
+	msg_void1(palette_accessibility_center(), 'removeObserver:', palette.owner)
 	C.macos_objc_set_ptr_ivar(palette.owner, cstr('palette'), unsafe { nil })
 	msg_void(palette.container, 'removeFromSuperview')
 	msg_void(palette.container, 'release')
 	msg_void(palette.owner, 'release')
+}
+
+fn palette_accessibility_center() ObjId {
+	return msg_id(msg_id(get_class('NSWorkspace'), 'sharedWorkspace'), 'notificationCenter')
+}
+
+fn palette_accessibility_display_changed(self ObjId, _cmd Sel, _notification ObjId) {
+	if mut palette := palette_state(self) { palette.layout() }
 }
 
 fn (palette &NativeCommandPalette) clear_rows() {

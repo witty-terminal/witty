@@ -1,7 +1,9 @@
 #include <AppKit/AppKit.h>
 #include <QuartzCore/QuartzCore.h>
+#include <dlfcn.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
 
 static inline uint32_t witty_overlay_test_tile(void *object) {
     CGImageRef image = (CGImageRef)[(CALayer *)object contents];
@@ -27,4 +29,29 @@ static inline void *witty_overlay_test_png(void *object) {
     if (!image) return nil;
     [view cacheDisplayInRect:area toBitmapImageRep:image];
     return [image representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+}
+
+// The test window belongs to this process, so its composited image can be
+// captured without recording the display or another application's windows.
+static inline void *witty_overlay_test_window_png(NSWindow *window) {
+    typedef CGImageRef (*WindowImage)(CGRect, CGWindowListOption, CGWindowID, CGWindowImageOption);
+    WindowImage capture = (WindowImage)dlsym(RTLD_DEFAULT, "CGWindowListCreateImage");
+    if (!capture) return nil;
+    [window orderBack:nil];
+    [window displayIfNeeded];
+    [CATransaction flush];
+    [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.4]];
+    CGWindowID identifier = (CGWindowID)window.windowNumber;
+    CGWindowListOption options = kCGWindowListOptionIncludingWindow;
+    NSArray *info = (NSArray *)CGWindowListCopyWindowInfo(options, identifier);
+    BOOL owned = [info.firstObject[(NSString *)kCGWindowOwnerPID] intValue] == getpid();
+    [info release];
+    CGImageRef image = owned ? capture(CGRectNull, options, identifier,
+        kCGWindowImageBoundsIgnoreFraming | kCGWindowImageBestResolution) : NULL;
+    if (!image) return nil;
+    NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc] initWithCGImage:image];
+    CGImageRelease(image);
+    NSData *png = [bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    [bitmap release];
+    return png;
 }

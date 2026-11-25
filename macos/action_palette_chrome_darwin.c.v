@@ -13,18 +13,19 @@ const palette_corner_radius = 10.0
 
 struct PaletteChrome {
 mut:
-	plate        ObjId
-	material     ObjId
-	mask         ObjId
-	tint         ObjId
-	stroke       ObjId
-	divider      ObjId
-	shadow       ObjId
-	size         ObjCSize
-	scale        f64
-	background   ?u32
-	border_rgb   u32
-	border_alpha f64
+	plate           ObjId
+	material        ObjId
+	opaque_material ObjId
+	mask            ObjId
+	tint            ObjId
+	stroke          ObjId
+	divider         ObjId
+	shadow          ObjId
+	size            ObjCSize
+	scale           f64
+	background      ?u32
+	border_rgb      u32
+	border_alpha    f64
 }
 
 fn new_palette_chrome(container ObjId) PaletteChrome {
@@ -51,19 +52,21 @@ fn new_palette_chrome(container ObjId) PaletteChrome {
 	msg_void1(plate, 'addSubview:', material)
 	msg_void(material, 'release')
 
+	opaque_material := palette_chrome_image(plate, frame)
 	tint := palette_chrome_image(plate, frame)
 	msg_void1(msg_id(tint, 'layer'), 'setCompositingFilter:', nsstring('colorBlendMode'))
 	divider := palette_chrome_image(plate, frame)
 	stroke := palette_chrome_image(container, frame)
 	msg_void_f64(msg_id(stroke, 'layer'), 'setZPosition:', 1)
 	return PaletteChrome{
-		plate:    plate
-		material: material
-		mask:     mask
-		tint:     tint
-		stroke:   stroke
-		divider:  divider
-		shadow:   shadow
+		plate:           plate
+		material:        material
+		opaque_material: opaque_material
+		mask:            mask
+		tint:            tint
+		stroke:          stroke
+		divider:         divider
+		shadow:          shadow
 	}
 }
 
@@ -98,6 +101,15 @@ fn (mut chrome PaletteChrome) layout(container ObjId, width f64, height f64, sca
 			C.witty_canvas_set_image(chrome.tint, tile)
 			C.CFRelease(tile)
 		}
+		// Preblend the tint over SwiftUI's opaque ultra-thin material fill.
+		opaque := native_canvas_fill_tile(background,
+			target:          container
+			blend_over_gray: if light { u8(0xde) } else { u8(0x20) }
+		)
+		if !is_nil(opaque) {
+			C.witty_canvas_set_image(chrome.opaque_material, opaque)
+			C.CFRelease(opaque)
+		}
 		chrome.background = background
 		mut divider_alpha := 0.0
 		divider_color := C.witty_canvas_resolve_srgb_alpha(container,
@@ -108,6 +120,8 @@ fn (mut chrome PaletteChrome) layout(container ObjId, width f64, height f64, sca
 			C.CFRelease(divider)
 		}
 	}
+	chrome.set_reduce_transparency(msg_bool(msg_id(get_class('NSWorkspace'), 'sharedWorkspace'),
+		'accessibilityDisplayShouldReduceTransparency'))
 	if width <= 0 { return }
 
 	width_px := int(math.round(width * scale))
@@ -115,6 +129,7 @@ fn (mut chrome PaletteChrome) layout(container ObjId, width f64, height f64, sca
 	if geometry_changed {
 		msg_void_rect(chrome.plate, 'setFrame:', frame)
 		msg_void_rect(chrome.material, 'setFrame:', frame)
+		msg_void_rect(chrome.opaque_material, 'setFrame:', frame)
 		msg_void_rect(chrome.mask, 'setFrame:', frame)
 		msg_void_rect(chrome.tint, 'setFrame:', frame)
 		msg_void_rect(chrome.divider, 'setFrame:', objc_rect(0, palette_search_height, width, 1))
@@ -152,6 +167,12 @@ fn (mut chrome PaletteChrome) layout(container ObjId, width f64, height f64, sca
 	chrome.scale = scale
 }
 
+fn (chrome &PaletteChrome) set_reduce_transparency(reduce bool) {
+	msg_void_bool(chrome.material, 'setHidden:', reduce)
+	msg_void_bool(chrome.opaque_material, 'setHidden:', !reduce)
+	msg_void_bool(chrome.tint, 'setHidden:', reduce)
+}
+
 fn set_palette_mask(layer ObjId, mask canvas.RasterSurface, color u32, target ObjId) {
 	image := C.witty_canvas_make_alpha_image(mask.pixels.data, mask.width, mask.height, color, target)
 	if !is_nil(image) {
@@ -169,7 +190,7 @@ fn (chrome &PaletteChrome) update_shadow(container ObjId, width f64, height f64)
 	) or { return }
 	shadow := native_canvas_shadow_mask(shape, 29 * sample_scale, 0.33) or { return }
 	pad := (shadow.width - shape.width) / 2 / sample_scale
-	offset := if msg_bool(msg_id(container, 'layer'), 'isGeometryFlipped') { 12.0 } else { -12.0 }
+	offset := if msg_bool(msg_id(container, 'layer'), 'isGeometryFlipped') { -12.0 } else { 12.0 }
 	msg_void_rect(chrome.shadow, 'setFrame:', objc_rect(-pad, -pad + offset,
 		width + 2 * pad, height + 2 * pad))
 	set_palette_mask(chrome.shadow, shadow, 0, container)

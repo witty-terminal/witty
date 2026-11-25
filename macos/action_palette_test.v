@@ -6,6 +6,7 @@ import input
 #insert "@VMODROOT/macos/canvas_overlay_test_bridge.h"
 
 fn C.witty_overlay_test_png(view ObjId) ObjId
+fn C.witty_overlay_test_window_png(window ObjId) ObjId
 
 fn test_native_palette_uses_localized_filter_and_source_title_order() {
 	options := [NativeCommandOption{ title: 'Foo Bar: Two' }, NativeCommandOption{ title: 'Foo: One' },
@@ -88,6 +89,18 @@ fn test_native_palette_edit_and_wrapping_selection_consumers() {
 	assert msg_rect(palette.container, 'bounds').height == 249
 	assert !is_nil(msg_id(palette.chrome.mask, 'contents'))
 	assert !is_nil(msg_id(palette.chrome.shadow, 'contents'))
+	reduced := msg_bool(msg_id(get_class('NSWorkspace'), 'sharedWorkspace'),
+		'accessibilityDisplayShouldReduceTransparency')
+	assert msg_bool(palette.chrome.material, 'isHidden') == reduced
+	assert msg_bool(palette.chrome.opaque_material, 'isHidden') == !reduced
+	assert msg_bool(palette.chrome.tint, 'isHidden') == reduced
+	palette.chrome.set_reduce_transparency(!reduced)
+	assert msg_bool(palette.chrome.material, 'isHidden') == !reduced
+	assert msg_bool(palette.chrome.opaque_material, 'isHidden') == reduced
+	assert msg_bool(palette.chrome.tint, 'isHidden') == !reduced
+	msg_void2(palette_accessibility_center(), 'postNotificationName:object:',
+		nsstring('NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification'), nil_obj())
+	assert msg_bool(palette.chrome.material, 'isHidden') == reduced
 	rows := msg_id(palette.document, 'subviews')
 	first_row := msg_id_u64(rows, 'objectAtIndex:', 0)
 	second_row := msg_id_u64(rows, 'objectAtIndex:', 1)
@@ -119,12 +132,15 @@ fn test_native_palette_edit_and_wrapping_selection_consumers() {
 }
 
 fn test_native_palette_panel_capture() {
-	output := os.getenv_opt('WITTY_PALETTE_PANEL_OUTPUT') or { return }
+	output := os.getenv('WITTY_PALETTE_PANEL_OUTPUT')
+	live := os.getenv('WITTY_PALETTE_LIVE_OUTPUT')
+	if output.len == 0 && live.len == 0 { return }
 	app_init()
 	frame := objc_rect(0, 0, 680, 440)
 	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
-		frame, 0, ns_backing_store_buffered, false)
+		objc_rect(80, 80, frame.width, frame.height), 0, ns_backing_store_buffered, false)
 	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void_bool(window, 'setHasShadow:', false)
 	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
 	view := create_offscreen_terminal_view(680, 440)
 	msg_void1(window, 'setContentView:', view)
@@ -152,6 +168,7 @@ fn test_native_palette_panel_capture() {
 		surface.toggle_command_palette(options)
 		mut palette := surface.palette
 		for j, name in ['panel', 'empty', 'single', 'terminal'] {
+			if output.len == 0 { break }
 			palette.options = match j {
 				1 { []NativeCommandOption{} }
 				2 { [options[0]] }
@@ -169,7 +186,36 @@ fn test_native_palette_panel_capture() {
 			assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(output,
 				'${mode}-${name}-witty.png')), ObjId(1))
 		}
+		if live.len > 0 {
+			palette.options = options
+			palette.rebuild()
+			msg_void_rect(palette.container, 'setFrame:', objc_rect(90, 80, 500, 249))
+			capture_palette_live(window, base, live, mode)
+		}
 		surface.toggle_command_palette([]NativeCommandOption{})
+	}
+}
+
+fn capture_palette_live(window ObjId, base ObjId, output string, mode string) {
+	for name in ['flat', 'stripes'] {
+		if name == 'stripes' {
+			bounds := msg_rect(base, 'bounds')
+			for x := 0; x < int(bounds.width); x += 64 {
+				stripe := msg_id_rect(alloc('NSView'), 'initWithFrame:', objc_rect(x, 0, 32, bounds.height))
+				msg_void_bool(stripe, 'setWantsLayer:', true)
+				msg_void1(msg_id(stripe, 'layer'), 'setBackgroundColor:', msg_id(native_color(0x567bba, 1), 'CGColor'))
+				msg_void1(base, 'addSubview:', stripe)
+				msg_void(stripe, 'release')
+			}
+		}
+		png := C.witty_overlay_test_window_png(window)
+		assert !is_nil(png), 'Could not capture the compositor output of the palette fixture window'
+		assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(output,
+			'${mode}-${name}-witty.png')), ObjId(1))
+	}
+	children := msg_id(base, 'subviews')
+	for i := int(msg_u64(children, 'count')) - 1; i >= 0; i-- {
+		msg_void(msg_id_u64(children, 'objectAtIndex:', u64(i)), 'removeFromSuperview')
 	}
 }
 
@@ -213,8 +259,10 @@ fn test_native_palette_row_capture() {
 		NativeCommandOption{ title: 'Split Right Terminal', symbols: ['⌘', 'D'] },
 		NativeCommandOption{ title: 'Reload', description: 'Apply the configuration file' },
 		NativeCommandOption{ title: 'Ångström: Café 👩🏽‍💻' },
-		NativeCommandOption{ title: 'Focus Right Split', symbols: ['⌃', '⌥', '⇧', '⌘',
-			'▶'] },
+		NativeCommandOption{
+			title:   'Focus Right Split'
+			symbols: ['⌃', '⌥', '⇧', '⌘', '▶']
+		},
 		NativeCommandOption{
 			title:        update.title
 			subtitle:     update.subtitle
