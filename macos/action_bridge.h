@@ -59,7 +59,6 @@ static inline witty_action_inspector_size witty_action_to_backing(void* view,dou
 static inline void* witty_action_rounded_path(double width,double height,double radius) { return CGPathCreateWithRoundedRect((CGRect){{0,0},{width,height}},radius,radius,NULL); }
 static inline void witty_action_path_release(void* path) { CGPathRelease((CGPathRef)path); }
 static inline void* witty_action_rect_path(double x,double y,double width,double height) { return CGPathCreateWithRect((CGRect){{x,y},{width,height}},NULL); }
-static inline void witty_action_point(void* obj,void* selector,double x,double y) { ((void(*)(id,SEL,CGPoint))objc_msgSend)((id)obj,(SEL)selector,(CGPoint){x,y}); }
 #endif
 
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)

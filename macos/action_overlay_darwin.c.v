@@ -107,6 +107,8 @@ mut:
 	highlight_border    ObjId
 	highlight_mask      ObjId
 	highlight_shadows   []ObjId
+	highlight_accent    ?u32
+	highlight_texture_size ObjCSize
 	highlight_timer     ObjId
 	last_progress_value int = -1000
 	last_progress_width f64
@@ -200,7 +202,7 @@ pub fn new_action_surface(view voidptr, userdata voidptr, callbacks ActionCallba
 		add_method(cls, 'drawRect:', voidptr(action_draw), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
 		add_method(cls, 'viewDidChangeEffectiveAppearance', voidptr(action_overlay_appearance_changed), 'v@:')
 		add_method(cls, 'viewDidChangeBackingProperties', voidptr(action_overlay_backing_changed), 'v@:')
-		add_method(cls, 'progressColorsChanged:', voidptr(action_progress_colors_changed), 'v@:@')
+		add_method(cls, 'overlayColorsChanged:', voidptr(action_overlay_colors_changed), 'v@:@')
 		C.macos_objc_register_class_pair(cls)
 	}
 	state.overlay = msg_id_rect(alloc('WittyActionOverlay'), 'initWithFrame:', objc_rect(0, 0,
@@ -231,6 +233,8 @@ pub fn new_action_surface(view voidptr, userdata voidptr, callbacks ActionCallba
 	state.initialize_visuals()
 	state.initialize_highlight()
 	state.scroll = new_surface_scroll(state)
+	C.witty_macos_observe(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'), state.overlay,
+		sel('overlayColorsChanged:'), nsstring('NSSystemColorsDidChangeNotification'), nil_obj())
 	state.refresh()
 	return state
 }
@@ -283,10 +287,24 @@ fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
 	if mut state := action_owner_state(self) {
 		state.progress_color = none
 		if state.progress_active { state.refresh_progress() }
+		state.highlight_accent = none
+		if state.highlighted { state.refresh_highlight() }
 		if !is_nil(msg_id(state.bell_edges[0], 'contents')) {
 			state.update_bell_tiles()
 			state.refresh_bell_visuals()
 		}
+	}
+}
+
+fn action_overlay_appearance_changed(self ObjId, _cmd Sel) {
+	view_super_void(self, 'WittyActionOverlay', 'viewDidChangeEffectiveAppearance')
+	action_overlay_colors_changed(self, nil_obj(), nil_obj())
+}
+
+fn action_overlay_colors_changed(self ObjId, _cmd Sel, _notification ObjId) {
+	if mut state := action_owner_state(self) {
+		if state.progress_active { state.refresh_progress() }
+		if state.highlighted { state.refresh_highlight() }
 	}
 }
 

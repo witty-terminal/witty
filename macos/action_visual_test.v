@@ -44,12 +44,58 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	assert msg_u64(msg_id(surface.hover_label, 'cell'), 'lineBreakMode') == 5
 	surface.presented()
 	assert surface.highlighted
-	assert msg_u64(msg_id(surface.highlight_radial, 'colors'), 'count') == 3
+	assert !is_nil(msg_id(surface.highlight_radial, 'contents'))
+	assert !is_nil(msg_id(surface.highlight_border, 'contents'))
+	assert msg_f64(msg_id1(surface.highlight_mask, 'animationForKey:', nsstring('lineWidth')), 'duration') == 0.4
 	msg_void(surface.highlight_timer, 'fire')
 	assert !surface.highlighted
 	set_cursor_shape(view, 8)
 	assert msg_id(surface.scroll.scroll, 'documentCursor') == msg_id(get_class('NSCursor'), 'IBeamCursor')
 	assert cursor_for_shape(4) == none
+}
+
+fn test_native_highlight_overlay_capture() {
+	output := os.getenv_opt('WITTY_HIGHLIGHT_OVERLAY_OUTPUT') or { return }
+	app_init()
+	frame := objc_rect(0, 0, 103, 63)
+	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
+		frame, 0, ns_backing_store_buffered, false)
+	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
+	msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',
+		nsstring('NSAppearanceNameDarkAqua')))
+	view := create_offscreen_terminal_view(103, 63)
+	msg_void1(window, 'setContentView:', view)
+	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{})
+	defer {
+		surface.deinit()
+		msg_void(window, 'close')
+		msg_void(window, 'release')
+		release_offscreen_terminal_view(view)
+	}
+	base := msg_id_rect(alloc('NSView'), 'initWithFrame:', frame)
+	msg_void_bool(base, 'setWantsLayer:', true)
+	msg_void1(msg_id(base, 'layer'), 'setBackgroundColor:', msg_id(native_color(0x161820, 1), 'CGColor'))
+	C.witty_canvas_place_overlay(view, base, nil_obj())
+	C.witty_canvas_place_overlay(view, surface.overlay, nil_obj())
+	msg_void(base, 'release')
+	for i, name in ['small', 'medium', 'large'] {
+		width := [103, 320, 1030][i]
+		height := [63, 240, 800][i]
+		msg_void_size(window, 'setContentSize:', objc_size(width, height))
+		surface.scroll.layout()
+		surface.resize()
+		msg_void_rect(base, 'setFrame:', objc_rect(0, 0, width, height))
+		surface.presented()
+		for kind in ['full', 'glow', 'cleared'] {
+			msg_void_bool(surface.highlight_shadows.last(), 'setHidden:', kind == 'glow')
+			if kind == 'cleared' { msg_void(surface.highlight_timer, 'fire') }
+			png := C.witty_overlay_test_png(surface.scroll.container)
+			assert !is_nil(png)
+			assert msg_bool2(png, 'writeToFile:atomically:',
+				nsstring(os.join_path(output, 'highlight-${kind}-${name}-witty.png')), ObjId(1))
+		}
+	}
 }
 
 struct NativeBellFixture {

@@ -15,19 +15,6 @@ fn (mut state NativeActionSurface) initialize_progress() {
 	msg_void1(clip, 'addSublayer:', state.progress_layer)
 	msg_void_bool(state.progress_view, 'setAccessibilityElement:', true)
 	msg_void1(state.progress_view, 'setAccessibilityRole:', nsstring('AXProgressIndicator'))
-	C.witty_macos_observe(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'), state.overlay,
-		sel('progressColorsChanged:'), nsstring('NSSystemColorsDidChangeNotification'), nil_obj())
-}
-
-fn action_overlay_appearance_changed(self ObjId, _cmd Sel) {
-	view_super_void(self, 'WittyActionOverlay', 'viewDidChangeEffectiveAppearance')
-	action_progress_colors_changed(self, nil_obj(), nil_obj())
-}
-
-fn action_progress_colors_changed(self ObjId, _cmd Sel, _notification ObjId) {
-	if mut state := action_owner_state(self) {
-		if state.progress_active { state.refresh_progress() }
-	}
 }
 
 fn (mut state NativeActionSurface) refresh_progress() {
