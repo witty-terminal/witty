@@ -39,9 +39,13 @@ static inline void witty_gtk_palette_append(GtkSnapshot *snapshot, GdkTexture *m
 		GskRenderNode *child = gsk_rounded_clip_node_get_child(node);
 		const float y = clip->bounds.origin.y;
 		const float end = y + clip->bounds.size.height;
-		// Keep GTK's antialiasing and blending for the rounded panel fill.
-		if (gsk_render_node_get_node_type(child) == GSK_COLOR_NODE)
+		if (gsk_render_node_get_node_type(child) == GSK_COLOR_NODE) {
+			// The shared fill keeps the curved strips in the native snapshot.
+			if (y >= top && end <= bottom && gsk_color_node_get_color(child)->alpha == 1
+					&& witty_gtk_canvas_overlay_append_background(snapshot, mask, node))
+				return;
 			break;
+		}
 
 		// Keep the rounded clip around its original content and convert fills
 		// only in the central rectangle where the clip is fully opaque.
