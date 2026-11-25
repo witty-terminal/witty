@@ -153,7 +153,8 @@ static inline void *witty_canvas_make_tile(const uint32_t *pixel, void *target, 
     return tile;
 }
 
-static inline CGImageRef witty_canvas_alpha_image(const uint32_t *pixels, int width, int height,
+static inline CGImageRef witty_canvas_alpha_image(const uint32_t *pixels, const float *coverage,
+        int width, int height,
         CGColorSpaceRef space, double r, double g, double b, double opacity) {
     const size_t count = (size_t)width * height;
     const CFIndex bytes = (CFIndex)(count * 8);
@@ -166,24 +167,35 @@ static inline CGImageRef witty_canvas_alpha_image(const uint32_t *pixels, int wi
     b = fmin(fmax(b, 0), 1);
     const double alpha_scale = 257 * fmin(fmax(opacity, 0), 1);
     for (size_t i = 0; i < count; i++) {
-        const uint16_t a = (uint16_t)((pixels[i] >> 24) * alpha_scale + 0.5);
+        const double a = coverage ? fmin(fmax(coverage[i], 0), 1) * 65535
+            : (uint16_t)((pixels[i] >> 24) * alpha_scale + 0.5);
         rgba[4 * i] = (uint16_t)lround(r * a);
         rgba[4 * i + 1] = (uint16_t)lround(g * a);
         rgba[4 * i + 2] = (uint16_t)lround(b * a);
-        rgba[4 * i + 3] = a;
+        rgba[4 * i + 3] = (uint16_t)lround(a);
     }
     CGImageRef image = witty_canvas_rgba_image(data, width, height, 16, space, true);
     CFRelease(data);
     return image;
 }
 
-static inline void *witty_canvas_make_alpha_image(const uint32_t *pixels, int width, int height,
-        uint32_t color, void *target) {
+static inline CGImageRef witty_canvas_make_tinted_alpha_image(const uint32_t *pixels,
+        const float *coverage, int width, int height, uint32_t color, void *target) {
     double r, g, b;
     CGColorSpaceRef space = witty_canvas_convert_rgb(color, target, &r, &g, &b);
-    CGImageRef image = witty_canvas_alpha_image(pixels, width, height, space, r, g, b, 1);
+    CGImageRef image = witty_canvas_alpha_image(pixels, coverage, width, height, space, r, g, b, 1);
     if (space) CGColorSpaceRelease(space);
     return image;
+}
+
+static inline void *witty_canvas_make_alpha_image(const uint32_t *pixels, int width, int height,
+        uint32_t color, void *target) {
+    return witty_canvas_make_tinted_alpha_image(pixels, NULL, width, height, color, target);
+}
+
+static inline void *witty_canvas_make_gradient_mask(const float *coverage, int width, int height,
+        uint32_t color, void *target) {
+    return witty_canvas_make_tinted_alpha_image(NULL, coverage, width, height, color, target);
 }
 
 static inline CGImageRef witty_canvas_make_native_color_mask(const uint32_t *pixels, int width,
@@ -195,7 +207,7 @@ static inline CGImageRef witty_canvas_make_native_color_mask(const uint32_t *pix
         resolved = [color colorUsingColorSpace:space];
     }];
     if (!resolved) return NULL;
-    return witty_canvas_alpha_image(pixels, width, height, space.CGColorSpace, resolved.redComponent,
+    return witty_canvas_alpha_image(pixels, NULL, width, height, space.CGColorSpace, resolved.redComponent,
         resolved.greenComponent, resolved.blueComponent, resolved.alphaComponent);
 }
 

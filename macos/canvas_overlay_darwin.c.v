@@ -12,6 +12,7 @@ fn C.witty_canvas_set_translucent_fill(layer ObjId, view ObjId, color ObjId, opa
 fn C.witty_canvas_make_srgb_tile(r f32, g f32, b f32, a f32) voidptr
 fn C.witty_canvas_make_tile(pixel &u32, target ObjId, opacity f64, blend_over_gray int) voidptr
 fn C.witty_canvas_make_alpha_image(pixels &u32, width int, height int, color u32, target ObjId) voidptr
+fn C.witty_canvas_make_gradient_mask(coverage &f32, width int, height int, color u32, target ObjId) voidptr
 fn C.witty_canvas_make_color_image(pixels &u32, width int, height int) voidptr
 fn C.witty_canvas_make_native_color_mask(pixels &u32, width int, height int, view ObjId, color ObjId) voidptr
 fn C.witty_canvas_present_tile(target voidptr, image voidptr, positions voidptr, count int)

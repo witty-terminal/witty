@@ -1,6 +1,5 @@
 module macos
 
-import gg.canvas
 import math
 
 pub fn (mut surface NativeActionSurface) presented() {
@@ -40,7 +39,7 @@ fn highlight_gradient_image(target ObjId, width f64, height f64, scale f64, acce
 	// the pane spans a large display.
 	px_width := int(math.clamp(math.round(width * scale), 1, 512))
 	px_height := int(math.clamp(math.round(height * scale), 1, 512))
-	mut raster := canvas.new_raster_surface(width: px_width, height: px_height)!
+	mut coverage := []f32{len: px_width * px_height}
 	stops := if radial { [f64(0.12), 0.03, 0.0]! } else { [f64(0.8), 0.5, 0.8]! }
 	step_x := width / px_width
 	step_y := height / px_height
@@ -56,12 +55,11 @@ fn highlight_gradient_image(target ObjId, width f64, height f64, scale f64, acce
 			} else {
 				(point_x * width + point_y * height) / diagonal
 			}
-			alpha := u32(math.round(highlight_gradient_alpha(t, stops) * 255))
-			// Store a premultiplied white coverage mask in the Canvas raster.
-			raster.pixels[y * px_width + x] = alpha * 0x01010101
+			// Keep fractional coverage until the bridge writes the 16-bit texture.
+			coverage[y * px_width + x] = f32(highlight_gradient_alpha(t, stops))
 		}
 	}
-	image := C.witty_canvas_make_alpha_image(raster.pixels.data, px_width, px_height, accent, target)
+	image := C.witty_canvas_make_gradient_mask(coverage.data, px_width, px_height, accent, target)
 	if is_nil(image) { return error('could not create highlight gradient image') }
 	return image
 }

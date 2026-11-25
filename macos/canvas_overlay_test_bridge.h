@@ -27,6 +27,26 @@ static inline double witty_overlay_test_fill_alpha(CALayer *layer) {
     return layer.backgroundColor ? CGColorGetAlpha(layer.backgroundColor) : 0;
 }
 
+static inline bool witty_overlay_test_has_16bit_coverage(CALayer *layer) {
+    CGImageRef image = (CGImageRef)layer.contents;
+    if (!image || CGImageGetBitsPerComponent(image) != 16 ||
+        CGImageGetBitsPerPixel(image) != 64 ||
+        CGImageGetAlphaInfo(image) != kCGImageAlphaPremultipliedLast) return false;
+    CFDataRef data = CGDataProviderCopyData(CGImageGetDataProvider(image));
+    if (!data) return false;
+    const uint16_t *rgba = (const uint16_t *)CFDataGetBytePtr(data);
+    const size_t channels = CFDataGetLength(data) / sizeof(*rgba);
+    bool precise = false;
+    for (size_t i = 3; i < channels; i += 4) {
+        if (rgba[i] % 257 != 0) {
+            precise = true;
+            break;
+        }
+    }
+    CFRelease(data);
+    return precise;
+}
+
 static inline float witty_overlay_test_opacity(void *object) {
     return [(CALayer *)object opacity];
 }
