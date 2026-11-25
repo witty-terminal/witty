@@ -5702,8 +5702,9 @@ fn test_screen_style_underline_color_independent_from_fg() ! {
 	assert fg_color.b == 0
 
 	// The underline color is stored in its own fields.
-	assert s.cursor.style.underline_color is StyleColorRgb
-	underline_rgb := (s.cursor.style.underline_color as StyleColorRgb).rgb
+	rgb_underline := s.cursor.style.underline_color
+	assert rgb_underline is StyleColorRgb
+	underline_rgb := (rgb_underline as StyleColorRgb).rgb
 	assert underline_rgb.r == 0
 	assert underline_rgb.g == 255
 	assert underline_rgb.b == 0
@@ -5725,8 +5726,9 @@ fn test_screen_style_underline_color_independent_from_fg() ! {
 		b: 33
 	}
 	s.set_attribute(SgrUnderlineColor256{ idx: 7 })!
-	assert s.cursor.style.underline_color is StyleColorPalette
-	assert (s.cursor.style.underline_color as StyleColorPalette).index == 7
+	palette_underline := s.cursor.style.underline_color
+	assert palette_underline is StyleColorPalette
+	assert (palette_underline as StyleColorPalette).index == 7
 	// fg is still the RGB red we set earlier, untouched by the palette write.
 	assert s.cursor.style.fg_color is StyleColorRgb
 	assert (s.cursor.style.fg_color as StyleColorRgb).rgb.r == 255
