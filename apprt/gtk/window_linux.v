@@ -978,7 +978,6 @@ fn window_close_page_cb(view AdwTabView, page AdwTabPage, user_data voidptr) int
 		return 1
 	}
 	mut dialog := close_confirmation_dialog_new(.tab)
-	dialog.set_canvas_enabled(!isnil(self.config) && gtk_canvas_styles_enabled(self.config.get()))
 	C.g_signal_connect_data(dialog.dialog.obj, c'close-request',
 		GCallback(voidptr(window_close_tab_confirmed_cb)), page, unsafe { nil }, 0)
 	C.g_signal_connect_data(dialog.dialog.obj, c'cancel',
@@ -1600,7 +1599,7 @@ fn (self &Window) prompt_window_title() {
 			initial_value = unsafe { cstring_to_vstring(title) }
 		}
 	}
-	prompt_title_dialog(self.as_widget(), self.config, i18n_('Change Window Title'), initial_value,
+	prompt_title_dialog(self.as_widget(), i18n_('Change Window Title'), initial_value,
 		GCallback(voidptr(window_title_dialog_set_cb)))
 }
 
@@ -2353,7 +2352,6 @@ pub fn (mut self Window) prop_quick_terminal(mut app Application) {
 pub fn (mut self Window) window_close_request() bool {
 	if self.get_needs_confirm_quit() {
 		mut dialog := close_confirmation_dialog_new(.window)
-		dialog.set_canvas_enabled(!isnil(self.config) && gtk_canvas_styles_enabled(self.config.get()))
 		C.g_signal_connect_data(dialog.dialog.obj, c'close-request',
 			GCallback(voidptr(window_close_confirmed_cb)), voidptr(self), unsafe { nil }, 0)
 		dialog.present(self.as_widget())

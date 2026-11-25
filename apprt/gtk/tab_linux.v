@@ -555,7 +555,7 @@ fn tab_from_widget(widget GtkWidget) ?&Tab {
 }
 
 fn (self &Tab) prompt_title() {
-	prompt_title_dialog(self.widget, self.config, i18n_('Change Tab Title'),
+	prompt_title_dialog(self.widget, i18n_('Change Tab Title'),
 		if override := self.title_override { ?string(override) } else { self.title },
 		GCallback(voidptr(tab_title_dialog_set_cb)))
 }

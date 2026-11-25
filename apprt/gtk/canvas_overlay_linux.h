@@ -169,20 +169,19 @@ typedef enum {
 	WITTY_CANVAS_LAST_CLIPPED_FILL,
 } WittyCanvasFillSearch;
 
-// Replace a fill at the given allocation. A null area targets the dialog's
-// first opaque rounded panel background. A text view paints its text
+// Replace a fill at the given allocation. A text view paints its text
 // background over its widget background, possibly under a viewport clip.
 static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
 		GdkTexture *mask, const graphene_rect_t *area, WittyCanvasFillSearch search) {
 	graphene_rect_t bounds;
 	gsk_render_node_get_bounds(node, &bounds);
-	if (area && !graphene_rect_contains_rect(&bounds, area))
+	if (!graphene_rect_contains_rect(&bounds, area))
 		return NULL;
 
 	switch (gsk_render_node_get_node_type(node)) {
 	case GSK_COLOR_NODE: {
 		const GdkRGBA *color = gsk_color_node_get_color(node);
-		if (!area || color->alpha != 1 || (search != WITTY_CANVAS_LAST_CLIPPED_FILL
+		if (color->alpha != 1 || (search != WITTY_CANVAS_LAST_CLIPPED_FILL
 				&& !graphene_rect_equal(&bounds, area)))
 			return NULL;
 		GtkSnapshot *snapshot = gtk_snapshot_new();
@@ -212,19 +211,16 @@ static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
 		gsk_transform_to_translate(transform, &x, &y);
 		if (x != floorf(x) || y != floorf(y))
 			return NULL;
-		graphene_rect_t local;
-		if (area) {
-			local = *area;
-			local.origin.x -= x;
-			local.origin.y -= y;
-		}
+		graphene_rect_t local = *area;
+		local.origin.x -= x;
+		local.origin.y -= y;
 		g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_fill(
-			gsk_transform_node_get_child(node), mask, area ? &local : NULL, search);
+			gsk_transform_node_get_child(node), mask, &local, search);
 		return fill ? gsk_transform_node_new(fill, transform) : NULL;
 	}
 	case GSK_CLIP_NODE: {
 		const graphene_rect_t *clip = gsk_clip_node_get_clip(node);
-		if (area && search == WITTY_CANVAS_LAST_FILL && graphene_rect_equal(clip, area))
+		if (search == WITTY_CANVAS_LAST_FILL && graphene_rect_equal(clip, area))
 			search = WITTY_CANVAS_LAST_CLIPPED_FILL;
 		g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_fill(
 			gsk_clip_node_get_child(node), mask, area, search);
@@ -233,14 +229,14 @@ static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
 	case GSK_ROUNDED_CLIP_NODE: {
 		const GskRoundedRect *clip = gsk_rounded_clip_node_get_clip(node);
 		GskRenderNode *child = gsk_rounded_clip_node_get_child(node);
-		if ((!area || graphene_rect_equal(&clip->bounds, area))
+		if (graphene_rect_equal(&clip->bounds, area)
 				&& gsk_render_node_get_node_type(child) == GSK_COLOR_NODE
 				&& gsk_color_node_get_color(child)->alpha == 1) {
 			GtkSnapshot *snapshot = gtk_snapshot_new();
 			witty_gtk_canvas_overlay_append_background(snapshot, mask, node);
 			return gtk_snapshot_free_to_node(snapshot);
 		}
-		if (!area || !gsk_rounded_rect_contains_rect(clip, area))
+		if (!gsk_rounded_rect_contains_rect(clip, area))
 			return NULL;
 		g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_fill(child, mask, area, search);
 		return fill ? gsk_rounded_clip_node_new(fill, clip) : NULL;
@@ -248,6 +244,25 @@ static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
 	default:
 		return NULL;
 	}
+}
+
+static inline GskRenderNode *witty_gtk_canvas_replace_widget_fill(GskRenderNode *node,
+		GdkTexture *mask, GtkWidget *widget, const graphene_rect_t *area) {
+	GskRenderNode *fill = witty_gtk_canvas_replace_fill(node, mask, area, WITTY_CANVAS_FIRST_FILL);
+	if (fill)
+		return fill;
+
+	// Themes can clip the background to the padding box inside the border.
+	GtkBorder border;
+	gtk_style_context_get_border(gtk_widget_get_style_context(widget), &border);
+	if (!border.left && !border.right && !border.top && !border.bottom)
+		return NULL;
+	const graphene_rect_t padding = GRAPHENE_RECT_INIT(area->origin.x + border.left,
+		area->origin.y + border.top, area->size.width - border.left - border.right,
+		area->size.height - border.top - border.bottom);
+	if (padding.size.width <= 0 || padding.size.height <= 0)
+		return NULL;
+	return witty_gtk_canvas_replace_fill(node, mask, &padding, WITTY_CANVAS_FIRST_FILL);
 }
 
 static inline bool witty_gtk_canvas_overlay_has_mask(GtkWidget *bin) {

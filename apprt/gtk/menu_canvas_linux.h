@@ -21,21 +21,7 @@ static inline void witty_gtk_menu_canvas_snapshot(GtkWidget *widget, GtkSnapshot
 	native_class->snapshot(widget, layout);
 	g_autoptr(GskRenderNode) node = gtk_snapshot_free_to_node(layout);
 	if (node) {
-		g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_fill(node, mask, &area, WITTY_CANVAS_FIRST_FILL);
-		if (!fill) {
-			// Themes can clip the background to the padding box inside the
-			// border. Match that exact allocation as well.
-			GtkBorder border;
-			gtk_style_context_get_border(gtk_widget_get_style_context(contents), &border);
-			if (border.left || border.right || border.top || border.bottom) {
-				area.origin.x += border.left;
-				area.origin.y += border.top;
-				area.size.width -= border.left + border.right;
-				area.size.height -= border.top + border.bottom;
-				if (area.size.width > 0 && area.size.height > 0)
-					fill = witty_gtk_canvas_replace_fill(node, mask, &area, WITTY_CANVAS_FIRST_FILL);
-			}
-		}
+		g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_widget_fill(node, mask, contents, &area);
 		gtk_snapshot_append_node(snapshot, fill ? fill : node);
 	}
 }

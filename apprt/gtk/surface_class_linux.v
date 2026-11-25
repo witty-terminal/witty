@@ -1288,7 +1288,7 @@ pub fn (mut self SurfaceWidget) prompt_title() {
 	} else if title := self.title {
 		initial_value = title
 	}
-	prompt_title_dialog(self.widget, self.config, i18n_('Change Terminal Title'), initial_value,
+	prompt_title_dialog(self.widget, i18n_('Change Terminal Title'), initial_value,
 		GCallback(voidptr(surface_title_dialog_set_cb)))
 }
 

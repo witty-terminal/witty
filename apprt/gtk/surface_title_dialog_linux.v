@@ -174,6 +174,7 @@ fn surface_title_dialog_class_init(klass voidptr, class_data voidptr) {
 
 fn surface_title_dialog_instance_init(instance voidptr, klass voidptr) {
 	C.gtk_widget_init_template(instance)
+	gtk_canvas_overlay_set_mask(GtkWidget(instance), true)
 }
 
 // surface_title_dialog_get_type lazily registers the GhosttySurfaceTitleDialog
@@ -222,10 +223,9 @@ pub fn surface_title_dialog_new(initial_value ?string) &SurfaceTitleDialog {
 	}
 }
 
-fn prompt_title_dialog(parent GtkWidget, config &Config, heading string, initial_value ?string, on_set GCallback) {
+fn prompt_title_dialog(parent GtkWidget, heading string, initial_value ?string, on_set GCallback) {
 	mut dialog := surface_title_dialog_new(initial_value)
 	C.adw_alert_dialog_set_heading(AdwAlertDialog(dialog.obj), &char(heading.str))
-	gtk_canvas_overlay_set_mask(GtkWidget(dialog.obj), !isnil(config) && gtk_canvas_styles_enabled(config.get()))
 	C.g_signal_connect_object(dialog.obj, c'set', on_set, GObject(parent), 0)
 	dialog.present(parent)
 }

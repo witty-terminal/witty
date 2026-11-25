@@ -825,7 +825,6 @@ pub fn (mut self Application) quit() {
 	// Parent the prompt to the active application window when one exists.
 	parent := self.active_window()
 	mut dialog := close_confirmation_dialog_new(.app)
-	dialog.set_canvas_enabled(gtk_canvas_styles_enabled(&self.config))
 	C.g_signal_connect_data(dialog.dialog.obj, c'close-request', GCallback(voidptr(application_close_confirmed_cb)), voidptr(self), unsafe { nil }, 0)
 	dialog.present(GtkWidget(parent))
 }

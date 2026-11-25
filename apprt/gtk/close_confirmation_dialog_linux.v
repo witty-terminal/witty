@@ -163,6 +163,7 @@ fn close_confirmation_dialog_class_init(klass voidptr, class_data voidptr) {
 // ghostty `init` (instanceInit).
 fn close_confirmation_dialog_instance_init(instance voidptr, klass voidptr) {
 	C.gtk_widget_init_template(instance)
+	gtk_canvas_overlay_set_mask(GtkWidget(instance), supports_dialogs())
 }
 
 // close_confirmation_dialog_get_type lazily registers the
@@ -223,10 +224,6 @@ fn close_confirmation_native_response_cb(obj GObject, response_id &char) {
 	} else {
 		C.g_signal_emit_by_name(obj, c'cancel')
 	}
-}
-
-fn (self &CloseConfirmationDialog) set_canvas_enabled(enabled bool) {
-	gtk_canvas_overlay_set_mask(GtkWidget(self.dialog.obj), supports_dialogs() && enabled)
 }
 
 // present sets up the title/body from the target and shows the dialog. Mirrors
