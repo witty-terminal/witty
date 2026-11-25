@@ -2407,6 +2407,7 @@ fn (mut self Terminal) print_cell(unmapped_c u32, wide CellWide) {
 	// row so that the renderer can lookup rows with these much faster.
 	if c == kitty_unicode_placeholder {
 		self.screens.active.cursor.page_row.header.kitty_virtual_placeholder = true
+		self.screens.active.kitty_images.dirty = true
 	}
 
 	// We check for an active hyperlink first because setHyperlink

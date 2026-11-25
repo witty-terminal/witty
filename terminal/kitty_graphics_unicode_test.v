@@ -541,6 +541,66 @@ fn test_unicode_render_placement_dog_1x1() ! {
 	}
 }
 
+fn test_unicode_render_placement_prefers_lowest_explicit_id() ! {
+	mut t := Terminal.init(Options{ cols: 5, rows: 5 })!
+	defer {
+		t.deinit()
+	}
+	mut s := ImageStorage{}
+	defer {
+		s.deinit(mut t.screens.active)
+	}
+	image := Image{ id: 42, width: 24, height: 18 }
+	s.add_image(mut t.screens.active, image)!
+	s.add_placement(mut t.screens.active, 42, 0, Placement{
+		location: PlacementVirtual{}
+		columns:  3
+		rows:     2
+	})
+	s.add_placement(mut t.screens.active, 42, 9, Placement{
+		location: PlacementVirtual{}
+		columns:  2
+		rows:     1
+	})
+	s.add_placement(mut t.screens.active, 42, 4, Placement{
+		location: PlacementVirtual{}
+		columns:  4
+		rows:     2
+	})
+
+	implicit := VirtualPlacement{ image_id: 42 }
+	rows, columns := implicit.grid(&s, &image, 10, 20)!
+	assert rows == 2
+	assert columns == 4
+
+	explicit := VirtualPlacement{ image_id: 42, placement_id: 9 }
+	explicit_rows, explicit_columns := explicit.grid(&s, &image, 10, 20)!
+	assert explicit_rows == 1
+	assert explicit_columns == 2
+}
+
+fn test_unicode_render_placement_rejects_invalid_grid() ! {
+	mut t := Terminal.init(Options{ cols: 5, rows: 5 })!
+	defer {
+		t.deinit()
+	}
+	mut s := ImageStorage{}
+	defer {
+		s.deinit(mut t.screens.active)
+	}
+	image := Image{ id: 42, width: u32(max_u16) + 1, height: 18 }
+	s.add_image(mut t.screens.active, image)!
+	s.add_placement(mut t.screens.active, 42, 0, Placement{ location: PlacementVirtual{} })
+	placeholder := VirtualPlacement{ image_id: 42 }
+	for cell_width in [u32(0), 1] {
+		placeholder.render_placement(&s, &image, cell_width, 20) or {
+			assert err.msg() == 'PlacementGridOutOfBounds'
+			continue
+		}
+		assert false, 'expected invalid grid error for cell width ${cell_width}'
+	}
+}
+
 // Witty-only: direct unit coverage of IncompletePlacement run merging.
 fn test_incomplete_placement_can_append_same_image() {
 	a := IncompletePlacement{

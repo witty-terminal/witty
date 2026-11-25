@@ -192,39 +192,18 @@ pub fn (self &VirtualPlacement) render_placement(storage &ImageStorage, img &Ima
 // This part of the code does NOT preserve any aspect ratios. Its
 // dumbly fitting the image into the grid size -- possibly user specified.
 fn (self &VirtualPlacement) grid(storage &ImageStorage, image &Image, cell_width u32, cell_height u32) !(u32, u32) {
-	// Get the placement. If an ID is specified we look for the exact one.
-	// If no ID, then we find the first virtual placement for this image.
-	p := if self.placement_id > 0 {
-		storage.get_placement(PlacementKey{
-			image_id:     self.image_id
-			placement_id: PlacementId.init(.external, self.placement_id)
-		}) or {
-			return error('PlacementMissingPlacement')
-		}
-	} else {
-		mut found := ?Placement(none)
-		for entry in storage.placements {
-			if entry.key.image_id == self.image_id && entry.value.location is PlacementVirtual {
-				found = entry.value
-				break
-			}
-		}
-		found or {
-			return error('PlacementMissingPlacement')
-		}
+	p := storage.placeholder_target(self.image_id, self.placement_id) or {
+		return error('PlacementMissingPlacement')
 	}
-
-	// Use requested rows/columns if specified
-	// For unspecified rows/columns, calculate based on the image size.
-	mut p_rows := p.rows
-	mut p_columns := p.columns
-	if p_rows == 0 {
-		p_rows = (image.height + cell_height - 1) / cell_height
+	if cell_width == 0 || cell_height == 0 {
+		return error('PlacementGridOutOfBounds')
 	}
-	if p_columns == 0 {
-		p_columns = (image.width + cell_width - 1) / cell_width
+	rows := if p.rows > 0 { p.rows } else { kitty_grid_extent(image.height, 0, cell_height) }
+	columns := if p.columns > 0 { p.columns } else { kitty_grid_extent(image.width, 0, cell_width) }
+	if rows == 0 || columns == 0 || rows > max_u16 || columns > max_u16 {
+		return error('PlacementGridOutOfBounds')
 	}
-	return p_rows, p_columns
+	return rows, columns
 }
 
 // ============================================================

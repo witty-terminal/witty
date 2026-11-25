@@ -680,7 +680,8 @@ pub fn (mut self ImageRenderState) kitty_update(t &terminal.Terminal, cell_size 
 	}
 
 	mut virtuals := []terminal.VirtualPlacement{}
-	if has_virtual {
+	// An explicit placeholder ID can also reference a pinned placement.
+	if storage.placement_count() > 0 {
 		mut it := terminal.placement_iterator(top, bot)
 		for {
 			placement := it.next() or { break }

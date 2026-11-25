@@ -45,6 +45,13 @@ pub fn (id PlacementId) int_val() u64 {
 	return id.value
 }
 
+fn (id PlacementId) preferred_over(other PlacementId) bool {
+	if id.tag() != other.tag() {
+		return id.tag() == .external
+	}
+	return id.id() < other.id()
+}
+
 // ============================================================
 // PlacementKey - uniquely identifies a placement
 // ============================================================
@@ -958,6 +965,32 @@ pub fn (self &ImageStorage) get_placement(key PlacementKey) ?Placement {
 		}
 	}
 	return none
+}
+
+// A placeholder with no placement ID selects a virtual placement.
+// Prefer explicit IDs, then the lowest ID within each kind.
+fn (self &ImageStorage) placeholder_target(image_id u32, placement_id u32) ?Placement {
+	if placement_id > 0 {
+		return self.get_placement(PlacementKey{
+			image_id:     image_id
+			placement_id: PlacementId.init(.external, placement_id)
+		})
+	}
+
+	mut best := ?PlacementEntry(none)
+	for entry in self.placements {
+		if entry.key.image_id != image_id || entry.value.location !is PlacementVirtual {
+			continue
+		}
+		if current := best {
+			if !entry.key.placement_id.preferred_over(current.key.placement_id) {
+				continue
+			}
+		}
+		best = entry
+	}
+	entry := best or { return none }
+	return entry.value
 }
 
 // Count the number of placements.

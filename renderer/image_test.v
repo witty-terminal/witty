@@ -283,6 +283,43 @@ fn test_kitty_virtual_placement_keeps_renderer_updates_active_without_placeholde
 	assert state.kitty_requires_update(&t)
 }
 
+fn test_kitty_virtual_placement_can_reference_a_pin() ! {
+	mut t := terminal.Terminal.init(terminal.Options{ rows: 5, cols: 5 })!
+	t.width_px = 50
+	t.height_px = 100
+	t.modes.set(.grapheme_cluster, true)
+	defer {
+		t.deinit()
+	}
+
+	display := terminal.CommandParser.parse_string('a=T,f=24,t=d,i=7,p=9,s=1,v=1,c=1,r=1,C=1;////')!
+	assert (t.kitty_graphics(&display) or { panic('expected display response') }).ok()
+	mut state := ImageRenderState.empty()
+	defer {
+		state.deinit()
+	}
+	cell_size := CellSize{ width: 10, height: 20 }
+	state.kitty_update(&t, cell_size)
+	assert state.kitty_placements.len == 1
+	assert !state.kitty_requires_update(&t)
+
+	t.set_cursor_pos(3, 2)
+	t.set_attribute(terminal.SgrFg256{ idx: 7 })!
+	t.set_attribute(terminal.SgrUnderlineColor256{ idx: 9 })!
+	t.print_string('\U0010EEEE̅̅')!
+	assert state.kitty_requires_update(&t)
+	state.kitty_update(&t, cell_size)
+	assert state.kitty_placements.len == 2
+	assert state.kitty_virtual
+
+	t.set_cursor_pos(3, 2)
+	t.print_string(' ')!
+	assert state.kitty_requires_update(&t)
+	state.kitty_update(&t, cell_size)
+	assert state.kitty_placements.len == 1
+	assert !state.kitty_requires_update(&t)
+}
+
 fn test_kitty_virtual_placement_uses_viewport_relative_row() ! {
 	mut t := terminal.Terminal.init(terminal.Options{
 		rows: 5

@@ -103,6 +103,52 @@ def kitty_cursor():
     return commands
 
 
+def kitty_unicode():
+    pixels = bytes(
+        channel
+        for y in range(18)
+        for x in range(24)
+        for channel in (x * 10, y * 14, 230 - x * 6, 255)
+    )
+    data = base64.b64encode(pixels) + b"\x1b\\"
+    commands = bytearray(b"Kitty Unicode placeholders")
+    for image_id in (42, 0x0200002A):
+        commands += f"\x1b_Ga=t,f=32,i={image_id},s=24,v=18,q=2;".encode() + data
+    commands += b"\x1b_Ga=p,i=42,U=1,c=3,r=2,q=2;\x1b\\"
+    commands += b"\x1b_Ga=p,i=42,p=9,U=1,c=2,r=1,q=2;\x1b\\"
+    commands += b"\x1b_Ga=p,i=42,p=4,U=1,c=4,r=2,q=2;\x1b\\"
+    commands += b"\x1b_Ga=p,i=33554474,U=1,c=4,r=1,q=2;\x1b\\"
+
+    marks = "\u0305\u030d\u030e\u0310"
+    for row, col, image_row, count, placement_id, high_byte in (
+        (3, 4, 0, 4, 0, 0),
+        (4, 4, 1, 4, 0, 0),
+        (3, 18, 0, 2, 9, 0),
+        (4, 18, 1, 3, 4, 0),
+        (7, 4, 0, 4, 0, 2),
+    ):
+        commands += f"\x1b[{row};{col}H\x1b[38;5;42m".encode()
+        if placement_id:
+            commands += f"\x1b[58:5:{placement_id}m".encode()
+        for image_col in range(count):
+            first = image_col == 0
+            # The high-byte run inherits its coordinates after the first cell.
+            diacritics = marks[image_row] + marks[image_col] if first or not high_byte else ""
+            if high_byte and first:
+                diacritics += marks[high_byte]
+            commands += ("\U0010eeee" + diacritics).encode()
+        commands += b"\x1b[0m"
+    return commands
+
+
+def kitty_unicode_pinned():
+    return (
+        b"Kitty explicit placeholder target"
+        + kitty_solid(3, 4, 43, (230, 80, 100))
+        + "\x1b[7;4H\x1b[38;5;43;58:5:1m\U0010eeee\u0305\u0305\U0010eeee\u0305\u030d\x1b[0m".encode()
+    )
+
+
 def main():
     fixture = sys.argv[1]
     output = {
@@ -150,6 +196,10 @@ def main():
         sys.stdout.buffer.write(kitty_layout())
     elif fixture == "kitty-cursor":
         sys.stdout.buffer.write(kitty_cursor())
+    elif fixture == "kitty-unicode":
+        sys.stdout.buffer.write(kitty_unicode())
+    elif fixture == "kitty-unicode-pinned":
+        sys.stdout.buffer.write(kitty_unicode_pinned())
     elif fixture in CURSOR_STYLES:
         # Reposition over an existing glyph and show a steady cursor.
         style = CURSOR_STYLES[fixture]
