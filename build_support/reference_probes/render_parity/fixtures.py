@@ -381,6 +381,16 @@ def resize_prompt_last():
     )
 
 
+def grapheme_sequences():
+    wait_for_initial_grid()
+    return (
+        "\x1b[?2027hEmoji sequences: 🏴\u200d☠\ufe0f  ❤\ufe0f  ☀\ufe0e\r\n"
+        f"Combining accent with clustering\x1b[{GRID_COLUMNS - 1}Gne\u0301\r\n"
+        f"\x1b[?2027lCombining accent without clustering\x1b[{GRID_COLUMNS - 1}Gne\u0301\r\n"
+        f"\x1b[?2027hEmoji presentation at the right edge\x1b[{GRID_COLUMNS}G❤\ufe0f after wrap"
+    ).encode()
+
+
 def colored_line_erase():
     # An erase issued before the startup resize uses the old right edge.
     wait_for_initial_grid()
@@ -477,6 +487,8 @@ def main():
         sys.stdout.buffer.write(terminal_sprites())
     elif fixture == "colored-line-erase":
         sys.stdout.buffer.write(colored_line_erase())
+    elif fixture == "grapheme-sequences":
+        sys.stdout.buffer.write(grapheme_sequences())
     elif fixture == "resize-pending-wrap":
         sys.stdout.buffer.write(resize_pending_wrap())
     elif fixture == "resize-prompt-last":

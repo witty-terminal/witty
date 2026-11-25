@@ -3430,6 +3430,59 @@ fn test_invalid_vs16_doesnt_mark_dirty() {
 	assert !t.is_dirty(active_point(0, 0))
 }
 
+fn test_print_grapheme_combining_accent_with_pending_wrap() ! {
+	for clustering in [false, true] {
+		mut t := create_test_terminal(3, 2)!
+		defer { t.deinit() }
+		t.modes.set(.grapheme_cluster, clustering)
+		t.print(u32(`a`))!
+		t.print(u32(`b`))!
+		t.print(u32(`e`))!
+		t.print(0x0301)!
+
+		assert t.screens.active.cursor.pending_wrap
+		assert !cell_at(&t, 1, 0).has_grapheme()
+		assert graphemes_at(&t, 2, 0) == [u32(0x0301)]
+	}
+}
+
+fn test_print_grapheme_variation_selector_applies_to_preceding_codepoint() ! {
+	mut t := create_test_terminal(5, 2)!
+	defer { t.deinit() }
+	t.modes.set(.grapheme_cluster, true)
+	// Pirate flag: black flag + ZWJ + skull and crossbones + VS16.
+	for cp in [u32(0x1f3f4), 0x200d, 0x2620, 0xfe0f] {
+		t.print(cp)!
+	}
+
+	assert cell_at(&t, 0, 0).wide == .wide
+	assert graphemes_at(&t, 0, 0) == [u32(0x200d), 0x2620, 0xfe0f]
+	assert t.screens.active.cursor.x == 2
+}
+
+fn test_print_grapheme_variant_wrap_preserves_suffix() ! {
+	mut t := create_test_terminal(4, 2)!
+	defer { t.deinit() }
+	t.modes.set(.grapheme_cluster, true)
+	t.set_cursor_pos(1, 4)
+	// Sun + ZWJ + skull starts narrow. VS16 on the skull makes it wide.
+	for cp in [u32(0x2600), 0x200d, 0x2620] {
+		t.print(cp)!
+	}
+	assert t.screens.active.cursor.pending_wrap
+	t.clear_dirty()
+	t.print(0xfe0f)!
+
+	assert cell_at(&t, 3, 0).wide == .spacer_head
+	assert t.is_dirty(active_point(3, 0))
+	assert cell_at(&t, 0, 1).codepoint == 0x2600
+	assert cell_at(&t, 0, 1).wide == .wide
+	assert cell_at(&t, 1, 1).wide == .spacer_tail
+	assert graphemes_at(&t, 0, 1) == [u32(0x200d), 0x2620, 0xfe0f]
+	assert t.screens.active.cursor.x == 2
+	assert !t.screens.active.cursor.pending_wrap
+}
+
 fn test_print_multicodepoint_grapheme_mode_2027() {
 	mut t := create_test_terminal(80, 80) or {
 		assert false

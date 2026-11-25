@@ -2033,21 +2033,19 @@ pub fn (mut self Terminal) print(c u32) ! {
 			return
 		}
 
-		// If we're at cell zero, then this is malformed data and we don't
-		// print anything or even store this. Zero-width characters are ALWAYS
-		// attached to some other non-zero-width character at the time of
-		// writing.
-		if self.screens.active.cursor.x == 0 {
+		// Pending wrap leaves the base character under the cursor.
+		left := u32(!(self.modes.get(.wraparound) && self.screens.active.cursor.pending_wrap))
+		if self.screens.active.cursor.x < left {
 			// log.warn: zero-width character with no prior character, ignoring
 			return
 		}
 
 		// Find our previous cell
-		immediate := self.screens.active.cursor_cell_left(1)
+		immediate := self.screens.active.cursor_cell_left(left)
 		prev := if immediate.wide != .spacer_tail {
 			immediate
 		} else {
-			self.screens.active.cursor_cell_left(2)
+			self.screens.active.cursor_cell_left(left + 1)
 		}
 
 		// If our previous cell has no text, just ignore the zero-width character
@@ -2152,13 +2150,14 @@ fn (mut self Terminal) print_grapheme_cluster(c u32, right_limit u32) !bool {
 	// break or not. If we are NOT, then we are still combining the
 	// same grapheme. Otherwise, we can stay in this cell.
 	//
-	// If we have wraparound, then we always use the prev col.
+	// With wraparound enabled, the previous character is under the cursor
+	// while a wrap is pending and to the left otherwise.
 	// If we do not have wraparound, the logic is trickier. If
 	// we're not on the last column, then we just use the previous
 	// column. Otherwise, we need to check if there is text to
 	// figure out if we're attaching to the prev or current.
 	left := if self.modes.get(.wraparound) {
-		u32(1)
+		u32(!self.screens.active.cursor.pending_wrap)
 	} else if self.screens.active.cursor.x != right_limit - 1 {
 		u32(1)
 	} else {
@@ -2182,20 +2181,16 @@ fn (mut self Terminal) print_grapheme_cluster(c u32, right_limit u32) !bool {
 		return false
 	}
 
-	grapheme_break := grapheme_break_after(&self.screens.active.cursor.page_pin.node.data,
-		prev_cell, c)
-
-	// If we can NOT break, this means that "c" is part of a grapheme
-	// with the previous char.
-	if grapheme_break {
-		return false
+	previous_cp := grapheme_previous_codepoint(&self.screens.active.cursor.page_pin.node.data,
+		prev_cell, c) or {
+		return false // A grapheme break starts a new cell.
 	}
 
 	// If this is an emoji variation selector then we need to modify
 	// the cell width accordingly. VS16 makes the character wide and
 	// VS15 makes it narrow.
 	if c == 0xFE0F || c == 0xFE0E {
-		prev_props := unicode.get(prev_cell.codepoint)
+		prev_props := unicode.get(previous_cp)
 		// Check if it is a valid variation sequence in
 		// emoji-variation-sequences.txt, and if not, ignore the char.
 		if !prev_props.emoji_vs_base() {
@@ -2216,19 +2211,33 @@ fn (mut self Terminal) print_grapheme_cluster(c u32, right_limit u32) !bool {
 						if !self.modes.get(.wraparound) {
 							return true
 						}
-						self.print_cell(0, if right_limit == self.cols {
-							CellWide.spacer_head
+						base := prev_cell.codepoint()
+						// Overwriting the last cell releases the cluster's stored codepoints.
+						mut suffix := if cps := self.screens.active.cursor.page_pin.node.data.lookup_grapheme(prev_cell) {
+							cps.clone()
 						} else {
-							CellWide.narrow
-						})
+							[]u32{}
+						}
+						defer { unsafe { suffix.free() } }
+						row_wrap := right_limit == self.cols
+						if row_wrap {
+							self.screens.active.cursor.page_row.header.wrap = true
+						}
+						self.screens.active.cursor_mark_dirty()
+						self.print_cell(0, if row_wrap { CellWide.spacer_head } else { CellWide.narrow })
 						self.print_wrap()!
+						self.print_cell(base, .wide)
+						for cp in suffix {
+							self.screens.active.append_grapheme(self.screens.active.cursor.page_cell, cp)!
+						}
+					} else {
+						prev_cell.wide = .wide
 					}
 
-					self.print_cell(prev_cell.codepoint, .wide)
-
-					// Write our spacer
+					// Reload the base after writing the spacer, which may grow the page.
 					self.screens.active.cursor_right(1)
 					self.print_cell(0, .spacer_tail)
+					prev_cell = self.screens.active.cursor_cell_left(1)
 
 					// Move the cursor again so we're beyond our spacer
 					if self.screens.active.cursor.x == right_limit - 1 {
@@ -2241,30 +2250,19 @@ fn (mut self Terminal) print_grapheme_cluster(c u32, right_limit u32) !bool {
 			0xFE0E {
 				// Prev cell is no longer wide
 				if prev_cell.wide == .wide {
-					mut prev_mut := unsafe { prev_cell }
-					prev_mut.wide = .narrow
+					prev_cell.wide = .narrow
 
-					// Remove the wide spacer tail
-					mut cell := self.screens.active.cursor_cell_left(prev_left - 1)
-					cell.wide = .narrow
-
-					// Back track the cursor so that we don't end up with
-					// an extra space after the character. Since xterm is
-					// not VS aware, it cannot be used as a reference for
-					// this behavior; but it does follow the principle of
-					// least surprise, and also matches the behavior that
-					// can be observed in Kitty, which is one of the only
-					// other VS aware terminals.
-					if self.screens.active.cursor.x == right_limit - 1 {
-						// If we're already at the right edge, we stay
-						// here and set the pending wrap to false since
-						// when we pend a wrap, we only move our cursor once
-						// even for wide chars (tests verify).
-						self.screens.active.cursor.pending_wrap = false
-					} else {
-						// Otherwise, move back.
-						self.screens.active.cursor_left(1)
+					prev_x := self.screens.active.cursor.x - prev_left
+					if prev_x < self.cols - 1 {
+						mut tail := if prev_left > 0 {
+							self.screens.active.cursor_cell_left(prev_left - 1)
+						} else {
+							self.screens.active.cursor_cell_right(1)
+						}
+						tail.wide = .narrow
 					}
+					self.screens.active.cursor.pending_wrap = false
+					self.screens.active.cursor_horizontal_absolute(math.min(prev_x + 1, right_limit - 1))
 				}
 			}
 			else {
@@ -2279,22 +2277,23 @@ fn (mut self Terminal) print_grapheme_cluster(c u32, right_limit u32) !bool {
 	return true
 }
 
-// The `grapheme_break:` block of Terminal.print: replay the cell's
-// existing grapheme to rebuild the break state, then test `cp`.
-fn grapheme_break_after(page &Page, prev &CellData, cp u32) bool {
+// Return the final codepoint in the cell when cp extends its grapheme.
+fn grapheme_previous_codepoint(page &Page, prev &CellData, cp u32) ?u32 {
 	mut state := unicode.BreakState.default
 	mut cp1 := prev.codepoint
 	if prev.has_grapheme() {
 		cps := page.lookup_grapheme(prev) or { panic('grapheme cell has no grapheme data') }
 		for cp2 in cps {
-			// log.debug: cp1 cp2
-			assert !unicode.grapheme_break(cp1, cp2, &state)
+			// A cell filled with mode 2027 off may contain internal breaks.
+			_ = unicode.grapheme_break(cp1, cp2, &state)
 			cp1 = cp2
 		}
 	}
 
-	// log.debug: cp1 cp2 end
-	return unicode.grapheme_break(cp1, cp, &state)
+	if unicode.grapheme_break(cp1, cp, &state) {
+		return none
+	}
+	return cp1
 }
 
 fn (mut self Terminal) print_cell(unmapped_c u32, wide CellWide) {

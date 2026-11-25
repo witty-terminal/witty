@@ -22,6 +22,7 @@ xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- \
 The probe uses Witty’s `--screenshot` and captures Ghostty’s matching X11 client window with decorations and the scrollbar hidden. It compares decoded RGBA pixels for ANSI colors, text decorations, Unicode and emoji, wide characters wrapping at the right edge, block, bar, and underline cursors, Kitty images and Unicode placeholders, stretched and repeated background images, colored `ls` output, Git diff, Vim, and a two-pass GLSL shader. The Kitty fixtures also cover clipping, retransmission, interrupted chunked uploads, relative placement, cursor movement, image deletion, scrollback clearing, and z-index ordering across cell backgrounds, text, and overlapping images. The animation fixture covers chunked frame edits, frame composition, and playback through a finite loop.
 
 The terminal glyph fixtures cover box drawing, block elements, Braille patterns, and Powerline separators at default and adjusted cell sizes.
+The grapheme fixture covers emoji presentation selectors and combining accents at the right edge, with grapheme clustering enabled and disabled.
 The colored line erase fixture waits for the configured PTY grid before erasing to either edge and across a full row.
 The text selection fixture uses a mouse drag starting on the second cell of an emoji to verify the highlight covers the full glyph.
 The Unicode input fixtures capture GTK’s underlined preview over a terminal wallpaper and at the right edge before the character is committed.
