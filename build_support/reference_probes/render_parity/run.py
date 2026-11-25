@@ -205,8 +205,10 @@ def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir
         else:
             raise RuntimeError("The right pane did not render after splitting")
 
+        # Send the query without pauses between characters so GTK can paint the settled entry.
         subprocess.run(
-            ["xdotool", "key", "ctrl+shift+f", "sleep", "0.25", "type", "pane"], check=True, timeout=5,
+            ["xdotool", "key", "ctrl+shift+f", "sleep", "0.25", "type", "--delay", "0", "pane"],
+            check=True, timeout=5,
         )
         time.sleep(settle)
         with read_window(helper, window) as image:

@@ -2506,7 +2506,8 @@ fn set_gtk_env(config &configpkg.Config) {
 
 	if gtk_runtime_at_least(4, 16, 0) {
 		// From gtk 4.16 GDK_DEBUG split into GDK_DEBUG and GDK_DISABLE.
-		gdk_disable << 'gles-api'
+		// The terminal and inspector request desktop GL on their own GLAreas.
+		// Let GTK select the GL API for its compositor and native controls.
 		gdk_disable << 'vulkan'
 	} else if gtk_runtime_at_least(4, 14, 0) {
 		// Needed to run on Wayland after GTK 4.14.

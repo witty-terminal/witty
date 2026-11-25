@@ -40,6 +40,13 @@ jobs:
         run: |
           bash .github/scripts/linux-render-parity.sh \
             "$RUNNER_TEMP/witty/bin/witty" "$RUNNER_TEMP/render-parity"
+      - name: Compare GTK overlays with the OpenGL compositor
+        env:
+          GSK_RENDERER: gl
+        run: |
+          bash .github/scripts/linux-render-parity.sh \
+            "$RUNNER_TEMP/witty/bin/witty" "$RUNNER_TEMP/render-parity-gl" \
+            --fixture split-search --fixture key-state-overlay
       - name: Upload screenshots and comparison report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
@@ -50,4 +57,8 @@ jobs:
             ${{ runner.temp }}/render-parity/*.log
             ${{ runner.temp }}/render-parity/results.tsv
             ${{ runner.temp }}/render-parity/versions.txt
+            ${{ runner.temp }}/render-parity-gl/*.png
+            ${{ runner.temp }}/render-parity-gl/*.log
+            ${{ runner.temp }}/render-parity-gl/results.tsv
+            ${{ runner.temp }}/render-parity-gl/versions.txt
           if-no-files-found: ignore
