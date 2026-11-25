@@ -35,7 +35,7 @@ INTERACTIVE_FIXTURES = (
     "selection-wide", "wide-edit", "search-wrap", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES,
 )
 LINK_PREVIEW_FIXTURES = ("link-preview", "link-preview-right")
-COMMAND_PALETTE_FIXTURES = ("command-palette", "command-palette-compact")
+COMMAND_PALETTE_FIXTURES = ("command-palette", "command-palette-compact", "command-palette-resize")
 WINDOW_CHROME_FIXTURES = ("gtk-chrome-tabs", "gtk-chrome-native")
 TITLE_DIALOG_ACTIONS = {"terminal-title": "prompt_surface_title", "tab-title": "prompt_tab_title"}
 TERMINAL_DIALOG_FIXTURES = (*TITLE_DIALOG_ACTIONS, "close-confirmation")
@@ -432,7 +432,7 @@ def capture_surface_badge(binary, args, helper, prefix, name, settle, scale, *, 
                 subprocess.run(["xdotool", "keyup", "Control_L"], check=True, timeout=5)
 
 
-def capture_command_palette(binary, args, helper, prefix, settle, config_dir, *, witty=False):
+def capture_command_palette(binary, args, helper, prefix, settle, config_dir, *, resize_scale=None, witty=False):
     capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
     fade = max(settle, 0.6)
     # Capture the whole settled dialog after editing the query.
@@ -443,6 +443,7 @@ def capture_command_palette(binary, args, helper, prefix, settle, config_dir, *,
         time.sleep(fade)
         with read_window(helper, window) as image:
             idle = image.tobytes()
+            width, height = image.size
             # The command's echoed text occupies the far left of the second line.
             rest = (image.width // 4, 0, image.width, image.height)
             idle_rest = image.crop(rest).tobytes()
@@ -461,7 +462,30 @@ def capture_command_palette(binary, args, helper, prefix, settle, config_dir, *,
         with read_window(helper, window) as image:
             if image.tobytes() in (opened, idle):
                 raise RuntimeError("The command palette did not filter its rows")
-            image.save(prefix.with_suffix(".png"))
+            if resize_scale is None:
+                image.save(prefix.with_suffix(".png"))
+        if resize_scale is not None:
+            subprocess.run(
+                ["xdotool", "key", "ctrl+a", "type", "--delay", "0", "No matching item"],
+                check=True, timeout=5,
+            )
+            time.sleep(fade)
+            target = (width - 320 * resize_scale, height - 100 * resize_scale)
+            subprocess.run(["xdotool", "windowsize", "--sync", window, *map(str, target)], check=True, timeout=5)
+            time.sleep(fade)
+            with read_window(helper, window) as image:
+                if image.size != target:
+                    raise RuntimeError("The window did not resize with the command palette open")
+                image.save(prefix.with_suffix(".png"))
+            subprocess.run(
+                ["xdotool", "windowsize", "--sync", window, str(width), str(height), "key", "Escape"],
+                check=True, timeout=5,
+            )
+            time.sleep(fade)
+            with read_window(helper, window) as image:
+                if image.tobytes() != idle:
+                    raise RuntimeError("The command palette did not close after resizing")
+            return
         subprocess.run(["xdotool", "key", "Return"], check=True, timeout=5)
         time.sleep(fade)
         with read_window(helper, window) as image:
@@ -957,8 +981,10 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
                 gtk_config = config_dir / "gtk-4.0"
                 gtk_config.mkdir(parents=True)
                 (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
-                capture_command_palette(ghostty, args, helper, expected, settle, config_dir)
-                capture_command_palette(witty, args, helper, actual, settle, config_dir, witty=True)
+                resize_scale = scale if name == "command-palette-resize" else None
+                capture_command_palette(ghostty, args, helper, expected, settle, config_dir, resize_scale=resize_scale)
+                capture_command_palette(witty, args, helper, actual, settle, config_dir,
+                                        resize_scale=resize_scale, witty=True)
             elif name in WINDOW_CHROME_FIXTURES:
                 capture_window_chrome(ghostty, args, helper, expected, settle)
                 capture_window_chrome(witty, args, helper, actual, settle)

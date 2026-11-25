@@ -53,6 +53,13 @@ jobs:
             --fixture close-confirmation --fixture gtk-toast \
             --fixture gtk-chrome-tabs --fixture gtk-chrome-native --fixture tab-overview \
             --fixture less --fixture tmux
+      - name: Compare command palette resizing with HiDPI OpenGL
+        env:
+          GSK_RENDERER: gl
+        run: |
+          bash .github/scripts/linux-render-parity.sh \
+            "$RUNNER_TEMP/witty/bin/witty" "$RUNNER_TEMP/render-parity-gl-hidpi" \
+            --scale 2 --fixture command-palette-resize
       - name: Upload screenshots and comparison report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
@@ -67,4 +74,8 @@ jobs:
             ${{ runner.temp }}/render-parity-gl/*.log
             ${{ runner.temp }}/render-parity-gl/results.tsv
             ${{ runner.temp }}/render-parity-gl/versions.txt
+            ${{ runner.temp }}/render-parity-gl-hidpi/*.png
+            ${{ runner.temp }}/render-parity-gl-hidpi/*.log
+            ${{ runner.temp }}/render-parity-gl-hidpi/results.tsv
+            ${{ runner.temp }}/render-parity-gl-hidpi/versions.txt
           if-no-files-found: ignore

@@ -62,10 +62,15 @@ static inline void witty_gtk_palette_append(GtkSnapshot *snapshot, GdkTexture *m
 	}
 	case GSK_COLOR_NODE:
 	case GSK_BORDER_NODE: {
-		// Preserve opaque list backgrounds so GSK composites the search
-		// focus outline with the same coverage in a bottom sheet.
-		if (type == GSK_COLOR_NODE && isfinite(top) && gsk_color_node_get_color(node)->alpha == 1)
-			break;
+		if (type == GSK_COLOR_NODE) {
+			const float alpha = gsk_color_node_get_color(node)->alpha;
+			const bool inside_panel = isfinite(top);
+			// The GPU color and mask shaders can round the window scrim
+			// differently over terminal text. Opaque list backgrounds also
+			// need native coverage under the bottom sheet's focus outline.
+			if ((inside_panel && alpha == 1) || (!inside_panel && alpha < 1))
+				break;
+		}
 		// List separators are rectangular. Keep GTK's analytic coverage
 		// for the dialog outline and rounded focus rings.
 		if (type == GSK_BORDER_NODE && !gsk_rounded_rect_is_rectilinear(gsk_border_node_get_outline(node)))

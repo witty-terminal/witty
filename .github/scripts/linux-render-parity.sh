@@ -33,6 +33,6 @@ printf '%s  %s\n' "$digest" "$reference_dir/$asset" | sha256sum --check
 dpkg-deb --extract "$reference_dir/$asset" "$reference_dir/root"
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- \
+xvfb-run -a -s "-screen 0 2400x1600x24" dbus-run-session -- \
   python3 "$root/build_support/reference_probes/render_parity/run.py" \
   "$witty" "$reference_dir/root/usr/bin/ghostty" --output "$output" "$@"
