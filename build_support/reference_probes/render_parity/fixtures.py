@@ -1,5 +1,6 @@
 import base64
 import os
+from pathlib import Path
 import subprocess
 import sys
 import termios
@@ -564,6 +565,13 @@ def main():
         text = b"Clipboard fixture alpha\nClipboard fixture bravo"
         sys.stdout.buffer.write(b"\x1b]52;c;" + base64.b64encode(text) + b"\x07")
         os.unlink(sys.argv[2])
+    elif fixture == "tab-overview":
+        counter = Path(sys.argv[2])
+        tab = int(counter.read_text()) + 1
+        counter.write_text(str(tab))
+        sys.stdout.buffer.write(
+            f"\x1b]0;Tab {tab}\x07Terminal {tab}\r\n\x1b[48;2;{30 * tab};120;84m          \x1b[0m".encode()
+        )
     elif fixture == "progress-overlay":
         sys.stdout.buffer.write(b"Paused progress\r\n\x1b]9;4;1;32\x07\x1b]9;4;2;71\x07\x1b]9;4;4;51\x07")
     elif fixture in ("link-preview", "link-preview-right"):

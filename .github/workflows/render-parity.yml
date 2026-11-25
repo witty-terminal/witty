@@ -50,7 +50,7 @@ jobs:
             --fixture link-preview --fixture link-preview-right --fixture readonly-overlay \
             --fixture command-palette --fixture command-palette-compact --fixture clipboard-confirmation \
             --fixture config-errors --fixture terminal-title --fixture close-confirmation \
-            --fixture gtk-chrome-tabs --fixture gtk-chrome-native
+            --fixture gtk-chrome-tabs --fixture gtk-chrome-native --fixture tab-overview
       - name: Upload screenshots and comparison report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7

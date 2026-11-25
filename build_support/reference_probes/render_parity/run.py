@@ -122,6 +122,14 @@ def prepare_fixtures(path):
 def fixture_args(name, work):
     blend = "native" if name == "ansi" or name.startswith("kitty") else "linear-corrected"
     options = [*OPTIONS, f"--alpha-blending={blend}", f"--working-directory={work}"]
+    if name == "tab-overview":
+        program = shlex.join([sys.executable, str(PROBE / "fixtures.py"), name, str(work / "overview-tab-count")])
+        return [
+            *options, "--window-width=84", "--window-height=28", "--window-decoration=client",
+            "--gtk-titlebar-style=tabs", "--window-show-tab-bar=always", "--window-theme=ghostty",
+            "--window-titlebar-background=3b294f", "--window-titlebar-foreground=e2c6a5",
+            "--keybind=ctrl+alt+t=new_tab", "--keybind=ctrl+alt+o=toggle_tab_overview", f"--command={program}",
+        ]
     if name in TERMINAL_DIALOG_FIXTURES:
         action = "prompt_surface_title" if name == "terminal-title" else "close_window"
         return [
@@ -445,7 +453,10 @@ def capture_command_palette(binary, args, helper, prefix, settle, config_dir, *,
 
 
 def capture_window_chrome(binary, args, helper, prefix, settle):
-    with open_window([binary, *args], prefix.with_suffix(".log")) as (_, window):
+    # Compare the whole settled frame after the tab bar changes.
+    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
+    env = {**os.environ, "GSK_DEBUG": debug}
+    with open_window([binary, *args], prefix.with_suffix(".log"), env=env) as (_, window):
         subprocess.run(
             ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window, "14", "150"],
             check=True, timeout=5,
@@ -459,6 +470,47 @@ def capture_window_chrome(binary, args, helper, prefix, settle):
             if image.tobytes() == single_tab:
                 raise RuntimeError("Opening a second tab did not change the window chrome")
             image.save(prefix.with_suffix(".png"))
+
+
+def capture_tab_overview(binary, args, helper, prefix, settle, scale, config_dir, counter):
+    counter.write_text("0")
+    fade = max(settle, 0.8)
+    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
+    env = {**os.environ, "GSK_DEBUG": debug, "XDG_CONFIG_HOME": str(config_dir)}
+
+    def xdotool(*command):
+        return subprocess.check_output(["xdotool", *command], text=True, timeout=5).strip()
+
+    with open_window([binary, *args], prefix.with_suffix(".log"), env=env) as (_, window):
+        xdotool("windowfocus", "--sync", window, "mousemove", "--window", window, "4", "10")
+        time.sleep(fade)
+        if xdotool("getwindowname", window) != "Tab 1":
+            raise RuntimeError("The first overview tab did not start")
+        xdotool("key", "ctrl+alt+t")
+        time.sleep(fade)
+        if xdotool("getwindowname", window) != "Tab 2":
+            raise RuntimeError("The second overview tab did not start")
+        with read_window(helper, window) as image:
+            second = image.tobytes()
+
+        xdotool("key", "ctrl+alt+o")
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            if image.tobytes() == second:
+                raise RuntimeError("The tab overview did not open")
+            image.save(prefix.with_suffix(".png"))
+            width, height = image.size
+        search = str(26 * scale)
+        xdotool("mousemove", "--window", window, search, search, "click", "1")
+        xdotool("type", "--delay", "0", "Tab 1")
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            if image.getpixel((7 * width // 10, height // 3)) != image.getpixel((width // 10, height // 2)):
+                raise RuntimeError("Searching the tab overview did not hide the second tab")
+        xdotool("mousemove", "--window", window, str(3 * width // 10), str(height // 3), "click", "1")
+        time.sleep(fade)
+        if xdotool("getwindowname", window) != "Tab 1":
+            raise RuntimeError("Selecting the tab overview result did not switch tabs")
 
 
 def capture_clipboard_confirmation(binary, args, helper, prefix, settle, *, witty=False):
@@ -857,6 +909,14 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name in WINDOW_CHROME_FIXTURES:
                 capture_window_chrome(ghostty, args, helper, expected, settle)
                 capture_window_chrome(witty, args, helper, actual, settle)
+            elif name == "tab-overview":
+                config_dir = work / "tab-overview-config"
+                gtk_config = config_dir / "gtk-4.0"
+                gtk_config.mkdir(parents=True)
+                (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
+                counter = work / "overview-tab-count"
+                capture_tab_overview(ghostty, args, helper, expected, settle, scale, config_dir, counter)
+                capture_tab_overview(witty, args, helper, actual, settle, scale, config_dir, counter)
             elif name == "clipboard-confirmation":
                 capture_clipboard_confirmation(ghostty, args, helper, expected, settle)
                 capture_clipboard_confirmation(witty, args, helper, actual, settle, witty=True)
@@ -890,7 +950,7 @@ def main():
     parser.add_argument("--output", type=Path, help="new directory for screenshots, logs, and the report")
     parser.add_argument("--settle-seconds", type=float, default=1.0)
     parser.add_argument("--scale", type=int, choices=(1, 2), default=1, help="GTK display scale (default: 1)")
-    parser.add_argument("--fixture", choices=(*FIXTURES, *WINDOW_CHROME_FIXTURES, "close-confirmation"), action="append",
+    parser.add_argument("--fixture", choices=(*FIXTURES, *WINDOW_CHROME_FIXTURES, "tab-overview", "close-confirmation"), action="append",
                         help="run only this fixture, repeatable")
     args = parser.parse_args()
     if sys.platform != "linux" or not os.environ.get("DISPLAY"):

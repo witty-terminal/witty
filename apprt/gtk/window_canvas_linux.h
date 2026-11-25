@@ -17,18 +17,26 @@ static inline void witty_gtk_window_canvas_snapshot(GtkWidget *widget, GtkSnapsh
 	};
 	graphene_rect_t areas[G_N_ELEMENTS(bars)];
 	guint count = 0;
-	GtkWidget *last_handle = NULL;
-	for (guint i = 0; i < G_N_ELEMENTS(bars); ++i) {
-		if (!bars[i] || !gtk_widget_get_mapped(bars[i]))
-			continue;
-		GtkWidget *handle = gtk_widget_get_ancestor(bars[i], GTK_TYPE_WINDOW_HANDLE);
-		if (!handle || handle == last_handle)
-			continue;
-		graphene_rect_t area;
-		if (gtk_widget_compute_bounds(handle, widget, &area)
-				&& area.size.width > 0 && area.size.height > 0) {
-			areas[count++] = area;
-			last_handle = handle;
+	GtkWidget *content = adw_application_window_get_content(ADW_APPLICATION_WINDOW(widget));
+	if (ADW_IS_TAB_OVERVIEW(content) && adw_tab_overview_get_open(ADW_TAB_OVERVIEW(content))) {
+		// The open overview replaces the title bars with its own backdrop.
+		if (gtk_widget_compute_bounds(content, widget, &areas[0])
+				&& areas[0].size.width > 0 && areas[0].size.height > 0)
+			count = 1;
+	} else {
+		GtkWidget *last_handle = NULL;
+		for (guint i = 0; i < G_N_ELEMENTS(bars); ++i) {
+			if (!bars[i] || !gtk_widget_get_mapped(bars[i]))
+				continue;
+			GtkWidget *handle = gtk_widget_get_ancestor(bars[i], GTK_TYPE_WINDOW_HANDLE);
+			if (!handle || handle == last_handle)
+				continue;
+			graphene_rect_t area;
+			if (gtk_widget_compute_bounds(handle, widget, &area)
+					&& area.size.width > 0 && area.size.height > 0) {
+				areas[count++] = area;
+				last_handle = handle;
+			}
 		}
 	}
 	if (!count) {

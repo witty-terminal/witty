@@ -38,6 +38,8 @@ Use `--output` to choose a new directory, `--fixture` to repeat a single case, o
 
 The optional `gtk-chrome-tabs` and `gtk-chrome-native` fixtures capture the full GTK client window after opening a second tab. They cover the integrated title bar with configured colors and the native header with a bottom tab bar. Use a release Witty build for these fixtures to avoid the debug-build banner.
 
+The optional `tab-overview` fixture uses a release build to capture two live thumbnails with configured window colors. It also searches for one tab and selects the result.
+
 The `terminal-title` fixture checks typing, canceling, applying, and resetting the title. The optional `close-confirmation` fixture verifies keyboard focus, canceling, and confirming the window close. It launches Witty normally and uses a release build to avoid the debug banner.
 
 The regular Linux CI build checks the initial PTY and a full-width colored erase at two grid sizes, capture with a configured tab bar, and rendering after an OpenGL shader link failure. It also replaces a red shader with a green one in a running terminal and uses the reload keybinding to verify that the rendered frame changes.
