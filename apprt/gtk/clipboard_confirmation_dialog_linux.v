@@ -69,10 +69,8 @@ fn C.gtk_widget_class_bind_template_callback_full(widget_class voidptr, callback
 const g_type_boolean = GType(5 << 2)
 const g_type_pointer = GType(17 << 2)
 
-// Ghostty's ui/1.4/clipboard-confirmation-dialog.blp as blueprint-compiler 0.16.0 emits it
-// (without the generated-file header). Ghostty compiles it into its
-// gresource and loads it with setTemplateFromResource; we load the same
-// bytes directly with gtk_widget_class_set_template.
+// Runtime template for ui/1.4/clipboard-confirmation-dialog.blp.
+// Older Adwaita releases use the same template without the switch row.
 const clipboard_confirmation_dialog_ui = '<?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <requires lib="gtk" version="4.0"/>
@@ -100,22 +98,22 @@ const clipboard_confirmation_dialog_ui = '<?xml version="1.0" encoding="UTF-8"?>
               <class name="clipboard-overlay"/>
             </style>
             <child>
-              <object class="GtkScrolledWindow" id="text_view_scroll">
+              <object class="GtkStack" id="preview">
+                <style>
+                  <class name="clipboard-contents"/>
+                </style>
                 <property name="width-request">500</property>
                 <property name="height-request">200</property>
                 <child>
-                  <object class="GtkTextView" id="text_view">
-                    <style>
-                      <class name="clipboard-contents"/>
-                    </style>
-                    <property name="cursor-visible">false</property>
-                    <property name="editable">false</property>
-                    <property name="monospace">true</property>
-                    <property name="top-margin">8</property>
-                    <property name="left-margin">8</property>
-                    <property name="bottom-margin">8</property>
-                    <property name="right-margin">8</property>
-                    <property name="buffer" bind-source="GhosttyClipboardConfirmationDialog" bind-property="clipboard-contents" bind-flags="sync-create"/>
+                  <object class="GtkScrolledWindow">
+                    <child>
+                      <object class="GtkTextView" id="text_view">
+                        <property name="cursor-visible">false</property>
+                        <property name="editable">false</property>
+                        <property name="monospace">true</property>
+                        <property name="buffer" bind-source="GhosttyClipboardConfirmationDialog" bind-property="clipboard-contents" bind-flags="sync-create"/>
+                      </object>
+                    </child>
                   </object>
                 </child>
               </object>
@@ -264,7 +262,7 @@ mut:
 	clipboard_contents voidptr
 	blur               int
 	can_remember       int
-	text_view_scroll   voidptr
+	preview            voidptr
 	text_view          voidptr
 	reveal_button      voidptr
 	hide_button        voidptr
@@ -335,6 +333,7 @@ fn clipboard_confirmation_dialog_set_property(obj voidptr, property_id u32, valu
 // the template and chains to the parent. Mirrors the `dispose` vfunc.
 fn clipboard_confirmation_dialog_dispose(obj voidptr) {
 	mut priv := clipboard_confirmation_dialog_priv(obj)
+	C.witty_gtk_clipboard_canvas_set_preview(GtkWidget(obj), unsafe { nil })
 	if !isnil(priv.clipboard_contents) {
 		object_unref(GObject(priv.clipboard_contents))
 		priv.clipboard_contents = unsafe { nil }
@@ -361,13 +360,13 @@ fn clipboard_confirmation_dialog_finalize(obj voidptr) {
 fn clipboard_confirmation_notify_blur_cb(obj voidptr, pspec voidptr, ud voidptr) {
 	priv := clipboard_confirmation_dialog_priv(obj)
 	if priv.blur != 0 {
-		C.gtk_widget_set_sensitive(priv.text_view_scroll, b2i(false))
-		C.gtk_widget_add_css_class(priv.text_view, c'blurred')
+		C.gtk_widget_set_sensitive(priv.preview, b2i(false))
+		C.gtk_widget_add_css_class(priv.preview, c'blurred')
 		C.gtk_widget_set_visible(priv.reveal_button, b2i(true))
 		C.gtk_widget_set_visible(priv.hide_button, b2i(false))
 	} else {
-		C.gtk_widget_set_sensitive(priv.text_view_scroll, b2i(true))
-		C.gtk_widget_remove_css_class(priv.text_view, c'blurred')
+		C.gtk_widget_set_sensitive(priv.preview, b2i(true))
+		C.gtk_widget_remove_css_class(priv.preview, c'blurred')
 		C.gtk_widget_set_visible(priv.reveal_button, b2i(false))
 		C.gtk_widget_set_visible(priv.hide_button, b2i(false))
 	}
@@ -400,16 +399,16 @@ fn clipboard_confirmation_notify_request_cb(obj voidptr, pspec voidptr, ud voidp
 
 fn clipboard_confirmation_reveal_clicked_cb(button voidptr, obj voidptr) {
 	priv := clipboard_confirmation_dialog_priv(obj)
-	C.gtk_widget_set_sensitive(priv.text_view_scroll, b2i(true))
-	C.gtk_widget_remove_css_class(priv.text_view, c'blurred')
+	C.gtk_widget_set_sensitive(priv.preview, b2i(true))
+	C.gtk_widget_remove_css_class(priv.preview, c'blurred')
 	C.gtk_widget_set_visible(priv.hide_button, b2i(true))
 	C.gtk_widget_set_visible(priv.reveal_button, b2i(false))
 }
 
 fn clipboard_confirmation_hide_clicked_cb(button voidptr, obj voidptr) {
 	priv := clipboard_confirmation_dialog_priv(obj)
-	C.gtk_widget_set_sensitive(priv.text_view_scroll, b2i(false))
-	C.gtk_widget_add_css_class(priv.text_view, c'blurred')
+	C.gtk_widget_set_sensitive(priv.preview, b2i(false))
+	C.gtk_widget_add_css_class(priv.preview, c'blurred')
 	C.gtk_widget_set_visible(priv.hide_button, b2i(false))
 	C.gtk_widget_set_visible(priv.reveal_button, b2i(true))
 }
@@ -419,6 +418,7 @@ fn clipboard_confirmation_hide_clicked_cb(button voidptr, obj voidptr) {
 // confirm/deny signals, and overrides the get/set/dispose/finalize vfuncs.
 fn clipboard_confirmation_dialog_class_init(klass voidptr, class_data voidptr) {
 	C.g_type_class_adjust_private_offset(klass, &g_clipboard_confirmation_dialog_priv_offset)
+	C.witty_gtk_clipboard_canvas_class_init(klass)
 	template_ui := if supports_switch_row() {
 		clipboard_confirmation_dialog_ui
 	} else {
@@ -431,7 +431,7 @@ fn clipboard_confirmation_dialog_class_init(klass voidptr, class_data voidptr) {
 
 	// Template child bindings (into the private struct).
 	off := g_clipboard_confirmation_dialog_priv_offset
-	C.gtk_widget_class_bind_template_child_full(klass, c'text_view_scroll', 0, off + int(__offsetof(C.GhosttyClipboardConfirmationDialogPrivate, text_view_scroll)))
+	C.gtk_widget_class_bind_template_child_full(klass, c'preview', 0, off + int(__offsetof(C.GhosttyClipboardConfirmationDialogPrivate, preview)))
 	C.gtk_widget_class_bind_template_child_full(klass, c'text_view', 0, off + int(__offsetof(C.GhosttyClipboardConfirmationDialogPrivate, text_view)))
 	C.gtk_widget_class_bind_template_child_full(klass, c'hide_button', 0, off + int(__offsetof(C.GhosttyClipboardConfirmationDialogPrivate, hide_button)))
 	C.gtk_widget_class_bind_template_child_full(klass, c'reveal_button', 0, off + int(__offsetof(C.GhosttyClipboardConfirmationDialogPrivate, reveal_button)))
@@ -468,6 +468,8 @@ fn clipboard_confirmation_dialog_class_init(klass voidptr, class_data voidptr) {
 
 fn clipboard_confirmation_dialog_instance_init(instance voidptr, klass voidptr) {
 	C.gtk_widget_init_template(instance)
+	priv := clipboard_confirmation_dialog_priv(instance)
+	C.witty_gtk_clipboard_canvas_set_preview(GtkWidget(instance), GtkWidget(priv.text_view))
 	// Trigger initial values (matches ghostty's `init`).
 	clipboard_confirmation_notify_blur_cb(instance, unsafe { nil }, unsafe { nil })
 	clipboard_confirmation_notify_request_cb(instance, unsafe { nil }, unsafe { nil })
@@ -543,7 +545,7 @@ fn clipboard_confirmation_native_response_cb(obj GObject, response_id &char) {
 	if isnil(obj) || isnil(response_id) {
 		return
 	}
-	priv := clipboard_confirmation_dialog_priv(obj)
+	priv := clipboard_confirmation_dialog_priv(voidptr(obj))
 	remember := !isnil(priv.remember_choice)
 		&& C.adw_switch_row_get_active(priv.remember_choice) != 0
 	response := unsafe { cstring_to_vstring(response_id) }
@@ -559,10 +561,14 @@ pub fn (mut self ClipboardConfirmationDialog) present(parent ?GtkWidget) {
 	self.dialog.present(parent)
 }
 
+fn (self &ClipboardConfirmationDialog) set_canvas_enabled(enabled bool) {
+	gtk_canvas_overlay_set_mask(GtkWidget(self.dialog.obj), enabled)
+}
+
 // get_request returns the clipboard request without copying. Mirrors
 // `getRequest`.
 pub fn (self &ClipboardConfirmationDialog) get_request() ?apprt.ClipboardRequest {
-	priv := clipboard_confirmation_dialog_priv(self.dialog.obj)
+	priv := clipboard_confirmation_dialog_priv(voidptr(self.dialog.obj))
 	if isnil(priv.request) {
 		return none
 	}
@@ -572,7 +578,7 @@ pub fn (self &ClipboardConfirmationDialog) get_request() ?apprt.ClipboardRequest
 // get_clipboard_contents returns the clipboard contents buffer without copying.
 // Mirrors `getClipboardContents`.
 pub fn (self &ClipboardConfirmationDialog) get_clipboard_contents() ?GtkTextBuffer {
-	contents := clipboard_confirmation_dialog_priv(self.dialog.obj).clipboard_contents
+	contents := clipboard_confirmation_dialog_priv(voidptr(self.dialog.obj)).clipboard_contents
 	if isnil(contents) {
 		return none
 	}

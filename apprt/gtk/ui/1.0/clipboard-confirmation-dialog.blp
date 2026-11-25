@@ -30,23 +30,21 @@ template $GhosttyClipboardConfirmationDialog: $GhosttyDialog {
         "clipboard-overlay",
       ]
 
-      ScrolledWindow text_view_scroll {
+      Stack preview {
+        styles [
+          "clipboard-contents",
+        ]
+
         width-request: 500;
         height-request: 200;
 
-        TextView text_view {
-          styles [
-            "clipboard-contents",
-          ]
-
-          cursor-visible: false;
-          editable: false;
-          monospace: true;
-          top-margin: 8;
-          left-margin: 8;
-          bottom-margin: 8;
-          right-margin: 8;
-          buffer: bind template.clipboard-contents;
+        ScrolledWindow {
+          TextView text_view {
+            cursor-visible: false;
+            editable: false;
+            monospace: true;
+            buffer: bind template.clipboard-contents;
+          }
         }
       }
 

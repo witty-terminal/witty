@@ -2984,6 +2984,7 @@ fn (mut self SurfaceWidget) finish_clipboard_read(request &ClipboardReadRequest)
 
 fn (mut self SurfaceWidget) show_clipboard_confirmation(request apprt.ClipboardRequest, text string) {
 	mut dialog := clipboard_confirmation_dialog_new_for_request(request, text)
+	dialog.set_canvas_enabled(!isnil(self.config) && gtk_canvas_styles_enabled(self.config.get()))
 	self.pending_clipboard_dialogs << dialog
 	C.g_signal_connect_data(dialog.dialog.obj, c'confirm', GCallback(voidptr(surface_clipboard_confirmation_confirm_cb)), self, unsafe { nil }, 0)
 	C.g_signal_connect_data(dialog.dialog.obj, c'deny', GCallback(voidptr(surface_clipboard_confirmation_deny_cb)), self, unsafe { nil }, 0)

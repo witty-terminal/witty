@@ -96,6 +96,7 @@ label.resize-overlay {
   filter: blur(0px);
   transition: filter 0.3s ease;
   border-radius: 10px;
+  padding: 8px;
 }
 
 .clipboard-confirmation-dialog .clipboard-contents.blurred {

@@ -555,6 +555,14 @@ def main():
     elif fixture == "visual-bell":
         visual_bell(sys.argv[2])
         return
+    elif fixture == "clipboard-confirmation":
+        sys.stdout.buffer.write(b"GTK Clipboard Fixture\r\n")
+        sys.stdout.flush()
+        while not os.path.exists(sys.argv[2]):
+            time.sleep(0.02)
+        text = b"Clipboard fixture alpha\nClipboard fixture bravo"
+        sys.stdout.buffer.write(b"\x1b]52;c;" + base64.b64encode(text) + b"\x07")
+        os.unlink(sys.argv[2])
     elif fixture == "progress-overlay":
         sys.stdout.buffer.write(b"Paused progress\r\n\x1b]9;4;1;32\x07\x1b]9;4;2;71\x07\x1b]9;4;4;51\x07")
     elif fixture in ("link-preview", "link-preview-right"):

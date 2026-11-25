@@ -48,7 +48,7 @@ WALLPAPER_OPTIONS = {
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
     *INTERACTIVE_FIXTURES, "split-search", "visual-bell", "progress-overlay", "resize-overlay", "key-state-overlay",
-    *LINK_PREVIEW_FIXTURES, "readonly-overlay", *COMMAND_PALETTE_FIXTURES,
+    *LINK_PREVIEW_FIXTURES, "readonly-overlay", *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -146,6 +146,11 @@ def fixture_args(name, work):
         return [
             *options, "--bell-features=border,no-title,no-attention",
             "-e", sys.executable, str(PROBE / "fixtures.py"), name, str(work / "bell.trigger"),
+        ]
+    if name == "clipboard-confirmation":
+        return [
+            *options, "--window-width=85", "--window-height=28", "--clipboard-write=ask",
+            "-e", sys.executable, str(PROBE / "fixtures.py"), name, str(work / "clipboard.trigger"),
         ]
     if name == "resize-overlay":
         options.extend(("--resize-overlay=always", "--resize-overlay-duration=5s"))
@@ -442,6 +447,41 @@ def capture_window_chrome(binary, args, helper, prefix, settle):
             image.save(prefix.with_suffix(".png"))
 
 
+def capture_clipboard_confirmation(binary, args, helper, prefix, settle, *, witty=False):
+    capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
+    fade = max(settle, 0.65)
+    trigger = Path(args[-1])
+    trigger.unlink(missing_ok=True)
+    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
+    env = {**os.environ, "GSK_DEBUG": debug, "SCREENSHOT_SETTLE_SECONDS": str(4 * fade + 8)}
+    with open_window([binary, *capture_args, *args], prefix.with_suffix(".log"), env=env) as (process, window):
+        subprocess.run(
+            ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window, "14", "80"],
+            check=True, timeout=5,
+        )
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            idle = image.tobytes()
+        trigger.touch()
+        deadline = time.monotonic() + 3
+        while trigger.exists():
+            if time.monotonic() >= deadline:
+                raise RuntimeError("The clipboard fixture did not send the request")
+            time.sleep(0.05)
+        time.sleep(fade)
+        with read_window(helper, window) as image:
+            if image.tobytes() == idle:
+                raise RuntimeError("The clipboard confirmation did not open")
+            image.save(prefix.with_suffix(".png"))
+        subprocess.run(["xdotool", "key", "Escape"], check=True, timeout=5)
+        time.sleep(fade)
+        if process.poll() is not None:
+            raise RuntimeError("Denying clipboard access exited the terminal")
+        with read_window(helper, window) as image:
+            if image.tobytes() != idle:
+                raise RuntimeError("Denying clipboard access did not close the confirmation")
+
+
 def drag_wide_selection(window, padding, cell_width, cell_height):
     # The emoji is in columns 13 and 14 (zero-based). Start on its
     # spacer tail and drag past the space in column 15.
@@ -710,6 +750,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name in WINDOW_CHROME_FIXTURES:
                 capture_window_chrome(ghostty, args, helper, expected, settle)
                 capture_window_chrome(witty, args, helper, actual, settle)
+            elif name == "clipboard-confirmation":
+                capture_clipboard_confirmation(ghostty, args, helper, expected, settle)
+                capture_clipboard_confirmation(witty, args, helper, actual, settle, witty=True)
             else:
                 capture_ghostty([ghostty, *args], helper, expected, settle)
                 capture_witty(witty, args, actual, settle)
