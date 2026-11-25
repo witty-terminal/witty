@@ -116,11 +116,15 @@ def fixture_args(work):
     )
     cursor = terminal_command(CURSOR)
     pager = ("-e", "/bin/sh", "-c", LESS)
+    text = terminal_command("/bin/cat text.bin")
     ansi = terminal_command("/bin/cat ansi.bin")
     unicode = terminal_command("/bin/cat unicode.bin")
     return {
         "blank": terminal_command(CLEAR),
-        "text": terminal_command("/bin/cat text.bin"),
+        "text": text,
+        "text-balanced": (
+            "--window-padding-x=0", "--window-padding-y=18", "--window-padding-balance=equal", *text,
+        ),
         "ansi": ansi,
         "ansi-translucent": (*TRANSLUCENT_WINDOW, "--background-opacity-cells=true", *ansi),
         "unicode": unicode,
@@ -129,6 +133,11 @@ def fixture_args(work):
         "kitty-translucent": (*TRANSLUCENT_WINDOW, *kitty),
         "vim": vim,
         "vim-default": (*DEFAULT_WINDOW, *vim),
+        # Recreate the reference's saved content size with explicit geometry.
+        "vim-saved": (
+            "--window-width=75", "--window-height=20", "--window-padding-x=2,3",
+            "--window-padding-y=2,7", *vim,
+        ),
         "pager": pager,
         "pager-default": (*DEFAULT_WINDOW, *pager),
         "cursor": cursor,
