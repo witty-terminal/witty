@@ -27,10 +27,13 @@ static inline float witty_overlay_test_opacity(void *object) {
     return [(CALayer *)object opacity];
 }
 
-static inline bool witty_overlay_test_srgb_tile_matches(CALayer *layer, NSColor *color) {
+static inline bool witty_overlay_test_window_fill_matches(CALayer *layer, NSColor *color) {
     NSColor *srgb = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
     CGImageRef image = (CGImageRef)layer.contents;
-    if (!srgb || srgb.alphaComponent == 0) return image == NULL;
+    if (!srgb || srgb.alphaComponent == 0) return !image && !layer.backgroundColor;
+    if (srgb.alphaComponent < 1) return !image && layer.backgroundColor
+        && CGColorEqualToColor(layer.backgroundColor, color.CGColor);
+    if (layer.backgroundColor) return false;
     if (!image || CGImageGetWidth(image) != 1 || CGImageGetHeight(image) != 1 ||
         CGImageGetBitsPerComponent(image) != 8 ||
         CGImageGetAlphaInfo(image) != kCGImageAlphaPremultipliedLast) return false;

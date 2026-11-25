@@ -5,7 +5,7 @@ import os
 
 #insert "@VMODROOT/macos/canvas_overlay_test_bridge.h"
 
-fn C.witty_overlay_test_srgb_tile_matches(layer ObjId, color ObjId) bool
+fn C.witty_overlay_test_window_fill_matches(layer ObjId, color ObjId) bool
 fn C.witty_overlay_test_window_png(window ObjId) ObjId
 
 struct NativeAppearanceColorCase {
@@ -182,13 +182,13 @@ fn test_ventura_dark_chrome_uses_actual_native_window_color() {
 		assert !data.light
 		update_native_titlebar(window)
 		expected_backdrop := if color.very_dark { actual_background } else { native_color(0, 0) }
-		assert C.witty_overlay_test_srgb_tile_matches(data.buttons_fill.layer, expected_backdrop)
+		assert C.witty_overlay_test_window_fill_matches(data.buttons_fill.layer, expected_backdrop)
 		expected_titlebar := if color.very_dark {
 			msg_id_f64(data.titlebar_color, 'highlightWithLevel:', 0.14)
 		} else {
 			data.titlebar_color
 		}
-		assert C.witty_overlay_test_srgb_tile_matches(data.titlebar_fill.layer, expected_titlebar)
+		assert C.witty_overlay_test_window_fill_matches(data.titlebar_fill.layer, expected_titlebar)
 		assert msg_id(data.titlebar_fill.layer, 'superlayer') == msg_id(container, 'layer')
 	}
 	// preferredBackgroundColor clamps alpha in the source, including zero.
@@ -207,7 +207,7 @@ fn test_native_window_canvas_fill_reparents_and_keeps_its_tile() {
 		msg_void(first, 'release')
 		msg_void(second, 'release')
 	}
-	color := native_color(0x526d9a, 0.6)
+	color := native_color(0x526d9a, 1)
 	fill.update(first, color)
 	tile := msg_id(fill.layer, 'contents')
 	assert !is_nil(tile)
@@ -215,6 +215,11 @@ fn test_native_window_canvas_fill_reparents_and_keeps_its_tile() {
 	assert msg_id(fill.layer, 'contents') == tile
 	assert msg_id(fill.layer, 'superlayer') == msg_id(second, 'layer')
 	assert msg_rect(fill.layer, 'frame') == msg_rect(second, 'bounds')
+	translucent := native_color(0x12eeff, 0.9)
+	fill.update(second, translucent)
+	assert C.witty_overlay_test_window_fill_matches(fill.layer, translucent)
+	fill.update(second, color)
+	assert C.witty_overlay_test_window_fill_matches(fill.layer, color)
 	fill.update(second, nil_obj())
 	assert is_nil(fill.layer)
 }
@@ -270,7 +275,7 @@ fn test_native_window_canvas_fill_capture() {
 		msg_void1(msg_id(view, 'layer'), 'setBackgroundColor:', msg_id(color, 'CGColor'))
 		save_window_canvas_capture(window, output, '${name}-ghostty')
 		fill.update(view, color)
-		assert C.witty_overlay_test_srgb_tile_matches(fill.layer, color)
+		assert C.witty_overlay_test_window_fill_matches(fill.layer, color)
 		save_window_canvas_capture(window, output, '${name}-witty')
 	}
 }

@@ -4,12 +4,13 @@ import gg.canvas
 
 fn C.witty_canvas_make_srgb_tile(r f32, g f32, b f32, a f32) voidptr
 fn C.witty_canvas_gamma22_gray(white f64) ObjId
+fn C.CGColorEqualToColor(left voidptr, right voidptr) bool
 
 // The window owns this layer even if AppKit replaces the titlebar view.
 struct NativeWindowCanvasFill {
 mut:
-	layer ObjId
-	color ?canvas.Color4f
+	layer      ObjId
+	tile_color ?canvas.Color4f
 }
 
 fn native_window_canvas_color(color ObjId) canvas.Color4f {
@@ -48,9 +49,27 @@ fn (mut fill NativeWindowCanvasFill) update(view ObjId, color ObjId) {
 		msg_void_f64(fill.layer, 'setZPosition:', -1)
 		msg_void_u64(fill.layer, 'setAutoresizingMask:', 18)
 	}
-	if fill.color != ?canvas.Color4f(pixel) {
-		if !set_native_window_canvas_tile(fill.layer, pixel) { return }
-		fill.color = pixel
+	transaction := get_class('CATransaction')
+	msg_void(transaction, 'begin')
+	msg_void_bool(transaction, 'setDisableActions:', true)
+	defer { msg_void(transaction, 'commit') }
+	if pixel.is_opaque() {
+		if fill.tile_color != ?canvas.Color4f(pixel) {
+			if !set_native_window_canvas_tile(fill.layer, pixel) { return }
+			msg_void1(fill.layer, 'setBackgroundColor:', nil_obj())
+			fill.tile_color = pixel
+		}
+	} else {
+		// Keep the original color and alpha through Core Animation compositing.
+		if fill.tile_color != none {
+			msg_void1(fill.layer, 'setContents:', nil_obj())
+			fill.tile_color = none
+		}
+		native := msg_id(color, 'CGColor')
+		previous := msg_id(fill.layer, 'backgroundColor')
+		if is_nil(previous) || !C.CGColorEqualToColor(previous, native) {
+			msg_void1(fill.layer, 'setBackgroundColor:', native)
+		}
 	}
 	frame := msg_rect(root, 'bounds')
 	if msg_rect(fill.layer, 'frame') != frame {
@@ -66,5 +85,5 @@ fn (mut fill NativeWindowCanvasFill) clear() {
 	msg_void(fill.layer, 'removeFromSuperlayer')
 	msg_void(fill.layer, 'release')
 	fill.layer = nil_obj()
-	fill.color = none
+	fill.tile_color = none
 }
