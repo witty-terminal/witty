@@ -346,6 +346,7 @@ fn (mut self SplitTreeWidget) init_action_map() {
 		Action.init('new-split', GCallback(voidptr(split_tree_action_new_split_cb)), string_type),
 		Action.init('equalize', GCallback(voidptr(split_tree_action_equalize_cb)), unsafe { nil }),
 		Action.init('zoom', GCallback(voidptr(split_tree_action_zoom_cb)), unsafe { nil }),
+		Action.init('close-split', GCallback(voidptr(split_tree_action_close_split_cb)), unsafe { nil }),
 	]
 	add_as_group(voidptr(self), self.widget, 'split-tree', actions)
 	C.g_variant_type_free(string_type)
@@ -385,6 +386,17 @@ fn split_tree_action_zoom_cb(action GSimpleAction, parameter GVariant, data void
 		mut self := unsafe { &SplitTreeWidget(data) }
 		self.action_zoom()
 	}
+}
+
+fn split_tree_action_close_split_cb(action GSimpleAction, parameter GVariant, data voidptr) {
+	_ = action
+	_ = parameter
+	if isnil(data) {
+		return
+	}
+	mut self := unsafe { &SplitTreeWidget(data) }
+	surface := self.get_active_surface() or { return }
+	surface.close()
 }
 
 // --- Tree get/set ---------------------------------------------------------

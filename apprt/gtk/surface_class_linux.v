@@ -340,8 +340,6 @@ fn C.gtk_drawing_area_new() GtkWidget
 
 fn C.gtk_widget_set_can_target(widget GtkWidget, can_target bool)
 
-fn C.gtk_popover_menu_new_from_model_full(model GMenuModel, flags int) GtkWidget
-
 fn C.gtk_popover_set_has_arrow(popover GtkPopover, has_arrow int)
 
 fn C.gtk_popover_set_pointing_to(popover GtkPopover, rect &C.GdkRectangle)
@@ -3505,6 +3503,7 @@ fn surface_context_menu_new() GtkPopover {
 	surface_menu_append(submenu, 'Split Down', c'split-tree.new-split::down')
 	surface_menu_append(submenu, 'Split Left', c'split-tree.new-split::left')
 	surface_menu_append(submenu, 'Split Right', c'split-tree.new-split::right')
+	surface_menu_append(submenu, 'Close Split', c'split-tree.close-split')
 	surface_menu_append_submenu(section, 'Split', submenu)
 	object_unref(GObject(submenu))
 
@@ -3529,7 +3528,7 @@ fn surface_context_menu_new() GtkPopover {
 	object_unref(GObject(submenu))
 	surface_menu_section(root, section)
 
-	popover := C.gtk_popover_menu_new_from_model_full(GMenuModel(root), 1)
+	popover := C.witty_gtk_menu_canvas_new(GMenuModel(root), 1)
 	object_unref(GObject(root))
 	C.gtk_popover_set_has_arrow(GtkPopover(popover), 0)
 	C.gtk_widget_set_halign(popover, int(Align.start))
