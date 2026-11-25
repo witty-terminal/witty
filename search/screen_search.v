@@ -1062,6 +1062,9 @@ pub fn (self &ScreenSearch) selected_match() ?highlight.Flattened {
 pub fn (mut self ScreenSearch) do_select(to Select) !bool {
 	self.reload_active()!
 	self.prune_history()
+	if self.matches_len() == 0 {
+		return false
+	}
 	return match to {
 		.next { self.select_next()! }
 		.prev { self.select_prev()! }
@@ -1072,13 +1075,8 @@ fn (mut self ScreenSearch) select_next() !bool {
 	// Get our previous match so we can change it. If we have no
 	// prior match, we have the easy task of getting the first.
 	if mut prev := self.selected {
-		next_idx := prev.idx + 1
 		active_len := uint(self.active_results.len)
-		history_len := uint(self.history_results.len)
-		if next_idx >= active_len + history_len {
-			// No more matches. We don't wrap or reset the match currently.
-			return false
-		}
+		next_idx := if prev.idx + 1 < self.matches_len() { prev.idx + 1 } else { uint(0) }
 		hl := if next_idx < active_len {
 			self.active_results[int(active_len - 1 - next_idx)]
 		} else {
@@ -1124,13 +1122,8 @@ fn (mut self ScreenSearch) select_prev() !bool {
 	// Get our previous match so we can change it. If we have no
 	// prior match, we have the easy task of getting the last.
 	if mut prev := self.selected {
-		// Can't go below zero.
-		if prev.idx == 0 {
-			// No more matches. We don't wrap or reset the match currently.
-			return false
-		}
-
-		next_idx := prev.idx - 1
+		count := self.matches_len()
+		next_idx := if prev.idx > 0 && prev.idx <= count { prev.idx - 1 } else { count - 1 }
 		active_len := uint(self.active_results.len)
 		hl := if next_idx < active_len {
 			self.active_results[int(active_len - 1 - next_idx)]

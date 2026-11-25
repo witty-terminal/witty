@@ -222,12 +222,12 @@ fn test_select_next() ! {
 		assert point_of(&t, .screen, sel.end) == screen_pt(3, 0)
 	}
 
-	// Next match (no wrap)
-	_ = searcher.do_select(.next)!
+	// Advancing past the oldest match wraps to the newest.
+	assert searcher.do_select(.next)!
 	{
 		sel := selected_untracked(&searcher)
-		assert point_of(&t, .screen, sel.start) == screen_pt(0, 0)
-		assert point_of(&t, .screen, sel.end) == screen_pt(3, 0)
+		assert point_of(&t, .screen, sel.start) == screen_pt(0, 2)
+		assert point_of(&t, .screen, sel.end) == screen_pt(3, 2)
 	}
 }
 
@@ -358,12 +358,12 @@ fn test_select_prev() ! {
 		assert point_of(&t, .screen, sel.end) == screen_pt(3, 2)
 	}
 
-	// Prev match (no wrap, stays at newest)
-	_ = searcher.do_select(.prev)!
+	// Moving back from the newest match wraps to the oldest.
+	assert searcher.do_select(.prev)!
 	{
 		sel := selected_untracked(&searcher)
-		assert point_of(&t, .screen, sel.start) == screen_pt(0, 2)
-		assert point_of(&t, .screen, sel.end) == screen_pt(3, 2)
+		assert point_of(&t, .screen, sel.start) == screen_pt(0, 0)
+		assert point_of(&t, .screen, sel.end) == screen_pt(3, 0)
 	}
 }
 

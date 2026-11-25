@@ -25,8 +25,12 @@ PADDING = 2
 FOREGROUND = (228, 229, 233)
 CURSOR_COLOR = (255, 238, 170)
 SELECTION_BACKGROUND = (23, 81, 107)
+SEARCH_BACKGROUND = (255, 224, 130)
+SEARCH_SELECTED_BACKGROUND = (242, 165, 126)
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
-INTERACTIVE_FIXTURES = ("selection-wide", "wide-edit", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES)
+INTERACTIVE_FIXTURES = (
+    "selection-wide", "wide-edit", "search-wrap", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES,
+)
 WALLPAPER_OPTIONS = {
     "wallpaper-stretch": ("--background-image-fit=stretch",),
     "wallpaper-repeat": (
@@ -140,6 +144,14 @@ def fixture_args(name, work):
             "--selection-foreground=fef1d4",
             f"--selection-background={bytes(SELECTION_BACKGROUND).hex()}",
         ))
+    if name == "search-wrap":
+        options.extend((
+            "--keybind=ctrl+shift+f=search:needle",
+            "--keybind=ctrl+shift+g=navigate_search:next",
+            "--keybind=ctrl+alt+g=navigate_search:previous",
+            f"--search-background={bytes(SEARCH_BACKGROUND).hex()}",
+            f"--search-selected-background={bytes(SEARCH_SELECTED_BACKGROUND).hex()}",
+        ))
     if name in SCROLLBACK_FIXTURES:
         output = "output" if name == "scrollback-follow-output" else "no-output"
         options.append(f"--scroll-to-bottom=no-keystroke,{output}")
@@ -206,6 +218,38 @@ def edit_wrapped_wide(window, helper, padding, cell_width, cell_height):
     def rendered(image):
         # Delete-character inserts a blank with the new background at the margin.
         return image.getpixel((x, row_y(3)))[:3] == WIDE_EDIT_AFTER
+
+    return rendered
+
+
+def navigate_search(window, helper, padding, cell_width, cell_height):
+    x = padding + 9 * cell_width
+
+    def has_match(image, row, color):
+        y = padding + row * cell_height + cell_height // 2
+        strip = image.crop((x, y, x + cell_width, y + 1)).convert("RGB")
+        return any(rgb == color for _, rgb in strip.getcolors(cell_width))
+
+    subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True, timeout=5)
+    steps = (
+        ("ctrl+shift+f", 7, SEARCH_BACKGROUND),
+        ("ctrl+shift+g", 7, SEARCH_SELECTED_BACKGROUND),
+        ("ctrl+alt+g", 0, SEARCH_SELECTED_BACKGROUND),
+        ("ctrl+shift+g", 7, SEARCH_SELECTED_BACKGROUND),
+    )
+    for key, row, color in steps:
+        subprocess.run(["xdotool", "key", key], check=True, timeout=5)
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            with read_window(helper, window) as image:
+                if has_match(image, row, color):
+                    break
+            time.sleep(0.05)
+        else:
+            raise RuntimeError(f"Search highlight did not reach row {row + 1} after {key}")
+
+    def rendered(image):
+        return has_match(image, 7, SEARCH_SELECTED_BACKGROUND) and has_match(image, 3, SEARCH_BACKGROUND)
 
     return rendered
 
@@ -279,6 +323,8 @@ def capture_interactive(binary, args, helper, prefix, fixture, settle, scale, *,
             rendered = drag_wide_selection(window, padding, cell_width, cell_height)
         elif fixture == "wide-edit":
             rendered = edit_wrapped_wide(window, helper, padding, cell_width, cell_height)
+        elif fixture == "search-wrap":
+            rendered = navigate_search(window, helper, padding, cell_width, cell_height)
         elif fixture in SCROLLBACK_FIXTURES:
             rendered = scroll_history(window, helper, padding, cell_width, cell_height)
         elif fixture == "resize-pending-wrap":

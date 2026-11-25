@@ -393,6 +393,15 @@ def grapheme_sequences():
     ).encode()
 
 
+def search_wrap():
+    wait_for_initial_grid()
+    # The newest two matches start in view and the oldest is in scrollback.
+    return "\r\n".join(
+        f"Line {row:02d}  {'needle' if row in (5, 19, 23) else 'normal'}  output {row:02d}"
+        for row in range(1, 28)
+    ).encode()
+
+
 def edit_wrapped_wide():
     wait_for_initial_grid()
     attrs = termios.tcgetattr(sys.stdin)
@@ -513,6 +522,8 @@ def main():
         sys.stdout.buffer.write(colored_line_erase())
     elif fixture == "grapheme-sequences":
         sys.stdout.buffer.write(grapheme_sequences())
+    elif fixture == "search-wrap":
+        sys.stdout.buffer.write(search_wrap())
     elif fixture == "wide-edit":
         edit_wrapped_wide()
         return
