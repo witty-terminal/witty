@@ -11,13 +11,15 @@ import time
 
 from PIL import Image, ImageChops
 
-from applications import APPLICATION_STAGES, capture_less, capture_tmux, prepare_applications
+from applications import (
+    APPLICATION_STAGES, capture_application_frame, capture_less, capture_tmux, prepare_applications,
+)
 from capture import (
     build_window_reader, capture_witty, configure_xvfb_capture, open_window,
     output_directory, read_window, write_versions,
 )
 from fixtures import (
-    CURSOR_STYLES, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES, RESIZE_WRAP_COLOR,
+    CURSOR_STYLES, FONT_ZOOM_MARKER, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES, RESIZE_WRAP_COLOR,
     SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED, SPLIT_RIGHT_COLOR,
     WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE,
 )
@@ -38,6 +40,10 @@ BELL_THEME_BORDER = (214, 106, 69)
 COMMAND_EXIT_THEME_BACKGROUND = (33, 128, 205)
 PROGRESS_THEME_TROUGH = (90, 67, 90)
 PROGRESS_THEME_FILL = (33, 128, 205)
+FONT_ZOOM_ACTIONS = (
+    ("", None, 0), ("-larger", "1", 1), ("-restored", "2", 0), ("-smaller", "2", -1), ("-reset", "3", 0),
+)
+CAPTURE_STAGES = {**APPLICATION_STAGES, "font-zoom": tuple(stage for stage, _, _ in FONT_ZOOM_ACTIONS)}
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
 INTERACTIVE_FIXTURES = (
     "selection-wide", "wide-edit", "search-wrap", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES,
@@ -64,7 +70,7 @@ WALLPAPER_OPTIONS = {
     ),
 }
 FIXTURES = (
-    "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
+    "ansi", "decorations", "unicode", "grapheme-sequences", "font-zoom", "wide-wrap", "colored-line-erase",
     *INTERACTIVE_FIXTURES, *SPLIT_SEARCH_FIXTURES, "split-close", *BELL_FIXTURES, *PROGRESS_FIXTURES,
     "resize-overlay", "key-state-overlay", *COMMAND_EXIT_FIXTURES,
     *LINK_PREVIEW_FIXTURES, *READONLY_FIXTURES, *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
@@ -142,6 +148,12 @@ def fixture_args(name, work):
     options = [*OPTIONS, f"--alpha-blending={blend}", f"--working-directory={work}"]
     if name in APPLICATION_STAGES:
         return options
+    if name == "font-zoom":
+        options.extend((
+            "--keybind=ctrl+alt+1=increase_font_size:3",
+            "--keybind=ctrl+alt+2=decrease_font_size:3",
+            "--keybind=ctrl+alt+3=reset_font_size",
+        ))
     if name == "tab-overview":
         program = shlex.join([sys.executable, str(PROBE / "fixtures.py"), name, str(work / "overview-tab-count")])
         return [
@@ -330,6 +342,36 @@ def capture_ghostty(command, helper, prefix, settle):
         time.sleep(settle)
         with read_window(helper, window) as image:
             image.save(prefix.with_suffix(".png"))
+
+
+def capture_font_zoom(binary, args, helper, output, app, settle, scale):
+    sample_y = (PADDING + 1) * scale
+
+    def marker_width(image):
+        return sum(image.getpixel((x, sample_y)) == FONT_ZOOM_MARKER for x in range(image.width))
+
+    # Use screenshot mode to suppress the debug banner while sampling live X11 frames.
+    capture_args = [f"--screenshot={output / 'font-zoom-terminal.png'}"] if app == "witty" else []
+    delay = len(FONT_ZOOM_ACTIONS) * (settle + 5) + 5
+    env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(delay)}
+    with open_window([binary, *capture_args, *args], output / f"font-zoom-{app}.log", env=env) as (_, window):
+        subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True, timeout=5)
+        original_width = 0
+        for stage, key, relative_size in FONT_ZOOM_ACTIONS:
+            path = output / f"font-zoom{stage}-{app}.png"
+            if key:
+                subprocess.run(["xdotool", "key", f"ctrl+alt+{key}"], check=True, timeout=5)
+
+            def zoom_visible(image):
+                width = marker_width(image)
+                # The first row's solid marker scales with the cell width.
+                direction = (width > original_width) - (width < original_width)
+                return width > 0 and (original_width == 0 or direction == relative_size)
+
+            capture_application_frame(helper, window, path, settle, zoom_visible)
+            if not stage:
+                with Image.open(path) as initial:
+                    original_width = marker_width(initial)
 
 
 def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir, *, themed=False, witty=False):
@@ -1129,6 +1171,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name == "tmux":
                 capture_tmux(ghostty, args, helper, output, "ghostty", work, settle, scale)
                 capture_tmux(witty, args, helper, output, "witty", work, settle, scale)
+            elif name == "font-zoom":
+                capture_font_zoom(ghostty, args, helper, output, "ghostty", settle, scale)
+                capture_font_zoom(witty, args, helper, output, "witty", settle, scale)
             elif name in INTERACTIVE_FIXTURES:
                 capture_interactive(ghostty, args, helper, expected, name, settle, scale)
                 capture_interactive(witty, args, helper, actual, name, settle, scale, witty=True)
@@ -1210,7 +1255,7 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             else:
                 capture_ghostty([ghostty, *args], helper, expected, settle)
                 capture_witty(witty, args, actual, settle)
-            for stage in APPLICATION_STAGES.get(name, ("",)):
+            for stage in CAPTURE_STAGES.get(name, ("",)):
                 case = f"{name}{stage}"
                 row, match = compare(
                     case, output / f"{case}-witty.png", output / f"{case}-ghostty.png",

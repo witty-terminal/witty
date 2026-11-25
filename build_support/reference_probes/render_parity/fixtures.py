@@ -10,6 +10,7 @@ import tty
 
 CLEAR = b"\x1b[2J\x1b[H\x1b[?25l"
 GRID_ROWS, GRID_COLUMNS = 12, 60
+FONT_ZOOM_MARKER = (37, 147, 112)
 CURSOR_STYLES = {"cursor-block": 2, "cursor-bar": 6, "cursor-underline": 4}
 KITTY_SCROLL_FIXTURES = ("kitty-scroll-up", "kitty-scroll-down")
 SCROLLBACK_FIXTURES = ("scrollback-follow-output", "scrollback-keep-position")
@@ -553,6 +554,15 @@ def main():
         sys.stdout.buffer.write(colored_line_erase())
     elif fixture == "grapheme-sequences":
         sys.stdout.buffer.write(grapheme_sequences())
+    elif fixture == "font-zoom":
+        wait_for_initial_grid()
+        color = ";".join(map(str, FONT_ZOOM_MARKER))
+        sys.stdout.buffer.write(
+            (f"\x1b[48;2;{color}m      \x1b[0m\r\n"
+             "café · 日本語 · Σ · 😀\r\n"
+             "\x1b[38;2;235;174;114m" + "0123456789" * 4 + " wrap here 日本😀é\x1b[0m\r\n"
+             "─ ║ █ ░ ☀").encode()
+        )
     elif fixture == "search-wrap":
         sys.stdout.buffer.write(search_wrap())
     elif fixture == "split-search":

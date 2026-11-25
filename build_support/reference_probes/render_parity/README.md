@@ -37,6 +37,7 @@ The `progress-overlay-themed` fixture verifies the CSS colors of a paused progre
 The command exit fixtures capture the banner over terminal text after a successful command and a failed command with custom CSS. They also verify that the Close button exits the terminal.
 The `readonly-overlay-themed` fixture checks that a custom badge background and fractional outlines match when the terminal enters read-only mode.
 The resize fixtures narrow the window with the cursor after blank cells or near the bottom of the screen. They also check which row of a newly wrapped Bash prompt clears and where the next character appears after widening a full row.
+The `font-zoom` fixture enlarges, shrinks, and resets the font while the terminal is open. It checks live reflow and compares text, emoji, and sprites after the glyph atlases change.
 
 The `less` fixture captures an ANSI-colored file when it opens, after searching, and after advancing to the next match. The `tmux` fixture captures a two-pane session with box drawing, a colored status line, and focus switching with Ctrl+B followed by O.
 
