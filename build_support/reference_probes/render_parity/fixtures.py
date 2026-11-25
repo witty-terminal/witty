@@ -565,6 +565,15 @@ def main():
         text = b"Clipboard fixture alpha\nClipboard fixture bravo"
         sys.stdout.buffer.write(b"\x1b]52;c;" + base64.b64encode(text) + b"\x07")
         os.unlink(sys.argv[2])
+    elif fixture == "gtk-toast":
+        trigger = Path(sys.argv[2])
+        sys.stdout.buffer.write(b"GTK Toast Fixture\r\n")
+        sys.stdout.flush()
+        while not trigger.exists():
+            time.sleep(0.02)
+        sys.stdout.buffer.write(b"\x1b]52;c;\x07")
+        sys.stdout.flush()
+        trigger.unlink()
     elif fixture == "tab-overview":
         counter = Path(sys.argv[2])
         tab = int(counter.read_text()) + 1

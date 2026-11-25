@@ -738,7 +738,8 @@ pub fn Window.new(app &Application) &Window {
 	object_unref(GObject(main_menu))
 
 	self.header_bar = header_bar
-	C.witty_gtk_window_canvas_set_bars(GtkWidget(obj), header_bar, GtkWidget(tab_bar))
+	C.witty_gtk_window_canvas_set_widgets(GtkWidget(obj), header_bar, GtkWidget(tab_bar),
+		GtkWidget(toast_overlay))
 	self.window_title = window_title
 	self.tab_bar_start = tab_bar_start
 	self.tab_bar_end = tab_bar_end
@@ -2419,7 +2420,8 @@ fn (mut self Window) dispose_resources() {
 		return
 	}
 	self.disposed = true
-	C.witty_gtk_window_canvas_set_bars(self.as_widget(), unsafe { nil }, unsafe { nil })
+	C.witty_gtk_window_canvas_set_widgets(self.as_widget(), unsafe { nil }, unsafe { nil },
+		unsafe { nil })
 	if self.tab_overview_focus_timer != 0 {
 		C.g_source_remove(self.tab_overview_focus_timer)
 		self.tab_overview_focus_timer = 0

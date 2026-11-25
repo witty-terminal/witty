@@ -36,22 +36,30 @@ static inline bool witty_gtk_canvas_overlay_append_background(GtkSnapshot *snaps
 	if (!graphene_rect_equal(&clip->bounds, &bounds))
 		return false;
 
-	// Keep the rows with curved edges in GTK's primitive. Applying the clip
-	// through a mask changes the compositor's antialiasing at the corners.
+	// Keep the curved edges in GTK's primitive so the compositor uses its
+	// native antialiasing. A pill-shaped panel has a straight middle along x.
 	const float top = ceilf(MAX(clip->corner[0].height, clip->corner[1].height));
 	const float bottom = ceilf(MAX(clip->corner[2].height, clip->corner[3].height));
 	const float x = bounds.origin.x, y = bounds.origin.y;
 	const float width = bounds.size.width, height = bounds.size.height;
-	if (top + bottom >= height || y != floorf(y) || height != floorf(height))
-		return false;
-
-	const graphene_rect_t upper = GRAPHENE_RECT_INIT(x, y, width, top);
-	const graphene_rect_t lower = GRAPHENE_RECT_INIT(x, y + height - bottom, width, bottom);
-	const graphene_rect_t middle = GRAPHENE_RECT_INIT(x, y + top, width, height - top - bottom);
-	witty_gtk_canvas_overlay_append_strip(snapshot, node, &upper);
+	graphene_rect_t first, last, middle;
+	if (top + bottom < height && y == floorf(y) && height == floorf(height)) {
+		first = GRAPHENE_RECT_INIT(x, y, width, top);
+		middle = GRAPHENE_RECT_INIT(x, y + top, width, height - top - bottom);
+		last = GRAPHENE_RECT_INIT(x, y + height - bottom, width, bottom);
+	} else {
+		const float left = ceilf(MAX(clip->corner[0].width, clip->corner[3].width));
+		const float right = ceilf(MAX(clip->corner[1].width, clip->corner[2].width));
+		if (left + right >= width || x != floorf(x) || width != floorf(width))
+			return false;
+		first = GRAPHENE_RECT_INIT(x, y, left, height);
+		middle = GRAPHENE_RECT_INIT(x + left, y, width - left - right, height);
+		last = GRAPHENE_RECT_INIT(x + width - right, y, right, height);
+	}
+	witty_gtk_canvas_overlay_append_strip(snapshot, node, &first);
 	witty_gtk_canvas_snapshot_mask(snapshot, mask, gsk_color_node_get_color(fill), &middle,
 		&middle, 1);
-	witty_gtk_canvas_overlay_append_strip(snapshot, node, &lower);
+	witty_gtk_canvas_overlay_append_strip(snapshot, node, &last);
 	return true;
 }
 
@@ -213,15 +221,14 @@ static inline GskRenderNode *witty_gtk_canvas_replace_fill(GskRenderNode *node,
 	case GSK_ROUNDED_CLIP_NODE: {
 		const GskRoundedRect *clip = gsk_rounded_clip_node_get_clip(node);
 		GskRenderNode *child = gsk_rounded_clip_node_get_child(node);
-		if (!area) {
-			if (gsk_render_node_get_node_type(child) != GSK_COLOR_NODE
-					|| gsk_color_node_get_color(child)->alpha != 1)
-				return NULL;
+		if ((!area || graphene_rect_equal(&clip->bounds, area))
+				&& gsk_render_node_get_node_type(child) == GSK_COLOR_NODE
+				&& gsk_color_node_get_color(child)->alpha == 1) {
 			GtkSnapshot *snapshot = gtk_snapshot_new();
 			witty_gtk_canvas_overlay_append_background(snapshot, mask, node);
 			return gtk_snapshot_free_to_node(snapshot);
 		}
-		if (!gsk_rounded_rect_contains_rect(clip, area))
+		if (!area || !gsk_rounded_rect_contains_rect(clip, area))
 			return NULL;
 		g_autoptr(GskRenderNode) fill = witty_gtk_canvas_replace_fill(child, mask, area);
 		return fill ? gsk_rounded_clip_node_new(fill, clip) : NULL;

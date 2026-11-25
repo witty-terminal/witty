@@ -50,7 +50,7 @@ FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
     *INTERACTIVE_FIXTURES, "split-search", "visual-bell", "progress-overlay", "resize-overlay", "key-state-overlay",
     *LINK_PREVIEW_FIXTURES, "readonly-overlay", *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
-    "terminal-title",
+    "terminal-title", "gtk-toast",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -173,6 +173,12 @@ def fixture_args(name, work):
         return [
             *options, "--window-width=85", "--window-height=28", "--clipboard-write=ask",
             "-e", sys.executable, str(PROBE / "fixtures.py"), name, str(work / "clipboard.trigger"),
+        ]
+    if name == "gtk-toast":
+        return [
+            *options, "--window-width=85", "--window-height=28", "--clipboard-write=allow",
+            "--app-notifications=clipboard-copy",
+            "-e", sys.executable, str(PROBE / "fixtures.py"), name, str(work / "toast.trigger"),
         ]
     if name == "resize-overlay":
         options.extend(("--resize-overlay=always", "--resize-overlay-duration=5s"))
@@ -548,6 +554,35 @@ def capture_clipboard_confirmation(binary, args, helper, prefix, settle, *, witt
                 raise RuntimeError("Denying clipboard access did not close the confirmation")
 
 
+def capture_gtk_toast(binary, args, helper, prefix, settle):
+    trigger = Path(args[-1])
+    trigger.unlink(missing_ok=True)
+    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
+    env = {**os.environ, "GSK_DEBUG": debug}
+    with open_window([binary, *args], prefix.with_suffix(".log"), env=env) as (process, window):
+        subprocess.run(
+            ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window, "14", "80"],
+            check=True, timeout=5,
+        )
+        time.sleep(max(settle, 0.65))
+        with read_window(helper, window) as image:
+            idle = image.tobytes()
+        trigger.touch()
+        deadline = time.monotonic() + 2
+        while trigger.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        if trigger.exists():
+            raise RuntimeError("The toast fixture did not send the clipboard clear request")
+        # Let the entrance animation settle within the three-second timeout.
+        time.sleep(0.75)
+        if process.poll() is not None:
+            raise RuntimeError("Clearing the clipboard exited the terminal")
+        with read_window(helper, window) as image:
+            if image.tobytes() == idle:
+                raise RuntimeError("Clearing the clipboard did not show a toast")
+            image.save(prefix.with_suffix(".png"))
+
+
 def capture_config_errors(binary, args, helper, prefix, settle, scale):
     config = Path(args[-1].removeprefix("--config-file="))
     config.write_text("fixture-unknown-option = value\n")
@@ -920,6 +955,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name == "clipboard-confirmation":
                 capture_clipboard_confirmation(ghostty, args, helper, expected, settle)
                 capture_clipboard_confirmation(witty, args, helper, actual, settle, witty=True)
+            elif name == "gtk-toast":
+                capture_gtk_toast(ghostty, args, helper, expected, settle)
+                capture_gtk_toast(witty, args, helper, actual, settle)
             elif name == "config-errors":
                 capture_config_errors(ghostty, args, helper, expected, settle, scale)
                 capture_config_errors(witty, args, helper, actual, settle, scale)
