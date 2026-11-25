@@ -108,7 +108,11 @@ pub fn thread_main_posix(fd int, quit int, io &Termio) {
 		pollfds[1].revents = 0
 		poll_result := C.poll(&pollfds[0], u32(2), -1)
 		if poll_result < 0 {
-			log.warn('poll failed on read thread, exiting early err=${os.posix_get_error_msg(C.errno)}')
+			errno := C.errno
+			if errno == C.EINTR {
+				continue
+			}
+			log.warn('poll failed on read thread, exiting early err=${os.posix_get_error_msg(errno)}')
 			return
 		}
 
