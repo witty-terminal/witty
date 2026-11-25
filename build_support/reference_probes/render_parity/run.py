@@ -21,12 +21,13 @@ from capture import (
 from fixtures import (
     CURSOR_STYLES, FONT_ZOOM_MARKER, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES, RESIZE_WRAP_COLOR,
     SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED, SPLIT_RIGHT_COLOR,
-    WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE,
+    WALLPAPER_RELOAD_MARKER, WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE,
 )
 
 
 PROBE = Path(__file__).resolve().parent
 PADDING = 2
+BACKGROUND = (22, 24, 32)
 FOREGROUND = (228, 229, 233)
 CURSOR_COLOR = (255, 238, 170)
 SELECTION_BACKGROUND = (23, 81, 107)
@@ -43,7 +44,12 @@ PROGRESS_THEME_FILL = (33, 128, 205)
 FONT_ZOOM_ACTIONS = (
     ("", None, 0), ("-larger", "1", 1), ("-restored", "2", 0), ("-smaller", "2", -1), ("-reset", "3", 0),
 )
-CAPTURE_STAGES = {**APPLICATION_STAGES, "font-zoom": tuple(stage for stage, _, _ in FONT_ZOOM_ACTIONS)}
+WALLPAPER_RELOAD_STAGES = ("", "-load", "-repeat", "-fade", "-replace", "-remove", "-restore")
+CAPTURE_STAGES = {
+    **APPLICATION_STAGES,
+    "font-zoom": tuple(stage for stage, _, _ in FONT_ZOOM_ACTIONS),
+    "wallpaper-reload": WALLPAPER_RELOAD_STAGES,
+}
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
 INTERACTIVE_FIXTURES = (
     "selection-wide", "wide-edit", "search-wrap", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES,
@@ -79,7 +85,7 @@ FIXTURES = (
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
     "kitty-delete-selection", "kitty-delete-visible", "kitty-chunked", "kitty-animation",
-    *WALLPAPER_OPTIONS, "ls", "git", "vim", *APPLICATION_STAGES, "shader",
+    *WALLPAPER_OPTIONS, "wallpaper-reload", "ls", "git", "vim", *APPLICATION_STAGES, "shader",
 )
 OPTIONS = (
     "--config-default-files=false",
@@ -95,7 +101,7 @@ OPTIONS = (
     f"--window-padding-y={PADDING}",
     "--font-family=DejaVu Sans Mono",
     "--font-size=13",
-    "--background=161820",
+    f"--background={bytes(BACKGROUND).hex()}",
     f"--foreground={bytes(FOREGROUND).hex()}",
     f"--cursor-color={bytes(CURSOR_COLOR).hex()}",
     "--cursor-style-blink=false",
@@ -153,6 +159,12 @@ def fixture_args(name, work):
             "--keybind=ctrl+alt+1=increase_font_size:3",
             "--keybind=ctrl+alt+2=decrease_font_size:3",
             "--keybind=ctrl+alt+3=reset_font_size",
+        ))
+    if name == "wallpaper-reload":
+        options.extend((
+            f"--config-file={work / 'wallpaper-reload.conf'}",
+            "--keybind=ctrl+alt+r=reload_config",
+            "--app-notifications=no-config-reload",
         ))
     if name == "tab-overview":
         program = shlex.join([sys.executable, str(PROBE / "fixtures.py"), name, str(work / "overview-tab-count")])
@@ -372,6 +384,51 @@ def capture_font_zoom(binary, args, helper, output, app, settle, scale):
             if not stage:
                 with Image.open(path) as initial:
                     original_width = marker_width(initial)
+
+
+def capture_wallpaper_reload(binary, args, helper, output, work, app, settle, scale):
+    config = work / "wallpaper-reload.conf"
+    config.write_text("")
+    tile = work / "reload-tile.png"
+    cover = work / "reload-cover.jpeg"
+    tile_color = (114, 69, 180)
+    with Image.new("RGB", (31, 19), tile_color) as png:
+        png.save(tile)
+    with Image.new("RGB", (19, 31), (36, 150, 107)) as jpeg:
+        jpeg.save(cover, quality=92, progressive=True)
+
+    natural = f"background-image = {tile}\nbackground-image-fit = none\n"
+    repeated = natural + "background-image-repeat = true\n"
+    empty = ("", lambda left, center: left == center == BACKGROUND)
+    loaded = (natural, lambda left, center: left == BACKGROUND and center == tile_color)
+    stages = (
+        empty,
+        loaded,
+        (repeated, lambda left, center: left == center == tile_color),
+        (repeated + "background-image-opacity = 0.6\n",
+         lambda left, center: left == center and BACKGROUND[0] < left[0] < tile_color[0]),
+        (f"background-image = {cover}\nbackground-image-fit = cover\n",
+         lambda left, center: left == center and left[1] > 125),
+        empty,
+        loaded,
+    )
+    capture_args = [f"--screenshot={output / 'wallpaper-reload-terminal.png'}"] if app == "witty" else []
+    delay = len(stages) * (settle + 5) + 5
+    env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(delay)}
+    with open_window([binary, *capture_args, *args], output / f"wallpaper-reload-{app}.log", env=env) as (_, window):
+        subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True, timeout=5)
+        for stage, (settings, ready) in zip(WALLPAPER_RELOAD_STAGES, stages, strict=True):
+            if stage:
+                config.write_text(settings)
+                subprocess.run(["xdotool", "key", "ctrl+alt+r"], check=True, timeout=5)
+
+            def rendered(image):
+                if image.getpixel(((PADDING + 1) * scale, (PADDING + 1) * scale)) != WALLPAPER_RELOAD_MARKER:
+                    return False
+                y = image.height // 2
+                return ready(image.getpixel((10 * scale, y)), image.getpixel((image.width // 2, y)))
+
+            capture_application_frame(helper, window, output / f"wallpaper-reload{stage}-{app}.png", settle, rendered)
 
 
 def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir, *, themed=False, witty=False):
@@ -1174,6 +1231,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name == "font-zoom":
                 capture_font_zoom(ghostty, args, helper, output, "ghostty", settle, scale)
                 capture_font_zoom(witty, args, helper, output, "witty", settle, scale)
+            elif name == "wallpaper-reload":
+                capture_wallpaper_reload(ghostty, args, helper, output, work, "ghostty", settle, scale)
+                capture_wallpaper_reload(witty, args, helper, output, work, "witty", settle, scale)
             elif name in INTERACTIVE_FIXTURES:
                 capture_interactive(ghostty, args, helper, expected, name, settle, scale)
                 capture_interactive(witty, args, helper, actual, name, settle, scale, witty=True)
