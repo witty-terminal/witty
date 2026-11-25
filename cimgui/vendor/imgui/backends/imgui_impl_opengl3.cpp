@@ -442,9 +442,8 @@ void    ImGui_ImplOpenGL3_Shutdown()
     platform_io.ClearRendererHandlers();
     IM_DELETE(bd);
 
-#ifdef IMGUI_IMPL_OPENGL_LOADER_IMGL3W
-    imgl3wShutdown();
-#endif
+    // The loader is shared by all contexts and closes its libraries at exit.
+    // A GLArea can be unrealized while another ImGui context still needs it.
 }
 
 void    ImGui_ImplOpenGL3_NewFrame()

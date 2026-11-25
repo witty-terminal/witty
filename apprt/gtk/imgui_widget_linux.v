@@ -6,7 +6,7 @@ module gtk
 import cimgui
 import input
 import log
-import opengl
+import renderer
 import time
 
 #include "imgui_native_shims.h"
@@ -17,10 +17,13 @@ fn C.witty_imgui_class_set_render(voidptr, voidptr)
 fn C.witty_imgui_call_setup(voidptr)
 fn C.witty_imgui_call_render(voidptr)
 fn C.witty_imgui_parent_dispose(voidptr, voidptr)
+fn C.glClearColor(f32, f32, f32, f32)
+fn C.glClear(u32)
 
 __global g_imgui_widget_type = GType(0)
 __global g_imgui_widget_parent = voidptr(unsafe { nil })
 const imgui_widget_wrapper_key = 'ghostty-imgui-widget-wrapper'
+const imgui_background = [f32(0x28) / 255, f32(0x2c) / 255, f32(0x34) / 255, f32(1)]!
 
 fn imgui_widget_class_init(klass voidptr, _ voidptr) {
 	g_imgui_widget_parent = C.g_type_class_peek_parent(klass)
@@ -84,6 +87,8 @@ mut:
 	im_context       GtkIMContext = unsafe { nil }
 	context          cimgui.Context
 	context_ready    bool
+	opengl_ready     bool
+	gpu              renderer.GGInspectorGL
 	tick_callback_id u32
 	last_render_ns   i64
 	previous_ns      i64
@@ -223,7 +228,7 @@ pub fn (self &ImguiWidget) render() {
 // set_current_context preserves the source boundary even though the cimgui V
 // wrapper makes the context passed to each operation current internally.
 fn (self &ImguiWidget) set_current_context() bool {
-	if !self.context_ready {
+	if !self.opengl_ready {
 		log.warn('Dear ImGui context not initialized')
 		return false
 	}
@@ -231,40 +236,54 @@ fn (self &ImguiWidget) set_current_context() bool {
 }
 
 fn (mut self ImguiWidget) realize() {
-	assert !self.context_ready, 'Dear ImGui context already initialized'
+	assert !self.opengl_ready, 'Dear ImGui OpenGL backend already initialized'
 	C.gtk_gl_area_make_current(self.gl_area)
 	gl_error := C.gtk_gl_area_get_error(self.gl_area)
 	if !isnil(gl_error) {
 		log.warn('GLArea for Dear ImGui widget failed to realize: ${error_message(gl_error)}')
 		return
 	}
-	context := cimgui.Context.create() or {
-		log.warn('unable to initialize Dear ImGui context')
+	first := !self.context_ready
+	if first {
+		self.context = cimgui.Context.create() or {
+			log.warn('unable to initialize Dear ImGui context')
+			return
+		}
+		self.context.set_backend_platform(.gtk)
+	}
+	if !self.context.opengl_init() {
+		if first {
+			self.context.destroy()
+			self.context = cimgui.Context{}
+		}
+		log.warn('unable to initialize Dear ImGui OpenGL backend')
 		return
 	}
-	self.context = context
-	self.context.set_backend_platform(.gtk)
-	_ = self.context.opengl_init()
-	self.context_ready = true
-	self.setup()
+	self.opengl_ready = true
+	self.previous_ns = 0
+	if first {
+		self.context_ready = true
+		self.setup()
+	}
 	self.tick_callback_id = C.gtk_widget_add_tick_callback(self.widget, voidptr(imgui_tick_cb),
 		voidptr(self), unsafe { nil })
 }
 
 fn (mut self ImguiWidget) unrealize() {
-	assert self.context_ready, 'Dear ImGui context not initialized'
 	if self.tick_callback_id != 0 {
 		C.gtk_widget_remove_tick_callback(self.widget, self.tick_callback_id)
 		self.tick_callback_id = 0
 	}
-	self.context.opengl_shutdown()
+	if self.opengl_ready {
+		C.gtk_gl_area_make_current(self.gl_area)
+		self.gpu.release()
+		self.context.opengl_shutdown()
+		self.opengl_ready = false
+	}
 }
 
 pub fn (mut self ImguiWidget) deinit() {
-	if self.tick_callback_id != 0 && !isnil(self.widget) {
-		C.gtk_widget_remove_tick_callback(self.widget, self.tick_callback_id)
-		self.tick_callback_id = 0
-	}
+	self.unrealize()
 	if self.context_ready {
 		self.context.destroy()
 		self.context = cimgui.Context{}
@@ -308,15 +327,22 @@ fn (mut self ImguiWidget) gl_area_render() bool {
 	}
 	self.last_render_ns = i64(time.sys_mono_now())
 	for _ in 0 .. 2 {
-		self.context.opengl_new_frame()
 		self.new_frame()
 		self.render()
 		self.context.render_frame()
 	}
-	opengl.clear_color(f32(0x28) / 255.0, f32(0x2c) / 255.0, f32(0x34) / 255.0, 1.0)
-	opengl.clear(opengl.gl_color_buffer_bit)
-	self.context.opengl_render()
+	self.gpu.render(self.context, imgui_background) or {
+		self.context.opengl_new_frame()
+		imgui_clear()
+		self.context.opengl_render()
+	}
 	return true
+}
+
+fn imgui_clear() {
+	C.glClearColor(imgui_background[0], imgui_background[1], imgui_background[2],
+		imgui_background[3])
+	C.glClear(u32(C.GL_COLOR_BUFFER_BIT))
 }
 
 fn (mut self ImguiWidget) key_event(action input.KeyAction, controller GtkEventControllerKey, keyval u32, gtk_mods u32) bool {

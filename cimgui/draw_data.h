@@ -23,10 +23,7 @@ typedef struct witty_cimgui_draw_command {
 } witty_cimgui_draw_command;
 
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
-#ifdef __APPLE__
-void ImGui_ImplMetal_UpdateTexture(ImTextureData* texture);
-
-static inline bool witty_cimgui_metal_update_textures(ImGuiContext* context) {
+static inline bool witty_cimgui_update_textures(ImGuiContext* context, void (*update)(ImTextureData*)) {
     ImGui_SetCurrentContext(context);
     const ImDrawData* data = ImGui_GetDrawData();
     if (!data || !data->Valid) return false;
@@ -34,10 +31,25 @@ static inline bool witty_cimgui_metal_update_textures(ImGuiContext* context) {
         for (int i = 0; i < data->Textures->Size; ++i) {
             ImTextureData* texture = data->Textures->Data[i];
             if (texture->Status != ImTextureStatus_OK)
-                ImGui_ImplMetal_UpdateTexture(texture);
+                update(texture);
         }
     }
     return true;
+}
+
+#ifdef __APPLE__
+void ImGui_ImplMetal_UpdateTexture(ImTextureData* texture);
+
+static inline bool witty_cimgui_metal_update_textures(ImGuiContext* context) {
+    return witty_cimgui_update_textures(context, ImGui_ImplMetal_UpdateTexture);
+}
+#endif
+
+#ifdef __linux__
+void ImGui_ImplOpenGL3_UpdateTexture(ImTextureData* texture);
+
+static inline bool witty_cimgui_opengl_update_textures(ImGuiContext* context) {
+    return witty_cimgui_update_textures(context, ImGui_ImplOpenGL3_UpdateTexture);
 }
 #endif
 

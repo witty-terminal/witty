@@ -25,3 +25,11 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 		C.witty_cimgui_opengl_render(ctx.handle)
 	}
 }
+
+$if linux && !renderer_metal ? {
+	fn C.witty_cimgui_opengl_update_textures(context voidptr) bool
+
+	pub fn (ctx Context) opengl_update_textures() bool {
+		return C.witty_cimgui_opengl_update_textures(ctx.handle)
+	}
+}
