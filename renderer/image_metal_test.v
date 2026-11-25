@@ -1,6 +1,7 @@
 module renderer
 
 // Image upload and drawing tests that need a Metal device.
+import configpkg
 import macos
 import sokol.gfx
 
@@ -97,12 +98,22 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 	}
 
 	fn test_image_draw_encodes_gpu_placement() ! {
+		check_metal_image_and_cell_draws(.native)!
+		$if macos && !renderer_opengl ? {
+			if gg_metal_pixel_format(.bgra8unorm_srgb) != .none {
+				check_metal_image_and_cell_draws(.linear_corrected)!
+			}
+		}
+	}
+
+	fn check_metal_image_and_cell_draws(blending configpkg.AlphaBlending) ! {
 		mut api := MetalAPI.init()!
 		defer {
 			api.deinit()
 		}
 		api.draw_frame_start()
 		defer { api.draw_frame_end() }
+		api.blending = blending
 		mut shaders := api.init_shaders([]string{})!
 		defer {
 			shaders.deinit()
@@ -142,7 +153,10 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 				cell_size:         [f32(1), 1]!
 				grid_size:         [u16(4), 4]!
 				bg_color:          [u8(0), 0, 0, 255]!
-				bools:             UniformBools{ use_display_p3: true }
+				bools:             UniformBools{
+					use_display_p3:      true
+					use_linear_blending: blending.is_linear()
+				}
 			}),
 		])!
 		defer {
@@ -159,13 +173,35 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			BgImageBuffer{ info: bg_image_info(.br, .none_, true) },
 		])!
 		defer { backdrop_vertices.deinit() }
-		// Exercise a native draw between GG draws, as with text and Kitty layers.
+		mut grayscale := MetalTexture.init(api.image_texture_options(.gray, false), 1, 1,
+			[u8(255)])!
+		defer { grayscale.deinit() }
+		mut color := MetalTexture.init(api.image_texture_options(.bgra, true), 1, 1,
+			[u8(255), 0, 255, 255])!
+		defer { color.deinit() }
+		mut glyphs := MetalBuffer.init_fill(api.buffer_options(), [
+			CellText{
+				glyph_size: [u32(1), 1]!
+				bearings:   [i16(0), 1]!
+				grid_pos:   [u16(2), 0]!
+				color:      [u8(255), 255, 0, 255]!
+			},
+			CellText{
+				glyph_size: [u32(1), 1]!
+				bearings:   [i16(0), 1]!
+				grid_pos:   [u16(3), 0]!
+				atlas:      .color
+			},
+		])!
+		defer { glyphs.deinit() }
+		// Exercise native and GG draws in the same pass.
 		native_background := MetalPipeline{ handle: shaders.bg_color.handle }
 		$if macos && !renderer_opengl ? {
 			assert shaders.bg_color.gg.pipeline.id != 0
 			assert shaders.cell_bg.gg.pipeline.id != 0
 			assert shaders.image.gg.pipeline.id != 0
 			assert shaders.bg_image.gg.pipeline.id != 0
+			assert (shaders.cell_text.gg.pipeline.id != 0) == gg_metal_supports_packed_cells()
 			gfx.enable_frame_stats()
 		}
 		defer {
@@ -206,15 +242,30 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			draw:     quad
 		})
 		state.draw(&api, shaders.image, uniforms, mut pass, .kitty_below_bg)
+		pass.step(MetalRenderStep{
+			pipeline: shaders.cell_text
+			uniforms: uniforms
+			buffers:  [?MetalBuffer(glyphs), ?MetalBuffer(backgrounds)]
+			textures: [?MetalTexture(grayscale), ?MetalTexture(color)]
+			draw:     MetalRenderDraw{
+				draw_type:      .triangle_strip
+				vertex_count:   4
+				instance_count: 2
+			}
+		})
 		frame.submit(&pass, true)!
 		assert capture.calls == 1
 		assert metal_command_buffer_status(capture.status) == .completed
 		assert capture.sync_
-		mut pixels := []u8{len: 12}
-		macos.metal_texture_get_bytes(target.texture, mut pixels, 12, 0, 0, 3, 1)
-		assert pixels == [u8(0), 0, 255, 255, 0, 255, 0, 255, 255, 0, 0, 255]
+		mut pixels := []u8{len: 16}
+		macos.metal_texture_get_bytes(target.texture, mut pixels, 16, 0, 0, 4, 1)
+		assert pixels == [u8(0), 0, 255, 255, 0, 255, 0, 255, 0, 255, 255, 255, 255, 0, 255, 255]
 		$if macos && !renderer_opengl ? {
-			assert gfx.query_frame_stats().num_draw == 4
+			assert gfx.query_frame_stats().num_draw == if gg_metal_supports_packed_cells() {
+				u32(5)
+			} else {
+				u32(4)
+			}
 		}
 	}
 }

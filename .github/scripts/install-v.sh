@@ -25,10 +25,13 @@ checkout_revision v "$v_revision" "$v_root"
 checkout_revision vc "$vc_revision" "$v_root/vc"
 checkout_revision tccbin "$tcc_revision" "$v_root/thirdparty/tcc"
 
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 if [[ "$RUNNER_OS" != Windows ]]; then
   # V emits some callback typedefs after their structs and can drop optional enum typedefs.
-  script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
   git -C "$v_root" apply "$script_dir/../patches/v-c-declarations.patch"
+fi
+if [[ "$RUNNER_OS" == macOS ]]; then
+  git -C "$v_root" apply "$script_dir/../patches/v-sokol-metal-formats.patch"
 fi
 
 unset VEXE

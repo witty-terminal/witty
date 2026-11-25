@@ -540,8 +540,9 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		// The texture handle.
 		texture voidptr = unsafe { nil }
 		// Width and height of the target.
-		width  uint
-		height uint
+		width        uint
+		height       uint
+		pixel_format MetalPixelFormat
 	}
 
 	pub struct MetalTargetOptions {
@@ -578,10 +579,11 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			return error('Metal target texture allocation failed')
 		}
 		return MetalTarget{
-			surface: surface
-			texture: texture
-			width:   opts.width
-			height:  opts.height
+			surface:      surface
+			texture:      texture
+			width:        opts.width
+			height:       opts.height
+			pixel_format: opts.pixel_format
 		}
 	}
 
@@ -609,7 +611,8 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		width  uint
 		height uint
 		// Bytes per pixel for this texture.
-		bpp uint
+		bpp          uint
+		pixel_format MetalPixelFormat
 	}
 
 	// MetalTextureOptions configures texture creation.
@@ -631,10 +634,11 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			return error('Metal texture allocation failed')
 		}
 		mut self := MetalTexture{
-			handle: handle
-			width:  width
-			height: height
-			bpp:    bpp
+			handle:       handle
+			width:        width
+			height:       height
+			bpp:          bpp
+			pixel_format: opts.pixel_format
 		}
 
 		if d := data {

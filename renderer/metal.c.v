@@ -218,8 +218,8 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		mut shaders := MetalShaders.init(self.device, custom_shaders, format)!
 		$if macos && !renderer_opengl ? {
 			$if compiled_metallib ? {
-				if self.gg_owned && format == .bgra8unorm {
-					shaders.init_gg_pipelines()
+				if self.gg_owned {
+					shaders.init_gg_pipelines(format)
 				}
 			}
 		}

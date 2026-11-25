@@ -6,8 +6,21 @@ import sokol.gfx
 enum GGMetalDrawKind {
 	background
 	cell_background
+	cell_text
 	image
 	background_image
+}
+
+fn (kind GGMetalDrawKind) is_strip() bool {
+	return kind in [.cell_text, .image]
+}
+
+fn (kind GGMetalDrawKind) texture_count() int {
+	return match kind {
+		.cell_text { 2 }
+		.image, .background_image { 1 }
+		else { 0 }
+	}
 }
 
 struct GGMetalPipeline {
@@ -19,30 +32,42 @@ struct GGMetalPipeline {
 
 $if macos && !renderer_opengl ? {
 	$if compiled_metallib ? {
-		fn (mut shaders MetalShaders) init_gg_pipelines() {
+		fn (mut shaders MetalShaders) init_gg_pipelines(target_format MetalPixelFormat) {
+			format := gg_metal_pixel_format(target_format)
+			if format == .none {
+				return
+			}
 			C.witty_gg_metal_lock()
 			defer { C.witty_gg_metal_unlock() }
-			shaders.bg_color.gg = gg_metal_pipeline(.background, 'full_screen_vertex', 'bg_color_fragment')
-			shaders.cell_bg.gg = gg_metal_pipeline(.cell_background, 'full_screen_vertex', 'cell_bg_fragment')
-			shaders.image.gg = gg_metal_pipeline(.image, 'image_vertex', 'image_fragment')
-			shaders.bg_image.gg = gg_metal_pipeline(.background_image, 'bg_image_vertex', 'bg_image_fragment')
+			shaders.bg_color.gg = gg_metal_pipeline(.background, format, 'full_screen_vertex', 'bg_color_fragment')
+			shaders.cell_bg.gg = gg_metal_pipeline(.cell_background, format, 'full_screen_vertex', 'cell_bg_fragment')
+			if gg_metal_supports_packed_cells() {
+				shaders.cell_text.gg = gg_metal_pipeline(.cell_text, format, 'cell_text_vertex', 'cell_text_fragment')
+			}
+			shaders.image.gg = gg_metal_pipeline(.image, format, 'image_vertex', 'image_fragment')
+			shaders.bg_image.gg = gg_metal_pipeline(.background_image, format, 'bg_image_vertex', 'bg_image_fragment')
 		}
 
-		fn gg_metal_pipeline(kind GGMetalDrawKind, vertex string, fragment string) GGMetalPipeline {
+		fn gg_metal_pipeline(kind GGMetalDrawKind, format gfx.PixelFormat, vertex string, fragment string) GGMetalPipeline {
 			bytecode := gfx.Range{
 				ptr:  metal_shader_library.data
 				size: uint(metal_shader_library.len)
 			}
-			textured := kind in [.image, .background_image]
+			texture_count := kind.texture_count()
 			mut shader_desc := gfx.ShaderDesc{}
 			// Sokol requires continuous uniform slots in the descriptor. The
 			// shared Metal shaders read their uniforms at slot one.
 			shader_desc.fs.uniform_blocks[0].size = 16
 			shader_desc.fs.uniform_blocks[1].size = $sizeof(MetalUniforms)
-			if textured {
-				shader_desc.fs.images[0] = gfx.ShaderImageDesc{ used: true, image_type: ._2d }
+			if texture_count > 0 {
 				shader_desc.fs.samplers[0].used = true
-				shader_desc.fs.image_sampler_pairs[0].used = true
+				for i in 0 .. texture_count {
+					shader_desc.fs.images[i] = gfx.ShaderImageDesc{ used: true, image_type: ._2d }
+					shader_desc.fs.image_sampler_pairs[i] = gfx.ShaderImageSamplerPairDesc{
+						used:       true
+						image_slot: i
+					}
+				}
 				if kind == .background_image {
 					shader_desc.vs = shader_desc.fs
 				} else {
@@ -62,44 +87,16 @@ $if macos && !renderer_opengl ? {
 			mut desc := gfx.PipelineDesc{
 				shader:         shader
 				depth:          gfx.DepthState{ pixel_format: .none }
-				primitive_type: .triangles
+				primitive_type: if kind.is_strip() { .triangle_strip } else { .triangles }
+				layout:         gg_metal_vertex_layout(kind)
 			}
-			desc.colors[0].pixel_format = .bgra8
+			desc.colors[0].pixel_format = format
 			desc.colors[0].blend = gfx.BlendState{
 				enabled:          kind != .background
 				src_factor_rgb:   .one
 				dst_factor_rgb:   .one_minus_src_alpha
 				src_factor_alpha: .one
 				dst_factor_alpha: .one_minus_src_alpha
-			}
-			if kind == .image {
-				desc.primitive_type = .triangle_strip
-				desc.layout.buffers[0] = gfx.VertexBufferLayoutState{
-					stride:    int($sizeof(ImageVertex))
-					step_func: .per_instance
-				}
-				for i, attribute in metal_image_attributes() {
-					desc.layout.attrs[i] = gfx.VertexAttrDesc{
-						offset: int(attribute.offset)
-						format: if attribute.format == .float4 { .float4 } else { .float2 }
-					}
-				}
-			}
-			if kind == .background_image {
-				desc.layout.buffers[0] = gfx.VertexBufferLayoutState{
-					stride:    int($sizeof(BgImageBuffer))
-					step_func: .per_instance
-				}
-				desc.layout.attrs[0] = gfx.VertexAttrDesc{
-					offset: __offsetof(BgImageBuffer, opacity)
-					format: .float
-				}
-				// Metal takes the first component for the shader's scalar
-				// uchar. The following bytes are padding in BgImageBuffer.
-				desc.layout.attrs[1] = gfx.VertexAttrDesc{
-					offset: __offsetof(BgImageBuffer, info)
-					format: .ubyte4
-				}
 			}
 			pipeline := gfx.make_pipeline(&desc)
 			if gfx.query_pipeline_state(pipeline) != .valid {
@@ -108,12 +105,13 @@ $if macos && !renderer_opengl ? {
 				return GGMetalPipeline{}
 			}
 			mut sampler := gfx.Sampler{}
-			if textured {
+			if texture_count > 0 {
 				// Sokol validates the texture and sampler as a pair. The
 				// Metal shader uses its own pixel-coordinate constexpr sampler.
+				filter := if kind == .cell_text { gfx.Filter.nearest } else { .linear }
 				sampler = gfx.make_sampler(&gfx.SamplerDesc{
-					min_filter: .linear
-					mag_filter: .linear
+					min_filter: filter
+					mag_filter: filter
 					wrap_u:     .clamp_to_edge
 					wrap_v:     .clamp_to_edge
 				})
@@ -126,6 +124,44 @@ $if macos && !renderer_opengl ? {
 			}
 			return GGMetalPipeline{ pipeline: pipeline, shader: shader, sampler: sampler, kind: kind }
 		}
+	}
+
+	fn gg_metal_supports_packed_cells() bool {
+		return C.WITTY_GG_USHORT2 != 0 && C.WITTY_GG_UBYTE != 0
+	}
+
+	fn gg_metal_vertex_layout(kind GGMetalDrawKind) gfx.VertexLayoutState {
+		attributes, stride := match kind {
+			.cell_text { metal_text_cell_attributes(), int($sizeof(CellText)) }
+			.image { metal_image_attributes(), int($sizeof(ImageVertex)) }
+			.background_image { metal_bg_image_attributes(), int($sizeof(BgImageBuffer)) }
+			else { return gfx.VertexLayoutState{} }
+		}
+		mut layout := gfx.VertexLayoutState{}
+		layout.buffers[0] = gfx.VertexBufferLayoutState{ stride: stride, step_func: .per_instance }
+		for i, attribute in attributes {
+			format := match attribute.format {
+				.float { gfx.VertexFormat.float }
+				.float2 { .float2 }
+				.float4 { .float4 }
+				.uint2 { .uint2 }
+				.short2 { .short2 }
+				.ushort2 { unsafe { gfx.VertexFormat(C.WITTY_GG_USHORT2) } }
+				.uchar4 { .ubyte4 }
+				.uchar {
+					// For BgImageBuffer, stock V can still read the first
+					// component of a vector covering the trailing padding.
+					if C.WITTY_GG_UBYTE == 0 {
+						.ubyte4
+					} else {
+						unsafe { gfx.VertexFormat(C.WITTY_GG_UBYTE) }
+					}
+				}
+				else { .invalid }
+			}
+			layout.attrs[i] = gfx.VertexAttrDesc{ offset: int(attribute.offset), format: format }
+		}
+		return layout
 	}
 
 	fn (pipeline GGMetalPipeline) deinit() {
@@ -169,7 +205,7 @@ $if macos && !renderer_opengl ? {
 
 	fn (mut frame GGMetalFrame) draw(encoder voidptr, step MetalRenderStep) ! {
 		pipeline := step.pipeline.gg
-		primitive := if pipeline.kind == .image {
+		primitive := if pipeline.kind.is_strip() {
 			MetalPrimitiveType.triangle_strip
 		} else {
 			.triangle
@@ -187,28 +223,27 @@ $if macos && !renderer_opengl ? {
 		uniform_range := gfx.Range{ ptr: data, size: uniform_size }
 		mut bindings := gfx.Bindings{}
 		mut cell_backgrounds := voidptr(unsafe { nil })
-		match pipeline.kind {
-			.background {}
-			.cell_background {
-				if step.buffers.len < 2 {
-					return error('GG Metal draw has no cell background buffer slot')
-				}
-				buffer := step.buffers[1] or { return error('GG Metal draw has no cell backgrounds') }
-				cell_backgrounds = buffer.handle
+		if pipeline.kind in [.cell_background, .cell_text] {
+			if step.buffers.len < 2 {
+				return error('GG Metal draw has no cell background buffer slot')
 			}
-			.image, .background_image {
-				if step.buffers.len == 0 || step.textures.len == 0 {
-					return error('GG Metal image draw has no buffer or texture slot')
-				}
-				buffer := step.buffers[0] or { return error('GG Metal image draw has no vertices') }
-				texture := step.textures[0] or { return error('GG Metal image draw has no texture') }
-				bindings.vertex_buffers[0] = frame.import_vertex_buffer(buffer.handle)!
-				bindings.fs.images[0] = frame.import_image(texture.handle, texture.width,
-					texture.height, .srgb8a8, false)!
-				bindings.fs.samplers[0] = pipeline.sampler
-				if pipeline.kind == .background_image {
-					bindings.vs = bindings.fs
-				}
+			buffer := step.buffers[1] or { return error('GG Metal draw has no cell backgrounds') }
+			cell_backgrounds = buffer.handle
+		}
+		texture_count := pipeline.kind.texture_count()
+		if texture_count > 0 {
+			if step.buffers.len == 0 || step.textures.len < texture_count {
+				return error('GG Metal draw has missing buffer or texture slots')
+			}
+			buffer := step.buffers[0] or { return error('GG Metal draw has no vertices') }
+			bindings.vertex_buffers[0] = frame.import_vertex_buffer(buffer.handle)!
+			for i in 0 .. texture_count {
+				texture := step.textures[i] or { return error('GG Metal draw has no texture') }
+				bindings.fs.images[i] = frame.sample_image(texture)!
+			}
+			bindings.fs.samplers[0] = pipeline.sampler
+			if pipeline.kind == .background_image {
+				bindings.vs = bindings.fs
 			}
 		}
 
@@ -220,7 +255,7 @@ $if macos && !renderer_opengl ? {
 		}
 		gfx.apply_pipeline(pipeline.pipeline)
 		gfx.apply_bindings(&bindings)
-		if pipeline.kind in [.image, .background_image] {
+		if texture_count > 0 {
 			gfx.apply_uniforms(.vs, 1, &uniform_range)
 		}
 		gfx.apply_uniforms(.fs, 1, &uniform_range)

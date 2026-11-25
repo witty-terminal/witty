@@ -88,6 +88,32 @@ $if macos && !renderer_opengl ? {
 		return &GGMetalFrame{}
 	}
 
+	fn gg_metal_pixel_format(format MetalPixelFormat) gfx.PixelFormat {
+		return match format {
+			.r8unorm { .r8 }
+			.rgba8unorm { .rgba8 }
+			.rgba8unorm_srgb { .srgb8a8 }
+			.bgra8unorm { .bgra8 }
+			.bgra8unorm_srgb { unsafe { gfx.PixelFormat(C.WITTY_GG_BGRA8_SRGB) } }
+			else { .none }
+		}
+	}
+
+	fn gg_metal_attachment_format(format MetalPixelFormat) gfx.PixelFormat {
+		value := gg_metal_pixel_format(format)
+		// Stock V can still submit a pass with a native Metal pipeline. A
+		// BGRA8 attachment descriptor supplies metadata for its sRGB target.
+		return if format == .bgra8unorm_srgb && value == .none { .bgra8 } else { value }
+	}
+
+	fn (mut frame GGMetalFrame) sample_image(texture MetalTexture) !gfx.Image {
+		format := gg_metal_pixel_format(texture.pixel_format)
+		if format == .none {
+			return error('GG cannot sample the Metal texture format')
+		}
+		return frame.import_image(texture.handle, texture.width, texture.height, format, false)
+	}
+
 	fn (mut frame GGMetalFrame) import_image(texture voidptr, width uint, height uint, format gfx.PixelFormat, render_target bool) !gfx.Image {
 		if texture == unsafe { nil } || width == 0 || height == 0 {
 			return error('GG Metal image has no texture')
@@ -128,14 +154,14 @@ $if macos && !renderer_opengl ? {
 		}
 		for i, attachment in attachments {
 			value := attachment.target
-			// Sokol has no BGRA8-sRGB pipeline format. For such targets this
-			// descriptor supplies pass metadata and Metal uses the real texture.
 			target.colors[i].image = match value {
 				MetalTarget {
-					frame.import_image(value.texture, value.width, value.height, .bgra8, true)!
+					frame.import_image(value.texture, value.width, value.height,
+						gg_metal_attachment_format(value.pixel_format), true)!
 				}
 				MetalTexture {
-					frame.import_image(value.handle, value.width, value.height, .bgra8, true)!
+					frame.import_image(value.handle, value.width, value.height,
+						gg_metal_attachment_format(value.pixel_format), true)!
 				}
 			}
 			action.colors[i].store_action = .store

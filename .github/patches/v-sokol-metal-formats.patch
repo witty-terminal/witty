@@ -1,0 +1,91 @@
+--- a/thirdparty/sokol/sokol_gfx.h
++++ b/thirdparty/sokol/sokol_gfx.h
+@@ -1562,6 +1562,7 @@
+         distribution.
+ */
+ #define SOKOL_GFX_INCLUDED (1)
++#define V_SOKOL_METAL_PACKED_FORMATS (1)
+ #include <stddef.h>     // size_t
+ #include <stdint.h>
+ #include <stdbool.h>
+@@ -1805,6 +1806,9 @@
+ 
+     SG_PIXELFORMAT_ASTC_4x4_RGBA,
+     SG_PIXELFORMAT_ASTC_4x4_SRGBA,
++
++    // V Metal extension. Keep existing public format values stable.
++    SG_PIXELFORMAT_BGRA8_SRGB,
+ 
+     _SG_PIXELFORMAT_NUM,
+     _SG_PIXELFORMAT_FORCE_U32 = 0x7FFFFFFF
+@@ -2193,6 +2197,9 @@
+     SG_VERTEXFORMAT_UINT3,
+     SG_VERTEXFORMAT_UINT4,
+     /* V_SOKOL_INT_VERTEX_FORMATS_END */
++    // V Metal extension for unnormalized packed integer attributes.
++    SG_VERTEXFORMAT_USHORT2,
++    SG_VERTEXFORMAT_UBYTE,
+     _SG_VERTEXFORMAT_NUM,
+     _SG_VERTEXFORMAT_FORCE_U32 = 0x7FFFFFFF
+ } sg_vertex_format;
+@@ -6182,6 +6189,8 @@
+         case SG_VERTEXFORMAT_UINT2:     return 8;
+         case SG_VERTEXFORMAT_UINT3:     return 12;
+         case SG_VERTEXFORMAT_UINT4:     return 16;
++        case SG_VERTEXFORMAT_USHORT2:   return 4;
++        case SG_VERTEXFORMAT_UBYTE:     return 1;
+         case SG_VERTEXFORMAT_INVALID:   return 0;
+         default:
+             SOKOL_UNREACHABLE;
+@@ -6369,6 +6378,7 @@
+         case SG_PIXELFORMAT_RGBA8UI:
+         case SG_PIXELFORMAT_RGBA8SI:
+         case SG_PIXELFORMAT_BGRA8:
++        case SG_PIXELFORMAT_BGRA8_SRGB:
+         case SG_PIXELFORMAT_RGB10A2:
+         case SG_PIXELFORMAT_RG11B10F:
+         case SG_PIXELFORMAT_RGB9E5:
+@@ -11787,6 +11797,8 @@
+         case SG_VERTEXFORMAT_SHORT2:    return MTLVertexFormatShort2;
+         case SG_VERTEXFORMAT_SHORT2N:   return MTLVertexFormatShort2Normalized;
+         case SG_VERTEXFORMAT_USHORT2N:  return MTLVertexFormatUShort2Normalized;
++        case SG_VERTEXFORMAT_USHORT2:   return MTLVertexFormatUShort2;
++        case SG_VERTEXFORMAT_UBYTE:     return MTLVertexFormatUChar;
+         case SG_VERTEXFORMAT_SHORT4:    return MTLVertexFormatShort4;
+         case SG_VERTEXFORMAT_SHORT4N:   return MTLVertexFormatShort4Normalized;
+         case SG_VERTEXFORMAT_USHORT4N:  return MTLVertexFormatUShort4Normalized;
+@@ -11845,6 +11857,7 @@
+         case SG_PIXELFORMAT_RGBA8UI:                return MTLPixelFormatRGBA8Uint;
+         case SG_PIXELFORMAT_RGBA8SI:                return MTLPixelFormatRGBA8Sint;
+         case SG_PIXELFORMAT_BGRA8:                  return MTLPixelFormatBGRA8Unorm;
++        case SG_PIXELFORMAT_BGRA8_SRGB:             return MTLPixelFormatBGRA8Unorm_sRGB;
+         case SG_PIXELFORMAT_RGB10A2:                return MTLPixelFormatRGB10A2Unorm;
+         case SG_PIXELFORMAT_RG11B10F:               return MTLPixelFormatRG11B10Float;
+         case SG_PIXELFORMAT_RGB9E5:                 return MTLPixelFormatRGB9E5Float;
+@@ -12301,6 +12314,7 @@
+     _sg_pixelformat_srm(&_sg.formats[SG_PIXELFORMAT_RGBA8UI]);
+     _sg_pixelformat_srm(&_sg.formats[SG_PIXELFORMAT_RGBA8SI]);
+     _sg_pixelformat_all(&_sg.formats[SG_PIXELFORMAT_BGRA8]);
++    _sg_pixelformat_all(&_sg.formats[SG_PIXELFORMAT_BGRA8_SRGB]);
+     _sg_pixelformat_all(&_sg.formats[SG_PIXELFORMAT_RGB10A2]);
+     _sg_pixelformat_all(&_sg.formats[SG_PIXELFORMAT_RG11B10F]);
+     #if defined(_SG_TARGET_MACOS)
+--- a/vlib/sokol/gfx/enums.v
++++ b/vlib/sokol/gfx/enums.v
+@@ -92,6 +92,7 @@
+ 	eac_rg11sn
+ 	astc_4x4_rgba
+ 	astc_4x4_srgba
++	bgra8_srgb // Metal
+ 
+ 	_num
+ 	_force_u32 = 0x7FFFFFFF
+@@ -248,6 +249,8 @@
+ 	uint2
+ 	uint3
+ 	uint4
++	ushort2 // Metal
++	ubyte   // Metal
+ 	_num
+ 	_force_u32 = 0x7FFFFFFF
+ }
