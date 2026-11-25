@@ -1,0 +1,38 @@
+--- a/thirdparty/sokol/sokol_gfx.h
++++ b/thirdparty/sokol/sokol_gfx.h
+@@ -1563,6 +1563,7 @@
+ */
+ #define SOKOL_GFX_INCLUDED (1)
+ #define V_SOKOL_METAL_PACKED_FORMATS (1)
++#define V_SOKOL_METAL_MIXED_SHADER_STAGES (1)
+ #include <stddef.h>     // size_t
+ #include <stdint.h>
+ #include <stdbool.h>
+@@ -12783,19 +12784,14 @@
+     id<MTLFunction> fs_func = nil;
+     const char* vs_entry = desc->vs.entry;
+     const char* fs_entry = desc->fs.entry;
+-    if (desc->vs.bytecode.ptr && desc->fs.bytecode.ptr) {
+-        // separate byte code provided
+-        vs_lib = _sg_mtl_library_from_bytecode(desc->vs.bytecode.ptr, desc->vs.bytecode.size);
+-        fs_lib = _sg_mtl_library_from_bytecode(desc->fs.bytecode.ptr, desc->fs.bytecode.size);
+-        if ((nil == vs_lib) || (nil == fs_lib)) {
+-            goto failed;
+-        }
+-        vs_func = [vs_lib newFunctionWithName:[NSString stringWithUTF8String:vs_entry]];
+-        fs_func = [fs_lib newFunctionWithName:[NSString stringWithUTF8String:fs_entry]];
+-    } else if (desc->vs.source && desc->fs.source) {
+-        // separate sources provided
+-        vs_lib = _sg_mtl_compile_library(desc->vs.source);
+-        fs_lib = _sg_mtl_compile_library(desc->fs.source);
++    if ((desc->vs.bytecode.ptr || desc->vs.source) && (desc->fs.bytecode.ptr || desc->fs.source)) {
++        // Each stage can use its own compiled library or runtime Metal source.
++        vs_lib = desc->vs.bytecode.ptr
++            ? _sg_mtl_library_from_bytecode(desc->vs.bytecode.ptr, desc->vs.bytecode.size)
++            : _sg_mtl_compile_library(desc->vs.source);
++        fs_lib = desc->fs.bytecode.ptr
++            ? _sg_mtl_library_from_bytecode(desc->fs.bytecode.ptr, desc->fs.bytecode.size)
++            : _sg_mtl_compile_library(desc->fs.source);
+         if ((nil == vs_lib) || (nil == fs_lib)) {
+             goto failed;
+         }

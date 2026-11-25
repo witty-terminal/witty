@@ -9,6 +9,7 @@ enum GGMetalDrawKind {
 	cell_text
 	image
 	background_image
+	post_process
 }
 
 fn (kind GGMetalDrawKind) is_strip() bool {
@@ -18,9 +19,13 @@ fn (kind GGMetalDrawKind) is_strip() bool {
 fn (kind GGMetalDrawKind) texture_count() int {
 	return match kind {
 		.cell_text { 2 }
-		.image, .background_image { 1 }
+		.image, .background_image, .post_process { 1 }
 		else { 0 }
 	}
+}
+
+fn (kind GGMetalDrawKind) has_instance_data() bool {
+	return kind.is_strip() || kind == .background_image
 }
 
 struct GGMetalPipeline {
@@ -31,8 +36,16 @@ struct GGMetalPipeline {
 }
 
 $if macos && !renderer_opengl ? {
+	fn (kind GGMetalDrawKind) uniform_size() uint {
+		return if kind == .post_process {
+			$sizeof(CustomShaderUniforms)
+		} else {
+			$sizeof(MetalUniforms)
+		}
+	}
+
 	$if compiled_metallib ? {
-		fn (mut shaders MetalShaders) init_gg_pipelines(target_format MetalPixelFormat) {
+		fn (mut shaders MetalShaders) init_gg_pipelines(target_format MetalPixelFormat, post_shaders []string) {
 			format := gg_metal_pixel_format(target_format)
 			if format == .none {
 				return
@@ -46,19 +59,34 @@ $if macos && !renderer_opengl ? {
 			}
 			shaders.image.gg = gg_metal_pipeline(.image, format, 'image_vertex', 'image_fragment')
 			shaders.bg_image.gg = gg_metal_pipeline(.background_image, format, 'bg_image_vertex', 'bg_image_fragment')
+			if C.WITTY_GG_MIXED_SHADER_STAGES != 0 {
+				for i, mut pipeline in shaders.post_pipelines {
+					pipeline.gg = gg_metal_post_pipeline(format, post_shaders[i])
+				}
+			}
 		}
 
 		fn gg_metal_pipeline(kind GGMetalDrawKind, format gfx.PixelFormat, vertex string, fragment string) GGMetalPipeline {
-			bytecode := gfx.Range{
-				ptr:  metal_shader_library.data
-				size: uint(metal_shader_library.len)
-			}
+			mut shader_desc := gg_metal_shader_desc(kind, vertex)
+			shader_desc.fs.bytecode = shader_desc.vs.bytecode
+			shader_desc.fs.entry = &char(fragment.str)
+			return gg_metal_make_pipeline(kind, format, &shader_desc)
+		}
+
+		fn gg_metal_post_pipeline(format gfx.PixelFormat, source string) GGMetalPipeline {
+			mut shader_desc := gg_metal_shader_desc(.post_process, 'full_screen_vertex')
+			shader_desc.fs.source = &char(source.str)
+			shader_desc.fs.entry = c'main0'
+			return gg_metal_make_pipeline(.post_process, format, &shader_desc)
+		}
+
+		fn gg_metal_shader_desc(kind GGMetalDrawKind, vertex string) gfx.ShaderDesc {
 			texture_count := kind.texture_count()
 			mut shader_desc := gfx.ShaderDesc{}
 			// Sokol requires continuous uniform slots in the descriptor. The
 			// shared Metal shaders read their uniforms at slot one.
 			shader_desc.fs.uniform_blocks[0].size = 16
-			shader_desc.fs.uniform_blocks[1].size = $sizeof(MetalUniforms)
+			shader_desc.fs.uniform_blocks[1].size = kind.uniform_size()
 			if texture_count > 0 {
 				shader_desc.fs.samplers[0].used = true
 				for i in 0 .. texture_count {
@@ -70,15 +98,20 @@ $if macos && !renderer_opengl ? {
 				}
 				if kind == .background_image {
 					shader_desc.vs = shader_desc.fs
-				} else {
+				} else if kind.has_instance_data() {
 					shader_desc.vs.uniform_blocks = shader_desc.fs.uniform_blocks
 				}
 			}
-			shader_desc.vs.bytecode = bytecode
+			shader_desc.vs.bytecode = gfx.Range{
+				ptr:  metal_shader_library.data
+				size: uint(metal_shader_library.len)
+			}
 			shader_desc.vs.entry = &char(vertex.str)
-			shader_desc.fs.bytecode = bytecode
-			shader_desc.fs.entry = &char(fragment.str)
-			shader := gfx.make_shader(&shader_desc)
+			return shader_desc
+		}
+
+		fn gg_metal_make_pipeline(kind GGMetalDrawKind, format gfx.PixelFormat, shader_desc &gfx.ShaderDesc) GGMetalPipeline {
+			shader := gfx.make_shader(shader_desc)
 			if gfx.query_shader_state(shader) != .valid {
 				gfx.destroy_shader(shader)
 				return GGMetalPipeline{}
@@ -92,7 +125,7 @@ $if macos && !renderer_opengl ? {
 			}
 			desc.colors[0].pixel_format = format
 			desc.colors[0].blend = gfx.BlendState{
-				enabled:          kind != .background
+				enabled:          kind !in [.background, .post_process]
 				src_factor_rgb:   .one
 				dst_factor_rgb:   .one_minus_src_alpha
 				src_factor_alpha: .one
@@ -105,9 +138,9 @@ $if macos && !renderer_opengl ? {
 				return GGMetalPipeline{}
 			}
 			mut sampler := gfx.Sampler{}
-			if texture_count > 0 {
-				// Sokol validates the texture and sampler as a pair. The
-				// Metal shader uses its own pixel-coordinate constexpr sampler.
+			if kind.texture_count() > 0 {
+				// Post-processing samples with this sampler. Built-in shaders
+				// specify their pixel-coordinate sampler in Metal source.
 				filter := if kind == .cell_text { gfx.Filter.nearest } else { .linear }
 				sampler = gfx.make_sampler(&gfx.SamplerDesc{
 					min_filter: filter
@@ -215,7 +248,7 @@ $if macos && !renderer_opengl ? {
 			return error('GG Metal draw does not match the pipeline primitive or count range')
 		}
 		uniforms := step.uniforms or { return error('GG Metal draw has no uniforms') }
-		uniform_size := $sizeof(MetalUniforms)
+		uniform_size := pipeline.kind.uniform_size()
 		data := macos.metal_buffer_contents(uniforms.handle)
 		if data == unsafe { nil } || macos.metal_buffer_length(uniforms.handle) < uniform_size {
 			return error('GG Metal draw has invalid uniforms')
@@ -231,12 +264,17 @@ $if macos && !renderer_opengl ? {
 			cell_backgrounds = buffer.handle
 		}
 		texture_count := pipeline.kind.texture_count()
-		if texture_count > 0 {
-			if step.buffers.len == 0 || step.textures.len < texture_count {
-				return error('GG Metal draw has missing buffer or texture slots')
+		if pipeline.kind.has_instance_data() {
+			if step.buffers.len == 0 {
+				return error('GG Metal draw has no vertex buffer slot')
 			}
 			buffer := step.buffers[0] or { return error('GG Metal draw has no vertices') }
 			bindings.vertex_buffers[0] = frame.import_vertex_buffer(buffer.handle)!
+		}
+		if texture_count > 0 {
+			if step.textures.len < texture_count {
+				return error('GG Metal draw has missing texture slots')
+			}
 			for i in 0 .. texture_count {
 				texture := step.textures[i] or { return error('GG Metal draw has no texture') }
 				bindings.fs.images[i] = frame.sample_image(texture)!
@@ -255,7 +293,7 @@ $if macos && !renderer_opengl ? {
 		}
 		gfx.apply_pipeline(pipeline.pipeline)
 		gfx.apply_bindings(&bindings)
-		if texture_count > 0 {
+		if pipeline.kind.has_instance_data() {
 			gfx.apply_uniforms(.vs, 1, &uniform_range)
 		}
 		gfx.apply_uniforms(.fs, 1, &uniform_range)

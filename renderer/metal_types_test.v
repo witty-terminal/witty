@@ -64,6 +64,12 @@ $if macos && !renderer_opengl ? {
 			])!
 			assert clear.gg != unsafe { nil }
 			clear.complete()
+			// Reopening a target in a long shader chain should reuse its
+			// attachment view and preserve the contents for subsequent passes.
+			for _ in 0 .. 20 {
+				revisit := frame.render_pass([MetalRenderPassAttachment{ target: attachment }])!
+				revisit.complete()
+			}
 			load := frame.render_pass([MetalRenderPassAttachment{ target: attachment }])!
 			wait := blending.is_linear()
 			frame.submit(&load, wait)!
@@ -74,6 +80,26 @@ $if macos && !renderer_opengl ? {
 			mut pixel := []u8{len: 4}
 			macos.metal_texture_get_bytes(target.texture, mut pixel, 4, 0, 0, 1, 1)
 			assert pixel == [u8(0), 0, 255, 255]
+		}
+	}
+
+	$if compiled_metallib ? {
+		fn test_gg_metal_post_shader_uses_mixed_stages() ! {
+			if C.WITTY_GG_MIXED_SHADER_STAGES == 0 {
+				return
+			}
+			mut api := MetalAPI.init()!
+			defer { api.deinit() }
+			mut shaders := api.init_shaders(['
+				#include <metal_stdlib>
+				using namespace metal;
+				fragment float4 main0() {
+					return float4(0.0, 1.0, 0.0, 1.0);
+				}
+			'])!
+			defer { shaders.deinit() }
+			assert shaders.post_pipelines.len == 1
+			assert shaders.post_pipelines[0].gg.pipeline.id != 0
 		}
 	}
 }

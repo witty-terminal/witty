@@ -219,7 +219,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		$if macos && !renderer_opengl ? {
 			$if compiled_metallib ? {
 				if self.gg_owned {
-					shaders.init_gg_pipelines(format)
+					shaders.init_gg_pipelines(format, custom_shaders)
 				}
 			}
 		}

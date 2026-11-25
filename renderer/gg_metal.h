@@ -15,6 +15,12 @@
 #define WITTY_GG_UBYTE SG_VERTEXFORMAT_INVALID
 #endif
 
+#ifdef V_SOKOL_METAL_MIXED_SHADER_STAGES
+#define WITTY_GG_MIXED_SHADER_STAGES 1
+#else
+#define WITTY_GG_MIXED_SHADER_STAGES 0
+#endif
+
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 #include <objc/message.h>
 #include <pthread.h>

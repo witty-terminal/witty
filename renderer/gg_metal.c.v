@@ -16,13 +16,18 @@ struct GGMetalBuffer {
 	buffer gfx.Buffer
 }
 
+struct GGMetalAttachments {
+	colors [4]u32
+	view   gfx.Attachments
+}
+
 // The frame holds the GG backend lock until its command buffer is submitted.
 @[heap]
 struct GGMetalFrame {
 mut:
 	images      []GGMetalTexture
 	buffers     []GGMetalBuffer
-	attachments []gfx.Attachments
+	attachments []GGMetalAttachments
 	native_draw bool
 	finished    bool
 }
@@ -64,6 +69,8 @@ $if macos && !renderer_opengl ? {
 				}
 				return false
 			}
+			// Runtime custom shaders use Metal's default compile options.
+			gfx.mtl_set_shader_compile_options(0, 0, false)
 			gg_metal_device = device
 		}
 		if gg_metal_device != device {
@@ -146,6 +153,27 @@ $if macos && !renderer_opengl ? {
 		return image
 	}
 
+	fn (mut frame GGMetalFrame) attachment_view(target &gfx.AttachmentsDesc) !gfx.Attachments {
+		// The post-processing chain revisits the same render targets as the
+		// textures alternate between input and output.
+		mut colors := [4]u32{}
+		for i, color in target.colors {
+			colors[i] = color.image.id
+		}
+		for entry in frame.attachments {
+			if entry.colors == colors {
+				return entry.view
+			}
+		}
+		view := gfx.make_attachments(target)
+		if gfx.query_attachments_state(view) != .valid {
+			gfx.destroy_attachments(view)
+			return error('GG could not create the Metal render pass attachments')
+		}
+		frame.attachments << GGMetalAttachments{ colors: colors, view: view }
+		return view
+	}
+
 	fn (mut frame GGMetalFrame) render_pass(attachments []MetalRenderPassAttachment) !MetalRenderPass {
 		mut target := gfx.AttachmentsDesc{}
 		mut action := gfx.PassAction{}
@@ -177,12 +205,7 @@ $if macos && !renderer_opengl ? {
 				action.colors[i].load_action = .load
 			}
 		}
-		view := gfx.make_attachments(&target)
-		if gfx.query_attachments_state(view) != .valid {
-			gfx.destroy_attachments(view)
-			return error('GG could not create the Metal render pass attachments')
-		}
-		frame.attachments << view
+		view := frame.attachment_view(&target)!
 		gfx.begin_pass(&gfx.Pass{
 			attachments: view
 			action:      action
@@ -200,7 +223,7 @@ $if macos && !renderer_opengl ? {
 		gfx.commit()
 		// Destroy the attachment views before releasing the imported images.
 		for attachments in frame.attachments {
-			gfx.destroy_attachments(attachments)
+			gfx.destroy_attachments(attachments.view)
 		}
 		for entry in frame.images {
 			gfx.destroy_image(entry.image)

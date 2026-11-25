@@ -32,6 +32,7 @@ if [[ "$RUNNER_OS" != Windows ]]; then
 fi
 if [[ "$RUNNER_OS" == macOS ]]; then
   git -C "$v_root" apply "$script_dir/../patches/v-sokol-metal-formats.patch"
+  git -C "$v_root" apply "$script_dir/../patches/v-sokol-metal-shader-stages.patch"
 fi
 
 unset VEXE
