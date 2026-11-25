@@ -1,6 +1,7 @@
 module terminal
 
 import log
+import math
 import unicode
 
 // --- Original Ghostty Comments Start: src/terminal/Terminal.zig
@@ -2968,6 +2969,8 @@ pub fn (mut self Terminal) index() ! {
 		// If our scrolling region is at the top, we create scrollback.
 		if self.scrolling_region.top == 0 && self.scrolling_region.left == 0
 			&& self.scrolling_region.right == self.cols - 1 {
+			placements := self.prepare_kitty_scroll(-1, true)
+			defer { self.restore_kitty_scroll(placements) }
 			screen.cursor_scroll_above()!
 			return
 		}
@@ -2987,6 +2990,8 @@ pub fn (mut self Terminal) index() ! {
 
 		// Otherwise use a fast path function from PageList to efficiently
 		// scroll the contents of the scrolling region.
+		placements := self.prepare_kitty_scroll(-1, false)
+		defer { self.restore_kitty_scroll(placements) }
 
 		// Preserve old cursor just for assertions
 		old_cursor := screen.cursor
@@ -3132,8 +3137,12 @@ pub fn (mut self Terminal) set_left_and_right_margin(left_req uint, right_req ui
 // Scrolling
 // ============================================================
 
-// Scroll the text down by one row.
+// Scroll the scrolling region down by count rows.
 pub fn (mut self Terminal) scroll_down(count uint) {
+	region_height := uint(self.scrolling_region.bottom - self.scrolling_region.top) + 1
+	placements := self.prepare_kitty_scroll(int(math.min(count, region_height)), false)
+	defer { self.restore_kitty_scroll(placements) }
+
 	// Preserve our x/y to restore.
 	old_x := self.screens.active.cursor.x
 	old_y := self.screens.active.cursor.y
@@ -3156,6 +3165,12 @@ pub fn (mut self Terminal) scroll_down(count uint) {
 //
 // Does not change the (absolute) cursor position.
 pub fn (mut self Terminal) scroll_up(count uint) ! {
+	region := self.scrolling_region
+	adjusted_count := math.min(count, uint(region.bottom - region.top) + 1)
+	shifts_window := region.top == 0 && region.left == 0 && region.right == self.cols - 1
+	placements := self.prepare_kitty_scroll(-int(adjusted_count), shifts_window)
+	defer { self.restore_kitty_scroll(placements) }
+
 	// Preserve our x/y to restore.
 	old_x := self.screens.active.cursor.x
 	old_y := self.screens.active.cursor.y
@@ -3163,12 +3178,8 @@ pub fn (mut self Terminal) scroll_up(count uint) ! {
 
 	// If our scroll region is at the top and we have no left/right
 	// margins then we move the scrolled out text into the scrollback.
-	if self.scrolling_region.top == 0 && self.scrolling_region.left == 0
-		&& self.scrolling_region.right == self.cols - 1 {
-		// Clamp count to the scroll region height.
-		region_height := uint(self.scrolling_region.bottom) + 1
-		adjusted_count := if count < region_height { count } else { region_height }
-
+	if shifts_window {
+		self.screens.active.kitty_images.dirty = true
 		// Move cursor to bottom and scroll
 		self.screens.active.cursor_absolute(0, u32(self.scrolling_region.bottom))
 		for _ in uint(0) .. adjusted_count {

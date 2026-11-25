@@ -223,6 +223,142 @@ pub mut:
 	value Placement
 }
 
+struct KittyScrollPin {
+	pin      &Pin
+	position Coordinate
+}
+
+// Record the placement positions before the row operation changes tracked pins.
+// In-place scrolls only affect pins in the affected rows, whereas scrolling
+// into history can shift pins throughout the active area.
+fn (t &Terminal) prepare_kitty_scroll(delta int, shifts_window bool) []KittyScrollPin {
+	region := t.scrolling_region
+	mut screen := t.screens.active
+	mut storage := &screen.kitty_images
+	if storage.placements.len == 0 || delta == 0
+		|| (region.top == 0 && region.bottom == t.rows - 1 && region.left == 0
+		&& region.right == t.cols - 1) {
+		return []
+	}
+
+	mut restores := []KittyScrollPin{}
+	mut i := 0
+	for i < storage.placements.len {
+		entry := storage.placements[i]
+		mut placement := entry.value
+		i++
+		pin := match placement.location {
+			PlacementPin { placement.location.pin }
+			PlacementVirtual { continue }
+		}
+		if isnil(pin) || pin.garbage {
+			continue
+		}
+		point := screen.pages.point_from_pin(.active, *pin) or { continue }
+		mut position := point.coord()
+		if !shifts_window && (position.y < region.top || position.y > region.bottom) {
+			continue
+		}
+
+		if image := storage.image_by_id(entry.key.image_id) {
+			position.y = placement.scroll_within_margins(t, image, position, delta) or {
+				// Keep the transmitted image available for subsequent placements.
+				placement.deinit(mut screen)
+				i--
+				storage.placements.delete(i)
+				storage.dirty = true
+				continue
+			}
+			storage.placements[i - 1].value = placement
+		}
+		restores << KittyScrollPin{
+			pin:      pin
+			position: position
+		}
+	}
+	return restores
+}
+
+fn (t &Terminal) restore_kitty_scroll(restores []KittyScrollPin) {
+	if restores.len == 0 {
+		return
+	}
+	mut screen := t.screens.active
+	for restore in restores {
+		new_pin := screen.pages.pin(Point.new(.active, restore.position)) or { continue }
+		mut pin := unsafe { restore.pin }
+		unsafe { *pin = new_pin }
+	}
+	screen.kitty_images.dirty = true
+}
+
+fn (mut p Placement) scroll_within_margins(t &Terminal, image Image, position Coordinate, delta int) ?u32 {
+	region := t.scrolling_region
+	cols, rows := p.grid_size(image, t)
+	x, y := i64(position.x), i64(position.y)
+	// Only placements wholly inside the scrolling rectangle move.
+	if cols == 0 || rows == 0 || y < region.top || y + rows - 1 > region.bottom
+		|| x < region.left || math.min(x + cols - 1, i64(t.cols) - 1) > region.right {
+		return position.y
+	}
+
+	new_y := y + delta
+	top_clip := math.max(i64(0), i64(region.top) - new_y)
+	bottom_clip := math.max(i64(0), new_y + rows - 1 - i64(region.bottom))
+	if top_clip >= rows || bottom_clip >= rows {
+		return none
+	}
+	if top_clip + bottom_clip > 0
+		&& !p.clip_scroll_rows(image, t.height_px / u32(t.rows), rows, u32(top_clip), u32(bottom_clip)) {
+		return none
+	}
+	return u32(math.max(new_y, i64(region.top)))
+}
+
+// Materialize the source rectangle so clipped portions stay gone after
+// subsequent scrolls. A zero source extent would request the full image.
+fn (mut p Placement) clip_scroll_rows(image Image, cell_height u32, span u32, top u32, bottom u32) bool {
+	x := math.min(p.source_x, image.width)
+	y := math.min(p.source_y, image.height)
+	width := math.min(if p.source_width > 0 { p.source_width } else { image.width }, image.width - x)
+	height := math.min(if p.source_height > 0 { p.source_height } else { image.height }, image.height - y)
+	if width == 0 || height == 0 {
+		return false
+	}
+
+	mut source_y := y
+	mut source_height := height
+	if p.rows > 0 {
+		crop := u32(u64(height) * (top + bottom) / span)
+		if top + bottom >= p.rows || crop >= height {
+			return false
+		}
+		if top > 0 {
+			source_y += crop
+		}
+		source_height -= crop
+		p.rows -= top + bottom
+	} else if top > 0 {
+		crop := u64(cell_height) * top
+		if crop >= height {
+			return false
+		}
+		source_y += u32(crop)
+		source_height -= u32(crop)
+	} else {
+		visible := u64(cell_height) * (span - bottom)
+		if visible <= p.y_offset {
+			return false
+		}
+		source_height = u32(math.min(u64(height), visible - p.y_offset))
+	}
+	p.source_x = x
+	p.source_y = source_y
+	p.source_width = width
+	p.source_height = source_height
+	return true
+}
+
 // ============================================================
 // ImageStorage
 // ============================================================

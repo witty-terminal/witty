@@ -14,7 +14,7 @@ from capture import (
     build_window_reader, capture_witty, configure_xvfb_capture, open_window,
     output_directory, read_window, write_versions,
 )
-from fixtures import CURSOR_STYLES
+from fixtures import CURSOR_STYLES, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES
 
 
 PROBE = Path(__file__).resolve().parent
@@ -29,7 +29,7 @@ WALLPAPER_OPTIONS = {
 }
 FIXTURES = (
     "ansi", "decorations", "unicode", "wide-wrap", *CURSOR_STYLES,
-    "kitty", *WALLPAPER_OPTIONS, "ls", "git", "vim", "shader",
+    "kitty", *KITTY_SCROLL_FIXTURES, *WALLPAPER_OPTIONS, "ls", "git", "vim", "shader",
 )
 OPTIONS = (
     "--config-default-files=false",
@@ -37,8 +37,8 @@ OPTIONS = (
     "--window-decoration=none",
     "--window-save-state=never",
     "--resize-overlay=never",
-    "--window-width=60",
-    "--window-height=12",
+    f"--window-width={GRID_COLUMNS}",
+    f"--window-height={GRID_ROWS}",
     "--window-theme=dark",
     "--window-padding-x=2",
     "--window-padding-y=2",
@@ -93,7 +93,7 @@ def prepare_fixtures(path):
 
 
 def fixture_args(name, work):
-    blend = "native" if name in ("ansi", "kitty") else "linear-corrected"
+    blend = "native" if name == "ansi" or name.startswith("kitty") else "linear-corrected"
     options = [*OPTIONS, f"--alpha-blending={blend}", f"--working-directory={work}"]
     if name == "shader":
         options.extend(

@@ -11,6 +11,91 @@ fn make_graphics_terminal() !Terminal {
 	return t
 }
 
+fn add_graphics_scroll_placement(mut t Terminal, id u32, row u32, col u32, rows u32) ! {
+	t.screens.active.cursor_absolute(col, row)
+	cmd := CommandParser.parse_string('a=T,f=24,i=${id},s=1,v=4,c=2,r=${rows},C=1;////////////////')!
+	response := kitty_graphics_execute(mut t, &cmd) or { return error('expected placement response') }
+	assert response.ok()
+}
+
+fn graphics_placement_row(t &Terminal, id u32) !u32 {
+	screen := t.screens.active
+	for entry in screen.kitty_images.placements {
+		if entry.key.image_id == id {
+			location := entry.value.location as PlacementPin
+			point := screen.pages.point_from_pin(.active, *location.pin) or {
+				return error('placement is outside the active screen')
+			}
+			return point.coord().y
+		}
+	}
+	return error('placement was removed')
+}
+
+fn test_graphics_scroll_respects_rectangular_margins() ! {
+	mut t := make_graphics_terminal()!
+	defer { t.deinit() }
+	t.set_top_and_bottom_margin(2, 4)
+	t.modes.set(.enable_left_and_right_margin, true)
+	t.set_left_and_right_margin(2, 4)
+	add_graphics_scroll_placement(mut t, 1, 2, 1, 1)!
+	add_graphics_scroll_placement(mut t, 2, 2, 0, 1)!
+	add_graphics_scroll_placement(mut t, 3, 2, 3, 1)!
+
+	t.scroll_up(1)!
+	assert graphics_placement_row(&t, 1)! == 1
+	assert graphics_placement_row(&t, 2)! == 2
+	assert graphics_placement_row(&t, 3)! == 2
+
+	t.set_cursor_pos(2, 2)
+	t.reverse_index()
+	assert graphics_placement_row(&t, 1)! == 2
+	assert graphics_placement_row(&t, 2)! == 2
+	assert graphics_placement_row(&t, 3)! == 2
+}
+
+fn test_graphics_scroll_clips_the_source_and_keeps_the_image() ! {
+	mut t := make_graphics_terminal()!
+	defer { t.deinit() }
+	t.set_top_and_bottom_margin(2, 4)
+	add_graphics_scroll_placement(mut t, 1, 1, 0, 2)!
+	add_graphics_scroll_placement(mut t, 2, 2, 3, 2)!
+
+	t.set_cursor_pos(4, 1)
+	t.index()!
+	assert graphics_placement_row(&t, 1)! == 1
+	assert graphics_placement_row(&t, 2)! == 1
+	storage := &t.screens.active.kitty_images
+	first := storage.placements[0].value
+	assert first.rows == 1
+	assert first.source_y == 2
+	assert first.source_height == 2
+
+	t.scroll_down(2)
+	assert graphics_placement_row(&t, 1)! == 3
+	assert graphics_placement_row(&t, 2)! == 3
+	second := storage.placements[1].value
+	assert second.rows == 1
+	assert second.source_y == 0
+	assert second.source_height == 2
+
+	t.scroll_down(1)
+	assert storage.placement_count() == 0
+	assert storage.image_count() == 2
+}
+
+fn test_graphics_scroll_into_history_preserves_placements_below_margin() ! {
+	mut t := make_graphics_terminal()!
+	defer { t.deinit() }
+	t.set_top_and_bottom_margin(1, 4)
+	add_graphics_scroll_placement(mut t, 1, 2, 1, 1)!
+	add_graphics_scroll_placement(mut t, 2, 4, 1, 1)!
+
+	t.scroll_up(2)!
+	assert graphics_placement_row(&t, 1)! == 0
+	assert graphics_placement_row(&t, 2)! == 4
+}
+
 fn test_graphics_execute_persists_transmitted_image() ! {
 	mut t := make_graphics_terminal()!
 	defer {
