@@ -81,6 +81,7 @@ mut:
 	progress_timer      ObjId
 	progress_layer      ObjId
 	progress_track      ObjId
+	progress_color      ?u32
 	popover             ObjId
 	secure_badge        ObjId
 	pulse_timer         ObjId
@@ -108,6 +109,7 @@ mut:
 	highlight_timer     ObjId
 	last_progress_value int = -1000
 	last_progress_width f64
+	last_progress_scale f64
 	key_badge           ObjId
 	readonly_badge      ObjId
 	health_label        ObjId
@@ -195,6 +197,9 @@ pub fn new_action_surface(view voidptr, userdata voidptr, callbacks ActionCallba
 		add_method(cls, 'isFlipped', voidptr(action_flipped), 'B@:')
 		add_method(cls, 'hitTest:', voidptr(action_hit_test), '@@:{CGPoint=dd}')
 		add_method(cls, 'drawRect:', voidptr(action_draw), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
+		add_method(cls, 'viewDidChangeEffectiveAppearance', voidptr(action_overlay_appearance_changed), 'v@:')
+		add_method(cls, 'viewDidChangeBackingProperties', voidptr(action_overlay_backing_changed), 'v@:')
+		add_method(cls, 'progressColorsChanged:', voidptr(action_progress_colors_changed), 'v@:@')
 		C.macos_objc_register_class_pair(cls)
 	}
 	state.overlay = msg_id_rect(alloc('WittyActionOverlay'), 'initWithFrame:', objc_rect(0, 0,
@@ -210,15 +215,7 @@ pub fn new_action_surface(view voidptr, userdata voidptr, callbacks ActionCallba
 		add_method(passive, 'hitTest:', voidptr(action_passive_hit), '@@:{CGPoint=dd}')
 		C.macos_objc_register_class_pair(passive)
 	}
-	state.progress_view = msg_id_rect(alloc('WittyPassiveOverlay'), 'initWithFrame:', objc_rect(0,
-		0, view_width(view), 2))
-	msg_void_bool(state.progress_view, 'setWantsLayer:', true)
-	msg_void1(state.overlay, 'addSubview:', state.progress_view)
-	state.progress_track = msg_id(state.progress_view, 'layer')
-	state.progress_layer = msg_id(get_class('CALayer'), 'layer')
-	msg_void_bool(state.progress_view, 'setAccessibilityElement:', true)
-	msg_void1(state.progress_view, 'setAccessibilityRole:', nsstring('AXProgressIndicator'))
-	msg_void1(state.progress_track, 'addSublayer:', state.progress_layer)
+	state.initialize_progress()
 	g_action_surfaces[u64(view)] = state
 	state.key_badge = new_key_indicator(state)
 	msg_void1(state.overlay, 'addSubview:', state.key_badge)
@@ -253,6 +250,7 @@ pub fn (mut state NativeActionSurface) deinit() {
 	C.macos_objc_set_ptr_ivar(state.owner, cstr('state'), nil_obj())
 	C.macos_objc_set_ptr_ivar(state.overlay, cstr('state'), nil_obj())
 	C.macos_objc_set_ptr_ivar(state.key_badge, cstr('state'), nil_obj())
+	msg_void1(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'), 'removeObserver:', state.overlay)
 	msg_void(state.overlay, 'removeFromSuperview')
 	msg_void(state.overlay, 'release')
 	msg_void(state.owner, 'release')
@@ -665,89 +663,6 @@ fn action_secure_info(self ObjId, _cmd Sel, _sender ObjId) {
 			'Secure Input is active. Secure Input is a macOS security feature that prevents applications from reading keyboard events. This is enabled automatically whenever Witty detects a password prompt in the terminal, or at all times if `Witty > Secure Keyboard Entry` is active.',
 			false)
 	}
-}
-
-fn (mut state NativeActionSurface) refresh_progress() {
-	width := view_width(state.view)
-	msg_void_bool(state.progress_track, 'setHidden:', !state.progress_active)
-	if !state.progress_active {
-		msg_void1(state.progress_layer, 'removeAnimationForKey:', nsstring('bounce'))
-		return
-	}
-	color := msg_id(get_class('NSColor'), if state.progress_state == 2 {
-		'systemRedColor'
-	} else if state.progress_state == 4 {
-		'systemOrangeColor'
-	} else {
-		'controlAccentColor'
-	})
-	determinate := state.progress != none || state.progress_state == 4
-	msg_void_bool(state.progress_track, 'setMasksToBounds:', true)
-	msg_void1(state.progress_track, 'setBackgroundColor:', if determinate {
-		nil_obj()
-	} else {
-		msg_id(msg_id_f64(color,
-			'colorWithAlphaComponent:', 0.3), 'CGColor')
-	})
-	msg_void1(state.progress_layer, 'setBackgroundColor:', msg_id(color, 'CGColor'))
-	msg_void_rect(state.progress_view, 'setFrame:', objc_rect(0, 0, width, 2))
-	value := if p := state.progress {
-		f64(p) / 100
-	} else if state.progress_state == 4 {
-		1.0
-	} else {
-		0.25
-	}
-	progress_value := if p := state.progress {
-		int(p)
-	} else if state.progress_state == 4 {
-		100
-	} else {
-		-1
-	}
-	msg_void(get_class('CATransaction'), 'begin')
-	msg_void_bool(get_class('CATransaction'), 'setDisableActions:', progress_value == state.last_progress_value)
-	msg_void_f64(get_class('CATransaction'), 'setAnimationDuration:', 0.2)
-	msg_void1(get_class('CATransaction'), 'setAnimationTimingFunction:', msg_id1(get_class('CAMediaTimingFunction'), 'functionWithName:', nsstring('easeInEaseOut')))
-	msg_void_rect(state.progress_layer, 'setFrame:', objc_rect(0, 0, width * value, 2))
-	msg_void(get_class('CATransaction'), 'commit')
-	state.last_progress_value = progress_value
-	if state.last_progress_width != width {
-		msg_void1(state.progress_layer, 'removeAnimationForKey:', nsstring('bounce'))
-		state.last_progress_width = width
-	}
-	if state.progress != none || state.progress_state == 4 {
-		msg_void1(state.progress_layer, 'removeAnimationForKey:', nsstring('bounce'))
-	} else if is_nil(msg_id1(state.progress_layer, 'animationForKey:', nsstring('bounce'))) {
-		animation := msg_id1(get_class('CABasicAnimation'), 'animationWithKeyPath:',
-			nsstring('position.x'))
-		msg_void1(animation, 'setFromValue:', msg_id_f64(get_class('NSNumber'),
-			'numberWithDouble:', width * 0.125))
-		msg_void1(animation, 'setToValue:', msg_id_f64(get_class('NSNumber'), 'numberWithDouble:',
-			width * 0.875))
-		msg_void_f64(animation, 'setDuration:', 1.2)
-		msg_void_bool(animation, 'setAutoreverses:', true)
-		msg_void1(animation, 'setTimingFunction:', msg_id1(get_class('CAMediaTimingFunction'),
-			'functionWithName:', nsstring('easeInEaseOut')))
-		C.witty_action_repeat_forever(animation)
-		msg_void2(state.progress_layer, 'addAnimation:forKey:', animation, nsstring('bounce'))
-	}
-	msg_void1(state.progress_view, 'setAccessibilityLabel:', nsstring(match state.progress_state {
-		2 { 'Terminal progress - Error' }
-		4 { 'Terminal progress - Paused' }
-		3 { 'Terminal progress - In progress' }
-		else { 'Terminal progress' }
-	}))
-	msg_void1(state.progress_view, 'setAccessibilityValue:', nsstring(if progress_value >= 0 {
-		'${progress_value} percent complete'
-	} else {
-		match state.progress_state {
-			2 { 'Operation failed' }
-			4 { 'Operation paused at completion' }
-			3 { 'Operation in progress' }
-			else { 'Indeterminate progress' }
-		}
-	}))
 }
 
 pub fn (mut state NativeActionSurface) mouse_over_link(url string) {
