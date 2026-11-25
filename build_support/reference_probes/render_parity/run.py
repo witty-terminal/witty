@@ -20,7 +20,7 @@ from capture import (
 )
 from fixtures import (
     CURSOR_STYLES, FONT_ZOOM_MARKER, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES, RESIZE_WRAP_COLOR,
-    SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED, SPLIT_RIGHT_COLOR,
+    SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED, SHADER_RELOAD_MARKER, SPLIT_RIGHT_COLOR,
     WALLPAPER_RELOAD_MARKER, WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE,
 )
 
@@ -45,10 +45,12 @@ FONT_ZOOM_ACTIONS = (
     ("", None, 0), ("-larger", "1", 1), ("-restored", "2", 0), ("-smaller", "2", -1), ("-reset", "3", 0),
 )
 WALLPAPER_RELOAD_STAGES = ("", "-load", "-repeat", "-fade", "-replace", "-remove", "-restore")
+SHADER_RELOAD_STAGES = ("", "-enable", "-chain", "-reorder", "-replace", "-remove", "-restore")
 CAPTURE_STAGES = {
     **APPLICATION_STAGES,
     "font-zoom": tuple(stage for stage, _, _ in FONT_ZOOM_ACTIONS),
     "wallpaper-reload": WALLPAPER_RELOAD_STAGES,
+    "shader-reload": SHADER_RELOAD_STAGES,
 }
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
 INTERACTIVE_FIXTURES = (
@@ -85,7 +87,7 @@ FIXTURES = (
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
     "kitty-delete-selection", "kitty-delete-visible", "kitty-chunked", "kitty-animation",
-    *WALLPAPER_OPTIONS, "wallpaper-reload", "ls", "git", "vim", *APPLICATION_STAGES, "shader",
+    *WALLPAPER_OPTIONS, "wallpaper-reload", "ls", "git", "vim", *APPLICATION_STAGES, "shader", "shader-reload",
 )
 OPTIONS = (
     "--config-default-files=false",
@@ -160,9 +162,9 @@ def fixture_args(name, work):
             "--keybind=ctrl+alt+2=decrease_font_size:3",
             "--keybind=ctrl+alt+3=reset_font_size",
         ))
-    if name == "wallpaper-reload":
+    if name in ("wallpaper-reload", "shader-reload"):
         options.extend((
-            f"--config-file={work / 'wallpaper-reload.conf'}",
+            f"--config-file={work / f'{name}.conf'}",
             "--keybind=ctrl+alt+r=reload_config",
             "--app-notifications=no-config-reload",
         ))
@@ -313,6 +315,8 @@ def fixture_args(name, work):
                 "--custom-shader-animation=false",
             )
         )
+    if name == "shader-reload":
+        options.append("--custom-shader-animation=false")
     if name == "vim":
         return [
             *options,
@@ -429,6 +433,41 @@ def capture_wallpaper_reload(binary, args, helper, output, work, app, settle, sc
                 return ready(image.getpixel((10 * scale, y)), image.getpixel((image.width // 2, y)))
 
             capture_application_frame(helper, window, output / f"wallpaper-reload{stage}-{app}.png", settle, rendered)
+
+
+def capture_shader_reload(binary, args, helper, output, work, app, settle, scale):
+    config = work / "shader-reload.conf"
+    config.write_text("")
+    flip = work / "flip-rb.glsl"
+    rotate = work / "rotate-rgb.glsl"
+    rotate.write_text(
+        "void mainImage(out vec4 fragColor, in vec2 fragCoord) {\n"
+        "    fragColor = texture(iChannel0, fragCoord / iResolution.xy).gbra;\n"
+        "}\n"
+    )
+    r, g, b = SHADER_RELOAD_MARKER
+    stages = (
+        ((), (r, g, b)),
+        ((flip,), (b, g, r)),
+        ((flip, rotate), (g, r, b)),
+        ((rotate, flip), (r, b, g)),
+        ((rotate,), (g, b, r)),
+        ((), (r, g, b)),
+        ((flip,), (b, g, r)),
+    )
+    point = ((PADDING + 1) * scale, (PADDING + 1) * scale)
+    # Capture the live window while screenshot mode suppresses the debug banner.
+    capture_args = [f"--screenshot={output / 'shader-reload-terminal.png'}"] if app == "witty" else []
+    delay = len(stages) * (settle + 5) + 5
+    env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(delay)}
+    with open_window([binary, *capture_args, *args], output / f"shader-reload-{app}.log", env=env) as (_, window):
+        subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True, timeout=5)
+        for stage, (paths, color) in zip(SHADER_RELOAD_STAGES, stages, strict=True):
+            if stage:
+                config.write_text("".join(f"custom-shader = {path}\n" for path in paths))
+                subprocess.run(["xdotool", "key", "ctrl+alt+r"], check=True, timeout=5)
+            capture_application_frame(helper, window, output / f"shader-reload{stage}-{app}.png", settle,
+                                      lambda image: image.getpixel(point) == color)
 
 
 def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir, *, themed=False, witty=False):
@@ -1234,6 +1273,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name == "wallpaper-reload":
                 capture_wallpaper_reload(ghostty, args, helper, output, work, "ghostty", settle, scale)
                 capture_wallpaper_reload(witty, args, helper, output, work, "witty", settle, scale)
+            elif name == "shader-reload":
+                capture_shader_reload(ghostty, args, helper, output, work, "ghostty", settle, scale)
+                capture_shader_reload(witty, args, helper, output, work, "witty", settle, scale)
             elif name in INTERACTIVE_FIXTURES:
                 capture_interactive(ghostty, args, helper, expected, name, settle, scale)
                 capture_interactive(witty, args, helper, actual, name, settle, scale, witty=True)

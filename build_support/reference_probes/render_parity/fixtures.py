@@ -12,6 +12,7 @@ CLEAR = b"\x1b[2J\x1b[H\x1b[?25l"
 GRID_ROWS, GRID_COLUMNS = 12, 60
 FONT_ZOOM_MARKER = (37, 147, 112)
 WALLPAPER_RELOAD_MARKER = (55, 89, 143)
+SHADER_RELOAD_MARKER = (56, 128, 211)
 CURSOR_STYLES = {"cursor-block": 2, "cursor-bar": 6, "cursor-underline": 4}
 KITTY_SCROLL_FIXTURES = ("kitty-scroll-up", "kitty-scroll-down")
 SCROLLBACK_FIXTURES = ("scrollback-follow-output", "scrollback-keep-position")
@@ -569,6 +570,13 @@ def main():
         color = ";".join(map(str, WALLPAPER_RELOAD_MARKER))
         sys.stdout.buffer.write(
             f"\x1b[48;2;{color}m  Text over the wallpaper  \x1b[0m\r\n".encode()
+        )
+    elif fixture == "shader-reload":
+        wait_for_initial_grid()
+        color = ";".join(map(str, SHADER_RELOAD_MARKER))
+        sys.stdout.buffer.write(
+            (f"\x1b[48;2;{color}m    \x1b[0m Shader reload\r\n"
+             "\x1b[38;2;235;174;114mTerminal text across multiple passes\x1b[0m\r\n").encode()
         )
     elif fixture == "search-wrap":
         sys.stdout.buffer.write(search_wrap())

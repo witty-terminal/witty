@@ -56,13 +56,13 @@ jobs:
             --fixture close-confirmation --fixture gtk-toast \
             --fixture gtk-chrome-tabs --fixture gtk-chrome-native --fixture tab-overview \
             --fixture less --fixture tmux
-      - name: Compare font zoom, wallpaper reload and command palette with HiDPI OpenGL
+      - name: Compare font zoom, live rendering changes and command palette with HiDPI OpenGL
         env:
           GSK_RENDERER: gl
         run: |
           bash .github/scripts/linux-render-parity.sh \
             "$RUNNER_TEMP/witty/bin/witty" "$RUNNER_TEMP/render-parity-gl-hidpi" \
-            --scale 2 --fixture font-zoom --fixture wallpaper-reload \
+            --scale 2 --fixture font-zoom --fixture wallpaper-reload --fixture shader-reload \
             --fixture command-palette-resize --fixture command-palette-themed
       - name: Upload screenshots and comparison report
         if: ${{ !cancelled() }}

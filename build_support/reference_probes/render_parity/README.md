@@ -39,6 +39,7 @@ The `readonly-overlay-themed` fixture checks that a custom badge background and 
 The resize fixtures narrow the window with the cursor after blank cells or near the bottom of the screen. They also check which row of a newly wrapped Bash prompt clears and where the next character appears after widening a full row.
 The `font-zoom` fixture enlarges, shrinks, and resets the font while the terminal is open. It checks live reflow and compares text, emoji, and sprites after the glyph atlases change.
 The `wallpaper-reload` fixture loads a PNG, turns on tiling, changes its opacity, and replaces it with a progressive JPEG. It then removes the wallpaper and reloads the original PNG while the terminal text stays on screen.
+The `shader-reload` fixture enables a custom shader, adds and reorders a second pass, and replaces the chain with a single pass. It then removes and restores the shader while comparing the terminal text and colors at each stage.
 
 The `less` fixture captures an ANSI-colored file when it opens, after searching, and after advancing to the next match. The `tmux` fixture captures a two-pane session with box drawing, a colored status line, and focus switching with Ctrl+B followed by O.
 
