@@ -540,6 +540,7 @@ fn test_native_bell_overlay_capture() {
 fn test_native_progress_overlay_capture() {
 	output := os.getenv_opt('WITTY_PROGRESS_OVERLAY_OUTPUT') or { return }
 	window_output := os.getenv('WITTY_PROGRESS_WINDOW_OUTPUT')
+	motion_output := os.getenv('WITTY_PROGRESS_MOTION_OUTPUT')
 	app_init()
 	frame := objc_rect(0, 0, 101, 6)
 	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
@@ -588,4 +589,60 @@ fn test_native_progress_overlay_capture() {
 			}
 		}
 	}
+	if motion_output != '' {
+		// Use a nonzero local clock so a resize can retain the original start.
+		start := 1.0
+		C.witty_macos_msg_void_f32(surface.progress_layer, sel('setSpeed:'), 0)
+		for width in [96, 98, 101, 103] {
+			surface.set_progress(0, none)
+			msg_void_size(window, 'setContentSize:', objc_size(width, 6))
+			msg_void_rect(base, 'setFrame:', objc_rect(0, 0, width, 6))
+			surface.scroll.layout()
+			surface.resize()
+			msg_void_f64(surface.progress_layer, 'setTimeOffset:', start)
+			surface.set_progress(3, none)
+			for phase in 0 .. 9 {
+				elapsed := progress_bounce_elapsed_fraction(f64(phase) / 8)
+				msg_void_f64(surface.progress_layer, 'setTimeOffset:',
+					start + elapsed * progress_bounce_duration)
+				png := C.witty_overlay_test_window_png(window)
+				assert !is_nil(png)
+				assert msg_bool2(png, 'writeToFile:atomically:',
+					nsstring(os.join_path(motion_output, '${width}-${phase}-witty.png')), ObjId(1))
+			}
+		}
+		msg_void_f64(surface.progress_layer, 'setTimeOffset:', start + progress_bounce_duration / 2)
+		msg_void_size(window, 'setContentSize:', objc_size(98, 6))
+		msg_void_rect(base, 'setFrame:', objc_rect(0, 0, 98, 6))
+		surface.scroll.layout()
+		surface.resize()
+		animation := msg_id1(surface.progress_layer, 'animationForKey:', nsstring('bounce'))
+		assert msg_f64(animation, 'beginTime') == start
+		for index, elapsed in [0.5, 2 - progress_bounce_elapsed_fraction(0.125)] {
+			msg_void_f64(surface.progress_layer, 'setTimeOffset:',
+				start + elapsed * progress_bounce_duration)
+			label := if index == 0 { 'resized' } else { 'return' }
+			png := C.witty_overlay_test_window_png(window)
+			assert !is_nil(png)
+			assert msg_bool2(png, 'writeToFile:atomically:',
+				nsstring(os.join_path(motion_output, '${label}-witty.png')), ObjId(1))
+		}
+	}
+}
+
+// Invert the ease-in-out curve so the captures correspond to known positions.
+fn progress_bounce_elapsed_fraction(phase f64) f64 {
+	if phase in [0.0, 0.5, 1.0] { return phase }
+	mut low, mut high := 0.0, 1.0
+	for _ in 0 .. 40 {
+		t := (low + high) / 2
+		if t * t * (3 - 2 * t) < phase {
+			low = t
+		} else {
+			high = t
+		}
+	}
+	t := (low + high) / 2
+	u := 1 - t
+	return 3 * u * t * (0.42 * u + 0.58 * t) + t * t * t
 }

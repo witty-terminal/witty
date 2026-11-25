@@ -3,6 +3,7 @@
 #include <objc/runtime.h>
 #include <objc/message.h>
 #include <CoreGraphics/CoreGraphics.h>
+#include <QuartzCore/CABase.h>
 #endif
 /* Objective-C ABI adapters only; translated action logic lives in V. */
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
@@ -24,6 +25,9 @@ static inline void witty_action_show_popover(void* popover, void* view, unsigned
 }
 static inline void witty_action_repeat_forever(void* animation) {
  ((void(*)(id,SEL,float))objc_msgSend)((id)animation,sel_registerName("setRepeatCount:"),__builtin_inff());
+}
+static inline double witty_action_layer_time(void* layer) {
+ return ((double(*)(id,SEL,double,id))objc_msgSend)((id)layer,sel_registerName("convertTime:fromLayer:"),CACurrentMediaTime(),nil);
 }
 static inline long long witty_action_compare(void* a, void* b) {
  return ((long long(*)(id,SEL,id))objc_msgSend)((id)a,sel_registerName("localizedCaseInsensitiveCompare:"),(id)b);

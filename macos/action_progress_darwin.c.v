@@ -3,6 +3,10 @@ module macos
 import gg.canvas
 import math
 
+const progress_bounce_duration = 1.2
+
+fn C.witty_action_layer_time(layer ObjId) f64
+
 fn (mut state NativeActionSurface) initialize_progress() {
 	state.progress_view = msg_id_rect(alloc('WittyPassiveOverlay'), 'initWithFrame:', objc_rect(0,
 		0, view_width(state.view), 2))
@@ -72,17 +76,16 @@ fn (mut state NativeActionSurface) refresh_progress() {
 	msg_void1(transaction, 'setAnimationTimingFunction:', progress_timing_function())
 	msg_void_rect(state.progress_layer, 'setFrame:', objc_rect(0, 0, bar_width, 2))
 	msg_void(transaction, 'commit')
-	if size_changed || determinate {
+	bounce := msg_id1(state.progress_layer, 'animationForKey:', nsstring('bounce'))
+	if determinate {
 		state.clear_progress_bounce()
-	}
-	if !determinate && is_nil(msg_id1(state.progress_layer, 'animationForKey:', nsstring('bounce'))) {
-		end_width := width - math.round(width * 0.75 * scale) / scale
-		animate_progress_bounce(state.progress_layer, 'bounce', 'position.x', bar_width / 2,
-			width - end_width / 2)
-		if end_width != bar_width {
-			animate_progress_bounce(state.progress_layer, 'bounceWidth', 'bounds.size.width', bar_width,
-				end_width)
+	} else if width > 0 && (size_changed || is_nil(bounce)) {
+		start := if is_nil(bounce) {
+			C.witty_action_layer_time(state.progress_layer)
+		} else {
+			msg_f64(bounce, 'beginTime')
 		}
+		animate_progress_bounce(state.progress_layer, width, scale, start)
 	}
 	state.last_progress_value = progress_value
 	state.last_progress_width = width
@@ -110,17 +113,54 @@ fn progress_timing_function() ObjId {
 
 fn (state &NativeActionSurface) clear_progress_bounce() {
 	msg_void1(state.progress_layer, 'removeAnimationForKey:', nsstring('bounce'))
-	msg_void1(state.progress_layer, 'removeAnimationForKey:', nsstring('bounceWidth'))
 }
 
-fn animate_progress_bounce(layer ObjId, key string, property string, from f64, to f64) {
-	animation := msg_id1(get_class('CABasicAnimation'), 'animationWithKeyPath:', nsstring(property))
-	cls := get_class('NSNumber')
-	msg_void1(animation, 'setFromValue:', msg_id_f64(cls, 'numberWithDouble:', from))
-	msg_void1(animation, 'setToValue:', msg_id_f64(cls, 'numberWithDouble:', to))
-	msg_void_f64(animation, 'setDuration:', 1.2)
-	msg_void_bool(animation, 'setAutoreverses:', true)
-	msg_void1(animation, 'setTimingFunction:', progress_timing_function())
-	C.witty_action_repeat_forever(animation)
-	msg_void2(layer, 'addAnimation:forKey:', animation, nsstring(key))
+fn progress_bounce_keyframes(property string, times ObjId, values []voidptr) ObjId {
+	animation := msg_id1(get_class('CAKeyframeAnimation'), 'animationWithKeyPath:', nsstring(property))
+	msg_void1(animation, 'setCalculationMode:', nsstring('discrete'))
+	msg_void1(animation, 'setKeyTimes:', times)
+	msg_void1(animation, 'setValues:', C.witty_macos_array(values.data, uint(values.len)))
+	msg_void_f64(animation, 'setDuration:', progress_bounce_duration)
+	return animation
+}
+
+fn animate_progress_bounce(layer ObjId, width f64, scale f64, start f64) {
+	unrounded_width := width * scale * 0.25
+	travel := width * scale - unrounded_width
+	number := get_class('NSNumber')
+	mut left := 0.0
+	mut right := math.round(unrounded_width)
+	mut times := []voidptr{}
+	mut centers := []voidptr{}
+	mut widths := []voidptr{}
+	mut phase := 0.0
+	for {
+		times << voidptr(msg_id_f64(number, 'numberWithDouble:', phase))
+		centers << voidptr(msg_id_f64(number, 'numberWithDouble:', (left + right) / (2 * scale)))
+		widths << voidptr(msg_id_f64(number, 'numberWithDouble:', (right - left) / scale))
+
+		// Snap each edge independently as it crosses the next half pixel.
+		next_left := (left + 0.5) / travel
+		next_right := (right + 0.5 - unrounded_width) / travel
+		next := math.min(next_left, next_right)
+		if next > 1 { break }
+		if next_left == next { left += 1 }
+		if next_right == next { right += 1 }
+		// A snap at the turnaround still needs a nonempty final interval.
+		phase = math.min(next, 1 - 0.000001)
+	}
+	times << voidptr(msg_id_f64(number, 'numberWithDouble:', 1))
+	key_times := C.witty_macos_array(times.data, uint(times.len))
+	animations := [
+		voidptr(progress_bounce_keyframes('position.x', key_times, centers)),
+		voidptr(progress_bounce_keyframes('bounds.size.width', key_times, widths)),
+	]
+	group := msg_id(get_class('CAAnimationGroup'), 'animation')
+	msg_void1(group, 'setAnimations:', C.witty_macos_array(animations.data, uint(animations.len)))
+	msg_void_f64(group, 'setBeginTime:', start)
+	msg_void_f64(group, 'setDuration:', progress_bounce_duration)
+	msg_void_bool(group, 'setAutoreverses:', true)
+	msg_void1(group, 'setTimingFunction:', progress_timing_function())
+	C.witty_action_repeat_forever(group)
+	msg_void2(layer, 'addAnimation:forKey:', group, nsstring('bounce'))
 }
