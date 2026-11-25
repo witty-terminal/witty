@@ -6,6 +6,7 @@ import configpkg
 import internal_os
 import os
 import renderer
+import terminal
 
 // ============================================================
 // exec_command tests
@@ -221,6 +222,26 @@ fn test_subprocess_resize() {
 	assert sub.grid_size.rows == 24
 	assert sub.screen_size.width == 800
 	assert sub.screen_size.height == 480
+}
+
+fn test_exec_initial_pty_size_includes_partial_cells() ! {
+	size := renderer.Size{
+		screen:  renderer.ScreenSize{ width: 640, height: 384 }
+		cell:    renderer.CellSize{ width: 8, height: 16 }
+		padding: renderer.Padding{ left: 1, right: 2, top: 3, bottom: 4 }
+	}
+	grid := size.grid()
+	mut term := terminal.Terminal.init(terminal.Options{ cols: grid.columns, rows: grid.rows })!
+	defer { term.deinit() }
+	term.width_px = 632
+	term.height_px = 368
+
+	mut backend := Exec{}
+	backend.init_terminal(mut term, size)
+	assert backend.subprocess.grid_size.columns == 79
+	assert backend.subprocess.grid_size.rows == 23
+	assert backend.subprocess.screen_size.width == 637
+	assert backend.subprocess.screen_size.height == 377
 }
 
 fn test_subprocess_start_delegates_to_command() {

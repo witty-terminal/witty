@@ -56,7 +56,7 @@ pub fn (mut self Exec) deinit() {
 // This is called before any termio begins. This should not be called
 // after termio begins because it may put the internal terminal state
 // into a bad state.
-pub fn (mut self Exec) init_terminal(mut term terminal.Terminal) {
+pub fn (mut self Exec) init_terminal(mut term terminal.Terminal, size renderer.Size) {
 	// If we have an initial pwd requested by the subprocess, then we
 	// set that on the terminal now. This allows rapidly initializing
 	// new surfaces to use the proper pwd.
@@ -64,15 +64,9 @@ pub fn (mut self Exec) init_terminal(mut term terminal.Terminal) {
 		term.set_pwd(cwd) or { log.warn('error setting initial pwd err=${err}') }
 	}
 
-	// Setup our initial grid/screen size from the terminal. This
-	// can't fail because the pty should not exist at this point.
-	self.resize(renderer.GridSize{
-		columns: term.cols
-		rows:    term.rows
-	}, renderer.ScreenSize{
-		width:  term.width_px
-		height: term.height_px
-	}) or { panic('unexpected error setting initial pty size: ${err}') }
+	// Report the same terminal area on startup and on subsequent resizes.
+	// This cannot fail because the PTY has yet to be created.
+	self.resize(size.grid(), size.terminal()) or { panic('unexpected error setting initial pty size: ${err}') }
 }
 
 pub fn (mut self Exec) thread_enter(mut io Termio, mut td ThreadData) ! {

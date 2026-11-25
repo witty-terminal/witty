@@ -44,6 +44,7 @@ import osc
 import internal_os
 import font
 import log
+import math
 import os
 
 // --- New C bindings unique to this file -----------------------------------
@@ -284,6 +285,7 @@ fn C.gtk_gesture_single_get_current_button(gesture voidptr) u32
 fn C.gdk_event_get_modifier_state(event GdkEvent) u32
 
 fn C.gdk_surface_get_scale_factor(surface GdkSurface) int
+fn C.gdk_display_get_monitor_at_surface(display GdkDisplay, surface GdkSurface) voidptr
 
 fn C.gdk_key_event_get_consumed_modifiers(event GdkEvent) u32
 
@@ -2666,6 +2668,7 @@ fn (mut self SurfaceWidget) init_surface() ! {
 		close_fn:              surface_core_close_cb
 		content_scale_fn:      surface_core_content_scale_cb
 		size_fn:               surface_core_size_cb
+		startup_size_fn:       surface_core_startup_size_cb
 		cursor_pos_fn:         surface_core_cursor_pos_cb
 		title_fn:              surface_core_title_cb
 		set_clipboard_fn:      surface_core_set_clipboard_cb
@@ -2715,6 +2718,54 @@ fn surface_core_content_scale_cb(data voidptr) !apprt.ContentScale {
 fn surface_core_size_cb(data voidptr) !apprt.SurfaceSize {
 	self := unsafe { &SurfaceWidget(data) }
 	return self.get_size()
+}
+
+fn surface_core_startup_size_cb(data voidptr, requested apprt.InitialSize, limits apprt.SizeLimit) ?apprt.SurfaceSize {
+	self := unsafe { &SurfaceWidget(data) }
+	if self.context != .window {
+		return none
+	}
+	window := window_from_surface(self) or { return none }
+	if window.surface_init || window.is_quick_terminal() || window.is_fullscreen()
+		|| window.is_maximized() || isnil(window.config) {
+		return none
+	}
+	config := window.config.get()
+	if config.fullscreen || config.maximize {
+		return none
+	}
+	widget := window.as_widget()
+	native := C.gtk_native_get_surface(GtkNative(widget))
+	if isnil(native) {
+		return none
+	}
+	monitor := C.gdk_display_get_monitor_at_surface(C.gtk_widget_get_display(widget), native)
+	if isnil(monitor) {
+		return none
+	}
+	mut geometry := C.GdkRectangle{}
+	C.gdk_monitor_get_geometry(monitor, &geometry)
+	target_width := i64(math.max(requested.width, limits.min_width))
+	target_height := i64(math.max(requested.height, limits.min_height))
+	if target_width > geometry.width || target_height > geometry.height {
+		return none
+	}
+
+	// GTK applies the default size on a later layout. Use the difference
+	// between the two default sizes so window chrome stays accounted for.
+	mut default_width := 0
+	mut default_height := 0
+	C.gtk_window_get_default_size(window.as_window(), &default_width, &default_height)
+	scale := i64(C.gtk_widget_get_scale_factor(self.gl_area))
+	width := i64(self.size.width) + (target_width - default_width) * scale
+	height := i64(self.size.height) + (target_height - default_height) * scale
+	if default_width <= 0 || default_height <= 0 || scale <= 0 || width <= 0 || height <= 0 {
+		return none
+	}
+	return apprt.SurfaceSize{
+		width:  u32(width)
+		height: u32(height)
+	}
 }
 
 fn surface_core_cursor_pos_cb(data voidptr) !apprt.CursorPos {

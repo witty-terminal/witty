@@ -2141,6 +2141,25 @@ pub fn (mut self Surface) init(config_original &Config, mut app App, rt_app &app
 	explicit := derived_config.scaled_padding(x_dpi, y_dpi)
 	self.size.set_padding(explicit, derived_config.window_padding_balance)
 
+	size_limits := apprt.SizeLimit{
+		min_width:  self.size.cell.width * min_window_width_cells
+		min_height: self.size.cell.height * min_window_height_cells
+	}
+	initial_size := if derived_config.window_height > 0 && derived_config.window_width > 0 {
+		?apprt.InitialSize(derived_config.initial_window_size(self.size, content_scale))
+	} else {
+		none
+	}
+	if requested := initial_size {
+		if startup := rt_surface.startup_size(requested, size_limits) {
+			self.size.screen = rendererpkg.ScreenSize{
+				width:  startup.width
+				height: startup.height
+			}
+			self.size.set_padding(explicit, derived_config.window_padding_balance)
+		}
+	}
+
 	// Create our terminal grid with the initial size
 	renderer_config := rendererpkg.DerivedConfig.init(config)!
 	self.renderer = Renderer.init(rendererpkg.RendererOpts{
@@ -2271,10 +2290,7 @@ pub fn (mut self Surface) init(config_original &Config, mut app App, rt_app &app
 	self.rt_app.perform_action(
 		apprt.Target(apprt.SurfaceTarget{ surface: voidptr(&self) }),
 		.size_limit,
-		apprt.ActionValue(apprt.SizeLimit{
-			min_width:  self.size.cell.width * min_window_width_cells
-			min_height: self.size.cell.height * min_window_height_cells
-		}),
+		apprt.ActionValue(size_limits),
 	)!
 
 	// Call our size callback which handles all our retina setup
@@ -2294,13 +2310,11 @@ pub fn (mut self Surface) init(config_original &Config, mut app App, rt_app &app
 	mut termio := unsafe { &self.io.impl }
 	self.io_os_thread = spawn writer.thread_main(mut termio)
 
-	// Determine our initial window size if configured. We need to do this
-	// quite late in the process because our height/width are in grid dimensions,
-	// so we need to know our cell sizes first.
-	self.recompute_initial_size() or {
-		// We don't treat this as a fatal error because not setting
-		// an initial size shouldn't stop our terminal from working.
-		log.warn('unable to set initial window size: ${err}')
+	// Send the initial window size once the renderer is ready.
+	if requested := initial_size {
+		self.report_initial_window_size(requested) or {
+			log.warn('unable to set initial window size: ${err}')
+		}
 	}
 
 	// Set the configured title, the complete xdg-terminal-exec command, or the
@@ -5232,18 +5246,23 @@ fn (mut self Surface) recompute_initial_size() ! {
 	}
 
 	content_scale := self.rt_surface.get_content_scale()!
+	self.report_initial_window_size(self.config.initial_window_size(self.size, content_scale))!
+}
 
-	height := math.max(self.config.window_height, min_window_height_cells) * self.size.cell.height
-	width := math.max(self.config.window_width, min_window_width_cells) * self.size.cell.width
+fn (cfg &DerivedConfig) initial_window_size(size rendererpkg.Size, content_scale apprt.ContentScale) apprt.InitialSize {
+	height := math.max(cfg.window_height, min_window_height_cells) * size.cell.height
+	width := math.max(cfg.window_width, min_window_width_cells) * size.cell.width
+	return apprt.InitialSize{
+		width:  u32(math.ceil(f64(width) / content_scale.x)) + size.padding.left + size.padding.right
+		height: u32(math.ceil(f64(height) / content_scale.y)) + size.padding.top + size.padding.bottom
+	}
+}
 
-	// Scale and add padding
-	final_width := u32(math.ceil(f64(width) / content_scale.x)) + self.size.padding.left + self.size.padding.right
-	final_height := u32(math.ceil(f64(height) / content_scale.y)) + self.size.padding.top + self.size.padding.bottom
-
+fn (mut self Surface) report_initial_window_size(size apprt.InitialSize) ! {
 	self.rt_app.perform_action(
 		apprt.Target(apprt.SurfaceTarget{ surface: voidptr(&self) }),
 		.initial_size,
-		apprt.ActionValue(apprt.InitialSize{ width: final_width, height: final_height }),
+		apprt.ActionValue(size),
 	)!
 }
 

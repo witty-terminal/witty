@@ -2,8 +2,6 @@ import base64
 import os
 import subprocess
 import sys
-import termios
-import time
 
 
 CLEAR = b"\x1b[2J\x1b[H\x1b[?25l"
@@ -41,15 +39,6 @@ def kitty_scroll(down):
     return commands
 
 
-def wait_for_grid():
-    # Resizing can reflow the image anchors and reset scrolling margins.
-    deadline = time.monotonic() + 1
-    while termios.tcgetwinsize(sys.stdout.fileno()) != (GRID_ROWS, GRID_COLUMNS):
-        if time.monotonic() >= deadline:
-            raise RuntimeError(f"terminal did not reach {GRID_COLUMNS}x{GRID_ROWS}")
-        time.sleep(0.01)
-
-
 def main():
     fixture = sys.argv[1]
     output = {
@@ -70,8 +59,6 @@ def main():
         "wide-wrap": ("60 column wrap\n" + "X" * 59 + "日本語 😀 café\n").encode(),
         "shader": b"Witty shader chain\n",
     }
-    if fixture in KITTY_SCROLL_FIXTURES:
-        wait_for_grid()
     sys.stdout.buffer.write(CLEAR)
     sys.stdout.flush()
     if fixture == "ls":

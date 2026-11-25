@@ -216,8 +216,8 @@ pub fn (mut self Backend) deinit() {
 	self.exec.deinit()
 }
 
-pub fn (mut self Backend) init_terminal(mut term terminal.Terminal) {
-	self.exec.init_terminal(mut term)
+pub fn (mut self Backend) init_terminal(mut term terminal.Terminal, size renderer.Size) {
+	self.exec.init_terminal(mut term, size)
 }
 
 pub fn (mut self Backend) thread_enter(mut io Termio, mut td ThreadData) ! {
@@ -323,7 +323,7 @@ pub fn (mut t Termio) init(opts TermioOpts) ! {
 
 	// Setup our backend.
 	mut backend := opts.backend
-	backend.init_terminal(mut term)
+	backend.init_terminal(mut term, size)
 
 	t.config = opts.config
 	t.terminal = term

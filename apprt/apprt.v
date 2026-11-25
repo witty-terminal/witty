@@ -90,6 +90,8 @@ pub type RuntimeSurfaceContentScaleFn = fn (voidptr) !ContentScale
 
 pub type RuntimeSurfaceSizeFn = fn (voidptr) !SurfaceSize
 
+pub type RuntimeSurfaceStartupSizeFn = fn (voidptr, InitialSize, SizeLimit) ?SurfaceSize
+
 pub type RuntimeSurfaceCursorPosFn = fn (voidptr) !CursorPos
 
 pub type RuntimeSurfaceTitleFn = fn (voidptr) ?string
@@ -130,6 +132,7 @@ pub mut:
 	close_fn              RuntimeSurfaceCloseFn = unsafe { nil }
 	content_scale_fn      RuntimeSurfaceContentScaleFn = unsafe { nil }
 	size_fn               RuntimeSurfaceSizeFn = unsafe { nil }
+	startup_size_fn       RuntimeSurfaceStartupSizeFn = unsafe { nil }
 	cursor_pos_fn         RuntimeSurfaceCursorPosFn = unsafe { nil }
 	title_fn              RuntimeSurfaceTitleFn = unsafe { nil }
 	set_clipboard_fn      RuntimeSurfaceSetClipboardFn = unsafe { nil }
@@ -168,6 +171,15 @@ pub fn (r RuntimeSurface) get_size() !SurfaceSize {
 		return r.size_fn(r.user_data)
 	}
 	return r.size
+}
+
+// Some runtimes discover the configured window size after the first layout.
+// Let them supply that initial terminal size before the PTY is opened.
+pub fn (r &RuntimeSurface) startup_size(window_size InitialSize, limits SizeLimit) ?SurfaceSize {
+	if r == unsafe { nil } || r.startup_size_fn == unsafe { nil } {
+		return none
+	}
+	return r.startup_size_fn(r.user_data, window_size, limits)
 }
 
 pub fn (r RuntimeSurface) get_cursor_pos() !CursorPos {

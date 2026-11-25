@@ -75,6 +75,7 @@ fn C.gtk_window_is_active(window GtkWindow) int
 fn C.gtk_window_set_decorated(window GtkWindow, decorated int)
 
 fn C.gtk_window_set_default_size(window GtkWindow, width int, height int)
+fn C.gtk_window_get_default_size(window GtkWindow, width &int, height &int)
 
 fn C.gtk_window_present(window GtkWindow)
 
