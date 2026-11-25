@@ -409,6 +409,7 @@ pub mut:
 
 	// Non-null if there is an in-progress loading image.
 	loading ?&LoadingImage
+	animations_idle bool = true
 
 	// The total bytes of image data that have been loaded and the limit.
 	// If the limit is reached, the oldest images will be evicted to make
@@ -435,6 +436,7 @@ pub fn (mut self ImageStorage) deinit(mut s Screen) {
 
 	self.clear_placements(mut s)
 	self.placements = []
+	self.animations_idle = true
 }
 
 // Kitty image protocol is enabled if we have a non-zero limit.
@@ -481,13 +483,13 @@ fn (mut self ImageStorage) allocate_image_id() u32 {
 // Store a completed transmission. Reusing an ID removes the old image and
 // its placements. The new data can be placed after the transmission commits.
 pub fn (mut self ImageStorage) add_image(mut s Screen, img Image) ! {
-	new_len := uint(img.data.len)
+	new_len := img.storage_size()
 	if new_len > self.total_limit {
 		return error('OutOfMemory: image exceeds total limit')
 	}
 
 	existing := self.image_by_id(img.id)
-	old_len := if old := existing { uint(old.data.len) } else { uint(0) }
+	old_len := if old := existing { old.storage_size() } else { uint(0) }
 	used_bytes := self.total_bytes - old_len
 	available_bytes := self.total_limit - new_len
 	if used_bytes > available_bytes {
@@ -514,6 +516,9 @@ pub fn (mut self ImageStorage) add_image(mut s Screen, img Image) ! {
 // Add a placement for an existing image. Storage takes ownership of its pin.
 pub fn (mut self ImageStorage) add_placement(mut s Screen, image_id u32, placement_id u32, p Placement) {
 	assert image_id in self.images
+	if self.images[image_id].animation.state != .stop {
+		self.animations_idle = false
+	}
 
 	// Reclaim anchors pruned with scrollback outside the scrolling hot path.
 	self.reap_placements(mut s, false)
@@ -823,8 +828,9 @@ pub fn (mut self ImageStorage) delete(mut t Terminal, cmd Delete) {
 			self.dirty = true
 		}
 
-		// We don't support animation frames yet so they are successfully deleted!
-		DeleteAnimationFrames {}
+		DeleteAnimationFrames {
+			self.delete_animation_frame(mut t.screens.active, cmd)
+		}
 	}
 }
 
@@ -879,7 +885,7 @@ fn (mut self ImageStorage) delete_if_unused(image_id u32) {
 	// If we get here, we can delete the image.
 	if image_id in self.images {
 		img := self.images[image_id]
-		self.total_bytes -= uint(img.data.len)
+		self.total_bytes -= img.storage_size()
 		mut img_mut := self.images[image_id]
 		img_mut.deinit()
 		self.images.delete(image_id)
@@ -986,7 +992,7 @@ fn (mut self ImageStorage) evict_image(mut s Screen, req uint, exclude_id ?u32) 
 	mut evicted := uint(0)
 	for c in candidates {
 		img := self.image_by_id(c.id) or { continue }
-		evicted += uint(img.data.len)
+		evicted += img.storage_size()
 		self.delete_by_id(mut s, c.id, 0, false)
 		self.delete_if_unused(c.id)
 		if evicted >= req {

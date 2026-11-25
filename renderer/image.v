@@ -455,6 +455,7 @@ pub struct ImageEntry {
 pub mut:
 	image         Image
 	transmit_time u64
+	pixel_revision u64
 }
 
 // Represents a single image placement on the grid.
@@ -964,12 +965,11 @@ fn (mut self ImageRenderState) prep_kitty_image(image terminal.Image) ! {
 	id := kitty_image_key(image.id)
 	transmit_time := image.transmit_time
 
-	// If this image exists and its transmit time is the same we assume
-	// it is the identical image so we don't need to send it to the GPU.
+	// Compare both the transmission and the pixels selected by animation.
 	found_existing := id in self.images
 	if found_existing {
 		existing := self.images[id] or { ImageEntry{} }
-		if existing.transmit_time == transmit_time {
+		if existing.transmit_time == transmit_time && existing.pixel_revision == image.pixel_revision {
 			return
 		}
 	}
@@ -989,7 +989,7 @@ fn (mut self ImageRenderState) prep_kitty_image(image terminal.Image) ! {
 		width: image.width
 		height: image.height
 		pixel_format: pixel_format
-		data: image.data.clone()
+		data: image.render_data().clone()
 	}
 
 	if found_existing {
@@ -1003,6 +1003,7 @@ fn (mut self ImageRenderState) prep_kitty_image(image terminal.Image) ! {
 			return error('image conversion error')
 		}
 		entry.transmit_time = transmit_time
+		entry.pixel_revision = image.pixel_revision
 		self.images[id] = entry
 	} else {
 		// New entry.
@@ -1015,6 +1016,7 @@ fn (mut self ImageRenderState) prep_kitty_image(image terminal.Image) ! {
 			return error('image conversion error')
 		}
 		entry.transmit_time = transmit_time
+		entry.pixel_revision = image.pixel_revision
 		self.images[id] = entry
 	}
 }

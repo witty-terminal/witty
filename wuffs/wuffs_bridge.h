@@ -34,5 +34,7 @@ int witty_wuffs_decode_frame(
 int witty_wuffs_swizzle(int kind, const uint8_t *source, size_t source_len,
                         uint8_t *destination, size_t destination_len,
                         const char **error_message);
+void witty_wuffs_rgba_src_over(uint8_t *destination, const uint8_t *source,
+                             size_t len);
 
 #endif

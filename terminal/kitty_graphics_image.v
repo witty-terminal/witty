@@ -161,6 +161,8 @@ pub const max_image_size = 400 * 1024 * 1024 // 400MB
 // Image represents a single fully loaded image that can be placed
 // in the terminal grid.
 pub struct Image {
+mut:
+	animation KittyAnimation
 pub mut:
 	// Image identifier.
 	id u32
@@ -179,6 +181,8 @@ pub mut:
 	// Timestamp when image was transmitted. Set in complete(), matching
 	// ghostty (which leaves it undefined until then).
 	transmit_time u64
+	// Changes when animation changes the displayed pixels.
+	pixel_revision u64
 	// True if image was loaded by a command that doesn't specify
 	// an ID or number.
 	implicit_id bool
@@ -187,6 +191,7 @@ pub mut:
 // Free the image data.
 pub fn (mut self Image) deinit() {
 	self.data = []
+	self.animation = KittyAnimation{}
 }
 
 // Mostly for logging.
@@ -210,6 +215,8 @@ pub fn (self &Image) without_data() Image {
 // LoadingImage represents an image that is still being loaded in
 // chunks. Once all chunks are received, it is completed into an Image.
 pub struct LoadingImage {
+mut:
+	animation_frame ?PendingKittyFrame
 pub mut:
 	// The in-progress image with metadata from the first chunk.
 	image Image

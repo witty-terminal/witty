@@ -168,3 +168,19 @@ int witty_wuffs_swizzle(int kind, const uint8_t *source, size_t source_len,
       wuffs_base__make_slice_u8((uint8_t *)source, source_len));
   return 1;
 }
+
+void witty_wuffs_rgba_src_over(uint8_t *destination, const uint8_t *source,
+                             size_t len) {
+  wuffs_base__pixel_swizzler swizzler;
+  const wuffs_base__pixel_format rgba =
+      wuffs_base__make_pixel_format(WUFFS_BASE__PIXEL_FORMAT__RGBA_NONPREMUL);
+  wuffs_base__status status = wuffs_base__pixel_swizzler__prepare(
+      &swizzler, rgba, wuffs_base__empty_slice_u8(), rgba,
+      wuffs_base__empty_slice_u8(), WUFFS_BASE__PIXEL_BLEND__SRC_OVER);
+  if (wuffs_base__status__is_ok(&status)) {
+    wuffs_base__pixel_swizzler__swizzle_interleaved_from_slice(
+        &swizzler, wuffs_base__make_slice_u8(destination, len),
+        wuffs_base__empty_slice_u8(),
+        wuffs_base__make_slice_u8((uint8_t *)source, len));
+  }
+}

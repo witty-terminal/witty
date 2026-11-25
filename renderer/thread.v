@@ -184,6 +184,7 @@ import datastruct
 import internal_os
 import log
 import macos
+import time
 import xev
 
 const draw_interval = 8 // 120 FPS
@@ -283,9 +284,11 @@ pub mut:
 	stop   xev.Async
 	stop_c xev.Completion
 
-	// The timer used for rendering
-	render_h xev.Timer
-	render_c xev.Completion
+	// The timer used for rebuilding a frame when a Kitty animation advances.
+	render_h        xev.Timer
+	render_c        xev.Completion
+	render_c_cancel xev.Completion
+	render_deadline u64
 
 	// The timer used for draw calls. Draw calls don't update from the
 	// terminal state so they're much cheaper. They're used for animation
@@ -743,24 +746,6 @@ fn renderer_thread_wakeup_callback(self_ voidptr, _ &xev.Loop, _ &xev.Completion
 
 	// Render immediately
 	_ = renderer_thread_render_callback(t, unsafe { nil }, unsafe { nil }, none)
-
-	// The below is not used anymore but if we ever want to introduce
-	// a configuration to introduce a delay to coalesce renders, we can
-	// use this.
-	//
-	// // If the timer is already active then we don't have to do anything.
-	// if (t.render_c.state() == .active) return .rearm;
-	//
-	// // Timer is not active, let's start it
-	// t.render_h.run(
-	//     &t.loop,
-	//     &t.render_c,
-	//     10,
-	//     Thread,
-	//     t,
-	//     renderCallback,
-	// );
-
 	return .rearm
 }
 
@@ -814,10 +799,42 @@ fn renderer_thread_render_callback(self_ voidptr, _ &xev.Loop, _ &xev.Completion
 	t.renderer.update_frame(t.state, t.flags.cursor_blink_visible()) or {
 		log.warn('error rendering err=${err}')
 	}
+	t.schedule_kitty_animation()
 
 	// Draw
 	t.draw_frame(false)
 
+	return .disarm
+}
+
+fn (mut t RendererThread) schedule_kitty_animation() {
+	if !t.flags.visible() {
+		return
+	}
+	deadline := t.renderer.kitty_animation_deadline or { return }
+	now := time.sys_mono_now() / u64(time.millisecond)
+	delay := if deadline > now { deadline - now } else { u64(1) }
+	if t.render_deadline != 0 && t.render_c.state() == .active {
+		if t.render_deadline <= deadline {
+			return
+		}
+		t.render_h.reset(mut t.loop, &t.render_c, &t.render_c_cancel, delay, t,
+			renderer_thread_animation_callback)
+	} else {
+		t.render_h.run(mut t.loop, &t.render_c, delay, t, renderer_thread_animation_callback)
+	}
+	t.render_deadline = deadline
+}
+
+fn renderer_thread_animation_callback(self_ voidptr, _ &xev.Loop, _ &xev.Completion, r ?xev.ErrorKind) xev.CallbackAction {
+	if r != none || self_ == unsafe { nil } {
+		return .disarm
+	}
+	mut t := unsafe { &RendererThread(self_) }
+	t.render_deadline = 0
+	if t.flags.visible() && t.renderer.kitty_animation_deadline != none {
+		_ = renderer_thread_render_callback(t, unsafe { nil }, unsafe { nil }, none)
+	}
 	return .disarm
 }
 

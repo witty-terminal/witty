@@ -306,6 +306,7 @@ pub mut:
 	id           u32
 	image_number u32
 	placement_id u32
+	frame        u32
 	message      string = 'OK'
 }
 
@@ -337,6 +338,9 @@ pub fn (self Response) encode() string {
 			prior = true
 		}
 		result += 'p=${self.placement_id}'
+	}
+	if self.frame > 0 {
+		result += ',r=${self.frame}'
 	}
 	result += ';'
 	result += self.message
@@ -424,6 +428,9 @@ pub fn (self Command) transmission() ?Transmission {
 		}
 		TransmitAndDisplay {
 			(self.control as TransmitAndDisplay).transmission
+		}
+		AnimationFrameLoading {
+			(self.control as AnimationFrameLoading).transmission
 		}
 		else {
 			none
@@ -719,11 +726,12 @@ fn Display.parse(kv map[u8]u32) !Display {
 
 pub struct AnimationFrameLoading {
 pub mut:
+	transmission     Transmission
 	x                u32 // x
 	y                u32 // y
 	create_frame     u32 // c
 	edit_frame       u32 // r
-	gap_ms           u32 // z
+	gap_ms           i32 // z
 	composition_mode CompositionMode = .alpha_blend // X
 	background       AnimBackground // Y
 }
@@ -757,7 +765,7 @@ pub fn (background AnimBackground) int() u32 {
 }
 
 fn AnimationFrameLoading.parse(kv map[u8]u32) !AnimationFrameLoading {
-	mut result := AnimationFrameLoading{}
+	mut result := AnimationFrameLoading{ transmission: Transmission.parse(kv)! }
 
 	if `x` in kv {
 		result.x = kv[u8(`x`)]
@@ -772,17 +780,10 @@ fn AnimationFrameLoading.parse(kv map[u8]u32) !AnimationFrameLoading {
 		result.edit_frame = kv[u8(`r`)]
 	}
 	if `z` in kv {
-		result.gap_ms = kv[u8(`z`)]
+		result.gap_ms = i32(kv[u8(`z`)])
 	}
 	if `X` in kv {
-		v := kv[u8(`X`)]
-		result.composition_mode = match v {
-			0 { CompositionMode.alpha_blend }
-			1 { CompositionMode.overwrite }
-			else {
-				return error('InvalidFormat: unknown composition mode ${v}')
-			}
-		}
+		result.composition_mode = if kv[u8(`X`)] == 1 { .overwrite } else { .alpha_blend }
 	}
 	if `Y` in kv {
 		result.background = AnimBackground.from_int(kv[u8(`Y`)])
@@ -797,8 +798,9 @@ fn AnimationFrameLoading.parse(kv map[u8]u32) !AnimationFrameLoading {
 
 pub struct AnimationFrameComposition {
 pub mut:
-	frame            u32 // c
-	edit_frame       u32 // r
+	target           Response
+	dest_frame       u32 // c
+	source_frame     u32 // r
 	x                u32 // x
 	y                u32 // y
 	width            u32 // w
@@ -809,13 +811,13 @@ pub mut:
 }
 
 fn AnimationFrameComposition.parse(kv map[u8]u32) !AnimationFrameComposition {
-	mut result := AnimationFrameComposition{}
+	mut result := AnimationFrameComposition{ target: animation_target(kv) }
 
 	if `c` in kv {
-		result.frame = kv[u8(`c`)]
+		result.dest_frame = kv[u8(`c`)]
 	}
 	if `r` in kv {
-		result.edit_frame = kv[u8(`r`)]
+		result.source_frame = kv[u8(`r`)]
 	}
 	if `x` in kv {
 		result.x = kv[u8(`x`)]
@@ -836,14 +838,7 @@ fn AnimationFrameComposition.parse(kv map[u8]u32) !AnimationFrameComposition {
 		result.top_edge = kv[u8(`Y`)]
 	}
 	if `C` in kv {
-		v := kv[u8(`C`)]
-		result.composition_mode = match v {
-			0 { CompositionMode.alpha_blend }
-			1 { CompositionMode.overwrite }
-			else {
-				return error('InvalidFormat: unknown composition mode ${v}')
-			}
-		}
+		result.composition_mode = if kv[u8(`C`)] == 0 { .alpha_blend } else { .overwrite }
 	}
 
 	return result
@@ -855,9 +850,10 @@ fn AnimationFrameComposition.parse(kv map[u8]u32) !AnimationFrameComposition {
 
 pub struct AnimationControl {
 pub mut:
+	target        Response
 	action        AnimationAction = .invalid // s
 	frame         u32 // r
-	gap_ms        u32 // z
+	gap_ms        i32 // z
 	current_frame u32 // c
 	loops         u32 // v
 }
@@ -870,25 +866,22 @@ pub enum AnimationAction as u8 {
 }
 
 fn AnimationControl.parse(kv map[u8]u32) !AnimationControl {
-	mut result := AnimationControl{}
+	mut result := AnimationControl{ target: animation_target(kv) }
 
 	if `s` in kv {
 		v := kv[u8(`s`)]
 		result.action = match v {
-			0 { AnimationAction.invalid }
 			1 { AnimationAction.stop }
 			2 { AnimationAction.run_wait }
 			3 { AnimationAction.run }
-			else {
-				return error('InvalidFormat: unknown animation action ${v}')
-			}
+			else { AnimationAction.invalid }
 		}
 	}
 	if `r` in kv {
 		result.frame = kv[u8(`r`)]
 	}
 	if `z` in kv {
-		result.gap_ms = kv[u8(`z`)]
+		result.gap_ms = i32(kv[u8(`z`)])
 	}
 	if `c` in kv {
 		result.current_frame = kv[u8(`c`)]
@@ -898,6 +891,10 @@ fn AnimationControl.parse(kv map[u8]u32) !AnimationControl {
 	}
 
 	return result
+}
+
+fn animation_target(kv map[u8]u32) Response {
+	return Response{ id: kv[u8(`i`)], image_number: kv[u8(`I`)], placement_id: kv[u8(`p`)] }
 }
 
 // ============================================================
@@ -971,6 +968,8 @@ pub:
 pub struct DeleteAnimationFrames {
 pub:
 	delete bool // uppercase
+	target Response
+	frame  u32 // r
 }
 
 pub type Delete = DeleteAll
@@ -1036,7 +1035,7 @@ fn Delete.parse(kv map[u8]u32) !Delete {
 			DeleteIntersectCursor{ delete: what == `C` }
 		}
 		`f`, `F` {
-			DeleteAnimationFrames{ delete: what == `F` }
+			DeleteAnimationFrames{ delete: what == `F`, target: animation_target(kv), frame: kv[u8(`r`)] }
 		}
 		`p`, `P` {
 			mut r := DeleteIntersectCell{ delete: what == `P` }

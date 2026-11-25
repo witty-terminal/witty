@@ -18,6 +18,7 @@ fn C.witty_wuffs_decode_image_config(kind int, decoder voidptr, decoder_size uin
 fn C.witty_wuffs_decode_frame(kind int, decoder voidptr, source &u8, source_len uint, source_read_index uint, width u32, height u32, destination &u8, destination_len uint, work_buffer &u8, work_buffer_len uint, error_message &&char) int
 
 fn C.witty_wuffs_swizzle(kind int, source &u8, source_len uint, destination &u8, destination_len uint, error_message &&char) int
+fn C.witty_wuffs_rgba_src_over(destination &u8, source &u8, len uint)
 
 pub const maximum_image_size = u64(4) * 1024 * 1024 * 1024
 
@@ -149,4 +150,9 @@ pub fn bgr_to_rgba(source []u8) ![]u8 {
 
 pub fn bgra_to_rgba(source []u8) ![]u8 {
 	return swizzle(.bgra_to_rgba, 4, source)
+}
+
+pub fn rgba_src_over(mut destination []u8, source []u8) {
+	assert destination.len == source.len && source.len % 4 == 0
+	C.witty_wuffs_rgba_src_over(destination.data, source.data, uint(source.len))
 }

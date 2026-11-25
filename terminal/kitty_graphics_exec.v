@@ -126,7 +126,7 @@ pub fn kitty_graphics_execute(mut t Terminal, cmd &Command) ?Response {
 		ControlQuery {
 			exec_query(cmd)
 		}
-		ControlTransmit, TransmitAndDisplay {
+		ControlTransmit, TransmitAndDisplay, AnimationFrameLoading {
 			transmission := cmd.transmission() or { panic('missing transmission data') }
 			if transmission.image_id > 0 && transmission.image_number > 0 {
 				mut invalid := transmission.response()
@@ -142,7 +142,16 @@ pub fn kitty_graphics_execute(mut t Terminal, cmd &Command) ?Response {
 						.ok, .failures { loading.quiet = cmd.quiet }
 					}
 				}
-				exec_transmit(mut t, cmd, transmission)
+				frame_upload := if loading := storage.loading {
+					loading.animation_frame != none
+				} else {
+					cmd.control is AnimationFrameLoading
+				}
+				if frame_upload {
+					exec_animation_frame(mut t, cmd, transmission)
+				} else {
+					exec_transmit(mut t, cmd, transmission)
+				}
 			}
 		}
 		Display {
@@ -151,14 +160,11 @@ pub fn kitty_graphics_execute(mut t Terminal, cmd &Command) ?Response {
 		Delete {
 			exec_delete(mut t, cmd)
 		}
-		AnimationFrameLoading {
-			Response{ message: 'ERROR: unimplemented action' }
-		}
 		AnimationControl {
-			Response{ message: 'ERROR: unimplemented action' }
+			exec_animation_control(mut storage, cmd.control)
 		}
 		AnimationFrameComposition {
-			Response{ message: 'ERROR: unimplemented action' }
+			exec_animation_compose(mut storage, mut t.screens.active, cmd.control)
 		}
 	}
 

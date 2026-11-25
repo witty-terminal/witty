@@ -31,7 +31,7 @@ FIXTURES = (
     "ansi", "decorations", "unicode", "wide-wrap", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
-    "kitty-delete-selection", "kitty-delete-visible", "kitty-chunked",
+    "kitty-delete-selection", "kitty-delete-visible", "kitty-chunked", "kitty-animation",
     *WALLPAPER_OPTIONS, "ls", "git", "vim", "shader",
 )
 OPTIONS = (

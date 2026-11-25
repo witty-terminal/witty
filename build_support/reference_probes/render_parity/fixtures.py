@@ -271,6 +271,32 @@ def kitty_chunked():
     return commands
 
 
+def kitty_animation():
+    commands = bytearray(b"Kitty animation")
+
+    def transmit(header, pixels):
+        commands.extend(f"\x1b_G{header},f=32,q=2;".encode() + base64.b64encode(bytes(pixels)) + b"\x1b\\")
+
+    for image_id, col in ((821, 4), (822, 18), (823, 32)):
+        commands.extend(f"\x1b[4;{col}H".encode())
+        transmit(f"a=T,i={image_id},s=4,v=2,c=8,r=2,C=1", (232, 60, 85, 255) * 8)
+
+    # The edited frame copies the root canvas and alpha blends a partial upload.
+    transmit("a=f,i=821,c=1,s=2,v=1,x=1,y=1,m=1", (73, 215, 148, 128))
+    commands += b"\x1b_Gm=0,q=2;" + base64.b64encode(bytes((96, 150, 246, 200))) + b"\x1b\\"
+    commands += b"\x1b_Ga=a,i=821,c=2,q=2;\x1b\\"
+
+    transmit("a=f,i=822,s=4,v=2", (245, 191, 60, 255) * 8)
+    commands += b"\x1b_Ga=c,i=822,r=2,c=1,w=2,h=1,X=1,Y=1,x=2,y=0,C=1,q=2;\x1b\\"
+    commands += b"\x1b_Ga=d,d=f,i=822,r=2,q=2;\x1b\\"
+
+    # One timed loop skips the gapless frame and freezes on the last frame.
+    transmit("a=f,i=823,s=4,v=2,z=-1", (70, 113, 228, 255) * 8)
+    transmit("a=f,i=823,s=4,v=2,z=90", (89, 222, 160, 255) * 8)
+    commands += b"\x1b_Ga=a,i=823,r=1,z=80,s=3,v=2,q=2;\x1b\\"
+    return commands
+
+
 def main():
     fixture = sys.argv[1]
     output = {
@@ -332,6 +358,8 @@ def main():
         sys.stdout.buffer.write(kitty_delete_visible())
     elif fixture == "kitty-chunked":
         sys.stdout.buffer.write(kitty_chunked())
+    elif fixture == "kitty-animation":
+        sys.stdout.buffer.write(kitty_animation())
     elif fixture in CURSOR_STYLES:
         # Reposition over an existing glyph and show a steady cursor.
         style = CURSOR_STYLES[fixture]

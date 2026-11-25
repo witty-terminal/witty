@@ -817,6 +817,7 @@ pub mut:
 
 	// GPU-side image state (Kitty graphics and debug overlays).
 	images ImageRenderState
+	kitty_animation_deadline ?u64
 	// CPU-side inspector overlay surface, when at least one feature is enabled.
 	overlay ?Overlay
 
@@ -1208,6 +1209,7 @@ pub fn (mut self Renderer) update_frame(state &RenderState, cursor_blink_visible
 	self.terminal_state_frame_count += 1
 
 	// Update all our data as tightly as possible within the mutex.
+	self.kitty_animation_deadline = none
 	mut critical := self.update_frame_critical(state) or { return }
 
 	// Outside the critical area we can update our links to contain
@@ -1359,11 +1361,22 @@ fn (mut self Renderer) update_frame_critical(state &RenderState) ?UpdateFrameCri
 	// If we have any virtual references, we must also rebuild our
 	// kitty state on every frame because any cell change can move
 	// an image.
+	now_ms := time.sys_mono_now() / u64(time.millisecond)
+	if delay := t.screens.active.kitty_images.animation_tick(now_ms) {
+		self.kitty_animation_deadline = now_ms + delay
+	}
 	if self.images.kitty_requires_update(t) {
+		if self.draw_mutex != unsafe { nil } {
+			self.draw_mutex.lock()
+		}
 		self.images.kitty_update(t, CellSize{
 			width:  self.grid_metrics.cell_width
 			height: self.grid_metrics.cell_height
 		})
+		self.cells_rebuilt = true
+		if self.draw_mutex != unsafe { nil } {
+			self.draw_mutex.unlock()
+		}
 	}
 
 	// Get our OSC8 links we're hovering if we have a mouse.
