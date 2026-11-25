@@ -46,9 +46,17 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	assert surface.highlighted
 	assert !is_nil(msg_id(surface.highlight_radial, 'contents'))
 	assert !is_nil(msg_id(surface.highlight_border, 'contents'))
-	assert msg_f64(msg_id1(surface.highlight_mask, 'animationForKey:', nsstring('lineWidth')), 'duration') == 0.4
+	for i, edge in surface.highlight_edges {
+		assert C.witty_overlay_test_tile(edge) == 0xffffffff
+		key := if i < 2 { 'bounds.size.height' } else { 'bounds.size.width' }
+		animation := msg_id1(edge, 'animationForKey:', nsstring(key))
+		assert msg_f64(animation, 'duration') == 0.4
+		assert msg_f64(msg_id(animation, 'fromValue'), 'doubleValue') == 2
+		assert msg_f64(msg_id(animation, 'toValue'), 'doubleValue') == 4
+	}
 	msg_void(surface.highlight_timer, 'fire')
 	assert !surface.highlighted
+	assert is_nil(msg_id1(surface.highlight_edges[0], 'animationForKey:', nsstring('bounds.size.height')))
 	set_cursor_shape(view, 8)
 	assert msg_id(surface.scroll.scroll, 'documentCursor') == msg_id(get_class('NSCursor'), 'IBeamCursor')
 	assert cursor_for_shape(4) == none
@@ -79,21 +87,40 @@ fn test_native_highlight_overlay_capture() {
 	C.witty_canvas_place_overlay(view, base, nil_obj())
 	C.witty_canvas_place_overlay(view, surface.overlay, nil_obj())
 	msg_void(base, 'release')
-	for i, name in ['small', 'medium', 'large'] {
-		width := [103, 320, 1030][i]
-		height := [63, 240, 800][i]
+	for size_index, name in ['small', 'medium', 'large'] {
+		width := [103, 320, 1030][size_index]
+		height := [63, 240, 800][size_index]
 		msg_void_size(window, 'setContentSize:', objc_size(width, height))
 		surface.scroll.layout()
 		surface.resize()
 		msg_void_rect(base, 'setFrame:', objc_rect(0, 0, width, height))
 		surface.presented()
-		for kind in ['full', 'glow', 'cleared'] {
+		for kind in ['full', 'glow', 'peak', 'cleared'] {
 			msg_void_bool(surface.highlight_shadows.last(), 'setHidden:', kind == 'glow')
+			if kind == 'peak' {
+				positions := surface.highlight_edges.map(msg_point(it, 'position'))
+				for edge in surface.highlight_edges { msg_void(edge, 'removeAllAnimations') }
+				surface.layout_highlight_edges(objc_rect(0, 0, width, height), 4)
+				for i, edge in surface.highlight_edges {
+					assert msg_point(edge, 'position') == positions[i]
+					bounds := msg_rect(edge, 'bounds')
+					assert (if i < 2 { bounds.height } else { bounds.width }) == 4
+				}
+				for i, shadow in surface.highlight_shadows {
+					msg_void(shadow, 'removeAllAnimations')
+					msg_void_f64(shadow, 'setShadowRadius:', if i == 0 { 12 } else { 24 })
+					C.witty_macos_msg_void_f32(shadow, sel('setShadowOpacity:'), if i == 0 { 0.8 } else { 0.5 })
+				}
+			}
 			if kind == 'cleared' { msg_void(surface.highlight_timer, 'fire') }
 			png := C.witty_overlay_test_png(surface.scroll.container)
 			assert !is_nil(png)
 			assert msg_bool2(png, 'writeToFile:atomically:',
 				nsstring(os.join_path(output, 'highlight-${kind}-${name}-witty.png')), ObjId(1))
+		}
+		for i, shadow in surface.highlight_shadows {
+			msg_void_f64(shadow, 'setShadowRadius:', if i == 0 { 8 } else { 16 })
+			C.witty_macos_msg_void_f32(shadow, sel('setShadowOpacity:'), if i == 0 { 0.6 } else { 0.3 })
 		}
 	}
 }

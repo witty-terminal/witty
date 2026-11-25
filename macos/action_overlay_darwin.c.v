@@ -106,6 +106,7 @@ mut:
 	highlight_radial    ObjId
 	highlight_border    ObjId
 	highlight_mask      ObjId
+	highlight_edges     [4]ObjId
 	highlight_shadows   []ObjId
 	highlight_accent    ?u32
 	highlight_texture_size ObjCSize

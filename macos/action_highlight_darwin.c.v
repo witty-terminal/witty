@@ -25,7 +25,7 @@ fn action_highlight_expired(self ObjId, _cmd Sel, _timer ObjId) {
 	}
 }
 
-fn C.witty_action_rect_path(x f64, y f64, width f64, height f64) voidptr
+fn C.witty_action_layer_anchor(layer ObjId, x f64, y f64)
 
 fn highlight_gradient_alpha(t f64, stops [3]f64) f64 {
 	p := math.clamp(t, 0, 1) * 2
@@ -90,17 +90,12 @@ fn (mut surface NativeActionSurface) update_highlight_gradients(width f64, heigh
 	surface.highlight_texture_size = size
 }
 
-fn repeating_visual_animation(layer ObjId, key string, from f64, to f64, duration f64) {
+fn repeating_highlight_animation(layer ObjId, key string, from f64, to f64) {
 	number := get_class('NSNumber')
-	repeating_highlight_animation(layer, key, msg_id_f64(number, 'numberWithDouble:', from),
-		msg_id_f64(number, 'numberWithDouble:', to), duration)
-}
-
-fn repeating_highlight_animation(layer ObjId, key string, from ObjId, to ObjId, duration f64) {
 	animation := msg_id1(get_class('CABasicAnimation'), 'animationWithKeyPath:', nsstring(key))
-	msg_void1(animation, 'setFromValue:', from)
-	msg_void1(animation, 'setToValue:', to)
-	msg_void_f64(animation, 'setDuration:', duration)
+	msg_void1(animation, 'setFromValue:', msg_id_f64(number, 'numberWithDouble:', from))
+	msg_void1(animation, 'setToValue:', msg_id_f64(number, 'numberWithDouble:', to))
+	msg_void_f64(animation, 'setDuration:', 0.4)
 	msg_void_bool(animation, 'setAutoreverses:', true)
 	msg_void1(animation, 'setTimingFunction:', msg_id1(get_class('CAMediaTimingFunction'), 'functionWithName:', nsstring('easeInEaseOut')))
 	C.witty_action_repeat_forever(animation)
@@ -111,10 +106,7 @@ fn (mut surface NativeActionSurface) initialize_highlight() {
 	surface.highlight_layer = msg_id(get_class('CALayer'), 'layer')
 	surface.highlight_radial = msg_id(get_class('CALayer'), 'layer')
 	surface.highlight_border = msg_id(get_class('CALayer'), 'layer')
-	surface.highlight_mask = msg_id(get_class('CAShapeLayer'), 'layer')
-	msg_void1(surface.highlight_mask, 'setFillColor:', nil_obj())
-	msg_void1(surface.highlight_mask, 'setStrokeColor:', msg_id(msg_id(get_class('NSColor'), 'blackColor'), 'CGColor'))
-	msg_void_f64(surface.highlight_mask, 'setLineWidth:', 2)
+	surface.highlight_mask = msg_id(get_class('CALayer'), 'layer')
 	msg_void1(surface.highlight_border, 'setMask:', surface.highlight_mask)
 	msg_void1(surface.highlight_layer, 'addSublayer:', surface.highlight_radial)
 	// Apply both shadows in order to the same gradient stroke.
@@ -137,6 +129,50 @@ fn (mut surface NativeActionSurface) initialize_highlight() {
 	msg_void1(msg_id(surface.overlay, 'layer'), 'addSublayer:', surface.highlight_layer)
 }
 
+fn (mut surface NativeActionSurface) prepare_highlight_mask() bool {
+	if !is_nil(surface.highlight_edges[0]) { return true }
+	tile := native_canvas_fill_tile(0xffffff)
+	if is_nil(tile) { return false }
+	defer { C.CFRelease(tile) }
+	anchors := [ObjCPoint{ x: 0.5 }, ObjCPoint{ x: 0.5, y: 1 }, ObjCPoint{ y: 0.5 },
+		ObjCPoint{ x: 1, y: 0.5 }]
+	for i, anchor in anchors {
+		edge := msg_id(get_class('CALayer'), 'layer')
+		C.witty_action_layer_anchor(edge, anchor.x, anchor.y)
+		msg_void1(edge, 'setContents:', ObjId(tile))
+		msg_void1(surface.highlight_mask, 'addSublayer:', edge)
+		surface.highlight_edges[i] = edge
+	}
+	return true
+}
+
+fn (surface &NativeActionSurface) layout_highlight_edges(frame ObjCRect, thickness f64) {
+	w, h := frame.width, frame.height
+	x := math.min(w, thickness)
+	y := math.min(h, thickness)
+	// The edges are opaque and share one mask. Their corners can overlap.
+	// Each strip's anchor keeps its outer edge fixed as its bounds grow.
+	frames := [objc_rect(0, 0, w, y), objc_rect(0, h - y, w, y),
+		objc_rect(0, 0, x, h), objc_rect(w - x, 0, x, h)]
+	for i, edge in surface.highlight_edges {
+		msg_void_rect(edge, 'setFrame:', frames[i])
+	}
+}
+
+fn (surface &NativeActionSurface) start_highlight_pulse(frame ObjCRect) {
+	for i, edge in surface.highlight_edges {
+		dimension := if i < 2 { frame.height } else { frame.width }
+		key := if i < 2 { 'bounds.size.height' } else { 'bounds.size.width' }
+		repeating_highlight_animation(edge, key, math.min(2, dimension), math.min(4, dimension))
+	}
+	for i, shadow in surface.highlight_shadows {
+		repeating_highlight_animation(shadow, 'shadowRadius', if i == 0 { 8 } else { 16 },
+			if i == 0 { 12 } else { 24 })
+		repeating_highlight_animation(shadow, 'shadowOpacity', if i == 0 { 0.6 } else { 0.3 },
+			if i == 0 { 0.8 } else { 0.5 })
+	}
+}
+
 fn (mut surface NativeActionSurface) refresh_highlight() {
 	width := view_width(surface.view)
 	height := view_height(surface.view)
@@ -145,10 +181,12 @@ fn (mut surface NativeActionSurface) refresh_highlight() {
 	transaction := get_class('CATransaction')
 	msg_void(transaction, 'begin')
 	msg_void_bool(transaction, 'setDisableActions:', true)
+	mask_ready := if surface.highlighted { surface.prepare_highlight_mask() } else { false }
 	msg_void_rect(surface.highlight_layer, 'setFrame:', frame)
 	msg_void_rect(surface.highlight_radial, 'setFrame:', frame)
 	msg_void_rect(surface.highlight_border, 'setFrame:', frame)
 	msg_void_rect(surface.highlight_mask, 'setFrame:', frame)
+	if mask_ready { surface.layout_highlight_edges(frame, 2) }
 	for shadow in surface.highlight_shadows { msg_void_rect(shadow, 'setFrame:', frame) }
 	msg_void(transaction, 'commit')
 	if surface.highlighted && width > 0 && height > 0 {
@@ -165,27 +203,10 @@ fn (mut surface NativeActionSurface) refresh_highlight() {
 	})
 	msg_void(transaction, 'commit')
 	if !surface.highlighted {
-		msg_void(surface.highlight_mask, 'removeAllAnimations')
+		for edge in surface.highlight_edges { msg_void(edge, 'removeAllAnimations') }
 		for shadow in surface.highlight_shadows { msg_void(shadow, 'removeAllAnimations') }
-	} else if size_changed || is_nil(msg_id1(surface.highlight_mask, 'animationForKey:', nsstring('lineWidth'))) {
-		from := C.witty_action_rect_path(1, 1, math.max(0, width - 2), math.max(0, height - 2))
-		to := C.witty_action_rect_path(2, 2, math.max(0, width - 4), math.max(0, height - 4))
-		msg_void1(surface.highlight_mask, 'setPath:', from)
-		repeating_highlight_animation(surface.highlight_mask, 'path', ObjId(from), ObjId(to), 0.4)
-		C.witty_action_path_release(from)
-		C.witty_action_path_release(to)
-		repeating_visual_animation(surface.highlight_mask, 'lineWidth', 2, 4, 0.4)
-		for i, shadow in surface.highlight_shadows {
-			repeating_visual_animation(shadow, 'shadowRadius', if i == 0 { 8 } else { 16 }, if i == 0 {
-				12
-			} else {
-				24
-			}, 0.4)
-			repeating_visual_animation(shadow, 'shadowOpacity', if i == 0 { 0.6 } else { 0.3 }, if i == 0 {
-				0.8
-			} else {
-				0.5
-			}, 0.4)
-		}
+	} else if mask_ready && (size_changed
+		|| is_nil(msg_id1(surface.highlight_edges[0], 'animationForKey:', nsstring('bounds.size.height')))) {
+		surface.start_highlight_pulse(frame)
 	}
 }
