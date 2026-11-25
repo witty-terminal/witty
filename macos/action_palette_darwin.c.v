@@ -8,6 +8,7 @@ import math
 // focus restoration. Native AppKit views implement the same event consumers.
 fn C.witty_action_id_f64_f64(obj voidptr, selector voidptr, a f64, b f64) voidptr
 fn C.witty_action_compare(a voidptr, b voidptr) i64
+fn C.witty_palette_set_search_prompt(field ObjId, prompt ObjId)
 
 pub struct NativeCommandOption {
 pub:
@@ -30,7 +31,7 @@ mut:
 	surface   &NativeActionSurface = unsafe { nil }
 	owner     ObjId
 	container ObjId
-	tint      ObjId
+	chrome    PaletteChrome
 	field     ObjId
 	scroll    ObjId
 	document  ObjId
@@ -151,7 +152,7 @@ pub fn (mut surface NativeActionSurface) toggle_command_palette(options []Native
 	}
 	mut container_class := get_class('WittyPaletteContainer')
 	if is_nil(container_class) {
-		container_class = C.macos_objc_allocate_class_pair(get_class('NSVisualEffectView'),
+		container_class = C.macos_objc_allocate_class_pair(get_class('NSView'),
 			cstr('WittyPaletteContainer'), 0)
 		add_method(container_class, 'isFlipped', voidptr(action_flipped), 'B@:')
 		C.macos_objc_register_class_pair(container_class)
@@ -163,33 +164,16 @@ pub fn (mut surface NativeActionSurface) toggle_command_palette(options []Native
 	palette.owner = msg_id(alloc('WittyCommandPaletteOwner'), 'init')
 	C.macos_objc_set_ptr_ivar(palette.owner, cstr('palette'), voidptr(palette))
 	palette.container = msg_id_rect(alloc('WittyPaletteContainer'), 'initWithFrame:', objc_rect(16,
-		16, 500, 248))
-	msg_void_u64(palette.container, 'setMaterial:', 21)
-	msg_void_u64(palette.container, 'setBlendingMode:', 0)
-	msg_void_bool(palette.container, 'setWantsLayer:', true)
-	msg_void_f64(msg_id(palette.container, 'layer'), 'setCornerRadius:', 10)
-	msg_void_f64(msg_id(palette.container, 'layer'), 'setBorderWidth:', 1)
-	msg_void1(msg_id(palette.container, 'layer'), 'setBorderColor:', msg_id(msg_id_f64(msg_id(get_class('NSColor'), 'tertiaryLabelColor'), 'colorWithAlphaComponent:', 0.75), 'CGColor'))
-	C.witty_macos_msg_void_f32(msg_id(palette.container, 'layer'), sel('setShadowOpacity:'), 0.33)
-	msg_void_f64(msg_id(palette.container, 'layer'), 'setShadowRadius:', 32)
-	C.witty_action_shadow_offset(msg_id(palette.container, 'layer'), 0, 12)
-	msg_void1(palette.container, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:', nsstring(if surface.visual_background == 0 {
-		'NSAppearanceNameDarkAqua'
-	} else if (0.299 * f64((surface.visual_background >> 16) & 255) + 0.587 * f64((surface.visual_background >> 8) & 255) + 0.114 * f64(surface.visual_background & 255)) / 255 > 0.5 {
-		'NSAppearanceNameAqua'
-	} else {
-		'NSAppearanceNameDarkAqua'
-	})))
-	palette.tint = msg_id(get_class('CALayer'), 'layer')
-	msg_void1(palette.tint, 'setCompositingFilter:', nsstring('colorBlendMode'))
-	msg_void1(msg_id(palette.container, 'layer'), 'addSublayer:', palette.tint)
+		16, 0, 0))
+	palette.chrome = new_palette_chrome(palette.container)
 	palette.field = msg_id_rect(alloc('NSTextField'), 'initWithFrame:', objc_rect(16, 8, 468, 40))
 	msg_void1(palette.field, 'setPlaceholderString:', nsstring('Execute a command…'))
 	msg_void_bool(palette.field, 'setBezeled:', false)
 	msg_void_bool(palette.field, 'setDrawsBackground:', false)
-	msg_void1(palette.field, 'setFont:', msg_id_f64(get_class('NSFont'), 'systemFontOfSize:', 20))
+	msg_void1(palette.field, 'setFont:',
+		C.witty_action_id_f64_f64(get_class('NSFont'), sel('systemFontOfSize:weight:'), 20, -0.4))
 	msg_void1(palette.field, 'setDelegate:', palette.owner)
-	msg_void1(palette.container, 'addSubview:', palette.field)
+	msg_void1(palette.chrome.plate, 'addSubview:', palette.field)
 	msg_void(palette.field, 'release')
 	palette.scroll = msg_id_rect(alloc('NSScrollView'), 'initWithFrame:',
 		objc_rect(0, 48, 500, 200))
@@ -199,7 +183,7 @@ pub fn (mut surface NativeActionSurface) toggle_command_palette(options []Native
 		500, 200))
 	msg_void1(palette.scroll, 'setDocumentView:', palette.document)
 	msg_void(palette.document, 'release')
-	msg_void1(palette.container, 'addSubview:', palette.scroll)
+	msg_void1(palette.chrome.plate, 'addSubview:', palette.scroll)
 	msg_void(palette.scroll, 'release')
 	surface.palette = palette
 	msg_void1(surface.overlay, 'addSubview:', palette.container)
@@ -214,14 +198,24 @@ pub fn (surface &NativeActionSurface) command_palette_is_showing() bool {
 fn (mut palette NativeCommandPalette) layout() {
 	width := math.max(0.0, math.min(500.0, view_width(palette.surface.view) - 32))
 	scroll_height := if palette.filtered.len == 0 { 48.0 } else { 200.0 }
-	msg_void_rect(palette.container, 'setFrame:', objc_rect((view_width(palette.surface.view) - width) / 2,
-		view_height(palette.surface.view) * 0.05, width, 48 + scroll_height))
-	msg_void_rect(palette.tint, 'setFrame:', msg_rect(palette.container, 'bounds'))
-	msg_void1(palette.tint, 'setBackgroundColor:', msg_id(native_color(palette.surface.visual_background, 1), 'CGColor'))
-	msg_void_rect(palette.field, 'setFrame:', objc_rect(16, 8, math.max(0.0, width - 32), 40))
-	msg_void_rect(palette.scroll, 'setFrame:', objc_rect(0, 48, width, scroll_height))
+	scale := view_backing_scale(palette.surface.view)
+	frame := native_canvas_overlay_rect(SplitBounds{
+		x: (view_width(palette.surface.view) - width) / 2
+		y: view_height(palette.surface.view) * 0.05 + palette_top_inset
+		width: width
+		height: palette_header_height + scroll_height
+	}, scale)
+	msg_void_rect(palette.container, 'setFrame:', frame)
+	background := palette.surface.visual_background
+	appearance_changed := palette.chrome.background != ?u32(background)
+	palette.chrome.layout(palette.container, frame.width, frame.height, scale, background)
+	if appearance_changed {
+		C.witty_palette_set_search_prompt(palette.field, nsstring('Execute a command…'))
+	}
+	msg_void_rect(palette.field, 'setFrame:', objc_rect(14, 12.5, math.max(0.0, frame.width - 28), 34))
+	msg_void_rect(palette.scroll, 'setFrame:', objc_rect(0, palette_header_height, frame.width, scroll_height))
 	msg_void_rect(palette.document, 'setFrame:',
-		objc_rect(0, 0, width, msg_rect(palette.document, 'frame').height))
+		objc_rect(0, 0, frame.width, msg_rect(palette.document, 'frame').height))
 }
 
 fn (mut palette NativeCommandPalette) close() {
@@ -261,8 +255,7 @@ fn (mut palette NativeCommandPalette) rebuild() {
 	width := msg_rect(palette.document, 'bounds').width
 	if palette.filtered.len == 0 {
 		msg_void_rect(palette.document, 'setFrame:', objc_rect(0, 0, width, 48))
-		label := action_label('No matches', objc_rect(16, 12, math.max(0.0, width - 32), 24))
-		msg_void_u64(label, 'setAutoresizingMask:', 2)
+		label := new_palette_empty_message(objc_rect(0, 0, width, 48))
 		msg_void1(palette.document, 'addSubview:', label)
 		msg_void(label, 'release')
 		return

@@ -69,6 +69,31 @@ fn palette_row_restyle(view ObjId, _cmd Sel) {
 	msg_void_bool(view, 'setNeedsDisplay:', true)
 }
 
+fn new_palette_empty_message(frame ObjCRect) ObjId {
+	mut cls := get_class('WittyPaletteEmptyMessage')
+	if is_nil(cls) {
+		cls = C.macos_objc_allocate_class_pair(get_class('NSView'), cstr('WittyPaletteEmptyMessage'), 0)
+		add_method(cls, 'isFlipped', voidptr(action_flipped), 'B@:')
+		add_method(cls, 'drawRect:', voidptr(palette_draw_empty_message), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
+		C.macos_objc_register_class_pair(cls)
+	}
+	view := msg_id_rect(msg_id(cls, 'alloc'), 'initWithFrame:', frame)
+	msg_void_u64(view, 'setAutoresizingMask:', 2)
+	msg_void_bool(view, 'setAccessibilityElement:', true)
+	msg_void1(view, 'setAccessibilityRole:', nsstring('AXStaticText'))
+	msg_void1(view, 'setAccessibilityValue:', nsstring('No matches'))
+	return view
+}
+
+fn palette_draw_empty_message(view ObjId, _cmd Sel, _rect ObjCRect) {
+	context := native_canvas_overlay_context()
+	if is_nil(context) { return }
+	frame := msg_rect(view, 'bounds')
+	ink := msg_id(get_class('NSColor'), 'secondaryLabelColor')
+	C.witty_palette_draw_row_text(context, nsstring('No matches'), ink, 13, false, 16, 29,
+		frame.width - 32, frame.height)
+}
+
 fn draw_palette_row_mask(context voidptr, view ObjId, frame ObjCRect, scale f64, radius f64, opts NativeCanvasRoundedMaskOptions, color u32) {
 	width := int(math.round(frame.width * scale))
 	height := int(math.round(frame.height * scale))

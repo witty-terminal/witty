@@ -5,6 +5,20 @@
 #include <AppKit/AppKit.h>
 #include <CoreText/CoreText.h>
 
+static inline void witty_palette_set_search_prompt(NSTextField *field, NSString *prompt) {
+    [field.effectiveAppearance performAsCurrentDrawingAppearance:^{
+        NSColor *color = [[NSColor placeholderTextColor] colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+        if (!color) return;
+        // Match the SwiftUI prompt's opacity in the palette.
+        double transparency = 1 - color.alphaComponent;
+        NSColor *ink = [color colorWithAlphaComponent:1 - transparency * transparency];
+        NSAttributedString *value = [[NSAttributedString alloc] initWithString:prompt
+            attributes:@{NSForegroundColorAttributeName:ink, NSFontAttributeName:field.font}];
+        field.placeholderAttributedString = value;
+        [value release];
+    }];
+}
+
 static inline void witty_palette_draw_swatch(CGContextRef context, const CGRect *rect, CGImageRef mask,
         NSColor *color) {
     CGContextSaveGState(context);

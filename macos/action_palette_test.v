@@ -35,6 +35,9 @@ fn test_native_palette_edit_and_wrapping_selection_consumers() {
 	])
 	mut palette := surface.palette
 	assert palette.selected == none
+	assert msg_rect(palette.container, 'bounds').height == 249
+	assert !is_nil(msg_id(palette.chrome.mask, 'contents'))
+	assert !is_nil(msg_id(palette.chrome.shadow, 'contents'))
 	rows := msg_id(palette.document, 'subviews')
 	first_row := msg_id_u64(rows, 'objectAtIndex:', 0)
 	second_row := msg_id_u64(rows, 'objectAtIndex:', 1)
@@ -60,8 +63,64 @@ fn test_native_palette_edit_and_wrapping_selection_consumers() {
 	palette_edit(palette.owner, nil_obj(), nil_obj())
 	assert palette.filtered.len == 0
 	assert msg_rect(palette.scroll, 'frame').height == 48
+	assert msg_rect(palette.container, 'bounds').height == 97
 	surface.toggle_command_palette([]NativeCommandOption{})
 	assert surface.palette == unsafe { nil }
+}
+
+fn test_native_palette_panel_capture() {
+	output := os.getenv_opt('WITTY_PALETTE_PANEL_OUTPUT') or { return }
+	app_init()
+	frame := objc_rect(0, 0, 680, 440)
+	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
+		frame, 0, ns_backing_store_buffered, false)
+	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
+	view := create_offscreen_terminal_view(680, 440)
+	msg_void1(window, 'setContentView:', view)
+	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{})
+	base := msg_id_rect(alloc('NSView'), 'initWithFrame:', frame)
+	msg_void_bool(base, 'setWantsLayer:', true)
+	C.witty_canvas_place_overlay(view, base, nil_obj())
+	C.witty_canvas_place_overlay(view, surface.overlay, nil_obj())
+	msg_void(base, 'release')
+	defer {
+		surface.deinit()
+		msg_void(window, 'close')
+		msg_void(window, 'release')
+		release_offscreen_terminal_view(view)
+	}
+	options := [
+		NativeCommandOption{ title: 'Copy Selection' },
+		NativeCommandOption{ title: 'Reload Configuration', subtitle: 'Apply the configuration file' },
+		NativeCommandOption{ title: 'Split Right', description: 'Open a terminal in a new split' },
+	]
+	for i, mode in ['dark', 'light'] {
+		color := if i == 0 { u32(0x344d66) } else { u32(0xd6c9b0) }
+		surface.visual_background = color
+		msg_void1(msg_id(base, 'layer'), 'setBackgroundColor:', msg_id(native_color(color, 1), 'CGColor'))
+		surface.toggle_command_palette(options)
+		mut palette := surface.palette
+		for j, name in ['panel', 'empty', 'single', 'terminal'] {
+			palette.options = match j {
+				1 { []NativeCommandOption{} }
+				2 { [options[0]] }
+				else { options }
+			}
+			palette.rebuild()
+			height := msg_rect(palette.container, 'bounds').height
+			if name == 'terminal' {
+				assert msg_rect(palette.container, 'frame').y == 46
+			} else {
+				msg_void_rect(palette.container, 'setFrame:', objc_rect(90, 80, 500, height))
+			}
+			png := C.witty_overlay_test_png(ObjId(view))
+			assert !is_nil(png)
+			assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(output,
+				'${mode}-${name}-witty.png')), ObjId(1))
+		}
+		surface.toggle_command_palette([]NativeCommandOption{})
+	}
 }
 
 fn test_native_palette_row_capture() {

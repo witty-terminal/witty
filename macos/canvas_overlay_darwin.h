@@ -18,6 +18,12 @@ static inline void witty_canvas_set_material_mask(NSVisualEffectView *view, CGIm
     [image release];
 }
 
+static inline void witty_canvas_set_image(NSImageView *view, CGImageRef pixels) {
+    NSImage *image = [[NSImage alloc] initWithCGImage:pixels size:NSZeroSize];
+    view.image = image;
+    [image release];
+}
+
 static inline uint32_t witty_canvas_resolve_srgb_alpha(void *view, void *color, double *alpha) {
     __block uint32_t rgb = 0;
     [[(NSView *)view effectiveAppearance] performAsCurrentDrawingAppearance:^{

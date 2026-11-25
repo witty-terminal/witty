@@ -322,6 +322,7 @@ fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
 		state.refresh_hover_visuals()
 		state.refresh_readonly_badge()
 		state.refresh_key_visuals()
+		if state.palette != unsafe { nil } { state.palette.layout() }
 	}
 }
 
@@ -338,6 +339,10 @@ fn action_overlay_colors_changed(self ObjId, _cmd Sel, _notification ObjId) {
 		state.refresh_hover_appearance()
 		msg_void_bool(state.readonly_ink, 'setNeedsDisplay:', true)
 		state.update_key_colors()
+		if state.palette != unsafe { nil } {
+			state.palette.layout()
+			state.palette.repaint_rows()
+		}
 	}
 }
 
