@@ -403,6 +403,8 @@ def capture_surface_badge(binary, args, helper, prefix, name, settle, scale, *, 
                 region = (width // 2, 0, width, 48 * scale)
                 command = ["key", "ctrl+alt+o"]
             before = idle.crop(region)
+            link_cells = (0, 0, width, 24 * scale)
+            unhovered = idle.crop(link_cells) if name == "link-preview" else None
         try:
             subprocess.run(["xdotool", *command], check=True, timeout=5)
             # Read-only uses a 500 ms GTK crossfade.
@@ -411,7 +413,12 @@ def capture_surface_badge(binary, args, helper, prefix, name, settle, scale, *, 
             deadline = time.monotonic() + 4
             while time.monotonic() < deadline:
                 with read_window(helper, window) as image:
-                    if ImageChops.difference(before, image.crop(region)).getbbox():
+                    # The preview label can appear before the terminal has painted the underline.
+                    preview_visible = ImageChops.difference(before, image.crop(region)).getbbox()
+                    underline_visible = (
+                        unhovered is None or ImageChops.difference(unhovered, image.crop(link_cells)).getbbox()
+                    )
+                    if preview_visible and underline_visible:
                         image.save(prefix.with_suffix(".png"))
                         return
                 time.sleep(0.05)
