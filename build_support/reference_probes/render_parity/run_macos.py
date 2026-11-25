@@ -28,9 +28,21 @@ OPTIONS = (
     "--cursor-color=ffeeaa",
     "--cursor-style-blink=false",
 )
+DEFAULT_WINDOW = ("--window-width=0", "--window-height=0")
 CLEAR = r'printf "\033[2J\033[H"'
 CLEAR_AND_HIDE_CURSOR = r'printf "\033[2J\033[H\033[?25l"'
 CURSOR = r'printf "\033[2J\033[H\033[4G\033[38;2;151;249;164mabc\033[0m"'
+LESS = r'''while :; do
+    size=$(/bin/stty size) || exit 1
+    case "$size" in
+        "0 "*|*" 0") /bin/sleep 0.01 ;;
+        *) break ;;
+    esac
+done
+printf '\033[?25l'
+exec /usr/bin/env -i TERM=xterm-256color LC_ALL=en_US.UTF-8 LESSHISTFILE=- LESSSECURE=1 \
+    /usr/bin/less -N -PsPager pager.txt
+'''
 ZSH = r'''stty -echo
 printf '\033[2J\033[H\033[1;32malex\033[0m files %%\r\n'
 whence -v printf
@@ -54,6 +66,9 @@ def prepare_fixtures(work):
     (files / "terminal.py").write_text(source + '    return input_path.read_text(encoding="utf-8")\n')
     (work / "patch.py").write_text(source + "    return input_path.read_bytes()\n")
     (work / "zsh-fixture.sh").write_text(ZSH)
+    (work / "pager.txt").write_text(
+        "".join(f"Section {section:02d}   Terminal pager fixture\n" for section in range(1, 31))
+    )
 
     width, height = 32, 24
     pixels = bytes(
@@ -82,6 +97,7 @@ def fixture_args(work):
         "-c", "syntax on", "files/terminal.py",
     )
     cursor = terminal_command(CURSOR)
+    pager = ("-e", "/bin/sh", "-c", LESS)
     return {
         "blank": terminal_command(CLEAR),
         "kitty": kitty,
@@ -89,7 +105,9 @@ def fixture_args(work):
             "--background-opacity=0.5", "--window-padding-x=7,5", "--window-padding-y=3,8", *kitty,
         ),
         "vim": vim,
-        "vim-default": ("--window-width=0", "--window-height=0", *vim),
+        "vim-default": (*DEFAULT_WINDOW, *vim),
+        "pager": pager,
+        "pager-default": (*DEFAULT_WINDOW, *pager),
         "cursor": cursor,
         "cursor-srgb": ("--window-colorspace=srgb", "--alpha-blending=linear-corrected", *cursor),
         "ls": terminal_command(f"{CLEAR_AND_HIDE_CURSOR}; /bin/ls -G -C files"),
