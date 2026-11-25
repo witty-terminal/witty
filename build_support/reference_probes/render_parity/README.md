@@ -1,0 +1,24 @@
+# Linux terminal render comparison
+
+Run this probe on Linux with an installed [Ghostty GTK release](https://ghostty.org/download), Python 3 with Pillow, DejaVu Sans Mono, Xvfb, `xauth`, `dbus-run-session`, `xdotool`, a C compiler with X11 headers, GNU `ls`, Git, and Vim.
+
+Build Witty with release settings so both applications use the same terminal viewport dimensions.
+
+```sh
+VFLAGS='-cc clang -nocache' v -path "$PWD|@vlib|@vmodules" run tools/build install \
+  -Doptimize=ReleaseSafe --prefix "$PWD/.witty-build/render-parity-witty"
+```
+
+From the repository root, start a fresh 24-bit Xvfb session and pass the two executable paths.
+
+```sh
+xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- \
+  python3 build_support/reference_probes/render_parity/run.py \
+  .witty-build/render-parity-witty/bin/witty "$(command -v ghostty)"
+```
+
+The probe uses Witty’s `--screenshot` and captures Ghostty’s matching X11 client window. It compares decoded RGBA pixels for ANSI colors, Unicode and emoji, Kitty images, colored `ls` output, Git diff, Vim, and a two-pass GLSL shader.
+
+Each run saves the PNGs, application logs, executable versions and hashes, and a `results.tsv` report under `.witty-build/render-parity/`. Differing pixels appear white in the corresponding `*-diff.png` mask. A size or pixel mismatch returns exit status 1.
+
+Use `--output` to choose a new directory, `--fixture` to repeat a single case, or `--settle-seconds` to allow more time for rendering on a slower host.
