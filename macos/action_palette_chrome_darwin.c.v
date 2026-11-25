@@ -3,24 +3,32 @@ module macos
 import gg.canvas
 import math
 
+#insert "@VMODROOT/macos/action_palette_chrome_darwin.h"
+
 fn C.witty_canvas_set_image(view ObjId, image voidptr)
+fn C.witty_palette_backdrop_layer(plate ObjId) ObjId
+fn C.witty_palette_backdrop_appearance(material ObjId, light bool, limit voidptr)
+fn C.witty_palette_backdrop_frame(material ObjId, width f64, height f64, scale f64)
 
 const palette_search_height = 48.0
 const palette_header_height = palette_search_height + 1
 // Panel padding and spacing in TerminalCommandPaletteView.
 const palette_top_inset = 24.0
 const palette_corner_radius = 10.0
+const palette_shadow_offset = 12.0
 
 struct PaletteChrome {
 mut:
 	plate           ObjId
 	material        ObjId
+	native_backdrop bool
 	opaque_material ObjId
 	mask            ObjId
 	tint            ObjId
 	stroke          ObjId
 	divider         ObjId
 	shadow          ObjId
+	shadow_mask     ObjId
 	size            ObjCSize
 	scale           f64
 	background      ?u32
@@ -36,7 +44,10 @@ fn new_palette_chrome(container ObjId) PaletteChrome {
 	layer_class := get_class('CALayer')
 
 	shadow := msg_id(layer_class, 'layer')
-	msg_void_f64(shadow, 'setZPosition:', -1)
+	shadow_mask := msg_id(layer_class, 'layer')
+	msg_void1(shadow, 'setMask:', shadow_mask)
+	// Draw the exterior shadow after the material has sampled the terminal.
+	msg_void_f64(shadow, 'setZPosition:', 0.5)
 	msg_void1(root, 'addSublayer:', shadow)
 
 	plate := msg_id_rect(alloc('WittyPaletteContainer'), 'initWithFrame:', frame)
@@ -47,10 +58,14 @@ fn new_palette_chrome(container ObjId) PaletteChrome {
 	mask := msg_id(layer_class, 'layer')
 	msg_void1(plate_layer, 'setMask:', mask)
 
-	material := native_canvas_material_view(frame)
-	msg_void_u64(material, 'setMaterial:', 21) // NSVisualEffectMaterialUnderWindowBackground.
-	msg_void1(plate, 'addSubview:', material)
-	msg_void(material, 'release')
+	mut material := C.witty_palette_backdrop_layer(plate)
+	native_backdrop := !is_nil(material)
+	if !native_backdrop {
+		material = native_canvas_material_view(frame)
+		msg_void_u64(material, 'setMaterial:', 21) // NSVisualEffectMaterialUnderWindowBackground.
+		msg_void1(plate, 'addSubview:', material)
+		msg_void(material, 'release')
+	}
 
 	opaque_material := palette_chrome_image(plate, frame)
 	tint := palette_chrome_image(plate, frame)
@@ -61,12 +76,14 @@ fn new_palette_chrome(container ObjId) PaletteChrome {
 	return PaletteChrome{
 		plate:           plate
 		material:        material
+		native_backdrop: native_backdrop
 		opaque_material: opaque_material
 		mask:            mask
 		tint:            tint
 		stroke:          stroke
 		divider:         divider
 		shadow:          shadow
+		shadow_mask:     shadow_mask
 	}
 }
 
@@ -96,6 +113,13 @@ fn (mut chrome PaletteChrome) layout(container ObjId, width f64, height f64, sca
 		appearance := if light { 'NSAppearanceNameAqua' } else { 'NSAppearanceNameDarkAqua' }
 		msg_void1(container, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',
 			nsstring(appearance)))
+		if chrome.native_backdrop {
+			// Clamp the material luminosity before applying the terminal tint.
+			gray := if light { f32(0.975) } else { f32(0.08) }
+			limit := C.witty_canvas_make_srgb_tile(gray, gray, gray, 1)
+			C.witty_palette_backdrop_appearance(chrome.material, light, limit)
+			if !is_nil(limit) { C.CFRelease(limit) }
+		}
 		tile := native_canvas_fill_tile(background, target: container)
 		if !is_nil(tile) {
 			C.witty_canvas_set_image(chrome.tint, tile)
@@ -128,7 +152,11 @@ fn (mut chrome PaletteChrome) layout(container ObjId, width f64, height f64, sca
 	height_px := int(math.round(height * scale))
 	if geometry_changed {
 		msg_void_rect(chrome.plate, 'setFrame:', frame)
-		msg_void_rect(chrome.material, 'setFrame:', frame)
+		if chrome.native_backdrop {
+			C.witty_palette_backdrop_frame(chrome.material, width, height, scale)
+		} else {
+			msg_void_rect(chrome.material, 'setFrame:', frame)
+		}
 		msg_void_rect(chrome.opaque_material, 'setFrame:', frame)
 		msg_void_rect(chrome.mask, 'setFrame:', frame)
 		msg_void_rect(chrome.tint, 'setFrame:', frame)
@@ -137,7 +165,7 @@ fn (mut chrome PaletteChrome) layout(container ObjId, width f64, height f64, sca
 			style: .continuous
 		) or { return }
 		set_palette_mask(chrome.mask, shape, 0xffffff, nil_obj())
-		chrome.update_shadow(container, width, height)
+		chrome.update_shadow(container, width, height, scale, shape)
 	}
 
 	mut opacity := 0.0
@@ -181,7 +209,7 @@ fn set_palette_mask(layer ObjId, mask canvas.RasterSurface, color u32, target Ob
 	}
 }
 
-fn (chrome &PaletteChrome) update_shadow(container ObjId, width f64, height f64) {
+fn (chrome &PaletteChrome) update_shadow(container ObjId, width f64, height f64, scale f64, plate canvas.RasterSurface) {
 	// The shadow is smooth at this resolution, including on Retina displays.
 	sample_scale := 0.5
 	shape := native_canvas_rounded_mask(int(math.ceil(width * sample_scale)),
@@ -190,8 +218,28 @@ fn (chrome &PaletteChrome) update_shadow(container ObjId, width f64, height f64)
 	) or { return }
 	shadow := native_canvas_shadow_mask(shape, 29 * sample_scale, 0.33) or { return }
 	pad := (shadow.width - shape.width) / 2 / sample_scale
-	offset := if msg_bool(msg_id(container, 'layer'), 'isGeometryFlipped') { -12.0 } else { 12.0 }
+	offset := if msg_bool(msg_id(container, 'layer'), 'isGeometryFlipped') {
+		-palette_shadow_offset
+	} else {
+		palette_shadow_offset
+	}
 	msg_void_rect(chrome.shadow, 'setFrame:', objc_rect(-pad, -pad + offset,
 		width + 2 * pad, height + 2 * pad))
 	set_palette_mask(chrome.shadow, shadow, 0, container)
+
+	// The mask uses the plate's backing scale to keep the rounded edge aligned.
+	px_pad := int(math.round(pad * scale))
+	mut mask := canvas.new_raster_surface(width: plate.width + 2 * px_pad,
+		height: plate.height + 2 * px_pad) or { return }
+	mask.clear(0xffffffff)
+	plate_y := px_pad - int(math.round(palette_shadow_offset * scale))
+	for y in 0 .. plate.height {
+		dst := (plate_y + y) * mask.width + px_pad
+		src := y * plate.width
+		for x in 0 .. plate.width {
+			mask.pixels[dst + x] = (255 - (plate.pixels[src + x] >> 24)) * 0x01010101
+		}
+	}
+	msg_void_rect(chrome.shadow_mask, 'setFrame:', msg_rect(chrome.shadow, 'bounds'))
+	set_palette_mask(chrome.shadow_mask, mask, 0xffffff, nil_obj())
 }

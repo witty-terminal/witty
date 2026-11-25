@@ -89,6 +89,18 @@ fn test_native_palette_edit_and_wrapping_selection_consumers() {
 	assert msg_rect(palette.container, 'bounds').height == 249
 	assert !is_nil(msg_id(palette.chrome.mask, 'contents'))
 	assert !is_nil(msg_id(palette.chrome.shadow, 'contents'))
+	assert !is_nil(msg_id(palette.chrome.shadow_mask, 'contents'))
+	assert msg_rect(palette.chrome.shadow_mask, 'frame') == msg_rect(palette.chrome.shadow, 'bounds')
+	assert msg_f64(palette.chrome.shadow, 'zPosition') > msg_f64(msg_id(palette.chrome.plate,
+		'layer'), 'zPosition')
+	if palette.chrome.native_backdrop {
+		layers := msg_id(palette.chrome.material, 'sublayers')
+		blur := msg_id_u64(layers, 'objectAtIndex:', 0)
+		assert msg_u64(msg_id(blur, 'filters'), 'count') == 2
+		assert msg_rect(blur, 'frame') == msg_rect(palette.chrome.plate, 'bounds')
+		limit := msg_id_u64(layers, 'objectAtIndex:', 1)
+		assert !is_nil(msg_id(limit, 'contents'))
+	}
 	reduced := msg_bool(msg_id(get_class('NSWorkspace'), 'sharedWorkspace'),
 		'accessibilityDisplayShouldReduceTransparency')
 	assert msg_bool(palette.chrome.material, 'isHidden') == reduced
