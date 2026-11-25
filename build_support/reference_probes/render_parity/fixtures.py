@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import termios
+import time
 import tty
 
 
@@ -342,6 +343,25 @@ def scrollback_output():
         termios.tcsetattr(sys.stdin, termios.TCSANOW, attrs)
 
 
+def colored_line_erase():
+    # An erase issued before the startup resize uses the old right edge.
+    expected = (GRID_COLUMNS, GRID_ROWS)
+    deadline = time.monotonic() + 5
+    size = os.get_terminal_size(sys.stdout.fileno())
+    while size != expected:
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"Expected a {GRID_COLUMNS}×{GRID_ROWS} PTY, got {size.columns}×{size.lines}")
+        time.sleep(0.01)
+        size = os.get_terminal_size(sys.stdout.fileno())
+
+    return (
+        "Colored line erase\x1b[2;1HErase to end \x1b[48;2;71;99;143m\x1b[K\x1b[0m"
+        "\x1b[3;23HErase to start\x1b[3;22H\x1b[48;2;55;105;81m\x1b[1K\x1b[0m"
+        "\x1b[4;17HPreviously visible\x1b[48;2;112;73;96m\x1b[2K\x1b[1GErase whole row\x1b[0m"
+        f"\x1b[{GRID_ROWS};1HLast row \x1b[48;2;99;75;59m\x1b[K\x1b[0m"
+    ).encode()
+
+
 def main():
     fixture = sys.argv[1]
     output = {
@@ -425,6 +445,8 @@ def main():
         sys.stdout.buffer.write(kitty_animation())
     elif fixture == "terminal-sprites":
         sys.stdout.buffer.write(terminal_sprites())
+    elif fixture == "colored-line-erase":
+        sys.stdout.buffer.write(colored_line_erase())
     elif fixture in SCROLLBACK_FIXTURES:
         scrollback_output()
         return

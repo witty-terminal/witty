@@ -13,7 +13,7 @@ from capture import (
 COLUMNS = 60
 ROWS = 12
 PADDING = 2
-COMMAND = r'printf "\033[2J\033[H\033[?25l\033[48;2;255;0;0m     \033[0m"; exec /bin/sleep 20'
+COMMAND = r'stty size > "$1" || exit; printf "\033[2J\033[H\033[?25l\033[48;2;255;0;0m\033[K\033[0m"; exec /bin/sleep 20'
 UNLINKABLE_SHADER = """\
 layout(location = 2) in vec4 input_color;
 void mainImage(out vec4 color, in vec2 uv) {
@@ -23,6 +23,7 @@ void mainImage(out vec4 color, in vec2 uv) {
 
 
 def capture_grid(binary, name, columns, rows, *options):
+    pty_size = name.with_suffix(".pty-size")
     capture_witty(
         binary,
         [
@@ -33,16 +34,18 @@ def capture_grid(binary, name, columns, rows, *options):
             f"--window-height={rows}",
             "--shell-integration=none",
             *options,
-            "-e", "/bin/sh", "-c", COMMAND,
+            "-e", "/bin/sh", "-c", COMMAND, "grid-probe", str(pty_size),
         ],
         name,
         1,
     )
+    if pty_size.read_text().split() != [str(rows), str(columns)]:
+        raise RuntimeError(f"Expected a {columns}×{rows} initial PTY. See {pty_size}")
     with Image.open(name.with_suffix(".png")) as png:
         frame = png.convert("RGB")
-        marker = frame.getpixel((PADDING + 1, PADDING + 1))
-        if marker != (255, 0, 0):
-            raise RuntimeError(f"{name}.png is missing the terminal's red cell background")
+        line = frame.crop((PADDING, PADDING, frame.width - PADDING, PADDING + 1))
+        if line.getcolors(1) != [(line.width, (255, 0, 0))]:
+            raise RuntimeError(f"{name}.png is missing the red background across the first terminal row")
         return frame.size
 
 
@@ -124,7 +127,7 @@ def main():
         check_shader_reload(binary, output)
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         parser.exit(1, f"Linux screenshot check failed: {error}\n")
-    print(f"Verified terminal grid sizing, shader fallback, and shader reload. See {output}")
+    print(f"Verified initial PTY and screenshot sizing, full-width erase, shader fallback, and shader reload. See {output}")
 
 
 if __name__ == "__main__":

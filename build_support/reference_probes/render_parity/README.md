@@ -22,6 +22,7 @@ xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- \
 The probe uses Witty’s `--screenshot` and captures Ghostty’s matching X11 client window with decorations and the scrollbar hidden. It compares decoded RGBA pixels for ANSI colors, text decorations, Unicode and emoji, wide characters wrapping at the right edge, block, bar, and underline cursors, Kitty images and Unicode placeholders, stretched and repeated background images, colored `ls` output, Git diff, Vim, and a two-pass GLSL shader. The Kitty fixtures also cover clipping, retransmission, interrupted chunked uploads, relative placement, cursor movement, image deletion, scrollback clearing, and z-index ordering across cell backgrounds, text, and overlapping images. The animation fixture covers chunked frame edits, frame composition, and playback through a finite loop.
 
 The terminal glyph fixtures cover box drawing, block elements, Braille patterns, and Powerline separators at default and adjusted cell sizes.
+The colored line erase fixture waits for the configured PTY grid before erasing to either edge and across a full row.
 The text selection fixture uses a mouse drag starting on the second cell of an emoji to verify the highlight covers the full glyph.
 The Unicode input fixtures capture GTK’s underlined preview over a terminal wallpaper and at the right edge before the character is committed.
 The scrollback fixtures update the palette and append a row after scrolling into history, with `scroll-to-bottom=output` enabled and disabled.
@@ -31,7 +32,7 @@ Each run saves the PNGs, application logs, executable versions and hashes, and a
 
 Use `--output` to choose a new directory, `--fixture` to repeat a single case, or `--settle-seconds` to allow more time for rendering on a slower host. Pass `--scale 2` to compare HiDPI captures. The probe defaults to 1× and records the requested GTK scale in `versions.txt`.
 
-The regular Linux CI build checks two grid sizes, capture with a configured tab bar, and rendering after an OpenGL shader link failure. It also replaces a red shader with a green one in a running terminal and uses the reload keybinding to verify that the rendered frame changes.
+The regular Linux CI build checks the initial PTY and a full-width colored erase at two grid sizes, capture with a configured tab bar, and rendering after an OpenGL shader link failure. It also replaces a red shader with a green one in a running terminal and uses the reload keybinding to verify that the rendered frame changes.
 
 The [Linux render parity workflow](../../../.github/workflows/render-parity.yml) runs on demand in GitHub Actions. It builds Witty on Ubuntu 26.04, verifies and extracts the pinned Ghostty 1.4.0 reference package, and uploads the screenshots, logs, and report. On Ubuntu 26.04 with the capture dependencies installed, the same script can compare an existing Witty build locally.
 
