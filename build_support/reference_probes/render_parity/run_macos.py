@@ -29,9 +29,25 @@ OPTIONS = (
     "--cursor-style-blink=false",
 )
 DEFAULT_WINDOW = ("--window-width=0", "--window-height=0")
+TRANSLUCENT_WINDOW = (
+    "--background-opacity=0.5", "--window-padding-x=7,5", "--window-padding-y=3,8",
+)
 CLEAR = r'printf "\033[2J\033[H"'
 CLEAR_AND_HIDE_CURSOR = r'printf "\033[2J\033[H\033[?25l"'
 CURSOR = r'printf "\033[2J\033[H\033[4G\033[38;2;151;249;164mabc\033[0m"'
+TEXT = "ordinary text 0123456789 -+=>\r\nASCII ilI1O0 fi ffi => != ->\r\n"
+ANSI = (
+    "\x1b[1;31mBold red\x1b[0m / \x1b[3;32mItalic green\x1b[0m / \x1b[4;34mUnderline blue\x1b[0m\r\n"
+    "\x1b[7mReverse\x1b[0m / \x1b[9mStrike\x1b[0m / \x1b[2mFaint\x1b[0m / "
+    "\x1b[38;2;123;89;245;48;2;17;24;37mTrue Color\x1b[0m\r\n"
+    "\x1b[48;5;24m     indexed background     \x1b[0m\r\n"
+)
+UNICODE = (
+    "┌─────┬─────┐ ╭────╮ ░▒▓█\r\n"
+    "│ ▄▆▀ └→←↕  │ │ ▖▚▝ │\r\n"
+    "└─────┴─────┘ ╰────╯ \ue0b0 \ue0b2\r\n"
+    "café cafe\u0301 漢字 😀 🚀 ❤️ 👩‍💻\r\n"
+)
 LESS = r'''while :; do
     size=$(/bin/stty size) || exit 1
     case "$size" in
@@ -69,6 +85,8 @@ def prepare_fixtures(work):
     (work / "pager.txt").write_text(
         "".join(f"Section {section:02d}   Terminal pager fixture\n" for section in range(1, 31))
     )
+    for name, payload in (("text", TEXT), ("ansi", ANSI), ("unicode", UNICODE)):
+        (work / f"{name}.bin").write_bytes(("\x1b[2J\x1b[H" + payload).encode("utf-8"))
 
     width, height = 32, 24
     pixels = bytes(
@@ -98,12 +116,17 @@ def fixture_args(work):
     )
     cursor = terminal_command(CURSOR)
     pager = ("-e", "/bin/sh", "-c", LESS)
+    ansi = terminal_command("/bin/cat ansi.bin")
+    unicode = terminal_command("/bin/cat unicode.bin")
     return {
         "blank": terminal_command(CLEAR),
+        "text": terminal_command("/bin/cat text.bin"),
+        "ansi": ansi,
+        "ansi-translucent": (*TRANSLUCENT_WINDOW, "--background-opacity-cells=true", *ansi),
+        "unicode": unicode,
+        "unicode-translucent": (*TRANSLUCENT_WINDOW, *unicode),
         "kitty": kitty,
-        "kitty-translucent": (
-            "--background-opacity=0.5", "--window-padding-x=7,5", "--window-padding-y=3,8", *kitty,
-        ),
+        "kitty-translucent": (*TRANSLUCENT_WINDOW, *kitty),
         "vim": vim,
         "vim-default": (*DEFAULT_WINDOW, *vim),
         "pager": pager,

@@ -77,6 +77,8 @@ python3 build_support/reference_probes/render_parity/run_macos.py \
   ./Witty.app/Contents/MacOS/witty
 ```
 
-The probe runs Witty's screenshot command offscreen and compares the dimensions and SHA-256 of the decoded RGBA pixels in twelve fixtures. It saves screenshots, logs, the executable hash, and a comparison report under `.witty-build/render-parity/`. It accepts the same `--output`, `--fixture`, and `--settle-seconds` options.
+The probe runs Witty's screenshot command offscreen and compares the dimensions and SHA-256 of the decoded RGBA pixels. It saves screenshots, logs, the executable hash, and a comparison report under `.witty-build/render-parity/`. It accepts the same `--output`, `--fixture`, and `--settle-seconds` options.
+
+The terminal text fixtures cover ligatures, ANSI colors and decorations, box drawing, Powerline separators, combining accents, wide characters, and emoji. The translucent cases check how styled cells and glyphs blend over a partially transparent background with unequal padding.
 
 The [reference table](ghostty-1.4.0-macos.tsv) uses captures from Ghostty's own terminal IOSurface at 2× on Apple Silicon running macOS 27.2. It covers the cursor, sRGB blending, translucent Kitty graphics, Vim and `less` at explicit and default window sizes, colored `ls`, Git diff, and zsh. The `less` fixtures wait for the PTY grid before capturing the numbered lines and status prompt. The original Ghostty 1.4.0 executable had SHA-256 `4b30ac9b049cdf9eb75b6d8c7764856c2b882de97c688dce8a1b80916b55271b`. [Ghostty download](https://ghostty.org/download)
