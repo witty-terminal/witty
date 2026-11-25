@@ -92,7 +92,15 @@ mut:
 	key_drag_offset     f64
 	key_dragging        bool
 	key_width           f64
-	key_dots            []ObjId
+	key_dots            [3]ObjId
+	key_parts           []KeyIndicatorPart
+	key_dot_start       f64
+	key_layout_scale    f64
+	key_surface_size    ObjCSize
+	key_surface_scale   f64
+	key_material        ObjId
+	key_shadow          ObjId
+	key_ink             ObjId
 	previous_sequence   []string
 	previous_tables     []string
 	hover_tracking_rect ObjCRect
@@ -235,8 +243,7 @@ pub fn new_action_surface(view voidptr, userdata voidptr, callbacks ActionCallba
 	}
 	state.initialize_progress()
 	g_action_surfaces[u64(view)] = state
-	state.key_badge = new_key_indicator(state)
-	msg_void1(state.overlay, 'addSubview:', state.key_badge)
+	state.initialize_key_indicator()
 	state.initialize_readonly_badge()
 	state.health_label = new_health_overlay()
 	msg_void1(state.overlay, 'addSubview:', state.health_label)
@@ -271,6 +278,7 @@ pub fn (mut state NativeActionSurface) deinit() {
 	C.macos_objc_set_ptr_ivar(state.owner, cstr('state'), nil_obj())
 	C.macos_objc_set_ptr_ivar(state.overlay, cstr('state'), nil_obj())
 	C.macos_objc_set_ptr_ivar(state.key_badge, cstr('state'), nil_obj())
+	C.macos_objc_set_ptr_ivar(state.key_ink, cstr('state'), nil_obj())
 	C.macos_objc_set_ptr_ivar(state.hover_label, cstr('state'), nil_obj())
 	msg_void1(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'), 'removeObserver:', state.overlay)
 	msg_void(state.overlay, 'removeFromSuperview')
@@ -313,6 +321,7 @@ fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
 		}
 		state.refresh_hover_visuals()
 		state.refresh_readonly_badge()
+		state.refresh_key_visuals()
 	}
 }
 
@@ -328,6 +337,7 @@ fn action_overlay_colors_changed(self ObjId, _cmd Sel, _notification ObjId) {
 		state.refresh_secure_visuals()
 		state.refresh_hover_appearance()
 		msg_void_bool(state.readonly_ink, 'setNeedsDisplay:', true)
+		state.update_key_colors()
 	}
 }
 
@@ -626,7 +636,7 @@ fn action_progress_timer(self ObjId, _cmd Sel, _timer ObjId) {
 }
 
 fn action_pulse_timer(self ObjId, _cmd Sel, _timer ObjId) {
-	if mut state := action_owner_state(self) { state.refresh() }
+	if state := action_owner_state(self) { state.animate_key_dots() }
 }
 
 fn (mut state NativeActionSurface) show_popover(anchor ObjId, title string, text string, disable bool) {

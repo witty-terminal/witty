@@ -6,6 +6,7 @@ import math
 #insert "@VMODROOT/macos/canvas_overlay_test_bridge.h"
 
 fn C.witty_overlay_test_tile(layer ObjId) u32
+fn C.witty_overlay_test_opacity(layer ObjId) f32
 fn C.witty_overlay_test_png(view ObjId) ObjId
 
 fn test_source_native_visual_layers_and_cursor_consumers() {
@@ -19,7 +20,15 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	surface.set_key_table(0, 'first')
 	surface.set_key_sequence(true, '⌘K')
 	assert surface.key_dots.len == 3
-	assert msg_u64(msg_id(surface.key_badge, 'subviews'), 'count') >= 4
+	assert !is_nil(msg_id(surface.key_material, 'maskImage'))
+	assert !is_nil(msg_id(surface.key_shadow, 'contents'))
+	surface.apply_key_phase(0)
+	for i, dot in surface.key_dots {
+		assert !is_nil(msg_id(dot, 'contents'))
+		assert !msg_bool(dot, 'isHidden')
+		expected := 0.3 + 0.7 * ((math.sin(f64(i) * math.pi * 2 / 3) + 1) / 2)
+		assert math.abs(f64(C.witty_overlay_test_opacity(dot)) - expected) < 0.001
+	}
 	assert surface.key_width > 0
 	assert !is_nil(surface.pulse_timer)
 	surface.bell_border = true
@@ -94,9 +103,60 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	assert cursor_for_shape(4) == none
 }
 
+fn test_native_key_indicator_capture() {
+	output := os.getenv_opt('WITTY_KEY_INDICATOR_OUTPUT') or { return }
+	app_init()
+	frame := objc_rect(0, 0, 260, 96)
+	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
+		frame, 0, ns_backing_store_buffered, false)
+	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
+	view := create_offscreen_terminal_view(260, 96)
+	msg_void1(window, 'setContentView:', view)
+	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{})
+	defer {
+		surface.deinit()
+		msg_void(window, 'close')
+		msg_void(window, 'release')
+		release_offscreen_terminal_view(view)
+	}
+	base := msg_id_rect(alloc('NSView'), 'initWithFrame:', frame)
+	msg_void_bool(base, 'setWantsLayer:', true)
+	color := C.witty_macos_color_rgba(0.2, 0.3, 0.4, 1)
+	msg_void1(msg_id(base, 'layer'), 'setBackgroundColor:', msg_id(color, 'CGColor'))
+	C.witty_canvas_place_overlay(view, base, nil_obj())
+	C.witty_canvas_place_overlay(view, surface.overlay, nil_obj())
+	msg_void(base, 'release')
+	surface.scroll.layout()
+
+	names := ['table', 'stack', 'sequence', 'combined']
+	tables := [['first'], ['first', 'second'], []string{}, ['first']]
+	keys := [[]string{}, []string{}, ['⌘K', 'C'], ['⌘K']]
+	for m, appearance in ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
+		msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',
+			nsstring(appearance)))
+		mode := if m == 0 { 'light' } else { 'dark' }
+		for index, name in names {
+			surface.set_key_table(2, '')
+			surface.set_key_sequence(false, '')
+			for table in tables[index] { surface.set_key_table(0, table) }
+			for key in keys[index] { surface.set_key_sequence(true, key) }
+			surface.apply_key_phase(0)
+			badge := msg_rect(surface.key_badge, 'frame')
+			assert badge.height == if keys[index].len > 0 { 31.0 } else { 28.0 }
+			assert badge.y + badge.height == frame.height - 8
+			png := C.witty_overlay_test_png(surface.scroll.container)
+			assert !is_nil(png)
+			path := os.join_path(output, '${mode}-${name}-witty.png')
+			assert msg_bool2(png, 'writeToFile:atomically:', nsstring(path), ObjId(1))
+		}
+	}
+}
+
 fn test_readonly_badge_canvas_stroke_and_silhouette() {
-	border := readonly_round_mask(197, 46, 2, 1.5, 0.6)!
-	mask := readonly_round_mask(197, 46, 2, 0, 1)!
+	border := native_canvas_rounded_mask(197, 46, 12, style: .continuous, stroke: 3,
+		opacity: 0.6)!
+	mask := native_canvas_rounded_mask(197, 46, 12, style: .continuous)!
 	assert mask.pixels[0] == 0
 	assert mask.pixels[98] == 0xff000000
 	assert border.pixels[98] >> 24 == 153

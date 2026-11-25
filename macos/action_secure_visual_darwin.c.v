@@ -82,19 +82,6 @@ fn secure_gradient_pixel(colors [4]u32, x f64, y f64) u32 {
 	return pixel
 }
 
-fn secure_blur_kernel(sigma f64) []f64 {
-	radius := int(math.ceil(3 * sigma))
-	mut kernel := []f64{cap: 2 * radius + 1}
-	mut total := 0.0
-	for offset in -radius .. radius + 1 {
-		weight := math.exp(-f64(offset * offset) / (2 * sigma * sigma))
-		kernel << weight
-		total += weight
-	}
-	for i, weight in kernel { kernel[i] = weight / total }
-	return kernel
-}
-
 fn secure_blur_pass(pixels []u32, size int, kernel []f64, vertical bool) []u32 {
 	mut output := []u32{len: pixels.len}
 	step := if vertical { size } else { 1 }
@@ -127,7 +114,7 @@ fn secure_gradient_image(colors [4]u32, scale f64) !voidptr {
 			raster.pixels[y * size + x] = secure_gradient_pixel(colors, x - center, y - center)
 		}
 	}
-	kernel := secure_blur_kernel(4 * scale)
+	kernel := canvas_blur_kernel(4 * scale)
 	horizontal := secure_blur_pass(raster.pixels, size, kernel, false)
 	raster.pixels = secure_blur_pass(horizontal, size, kernel, true)
 	image := C.witty_canvas_make_color_image(raster.pixels.data, size, size)

@@ -12,6 +12,40 @@ fn C.witty_canvas_make_tile(pixel &u32, target ObjId, opacity f64) voidptr
 fn C.witty_canvas_make_alpha_image(pixels &u32, width int, height int, color u32, target ObjId) voidptr
 fn C.witty_canvas_make_color_image(pixels &u32, width int, height int) voidptr
 fn C.witty_canvas_present_tile(target voidptr, image voidptr, positions voidptr, count int)
+fn C.witty_canvas_set_material_mask(view ObjId, image voidptr, width f64, height f64)
+
+fn native_canvas_material_view(frame ObjCRect) ObjId {
+	mut cls := get_class('WittyCanvasMaterial')
+	if is_nil(cls) {
+		cls = C.macos_objc_allocate_class_pair(get_class('NSVisualEffectView'),
+			cstr('WittyCanvasMaterial'), 0)
+		add_method(cls, 'hitTest:', voidptr(action_passive_hit), '@@:{CGPoint=dd}')
+		C.macos_objc_register_class_pair(cls)
+	}
+	view := msg_id_rect(msg_id(cls, 'alloc'), 'initWithFrame:', frame)
+	// Active popover material corresponds to SwiftUI's regular material.
+	msg_void_u64(view, 'setMaterial:', 6)
+	msg_void_u64(view, 'setBlendingMode:', 1)
+	msg_void_u64(view, 'setState:', 1)
+	msg_void_bool(view, 'setAccessibilityElement:', false)
+	return view
+}
+
+fn native_canvas_mask_material(view ObjId, width f64, height f64, mask canvas.RasterSurface) bool {
+	image := C.witty_canvas_make_alpha_image(mask.pixels.data, mask.width, mask.height, 0xffffff,
+		nil_obj())
+	if is_nil(image) { return false }
+	C.witty_canvas_set_material_mask(view, image, width, height)
+	C.CFRelease(image)
+	return true
+}
+
+fn native_canvas_draw_mask(context voidptr, view ObjId, frame ObjCRect, mask canvas.RasterSurface, color u32) {
+	image := C.witty_canvas_make_alpha_image(mask.pixels.data, mask.width, mask.height, color, view)
+	if is_nil(image) { return }
+	C.witty_canvas_present_tile(context, image, &frame, 1)
+	C.CFRelease(image)
+}
 
 fn native_canvas_overlay_context() voidptr {
 	return voidptr(msg_id(msg_id(get_class('NSGraphicsContext'), 'currentContext'), 'CGContext'))
