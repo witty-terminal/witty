@@ -61,9 +61,15 @@ pub fn load_from_file(path string, target Target) !string {
 	mut bytes := []u8{}
 	mut buffer := []u8{len: 4096}
 	for {
-		count := file.read(mut buffer) or { return err }
-		if count == 0 { break
-		 }
+		count := file.read(mut buffer) or {
+			if err is os.Eof {
+				break
+			}
+			return err
+		}
+		if count == 0 {
+			break
+		}
 		if count > max_shader_size - bytes.len {
 			return error('shader exceeds 4 MiB limit: ${path}')
 		}

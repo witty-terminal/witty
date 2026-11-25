@@ -48,6 +48,13 @@ fn test_spirv_cross_rejects_invalid_byte_length_before_tool_lookup() {
 	assert false, 'invalid SPIR-V should fail'
 }
 
+fn test_load_shader_compiles_after_reaching_end_of_file() {
+	path := os.join_path(os.temp_dir(), 'witty-shader-eof-${os.getpid()}.glsl')
+	os.write_file(path, 'void mainImage(out vec4 color, in vec2 coord) { color = vec4(1); }')!
+	defer { os.rm(path) or {} }
+	assert load_from_file(path, .msl)!.contains('metal_stdlib')
+}
+
 fn test_shader_conversion_uses_linked_native_compilers_without_path_tools() {
 	old_path := os.getenv_opt('PATH')
 	os.setenv('PATH', '', true)
