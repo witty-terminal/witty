@@ -591,7 +591,11 @@ fn test_native_progress_overlay_capture() {
 	}
 	value_output := os.getenv('WITTY_PROGRESS_VALUE_OUTPUT')
 	if value_output != '' {
-		capture_progress_value_motion(window, base, mut surface, value_output)
+		capture_progress_value_motion(window, base, mut surface, value_output, false)
+	}
+	tint_output := os.getenv('WITTY_PROGRESS_TINT_OUTPUT')
+	if tint_output != '' {
+		capture_progress_value_motion(window, base, mut surface, tint_output, true)
 	}
 	if motion_output != '' {
 		// Use a nonzero local clock so a resize can retain the original start.
@@ -634,10 +638,15 @@ fn test_native_progress_overlay_capture() {
 	}
 }
 
-fn capture_progress_value_motion(window ObjId, base ObjId, mut surface NativeActionSurface, output string) {
+fn capture_progress_value_motion(window ObjId, base ObjId, mut surface NativeActionSurface, output string, with_tint bool) {
 	loop := msg_id(get_class('NSRunLoop'), 'currentRunLoop')
 	C.witty_macos_msg_void_f32(surface.progress_layer, sel('setSpeed:'), 0)
-	for mode in ['increase', 'decrease', 'interrupt', 'empty', 'full', 'resize'] {
+	modes := if with_tint {
+		['red', 'orange', 'interrupt', 'retint', 'tint-only']
+	} else {
+		['increase', 'decrease', 'interrupt', 'empty', 'full', 'resize']
+	}
+	for mode in modes {
 		surface.set_progress(0, none)
 		msg_void_f64(surface.progress_layer, 'setTimeOffset:', 1)
 		from := match mode {
@@ -647,18 +656,26 @@ fn capture_progress_value_motion(window ObjId, base ObjId, mut surface NativeAct
 		}
 		to := match mode {
 			'decrease' { u8(17) }
+			'tint-only' { u8(17) }
 			'empty' { u8(0) }
 			'full' { u8(100) }
 			else { u8(83) }
 		}
+		report := if with_tint {
+			if mode == 'orange' { 4 } else { 2 }
+		} else {
+			1
+		}
 		surface.set_progress(1, from)
 		assert !is_nil(C.witty_overlay_test_window_png(window))
-		surface.set_progress(1, to)
+		surface.set_progress(report, to)
 		for ms in [10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210, 230, 350] {
 			if ms == 110 {
 				msg_void_f64(surface.progress_layer, 'setTimeOffset:', 1.1)
 				if mode == 'interrupt' {
-					surface.set_progress(1, u8(38))
+					surface.set_progress(if with_tint { 4 } else { 1 }, u8(38))
+				} else if mode == 'retint' {
+					surface.set_progress(4, to)
 				} else if mode == 'resize' {
 					msg_void_size(window, 'setContentSize:', objc_size(126, 6))
 					msg_void_rect(base, 'setFrame:', objc_rect(0, 0, 126, 6))
@@ -676,8 +693,15 @@ fn capture_progress_value_motion(window ObjId, base ObjId, mut surface NativeAct
 				nsstring(os.join_path(output, '${mode}-${ms}.png')), ObjId(1))
 		}
 	}
-	surface.set_progress(1, u8(17))
-	assert !is_nil(msg_id1(surface.progress_layer, 'animationForKey:', nsstring('progressWidthOffset')))
+	surface.set_progress(1, u8(53))
+	msg_void_f64(surface.progress_layer, 'setTimeOffset:', 1.45)
+	assert !is_nil(C.witty_overlay_test_window_png(window))
+	presented := msg_id(surface.progress_layer, 'presentationLayer')
+	assert !is_nil(presented)
+	assert msg_rect(presented, 'frame').width != msg_rect(surface.progress_layer, 'frame').width
+	if with_tint {
+		assert !is_nil(msg_id1(surface.progress_layer, 'animationForKey:', nsstring('progressTint')))
+	}
 	surface.set_progress(3, none)
 	keys := msg_id(surface.progress_layer, 'animationKeys')
 	assert msg_u64(keys, 'count') == 1

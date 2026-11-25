@@ -82,6 +82,7 @@ mut:
 	progress_layer      ObjId
 	progress_track      ObjId
 	progress_color      ?u32
+	progress_tint       NativeProgressTint
 	popover             ObjId
 	secure_badge        ObjId
 	pulse_timer         ObjId

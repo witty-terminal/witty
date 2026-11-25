@@ -54,6 +54,31 @@ static inline void witty_canvas_set_translucent_fill(CALayer *layer, NSView *vie
     }];
 }
 
+static inline bool witty_canvas_resolve_linear_srgb(NSView *view, NSColor *color,
+        double *r, double *g, double *b) {
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceExtendedLinearSRGB);
+    if (!space) return false;
+    __block CGColorRef resolved = NULL;
+    [view.effectiveAppearance performAsCurrentDrawingAppearance:^{
+        resolved = CGColorCreateCopyByMatchingToColorSpace(space, kCGRenderingIntentDefault,
+            color.CGColor, NULL);
+    }];
+    CGColorSpaceRelease(space);
+    if (!resolved) return false;
+    const CGFloat *components = CGColorGetComponents(resolved);
+    *r = components[0];
+    *g = components[1];
+    *b = components[2];
+    CGColorRelease(resolved);
+    return true;
+}
+
+static inline CGColorRef witty_canvas_make_opaque_color(CGColorSpaceRef space, double r, double g,
+        double b) {
+    const CGFloat components[] = {r, g, b, 1};
+    return CGColorCreate(space, components);
+}
+
 static inline CGColorSpaceRef witty_canvas_convert_rgb(uint32_t rgb, void *target, double *r, double *g, double *b) {
     *r = (double)((rgb >> 16) & 255) / 255;
     *g = (double)((rgb >> 8) & 255) / 255;

@@ -29,6 +29,7 @@ fn (mut state NativeActionSurface) refresh_progress() {
 	msg_void_bool(state.progress_view, 'setHidden:', !state.progress_active)
 	if !state.progress_active {
 		msg_void(state.progress_layer, 'removeAllAnimations')
+		state.progress_tint = NativeProgressTint{}
 		state.last_progress_value = -1000
 		return
 	}
@@ -44,9 +45,14 @@ fn (mut state NativeActionSurface) refresh_progress() {
 	width := view_width(state.view)
 	scale := view_backing_scale(state.view)
 	value := if determinate { f64(progress_value) / 100 } else { 0.25 }
-	raw_width := width * value
-	bar_width := math.round(raw_width * scale) / scale
+	bar_width := math.round(width * value * scale) / scale
 	size_changed := width != state.last_progress_width || scale != state.last_progress_scale
+	value_start := if determinate && state.last_progress_value >= 0
+		&& progress_value != state.last_progress_value {
+		?f64(C.witty_action_layer_time(state.progress_layer))
+	} else {
+		none
+	}
 
 	color := msg_id(get_class('NSColor'), match state.progress_state {
 		2 { 'systemRedColor' }
@@ -66,6 +72,9 @@ fn (mut state NativeActionSurface) refresh_progress() {
 	if !determinate {
 		// Keep the track's alpha and color through the window's final blend.
 		C.witty_canvas_set_translucent_fill(state.progress_track, state.progress_view, color, 0.3)
+		state.progress_tint.clear(state.progress_layer)
+	} else {
+		state.progress_tint.update(state.progress_layer, state.progress_view, color, value_start)
 	}
 	msg_void_rect(state.progress_view, 'setFrame:', objc_rect(0, 0, width, 2))
 	msg_void_rect(state.progress_track, 'setFrame:', objc_rect(0, 0, width, 2))
@@ -74,7 +83,11 @@ fn (mut state NativeActionSurface) refresh_progress() {
 	msg_void(transaction, 'commit')
 	if determinate {
 		state.clear_progress_bounce()
-		state.refresh_progress_value(progress_value, raw_width, bar_width, size_changed)
+		if start := value_start {
+			previous_width := state.last_progress_width * (f64(state.last_progress_value) / 100)
+			previous_bar_width := math.round(previous_width * state.last_progress_scale) / state.last_progress_scale
+			animate_progress_width(state.progress_layer, previous_bar_width - bar_width, start)
+		}
 	} else {
 		if state.last_progress_value >= 0 {
 			msg_void(state.progress_layer, 'removeAllAnimations')
@@ -113,41 +126,18 @@ fn progress_timing_function() ObjId {
 	return msg_id1(get_class('CAMediaTimingFunction'), 'functionWithName:', nsstring('easeInEaseOut'))
 }
 
-fn (state &NativeActionSurface) refresh_progress_value(value int, raw_width f64, bar_width f64, size_changed bool) {
-	if state.last_progress_value < 0 { return }
-	layer := state.progress_layer
-	offset_key := nsstring('progressWidthOffset')
-	mut start := f64(0)
-	if value != state.last_progress_value {
-		previous_width := state.last_progress_width * (f64(state.last_progress_value) / 100)
-		start = C.witty_action_layer_time(layer)
-		// Each report adds its own change to the width. Existing changes keep
-		// their easing and finish on their original schedule.
-		animate_progress_width(layer, nil_obj(), previous_width - raw_width, 0, start)
-	} else if size_changed {
-		offset := msg_id1(layer, 'animationForKey:', offset_key)
-		if is_nil(offset) { return }
-		start = msg_f64(offset, 'beginTime')
-	} else {
-		return
-	}
-	// Use the fractional target during motion and the pixel-aligned frame
-	// after the last change finishes. A resize updates the offset in place.
-	offset := raw_width - bar_width
-	animate_progress_width(layer, offset_key, offset, offset, start)
-}
-
-fn animate_progress_width(layer ObjId, key ObjId, from f64, to f64, start f64) {
+fn animate_progress_width(layer ObjId, from f64, start f64) {
+	// Each report contributes its own width change until its animation ends.
 	animation := msg_id1(get_class('CABasicAnimation'), 'animationWithKeyPath:',
 		nsstring('bounds.size.width'))
 	number := get_class('NSNumber')
 	msg_void1(animation, 'setFromValue:', msg_id_f64(number, 'numberWithDouble:', from))
-	msg_void1(animation, 'setToValue:', msg_id_f64(number, 'numberWithDouble:', to))
+	msg_void1(animation, 'setToValue:', msg_id_f64(number, 'numberWithDouble:', 0))
 	msg_void_bool(animation, 'setAdditive:', true)
 	msg_void_f64(animation, 'setBeginTime:', start)
 	msg_void_f64(animation, 'setDuration:', progress_value_duration)
 	msg_void1(animation, 'setTimingFunction:', progress_timing_function())
-	msg_void2(layer, 'addAnimation:forKey:', animation, key)
+	msg_void2(layer, 'addAnimation:forKey:', animation, nil_obj())
 }
 
 fn (state &NativeActionSurface) clear_progress_bounce() {
