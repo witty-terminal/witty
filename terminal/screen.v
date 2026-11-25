@@ -3508,20 +3508,6 @@ pub fn (mut self Screen) resize(opts ScreenResize) ! {
 		}
 	}
 
-	// If our cursor is on a prompt or input line, clear it so the shell can
-	// redraw it. This works with OSC 133 semantic prompts.
-	//
-	// We check cursor.semantic_content rather than page_row.semantic_prompt
-	// because some shells (e.g., Nu) mark input areas with OSC 133 B but don't
-	// mark continuation lines with k=s. If the input spans multiple lines and
-	// continuation lines are unmarked, checking only page_row.semantic_prompt
-	// would miss them. By checking semantic_content, we assume that if the
-	// cursor is on anything other than command output, we're at a prompt/input
-	// line and should clear from there.
-	if opts.prompt_redraw != .redraw_false && self.cursor.semantic_content != .output {
-		self.resize_clear_prompt(opts.prompt_redraw)
-	}
-
 	// Perform the resize operation.
 	self.pages.resize(PageResizeOpts{
 		rows:   u16(opts.rows)
@@ -3548,6 +3534,12 @@ pub fn (mut self Screen) resize(opts ScreenResize) ! {
 	if self.cursor.pending_wrap && self.cursor.x != opts.cols - 1 {
 		self.cursor.pending_wrap = false
 		self.cursor_right(1)
+	}
+
+	// Clear the prompt on the resized grid while the cursor style is still
+	// reset. The cursor's semantic content also covers unmarked continuations.
+	if opts.prompt_redraw != .redraw_false && self.cursor.semantic_content != .output {
+		self.resize_clear_prompt(opts.prompt_redraw)
 	}
 
 	// If we reflowed a saved cursor, update it.

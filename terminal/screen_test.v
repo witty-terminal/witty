@@ -3470,6 +3470,27 @@ fn test_screen_resize_with_prompt_redraw_last_clears_only_one_line() ! {
 	}
 }
 
+fn test_screen_resize_with_prompt_redraw_last_clears_last_wrapped_row() ! {
+	mut s := Screen.init(10, 4, 5)!
+	defer { s.deinit() }
+
+	s.test_write_string('ABCDE\n')!
+	s.cursor_set_semantic_content(CursorSemanticPrompt{ kind: .initial })
+	s.test_write_string('> ')!
+	s.cursor_set_semantic_content(CursorSemanticInput{ clear: .clear_explicit })
+	s.test_write_string('hello')!
+
+	s.resize(ScreenResize{
+		cols:          5
+		rows:          4
+		prompt_redraw: .last
+	})!
+
+	assert s.cursor.x == 2
+	assert s.cursor.y == 2
+	assert s.dump_string_alloc(.viewport)! == 'ABCDE\n> hel'
+}
+
 fn test_screen_resize_with_prompt_redraw_last_multiline_prompt_clears_only_last_line() ! {
 	mut s := Screen.init(20, 5, 5)!
 	defer { s.deinit() }

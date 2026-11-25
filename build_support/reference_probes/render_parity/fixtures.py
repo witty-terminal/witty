@@ -14,7 +14,9 @@ KITTY_SCROLL_FIXTURES = ("kitty-scroll-up", "kitty-scroll-down")
 SCROLLBACK_FIXTURES = ("scrollback-follow-output", "scrollback-keep-position")
 SCROLLBACK_LAST_COLOR = (38, 198, 216)
 SCROLLBACK_RECOLORED = (221, 117, 170)
-RESIZE_FIXTURES = ("resize-cursor-in-blanks", "resize-cursor-near-bottom", "resize-pending-wrap")
+RESIZE_FIXTURES = (
+    "resize-cursor-in-blanks", "resize-cursor-near-bottom", "resize-pending-wrap", "resize-prompt-last",
+)
 RESIZE_WRAP_COLOR = (129, 68, 93)
 
 
@@ -370,6 +372,15 @@ def resize_pending_wrap():
     return f"\x1b[48;2;{r};{g};{b}mX\x1b[0m".encode()
 
 
+def resize_prompt_last():
+    wait_for_initial_grid()
+    # The command starts on one row and wraps after the window narrows.
+    return (
+        b"Previous command output\r\n\x1b]133;A;redraw=last\x07bash$ \x1b]133;B\x07"
+        b"printf '%s\\n' 'a long command waiting for redraw'\x1b[2 q\x1b[?25h"
+    )
+
+
 def colored_line_erase():
     # An erase issued before the startup resize uses the old right edge.
     wait_for_initial_grid()
@@ -468,6 +479,8 @@ def main():
         sys.stdout.buffer.write(colored_line_erase())
     elif fixture == "resize-pending-wrap":
         sys.stdout.buffer.write(resize_pending_wrap())
+    elif fixture == "resize-prompt-last":
+        sys.stdout.buffer.write(resize_prompt_last())
     elif fixture in SCROLLBACK_FIXTURES:
         scrollback_output()
         return
