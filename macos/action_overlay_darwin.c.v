@@ -310,7 +310,6 @@ pub fn (mut state NativeActionSurface) resize() {
 fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
 	view_super_void(self, 'WittyActionOverlay', 'viewDidChangeBackingProperties')
 	if mut state := action_owner_state(self) {
-		state.progress_color = none
 		if state.progress_active { state.refresh_progress() }
 		state.highlight_accent = none
 		if state.highlighted { state.refresh_highlight() }

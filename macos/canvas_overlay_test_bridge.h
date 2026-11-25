@@ -23,6 +23,10 @@ static inline uint32_t witty_overlay_test_tile(void *object) {
         | ((uint32_t)(rgba[1] / 257) << 8) | (rgba[2] / 257);
 }
 
+static inline double witty_overlay_test_fill_alpha(CALayer *layer) {
+    return layer.backgroundColor ? CGColorGetAlpha(layer.backgroundColor) : 0;
+}
+
 static inline float witty_overlay_test_opacity(void *object) {
     return [(CALayer *)object opacity];
 }

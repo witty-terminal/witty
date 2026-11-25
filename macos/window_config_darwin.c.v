@@ -197,7 +197,8 @@ fn push_native_tabs(context voidptr) {
 		msg_void1(titlebar, 'addSubview:', data.backdrop)
 		msg_void_bool(data.backdrop, 'setWantsLayer:', true)
 		data.backdrop_overlay = msg_id(alloc('VTVibrantLayer'), 'init')
-		set_native_window_canvas_tile(data.backdrop_overlay, native_window_canvas_color(C.witty_canvas_gamma22_gray(0.95)))
+		set_native_canvas_srgb_tile(data.backdrop_overlay,
+			native_window_canvas_color(C.witty_canvas_gamma22_gray(0.95)))
 		msg_void_u64(data.backdrop_overlay, 'setAutoresizingMask:', 18)
 		msg_void1(msg_id(data.backdrop, 'layer'), 'addSublayer:', data.backdrop_overlay)
 		msg_void_bool(data.backdrop, 'setTranslatesAutoresizingMaskIntoConstraints:', false)

@@ -7,7 +7,10 @@ import math
 
 fn C.witty_overlay_test_tile(layer ObjId) u32
 fn C.witty_overlay_test_opacity(layer ObjId) f32
+fn C.witty_overlay_test_fill_alpha(layer ObjId) f64
+fn C.witty_overlay_test_window_fill_matches(layer ObjId, color ObjId) bool
 fn C.witty_overlay_test_png(view ObjId) ObjId
+fn C.witty_overlay_test_window_png(window ObjId) ObjId
 
 fn test_source_native_visual_layers_and_cursor_consumers() {
 	app_init()
@@ -42,8 +45,11 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	surface.set_progress(3, none)
 	assert msg_f64(msg_id1(surface.progress_layer, 'animationForKey:', nsstring('bounce')), 'duration') == 1.2
 	assert !msg_bool(surface.progress_track, 'isHidden')
-	assert C.witty_overlay_test_tile(surface.progress_layer) >> 24 == 255
-	assert C.witty_overlay_test_tile(surface.progress_track) >> 24 == 76
+	accent := msg_id(get_class('NSColor'), 'controlAccentColor')
+	rgb := C.witty_canvas_resolve_srgb(surface.progress_view, accent)
+	assert C.witty_overlay_test_window_fill_matches(surface.progress_layer, native_color(rgb, 1))
+	assert is_nil(msg_id(surface.progress_track, 'contents'))
+	assert math.abs(C.witty_overlay_test_fill_alpha(surface.progress_track) - 0.3) < 0.000001
 	assert objc_utf8_string(msg_id(surface.progress_view, 'accessibilityValue')) == 'Operation in progress'
 	surface.set_progress(4, none)
 	assert msg_rect(surface.progress_layer, 'frame').width == view_width(view)
@@ -479,6 +485,7 @@ fn test_native_bell_overlay_capture() {
 
 fn test_native_progress_overlay_capture() {
 	output := os.getenv_opt('WITTY_PROGRESS_OVERLAY_OUTPUT') or { return }
+	window_output := os.getenv('WITTY_PROGRESS_WINDOW_OUTPUT')
 	app_init()
 	frame := objc_rect(0, 0, 101, 6)
 	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
@@ -517,6 +524,14 @@ fn test_native_progress_overlay_capture() {
 			assert !is_nil(png)
 			assert msg_bool2(png, 'writeToFile:atomically:',
 				nsstring(os.join_path(output, '${snapshots[i]}-${name}-witty.png')), ObjId(1))
+			if window_output != '' {
+				// Capture the model frame with the actual window compositor.
+				surface.clear_progress_bounce()
+				window_png := C.witty_overlay_test_window_png(window)
+				assert !is_nil(window_png)
+				assert msg_bool2(window_png, 'writeToFile:atomically:',
+					nsstring(os.join_path(window_output, '${snapshots[i]}-${name}-witty.png')), ObjId(1))
+			}
 		}
 	}
 }

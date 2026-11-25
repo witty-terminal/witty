@@ -2,7 +2,6 @@ module macos
 
 import gg.canvas
 
-fn C.witty_canvas_make_srgb_tile(r f32, g f32, b f32, a f32) voidptr
 fn C.witty_canvas_gamma22_gray(white f64) ObjId
 fn C.CGColorEqualToColor(left voidptr, right voidptr) bool
 
@@ -19,15 +18,6 @@ fn native_window_canvas_color(color ObjId) canvas.Color4f {
 	mut r, mut g, mut b, mut a := f64(0), f64(0), f64(0), f64(0)
 	C.witty_macos_color_components(srgb, &r, &g, &b, &a)
 	return canvas.Color4f{ r: f32(r), g: f32(g), b: f32(b), a: f32(a) }
-}
-
-fn set_native_window_canvas_tile(layer ObjId, color canvas.Color4f) bool {
-	pixel := color.premul()
-	image := C.witty_canvas_make_srgb_tile(pixel.r, pixel.g, pixel.b, pixel.a)
-	if is_nil(image) { return false }
-	msg_void1(layer, 'setContents:', ObjId(image))
-	C.CFRelease(image)
-	return true
 }
 
 fn (mut fill NativeWindowCanvasFill) update(view ObjId, color ObjId) {
@@ -55,7 +45,7 @@ fn (mut fill NativeWindowCanvasFill) update(view ObjId, color ObjId) {
 	defer { msg_void(transaction, 'commit') }
 	if pixel.is_opaque() {
 		if fill.tile_color != ?canvas.Color4f(pixel) {
-			if !set_native_window_canvas_tile(fill.layer, pixel) { return }
+			if !set_native_canvas_srgb_tile(fill.layer, pixel) { return }
 			msg_void1(fill.layer, 'setBackgroundColor:', nil_obj())
 			fill.tile_color = pixel
 		}

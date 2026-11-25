@@ -1,5 +1,6 @@
 module macos
 
+import gg.canvas
 import math
 
 fn (mut state NativeActionSurface) initialize_progress() {
@@ -49,19 +50,14 @@ fn (mut state NativeActionSurface) refresh_progress() {
 	msg_void(transaction, 'begin')
 	msg_void_bool(transaction, 'setDisableActions:', true)
 	if state.progress_color != ?u32(rgb) {
-		tile := native_canvas_fill_tile(rgb)
-		if !is_nil(tile) {
-			msg_void1(state.progress_layer, 'setContents:', ObjId(tile))
-			C.CFRelease(tile)
+		pixel := canvas.Color4f.from_rgba8(u8(rgb >> 16), u8(rgb >> 8), u8(rgb), 255)
+		if set_native_canvas_srgb_tile(state.progress_layer, pixel) {
+			state.progress_color = rgb
 		}
-		// The track is a translucent color. Convert it before premultiplication
-		// to match SwiftUI's fill in the window's color profile.
-		track := native_canvas_fill_tile(rgb, target: state.progress_view, opacity: 0.3)
-		if !is_nil(track) {
-			msg_void1(state.progress_track, 'setContents:', ObjId(track))
-			C.CFRelease(track)
-		}
-		if !is_nil(tile) && !is_nil(track) { state.progress_color = rgb }
+	}
+	if !determinate {
+		// Keep the track's alpha and color through the window's final blend.
+		C.witty_canvas_set_translucent_fill(state.progress_track, state.progress_view, color, 0.3)
 	}
 	msg_void_rect(state.progress_view, 'setFrame:', objc_rect(0, 0, width, 2))
 	msg_void_rect(state.progress_track, 'setFrame:', objc_rect(0, 0, width, 2))

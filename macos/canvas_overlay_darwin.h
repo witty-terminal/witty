@@ -4,6 +4,7 @@
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 #include <AppKit/AppKit.h>
 #include <CoreGraphics/CoreGraphics.h>
+#include <QuartzCore/QuartzCore.h>
 #include <math.h>
 #include <stdint.h>
 
@@ -43,6 +44,16 @@ static inline uint32_t witty_canvas_resolve_srgb(void *view, void *color) {
     return witty_canvas_resolve_srgb_alpha(view, color, NULL);
 }
 
+static inline void witty_canvas_set_translucent_fill(CALayer *layer, NSView *view, NSColor *color,
+        double opacity) {
+    [view.effectiveAppearance performAsCurrentDrawingAppearance:^{
+        CGColorRef fill = [color colorWithAlphaComponent:opacity].CGColor;
+        if (!layer.backgroundColor || !CGColorEqualToColor(layer.backgroundColor, fill)) {
+            layer.backgroundColor = fill;
+        }
+    }];
+}
+
 static inline CGColorSpaceRef witty_canvas_convert_rgb(uint32_t rgb, void *target, double *r, double *g, double *b) {
     *r = (double)((rgb >> 16) & 255) / 255;
     *g = (double)((rgb >> 8) & 255) / 255;
@@ -78,7 +89,7 @@ static inline CGImageRef witty_canvas_rgba_image(CFDataRef data, int width, int 
 
 static inline CGImageRef witty_canvas_make_srgb_tile(float r, float g, float b, float a) {
     // Core Animation dithers 16-bit layer contents when compositing to the
-    // window. An 8-bit tile keeps the titlebar's flat color uniform.
+    // window. An 8-bit tile keeps an opaque flat color uniform.
     const UInt8 rgba[] = {
         (UInt8)lround(fmin(fmax(r, 0), 1) * 255),
         (UInt8)lround(fmin(fmax(g, 0), 1) * 255),

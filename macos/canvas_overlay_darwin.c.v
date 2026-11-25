@@ -8,6 +8,8 @@ import math
 fn C.witty_canvas_place_overlay(parent voidptr, child voidptr, above voidptr)
 fn C.witty_canvas_resolve_srgb(view ObjId, color ObjId) u32
 fn C.witty_canvas_resolve_srgb_alpha(view ObjId, color ObjId, alpha &f64) u32
+fn C.witty_canvas_set_translucent_fill(layer ObjId, view ObjId, color ObjId, opacity f64)
+fn C.witty_canvas_make_srgb_tile(r f32, g f32, b f32, a f32) voidptr
 fn C.witty_canvas_make_tile(pixel &u32, target ObjId, opacity f64, blend_over_gray int) voidptr
 fn C.witty_canvas_make_alpha_image(pixels &u32, width int, height int, color u32, target ObjId) voidptr
 fn C.witty_canvas_make_color_image(pixels &u32, width int, height int) voidptr
@@ -91,6 +93,15 @@ fn native_canvas_fill_tile(color u32, opts NativeCanvasTileOptions) voidptr {
 	tile.clear(0xff000000 | color)
 	gray := if value := opts.blend_over_gray { int(value) } else { -1 }
 	return C.witty_canvas_make_tile(unsafe { &tile.pixels[0] }, opts.target, opts.opacity, gray)
+}
+
+fn set_native_canvas_srgb_tile(layer ObjId, color canvas.Color4f) bool {
+	pixel := color.premul()
+	image := C.witty_canvas_make_srgb_tile(pixel.r, pixel.g, pixel.b, pixel.a)
+	if is_nil(image) { return false }
+	msg_void1(layer, 'setContents:', ObjId(image))
+	C.CFRelease(image)
+	return true
 }
 
 fn native_canvas_fill_rects(context voidptr, color u32, rects []ObjCRect) {
