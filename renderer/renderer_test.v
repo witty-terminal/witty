@@ -45,6 +45,40 @@ fn test_derived_config_defaults() {
 	assert config.min_contrast == 0.0
 	assert config.vsync == true
 	assert config.faint_opacity == 128
+	assert !config.scroll_to_bottom_on_output
+}
+
+fn test_scroll_to_bottom_on_output_follows_new_rows_after_synchronized_output() ! {
+	for follow_output in [false, true] {
+		config := configpkg.Config{
+			scroll_to_bottom: configpkg.ScrollToBottom.init(false, follow_output)
+		}
+		mut render := Renderer{ config: DerivedConfig.init(&config)! }
+		mut term := terminal.Terminal.init(terminal.Options{ rows: 3, cols: 20 })!
+		defer { term.deinit() }
+		state := RenderState{ mutex: sync.new_mutex(), terminal_: &term }
+		mut stream := term.vt_stream()
+		defer { stream.deinit() }
+
+		stream.next_slice('one\r\ntwo\r\nthree\r\nfour\r\nfive'.bytes())!
+		_ = render.update_frame_critical(&state) or { return error('missing initial frame') }
+		term.scroll_viewport(terminal.ScrollViewport.from_delta(-2))!
+		start := render.update_frame_critical(&state) or { return error('missing scrolled frame') }
+		assert !term.screens.active.viewport_is_bottom()
+
+		// In-place edits to the last row preserve the scrolled viewport.
+		stream.next_slice(' edited'.bytes())!
+		edited := render.update_frame_critical(&state) or { return error('missing edited frame') }
+		assert edited.scrollbar.offset == start.scrollbar.offset
+
+		stream.next_slice('\x1b[?2026h\r\nsix'.bytes())!
+		assert render.update_frame_critical(&state) == none
+		assert !term.screens.active.viewport_is_bottom()
+		stream.next_slice('\x1b[?2026l'.bytes())!
+		updated := render.update_frame_critical(&state) or { return error('missing output frame') }
+		assert term.screens.active.viewport_is_bottom() == follow_output
+		assert (updated.scrollbar.offset > start.scrollbar.offset) == follow_output
+	}
 }
 
 fn test_background_opacity_alpha_rounds_like_source() {

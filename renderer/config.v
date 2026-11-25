@@ -71,6 +71,8 @@ pub mut:
 	min_contrast f32
 	// How to color the padding area.
 	padding_color configpkg.WindowPaddingColor = .background
+	// Whether a new terminal row should return the viewport to the bottom.
+	scroll_to_bottom_on_output bool
 	// Custom shader paths.
 	custom_shaders configpkg.RepeatablePath
 	custom_shader_animation configpkg.CustomShaderAnimation = .true_
@@ -163,6 +165,7 @@ pub fn DerivedConfig.init(config &configpkg.Config) !DerivedConfig {
 		faint_opacity: u8(math.ceil(config.faint_opacity * 255))
 		min_contrast: f32(config.minimum_contrast)
 		padding_color: config.window_padding_color
+		scroll_to_bottom_on_output: config.scroll_to_bottom.output()
 		selection_background: config.selection_background
 		selection_foreground: config.selection_foreground
 		search_background: config.search_background

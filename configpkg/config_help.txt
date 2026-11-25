@@ -711,8 +711,8 @@ Available options:
   presses a key that results in data being sent to the PTY (basically
   anything but modifiers or keybinds that are processed by Witty).
 
-- `output` If set, scroll the surface to the bottom if there is new data
-  to display. (Currently unimplemented.)
+- `output` If set, scroll the surface to the bottom when output adds a new
+  row at the bottom of the terminal.
 
 The default is `keystroke, no-output`.
 mouse-shift-capture

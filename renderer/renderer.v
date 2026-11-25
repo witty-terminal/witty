@@ -912,6 +912,9 @@ pub mut:
 
 	// The render state we update per loop.
 	terminal_state terminal.RenderState
+	// Identity of the last screen row for scroll-to-bottom on output.
+	last_bottom_page u64
+	last_bottom_row  u16
 
 	// The number of frames since the last terminal state reset.
 	// We reset the terminal state after ~100,000 frames (about 10 to
@@ -1333,6 +1336,19 @@ fn (mut self Renderer) update_frame_critical(state &RenderState) ?UpdateFrameCri
 	// If we're in a synchronized output state, we pause all rendering.
 	if t.modes.get(.synchronized_output) {
 		return none
+	}
+
+	// A new bottom row returns the viewport to live output before we snapshot
+	// it. Changes within an existing row leave the scroll position intact.
+	if self.config.scroll_to_bottom_on_output {
+		if bottom := t.screens.active.pages.get_bottom_right(.screen) {
+			page := u64(voidptr(bottom.node))
+			if page != self.last_bottom_page || bottom.y != self.last_bottom_row {
+				self.last_bottom_page = page
+				self.last_bottom_row = bottom.y
+				t.screens.active.scroll(terminal.ScrollActive{})
+			}
+		}
 	}
 
 	// Update our terminal state

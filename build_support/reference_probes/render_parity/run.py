@@ -14,7 +14,10 @@ from capture import (
     build_window_reader, capture_witty, configure_xvfb_capture, open_window,
     output_directory, read_window, write_versions,
 )
-from fixtures import CURSOR_STYLES, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES
+from fixtures import (
+    CURSOR_STYLES, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES,
+    SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED,
+)
 
 
 PROBE = Path(__file__).resolve().parent
@@ -32,7 +35,7 @@ WALLPAPER_OPTIONS = {
     ),
 }
 FIXTURES = (
-    "ansi", "decorations", "unicode", "wide-wrap", "selection-wide", *PREEDIT_FIXTURES,
+    "ansi", "decorations", "unicode", "wide-wrap", "selection-wide", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES,
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -134,6 +137,9 @@ def fixture_args(name, work):
             "--selection-foreground=fef1d4",
             f"--selection-background={bytes(SELECTION_BACKGROUND).hex()}",
         ))
+    if name in SCROLLBACK_FIXTURES:
+        output = "output" if name == "scrollback-follow-output" else "no-output"
+        options.append(f"--scroll-to-bottom=no-keystroke,{output}")
     return [*options, "-e", sys.executable, str(PROBE / "fixtures.py"), name]
 
 
@@ -183,6 +189,38 @@ def type_unicode_preedit(window, fixture, padding, cell_width, cell_height):
     return rendered
 
 
+def scroll_history(window, helper, padding, cell_width, cell_height):
+    x = padding + cell_width // 2
+
+    def has_marker(image, color):
+        strip = image.crop((x, 0, x + 1, image.height)).convert("RGB")
+        return any(pixel == color for _, pixel in strip.getcolors(image.height))
+
+    with read_window(helper, window) as image:
+        if not has_marker(image, SCROLLBACK_LAST_COLOR):
+            raise RuntimeError("The last output row was missing before scrolling")
+    subprocess.run(
+        ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window,
+         str(padding + 5 * cell_width), str(padding + 5 * cell_height), "click", "--repeat", "2", "4"],
+        check=True, timeout=5,
+    )
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        with read_window(helper, window) as image:
+            if not has_marker(image, SCROLLBACK_LAST_COLOR):
+                break
+        time.sleep(0.05)
+    else:
+        raise RuntimeError("The viewport did not move into scrollback")
+
+    subprocess.run(["xdotool", "key", "space"], check=True, timeout=5)
+
+    def rendered(image):
+        return has_marker(image, SCROLLBACK_RECOLORED)
+
+    return rendered
+
+
 def capture_interactive(binary, args, helper, prefix, fixture, settle, scale, *, witty=False):
     png = prefix.with_suffix(".png")
     capture_args = [f"--screenshot={png}"] if witty else []
@@ -201,6 +239,8 @@ def capture_interactive(binary, args, helper, prefix, fixture, settle, scale, *,
 
         if fixture == "selection-wide":
             rendered = drag_wide_selection(window, padding, cell_width, cell_height)
+        elif fixture in SCROLLBACK_FIXTURES:
+            rendered = scroll_history(window, helper, padding, cell_width, cell_height)
         else:
             rendered = type_unicode_preedit(window, fixture, padding, cell_width, cell_height)
 
@@ -270,7 +310,7 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             args = fixture_args(name, work)
             actual = output / f"{name}-witty"
             expected = output / f"{name}-ghostty"
-            if name == "selection-wide" or name in PREEDIT_FIXTURES:
+            if name == "selection-wide" or name in (*PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES):
                 capture_interactive(ghostty, args, helper, expected, name, settle, scale)
                 capture_interactive(witty, args, helper, actual, name, settle, scale, witty=True)
             else:

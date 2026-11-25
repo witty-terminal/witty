@@ -2,12 +2,17 @@ import base64
 import os
 import subprocess
 import sys
+import termios
+import tty
 
 
 CLEAR = b"\x1b[2J\x1b[H\x1b[?25l"
 GRID_ROWS, GRID_COLUMNS = 12, 60
 CURSOR_STYLES = {"cursor-block": 2, "cursor-bar": 6, "cursor-underline": 4}
 KITTY_SCROLL_FIXTURES = ("kitty-scroll-up", "kitty-scroll-down")
+SCROLLBACK_FIXTURES = ("scrollback-follow-output", "scrollback-keep-position")
+SCROLLBACK_LAST_COLOR = (38, 198, 216)
+SCROLLBACK_RECOLORED = (221, 117, 170)
 
 
 def kitty_image():
@@ -312,6 +317,30 @@ def terminal_sprites():
     return "".join(f"\x1b[{row};1H{text}" for row, text in enumerate(lines, 1)).encode()
 
 
+def scrollback_output():
+    attrs = termios.tcgetattr(sys.stdin)
+    tty.setraw(sys.stdin)
+    try:
+        r, g, b = SCROLLBACK_LAST_COLOR
+        marker = f"\x1b[48;2;{r};{g};{b}m"
+        rows = [
+            f"\x1b[48;5;42m  \x1b[0m Output row {row:02d} · {'█' * (row % 13)}"
+            for row in range(1, 48)
+        ]
+        rows.append(f"{marker}  \x1b[0m Output row 48")
+        sys.stdout.write("\r\n".join(rows))
+        sys.stdout.flush()
+        if sys.stdin.read(1):
+            # The palette change is visible in both the live and scrolled views.
+            # It also confirms the PTY received the input that produces row 49.
+            color = bytes(SCROLLBACK_RECOLORED).hex()
+            sys.stdout.write(f"\x1b]4;42;#{color}\x07\r\n\x1b[1mNew output, row 49\x1b[0m")
+            sys.stdout.flush()
+            sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(sys.stdin, termios.TCSANOW, attrs)
+
+
 def main():
     fixture = sys.argv[1]
     output = {
@@ -390,6 +419,9 @@ def main():
         sys.stdout.buffer.write(kitty_animation())
     elif fixture == "terminal-sprites":
         sys.stdout.buffer.write(terminal_sprites())
+    elif fixture in SCROLLBACK_FIXTURES:
+        scrollback_output()
+        return
     elif fixture in CURSOR_STYLES:
         # Reposition over an existing glyph and show a steady cursor.
         style = CURSOR_STYLES[fixture]
