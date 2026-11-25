@@ -1,0 +1,53 @@
+name: Linux render parity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-render-parity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    env:
+      VFLAGS: -cc clang -nocache
+      V_C_ERROR_BUG_REPORT_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build and capture dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang pkg-config gettext blueprint-compiler \
+            libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev \
+            libfreetype-dev libharfbuzz-dev libfontconfig-dev libonig-dev \
+            libxml2-dev libpng-dev zlib1g-dev libbz2-dev \
+            libx11-dev libxi-dev libxcursor-dev libwayland-dev wayland-protocols \
+            libegl-dev libgl-dev libgl1-mesa-dri fonts-dejavu-core \
+            curl dbus-daemon python3-pil vim xauth xdotool xvfb
+      - name: Install V
+        run: bash .github/scripts/install-v.sh
+      - name: Build Witty
+        run: |
+          bash .github/scripts/ci-build.sh install --system \
+            -Doptimize=ReleaseSafe -Demit-docs=false -Dsimd=false
+      - name: Compare with Ghostty 1.4.0
+        run: |
+          bash .github/scripts/linux-render-parity.sh \
+            "$RUNNER_TEMP/witty/bin/witty" "$RUNNER_TEMP/render-parity"
+      - name: Upload screenshots and comparison report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-render-parity
+          path: |
+            ${{ runner.temp }}/render-parity/*.png
+            ${{ runner.temp }}/render-parity/*.log
+            ${{ runner.temp }}/render-parity/results.tsv
+            ${{ runner.temp }}/render-parity/versions.txt
+          if-no-files-found: ignore
