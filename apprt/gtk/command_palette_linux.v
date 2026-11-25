@@ -247,6 +247,7 @@ fn command_palette_native_instance_init(obj voidptr, _ voidptr) {
 	// The original template owns its standalone dialog; retain that native
 	// owner after releasing the construction-only GtkBuilder.
 	object_ref(GObject(self.dialog))
+	gtk_canvas_overlay_set_mask(GtkWidget(self.dialog), true)
 	for object in [GObject(obj), GObject(self.dialog), GObject(self.search), GObject(self.list)] {
 		native_wrapper_set(object, command_palette_wrapper_key, voidptr(self))
 	}
@@ -642,8 +643,6 @@ fn (mut self CommandPalette) set_config_reference(config &Config) {
 // prop_config is the config-changed handler: it clears and rebuilds the command
 // list from the new config. Mirrors `propConfig`.
 pub fn (mut self CommandPalette) prop_config() {
-	use_canvas := !isnil(self.config) && gtk_canvas_styles_enabled(self.config.get())
-	gtk_canvas_overlay_set_mask(GtkWidget(self.dialog), use_canvas)
 	if isnil(self.config) {
 		log.warn('command palette does not have a config!')
 		return

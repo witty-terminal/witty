@@ -30,12 +30,15 @@ CURSOR_COLOR = (255, 238, 170)
 SELECTION_BACKGROUND = (23, 81, 107)
 SEARCH_BACKGROUND = (255, 224, 130)
 SEARCH_SELECTED_BACKGROUND = (242, 165, 126)
+PALETTE_THEME_BACKGROUND = (54, 87, 129)
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
 INTERACTIVE_FIXTURES = (
     "selection-wide", "wide-edit", "search-wrap", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES,
 )
 LINK_PREVIEW_FIXTURES = ("link-preview", "link-preview-right")
-COMMAND_PALETTE_FIXTURES = ("command-palette", "command-palette-compact", "command-palette-resize")
+COMMAND_PALETTE_FIXTURES = (
+    "command-palette", "command-palette-compact", "command-palette-resize", "command-palette-themed",
+)
 WINDOW_CHROME_FIXTURES = ("gtk-chrome-tabs", "gtk-chrome-native")
 TITLE_DIALOG_ACTIONS = {"terminal-title": "prompt_surface_title", "tab-title": "prompt_tab_title"}
 TERMINAL_DIALOG_FIXTURES = (*TITLE_DIALOG_ACTIONS, "close-confirmation")
@@ -205,6 +208,9 @@ def fixture_args(name, work):
             options.extend(("--window-width=53", "--window-height=17", "--window-theme=light"))
         else:
             options.extend(("--window-width=85", "--window-height=25"))
+        if name == "command-palette-themed":
+            css = work / f"{name}-config" / "palette.css"
+            options.append(f"--gtk-custom-css={css}")
     if name == "shader":
         options.extend(
             (
@@ -432,7 +438,8 @@ def capture_surface_badge(binary, args, helper, prefix, name, settle, scale, *, 
                 subprocess.run(["xdotool", "keyup", "Control_L"], check=True, timeout=5)
 
 
-def capture_command_palette(binary, args, helper, prefix, settle, config_dir, *, resize_scale=None, witty=False):
+def capture_command_palette(binary, args, helper, prefix, settle, config_dir, *,
+                            resize_scale=None, panel_color=None, witty=False):
     capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
     fade = max(settle, 0.6)
     # Capture the whole settled dialog after editing the query.
@@ -462,6 +469,10 @@ def capture_command_palette(binary, args, helper, prefix, settle, config_dir, *,
         with read_window(helper, window) as image:
             if image.tobytes() in (opened, idle):
                 raise RuntimeError("The command palette did not filter its rows")
+            if panel_color is not None:
+                colors = image.getcolors(image.width * image.height)
+                if not any(color == panel_color for _, color in colors):
+                    raise RuntimeError("The custom command palette background did not render")
             if resize_scale is None:
                 image.save(prefix.with_suffix(".png"))
         if resize_scale is not None:
@@ -981,10 +992,19 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
                 gtk_config = config_dir / "gtk-4.0"
                 gtk_config.mkdir(parents=True)
                 (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
+                panel_color = None
+                if name == "command-palette-themed":
+                    panel_color = PALETTE_THEME_BACKGROUND
+                    (config_dir / "palette.css").write_text(
+                        f"dialog sheet.background {{ background: #{bytes(panel_color).hex()}; }}\n"
+                        ".command-palette-search { background: #2180cd; }\n"
+                        ".command-palette-view row:selected { background: #744821; }\n"
+                    )
                 resize_scale = scale if name == "command-palette-resize" else None
-                capture_command_palette(ghostty, args, helper, expected, settle, config_dir, resize_scale=resize_scale)
+                capture_command_palette(ghostty, args, helper, expected, settle, config_dir,
+                                        resize_scale=resize_scale, panel_color=panel_color)
                 capture_command_palette(witty, args, helper, actual, settle, config_dir,
-                                        resize_scale=resize_scale, witty=True)
+                                        resize_scale=resize_scale, panel_color=panel_color, witty=True)
             elif name in WINDOW_CHROME_FIXTURES:
                 capture_window_chrome(ghostty, args, helper, expected, settle)
                 capture_window_chrome(witty, args, helper, actual, settle)

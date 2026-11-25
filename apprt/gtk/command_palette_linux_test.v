@@ -162,6 +162,7 @@ fn test_command_palette_uses_configured_entries() {
 	// that `init`, which reloads the default entries.
 	inner.command_palette_entry = configpkg.RepeatableCommand{}
 	inner.load_string('command-palette-entry = title:Only Entry,description:Configured,action:ignore')
+	inner.load_string('gtk-custom-css = palette.css')
 	mut cfg := config_new(inner)
 	mut palette := new_command_palette()
 	mut weak := weak_ref_empty()
@@ -172,6 +173,8 @@ fn test_command_palette_uses_configured_entries() {
 	object_unref(acquired)
 	palette.set_config(cfg)
 
+	assert cfg.get().gtk_custom_css.items.len == 1
+	assert C.witty_gtk_canvas_overlay_has_mask(GtkWidget(palette.dialog))
 	assert palette.commands.len == 1
 	mut command := palette.commands[0]
 	assert command.prop_get_title() or { '' } == 'Only Entry'

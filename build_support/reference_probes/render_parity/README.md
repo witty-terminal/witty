@@ -44,6 +44,8 @@ The optional `tab-overview` fixture uses a release build to capture two live thu
 
 The `command-palette-resize` fixture narrows the window with the palette open. It captures the dimmed terminal text and palette together, then restores the window and closes the palette. The workflow also runs this fixture at 2× with the OpenGL compositor.
 
+The `command-palette-themed` fixture applies custom CSS to the panel, search field, and selected row, then captures the filtered palette. The workflow runs this fixture with Cairo and with the OpenGL compositor at 2×.
+
 The `terminal-title` fixture checks typing, canceling, applying, and resetting the title. The optional `close-confirmation` fixture verifies keyboard focus, canceling, and confirming the window close. It launches Witty normally and uses a release build to avoid the debug banner.
 
 The regular Linux CI build checks the initial PTY and a full-width colored erase at two grid sizes, capture with a configured tab bar, and rendering after an OpenGL shader link failure. It also replaces a red shader with a green one in a running terminal and uses the reload keybinding to verify that the rendered frame changes.
