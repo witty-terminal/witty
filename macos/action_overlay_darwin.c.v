@@ -125,6 +125,10 @@ mut:
 	health_label        ObjId
 	hover_label         ObjId
 	hover_url           string
+	hover_display       string
+	hover_line          voidptr
+	hover_text_limit    f64 = -1
+	hover_text_width    f64
 	hover_left          bool
 }
 
@@ -234,8 +238,9 @@ pub fn new_action_surface(view voidptr, userdata voidptr, callbacks ActionCallba
 	state.health_label = new_health_overlay()
 	msg_void1(state.overlay, 'addSubview:', state.health_label)
 	state.initialize_secure_visuals()
-	state.hover_label = action_label('', objc_rect(0, 0, 320, 24))
+	state.hover_label = new_hover_banner(state)
 	msg_void1(state.overlay, 'addSubview:', state.hover_label)
+	msg_void(state.hover_label, 'release')
 	state.initialize_visuals()
 	state.initialize_highlight()
 	state.scroll = new_surface_scroll(state)
@@ -249,6 +254,8 @@ pub fn (mut state NativeActionSurface) deinit() {
 	if state.closed { return }
 	state.hide_inspector()
 	state.closed = true
+	state.clear_hover_tracking()
+	state.clear_hover_line()
 	if state.palette != unsafe { nil } { state.palette.close() }
 	state.remove_notifications()
 	for timer in [state.search_timer, state.progress_timer, state.pulse_timer, state.title_timer,
@@ -261,6 +268,7 @@ pub fn (mut state NativeActionSurface) deinit() {
 	C.macos_objc_set_ptr_ivar(state.owner, cstr('state'), nil_obj())
 	C.macos_objc_set_ptr_ivar(state.overlay, cstr('state'), nil_obj())
 	C.macos_objc_set_ptr_ivar(state.key_badge, cstr('state'), nil_obj())
+	C.macos_objc_set_ptr_ivar(state.hover_label, cstr('state'), nil_obj())
 	msg_void1(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'), 'removeObserver:', state.overlay)
 	msg_void(state.overlay, 'removeFromSuperview')
 	msg_void(state.overlay, 'release')
@@ -300,6 +308,7 @@ fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
 			state.update_bell_tiles()
 			state.refresh_bell_visuals()
 		}
+		state.refresh_hover_visuals()
 	}
 }
 
@@ -313,6 +322,7 @@ fn action_overlay_colors_changed(self ObjId, _cmd Sel, _notification ObjId) {
 		if state.progress_active { state.refresh_progress() }
 		if state.highlighted { state.refresh_highlight() }
 		state.refresh_secure_visuals()
+		state.refresh_hover_appearance()
 	}
 }
 
@@ -335,8 +345,6 @@ fn (mut state NativeActionSurface) refresh() {
 	msg_void_rect(state.readonly_badge, 'setFrame:', objc_rect(width - 108, 8, 100, 28))
 	msg_void_bool(state.health_label, 'setHidden:', state.healthy)
 	msg_void_rect(state.health_label, 'setFrame:', objc_rect((width - 486) / 2, (height - 128) / 2, 486, 128))
-	msg_void_bool(state.hover_label, 'setHidden:', state.hover_url.len == 0)
-	msg_void1(state.hover_label, 'setStringValue:', nsstring(state.hover_url))
 	state.refresh_hover_visuals()
 	msg_void_bool(state.secure_badge, 'setHidden:', !(g_secure_enabled && state.focused
 		&& state.secure_indication && msg_bool(view_window(state.view), 'isKeyWindow')))
@@ -704,8 +712,19 @@ fn action_secure_info(self ObjId, _cmd Sel, _sender ObjId) {
 }
 
 pub fn (mut state NativeActionSurface) mouse_over_link(url string) {
+	if state.closed || state.hover_url == url {
+		return
+	}
 	state.hover_url = url
-	state.refresh()
+	state.clear_hover_line()
+	if url.len == 0 {
+		state.hover_display = ''
+		state.hover_left = false
+	} else {
+		state.hover_display = hover_display_url(url)
+	}
+	msg_void1(state.hover_label, 'setAccessibilityValue:', nsstring(state.hover_display))
+	state.refresh_hover_visuals()
 }
 
 pub fn (mut state NativeActionSurface) focus(focused bool) {

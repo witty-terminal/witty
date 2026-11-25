@@ -2,7 +2,7 @@ module macos
 
 import math
 
-// SurfaceView.KeyStateIndicator / PendingIndicator, hover URL, BellBorderOverlay
+// SurfaceView.KeyStateIndicator / PendingIndicator, BellBorderOverlay
 // and SecureInputOverlay. Timing and gesture thresholds are the source values.
 fn C.witty_action_shadow_offset(layer voidptr, x f64, y f64)
 
@@ -221,50 +221,6 @@ fn (mut surface NativeActionSurface) refresh_key_visuals() {
 	}
 }
 
-fn action_hover_entered(self ObjId, _cmd Sel, _event ObjId) {
-	if mut surface := action_owner_state(self) {
-		surface.hover_left = true
-		surface.refresh()
-	}
-}
-
-fn action_hover_exited(self ObjId, _cmd Sel, _event ObjId) {
-	if mut surface := action_owner_state(self) {
-		surface.hover_left = false
-		surface.refresh()
-	}
-}
-
-fn (mut surface NativeActionSurface) refresh_hover_visuals() {
-	width := math.min(view_width(surface.view), action_text_width(surface.hover_url, 13) + 10)
-	height := view_height(surface.view)
-	msg_void_u64(msg_id(surface.hover_label, 'layer'), 'setMaskedCorners:', if surface.hover_left {
-		u64(4)
-	} else {
-		u64(8)
-	})
-	msg_void_rect(surface.hover_label, 'setFrame:', objc_rect(if surface.hover_left {
-		view_width(surface.view) - width
-	} else {
-		0
-	}, height - 24, width, 24))
-	tracking := objc_rect(0, height - 24, width, 24)
-	if surface.hover_url.len > 0 && !is_nil(surface.hover_tracking) && surface.hover_tracking_rect.x == tracking.x && surface.hover_tracking_rect.y == tracking.y && surface.hover_tracking_rect.width == tracking.width && surface.hover_tracking_rect.height == tracking.height {
-		return
-	}
-	if !is_nil(surface.hover_tracking) {
-		msg_void1(surface.overlay, 'removeTrackingArea:', surface.hover_tracking)
-		msg_void(surface.hover_tracking, 'release')
-		surface.hover_tracking = nil_obj()
-	}
-	if surface.hover_url.len == 0 { return }
-	surface.hover_tracking_rect = tracking
-	// Keep the left hover area in place while the visible URL moves right, as
-	// source's two opacity-switched Text views do.
-	surface.hover_tracking = msg_id_rect_u64_obj_obj(alloc('NSTrackingArea'), 'initWithRect:options:owner:userInfo:', objc_rect(0, height - 24, width, 24), 1 | 128, surface.owner, nil_obj())
-	msg_void1(surface.overlay, 'addTrackingArea:', surface.hover_tracking)
-}
-
 fn (mut surface NativeActionSurface) initialize_visuals() {
 	readonly_icon := msg_id2(get_class('NSImage'), 'imageWithSystemSymbolName:accessibilityDescription:', nsstring('eye.fill'), nil_obj())
 	msg_void1(surface.readonly_badge, 'setImage:', readonly_icon)
@@ -287,11 +243,6 @@ fn (mut surface NativeActionSurface) initialize_visuals() {
 	}
 	C.witty_macos_msg_void_f32(surface.bell_layer, sel('setOpacity:'), 0)
 	msg_void1(msg_id(surface.overlay, 'layer'), 'addSublayer:', surface.bell_layer)
-	msg_void_bool(surface.hover_label, 'setWantsLayer:', true)
-	msg_void1(msg_id(surface.hover_label, 'layer'), 'setBackgroundColor:', msg_id(msg_id(get_class('NSColor'), 'windowBackgroundColor'), 'CGColor'))
-	msg_void_f64(msg_id(surface.hover_label, 'layer'), 'setCornerRadius:', 9)
-	msg_void_u64(msg_id(surface.hover_label, 'cell'), 'setLineBreakMode:', 5)
-	msg_void_bool(msg_id(surface.hover_label, 'cell'), 'setUsesSingleLineMode:', true)
 }
 
 fn (surface &NativeActionSurface) update_bell_tiles() {

@@ -64,7 +64,16 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	assert is_nil(msg_id1(surface.secure_wash, 'animationForKey:', nsstring('secureOpacity')))
 	surface.mouse_over_link('https://example.com/long/path')
 	assert !is_nil(surface.hover_tracking)
-	assert msg_u64(msg_id(surface.hover_label, 'cell'), 'lineBreakMode') == 5
+	assert objc_utf8_string(msg_id(surface.hover_label, 'accessibilityValue')) == 'https://example.com/long/path'
+	tracking := surface.hover_tracking
+	assert msg_rect(surface.hover_label, 'frame').x == 0
+	action_hover_entered(surface.owner, nil_obj(), nil_obj())
+	frame := msg_rect(surface.hover_label, 'frame')
+	assert frame.x + frame.width == view_width(view)
+	assert surface.hover_tracking == tracking
+	surface.mouse_over_link('')
+	assert is_nil(surface.hover_tracking)
+	assert msg_bool(surface.hover_label, 'isHidden')
 	surface.presented()
 	assert surface.highlighted
 	assert !is_nil(msg_id(surface.highlight_radial, 'contents'))
@@ -83,6 +92,71 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	set_cursor_shape(view, 8)
 	assert msg_id(surface.scroll.scroll, 'documentCursor') == msg_id(get_class('NSCursor'), 'IBeamCursor')
 	assert cursor_for_shape(4) == none
+}
+
+fn test_native_hover_banner_capture() {
+	output := os.getenv_opt('WITTY_HOVER_BANNER_OUTPUT') or { return }
+	app_init()
+	frame := objc_rect(0, 0, 240, 80)
+	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
+		frame, 0, ns_backing_store_buffered, false)
+	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
+	view := create_offscreen_terminal_view(240, 80)
+	msg_void1(window, 'setContentView:', view)
+	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{})
+	defer {
+		surface.deinit()
+		msg_void(window, 'close')
+		msg_void(window, 'release')
+		release_offscreen_terminal_view(view)
+	}
+	base := msg_id_rect(alloc('NSView'), 'initWithFrame:', frame)
+	msg_void_bool(base, 'setWantsLayer:', true)
+	color := C.witty_macos_color_rgba(0.2, 0.3, 0.4, 1)
+	msg_void1(msg_id(base, 'layer'), 'setBackgroundColor:', msg_id(color, 'CGColor'))
+	C.witty_canvas_place_overlay(view, base, nil_obj())
+	C.witty_canvas_place_overlay(view, surface.overlay, nil_obj())
+	msg_void(base, 'release')
+	surface.scroll.layout()
+
+	names := ['short', 'long', 'unicode', 'file']
+	urls := ['https://example.org/path', 'https://example.org/long/path/to/an/application/file.html',
+		'https://example.org/é/東京', 'file:///private/tmp/../tmp/']
+	for m, appearance in ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
+		msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',
+			nsstring(appearance)))
+		mode := if m == 0 { 'light' } else { 'dark' }
+		for i, url in urls {
+			surface.mouse_over_link(url)
+			for side in ['left', 'right'] {
+				if side == 'left' {
+					action_hover_exited(surface.owner, nil_obj(), nil_obj())
+				} else {
+					action_hover_entered(surface.owner, nil_obj(), nil_obj())
+				}
+				png := C.witty_overlay_test_png(surface.scroll.container)
+				assert !is_nil(png)
+				path := os.join_path(output, '${mode}-${names[i]}-${side}-witty.png')
+				assert msg_bool2(png, 'writeToFile:atomically:', nsstring(path), ObjId(1))
+			}
+		}
+	}
+}
+
+fn test_hover_banner_raster_mirroring_and_display_string() {
+	assert hover_display_url('https://example.org/é/東京') == 'https://example.org/é/東京'
+	assert hover_display_url('https://example.org/a\u202eb') == 'https://example.org/a\\u{202E}b'
+	left := hover_canvas_mask(40, 52, 2, true)!
+	right := hover_canvas_mask(40, 52, 2, false)!
+	assert left.pixels[0] == 0
+	assert left.pixels[39] == 0xff000000
+	assert left.pixels[51 * 40] == 0xff000000
+	for row in 0 .. 52 {
+		for column in 0 .. 40 {
+			assert left.pixels[row * 40 + column] == right.pixels[row * 40 + 39 - column]
+		}
+	}
 }
 
 fn test_native_secure_badge_capture() {

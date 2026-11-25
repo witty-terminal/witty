@@ -1,0 +1,39 @@
+#include <AppKit/AppKit.h>
+#include <CoreText/CoreText.h>
+
+#if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
+static inline CTLineRef witty_hover_line(NSString *text, double limit, double *width) {
+    NSDictionary *attributes = @{
+        NSFontAttributeName: [NSFont systemFontOfSize:13],
+        (__bridge NSString *)kCTForegroundColorFromContextAttributeName: @YES,
+    };
+    NSAttributedString *value = [[NSAttributedString alloc] initWithString:text attributes:attributes];
+    CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)value);
+    [value release];
+    if (!line) return NULL;
+    *width = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
+    if (*width <= limit) return line;
+
+    NSAttributedString *ellipsis = [[NSAttributedString alloc] initWithString:@"…" attributes:attributes];
+    CTLineRef token = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)ellipsis);
+    [ellipsis release];
+    CTLineRef truncated = token ? CTLineCreateTruncatedLine(line, limit, kCTLineTruncationMiddle, token) : NULL;
+    CFRelease(line);
+    if (token) CFRelease(token);
+    *width = truncated ? CTLineGetTypographicBounds(truncated, NULL, NULL, NULL) : 0;
+    return truncated;
+}
+
+static inline void witty_hover_draw_line(CTLineRef line, CGContextRef context, NSView *view,
+        double padding, double baseline) {
+    CGContextSaveGState(context);
+    CGContextClipToRect(context, NSRectToCGRect(NSInsetRect(view.bounds, padding, 0)));
+    [[view effectiveAppearance] performAsCurrentDrawingAppearance:^{
+        CGContextSetFillColorWithColor(context, [NSColor labelColor].CGColor);
+    }];
+    CGContextSetTextMatrix(context, CGAffineTransformIdentity);
+    CGContextSetTextPosition(context, padding, baseline);
+    CTLineDraw(line, context);
+    CGContextRestoreGState(context);
+}
+#endif
