@@ -496,6 +496,9 @@ fn test_graphics_execute_display_and_delete_use_persistent_storage() ! {
 	transmit := CommandParser.parse_string('a=t,f=24,t=d,i=7,s=1,v=1;////')!
 	assert (kitty_graphics_execute(mut t, &transmit) or { panic('expected transmit response') }).ok()
 
+	unmatched := CommandParser.parse_string('a=d,d=I,i=7,p=9')!
+	assert t.kitty_graphics(&unmatched) == none
+
 	display := CommandParser.parse_string('a=p,i=7,p=9,c=1,r=1,C=1')!
 	display_response := kitty_graphics_execute(mut t, &display) or { panic('expected display response') }
 	assert display_response.ok()
@@ -548,6 +551,35 @@ fn test_graphics_storage_follows_screen_reset_and_switch_lifecycle() ! {
 	t.switch_screen(.primary)!
 	primary_storage = &t.screens.active.kitty_images
 	assert primary_storage.dirty
+}
+
+fn test_graphics_delete_visible_preserves_scrollback_and_unplaced_data() ! {
+	for selector in ['a', 'A'] {
+		mut t := make_graphics_terminal()!
+		defer { t.deinit() }
+		add_graphics_scroll_placement(mut t, 1, 0, 0, 1)!
+		add_graphics_scroll_placement(mut t, 2, 0, 2, 2)!
+		t.set_cursor_pos(5, 1)
+		t.index()!
+		add_graphics_scroll_placement(mut t, 3, 2, 0, 1)!
+		transmit := CommandParser.parse_string('a=t,f=24,i=4,s=1,v=1;////')!
+		assert (t.kitty_graphics(&transmit) or { panic('expected transmit response') }).ok()
+		storage := &t.screens.active.kitty_images
+
+		delete_visible := CommandParser.parse_string('a=d,d=${selector}')!
+		assert t.kitty_graphics(&delete_visible) == none
+		assert storage.placement_count() == 1
+		assert storage.placements[0].key.image_id == 1
+		assert storage.image_by_id(1) != none
+		assert storage.image_by_id(4) != none
+		assert storage.image_count() == if selector == 'A' { 2 } else { 4 }
+
+		add_graphics_scroll_placement(mut t, 5, 2, 0, 1)!
+		t.erase_display(.complete, false)
+		assert storage.placement_count() == 1
+		assert storage.placements[0].key.image_id == 1
+		assert storage.image_count() == 1
+	}
 }
 
 fn test_graphics_storage_follows_terminal_clear_and_scroll_lifecycle() ! {

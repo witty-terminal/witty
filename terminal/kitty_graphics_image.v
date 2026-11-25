@@ -603,6 +603,11 @@ pub:
 	bottom_right Pin
 }
 
+fn (self &Rect) contains(pin Pin) bool {
+	return pin.x >= self.top_left.x && pin.x <= self.bottom_right.x
+		&& pin.is_between(self.top_left, self.bottom_right)
+}
+
 // ============================================================
 // RenderPlacement
 // ============================================================

@@ -578,29 +578,56 @@ fn (mut self ImageStorage) clear_placements(mut s Screen) {
 	self.placements.clear()
 }
 
-// Clear all pin-anchored placements. Virtual placements remain until they are
-// explicitly deleted, matching Kitty's delete-all semantics.
-pub fn (mut self ImageStorage) clear_screen_images(mut s Screen) {
+// Remove fixed placements that intersect the active screen. Relative placements
+// follow their parents' lifetime, and virtual placements belong to text cells.
+fn (mut self ImageStorage) delete_visible_placements(mut t Terminal, delete_unused bool) {
+	mut screen := t.screens.active
 	mut i := 0
 	for i < self.placements.len {
 		entry := self.placements[i]
-		if entry.value.location !is PlacementPin {
+		location := entry.value.location
+		pin := match location {
+			PlacementPin { location.pin }
+			else {
+				i++
+				continue
+			}
+		}
+		if isnil(pin) || pin.garbage {
 			i++
 			continue
 		}
+		if !screen.pages.pin_is_active(*pin) {
+			image := self.image_by_id(entry.key.image_id) or {
+				i++
+				continue
+			}
+			rect := entry.value.rect(image, &t) or {
+				i++
+				continue
+			}
+			if !screen.pages.pin_is_active(rect.bottom_right) {
+				i++
+				continue
+			}
+		}
 
-		image_id := entry.key.image_id
-		entry.value.deinit(mut s)
+		entry.value.deinit(mut screen)
 		self.placements.delete(i)
-		self.delete_if_unused(image_id)
+		if delete_unused {
+			self.delete_if_unused(entry.key.image_id)
+		}
 	}
-	self.remove_orphans(true)
+	self.remove_orphans(delete_unused)
+	self.dirty = true
+}
 
-	ids := self.images.keys()
-	for id in ids {
+// A terminal display erase also drops any transmitted data without placements.
+pub fn (mut self ImageStorage) clear_screen_images(mut t Terminal) {
+	self.delete_visible_placements(mut t, true)
+	for id in self.images.keys() {
 		self.delete_if_unused(id)
 	}
-	self.dirty = true
 }
 
 // Get an image by its ID. If the image doesn't exist, return none.
@@ -635,23 +662,7 @@ pub fn (self &ImageStorage) image_by_number(image_number u32) ?Image {
 pub fn (mut self ImageStorage) delete(mut t Terminal, cmd Delete) {
 	match cmd {
 		DeleteAll {
-			if cmd.delete {
-				self.clear_screen_images(mut t.screens.active)
-			} else {
-				// Iterate placements, removing non-virtual ones.
-				mut i := 0
-				for i < self.placements.len {
-					entry := self.placements[i]
-					if entry.value.location !is PlacementPin {
-						i++
-						continue
-					}
-					entry.value.deinit(mut t.screens.active)
-					self.placements.delete(i)
-				}
-				self.remove_orphans(false)
-				self.dirty = true
-			}
+			self.delete_visible_placements(mut t, cmd.delete)
 		}
 		DeleteById {
 			self.delete_by_id(mut t.screens.active, cmd.image_id, cmd.placement_id, cmd.delete)
@@ -784,24 +795,24 @@ pub fn (mut self ImageStorage) delete(mut t Terminal, cmd Delete) {
 			self.dirty = true
 		}
 		DeleteRange {
-			if cmd.first <= 0 || cmd.last <= 0 {
-				return
-			}
-			if cmd.first > cmd.last {
+			if cmd.last == 0 || cmd.first > cmd.last {
 				return
 			}
 			mut i := 0
 			for i < self.placements.len {
 				entry := self.placements[i]
-				if entry.key.image_id >= cmd.first || entry.key.image_id <= cmd.last {
-					image_id := entry.key.image_id
+				if entry.key.image_id >= cmd.first && entry.key.image_id <= cmd.last {
 					entry.value.deinit(mut t.screens.active)
 					self.placements.delete(i)
-					if cmd.delete {
-						self.delete_if_unused(image_id)
-					}
 				} else {
 					i++
+				}
+			}
+			if cmd.delete {
+				for id in self.images.keys() {
+					if id >= cmd.first && id <= cmd.last {
+						self.delete_if_unused(id)
+					}
 				}
 			}
 			self.remove_orphans(cmd.delete)
@@ -814,6 +825,7 @@ pub fn (mut self ImageStorage) delete(mut t Terminal, cmd Delete) {
 }
 
 fn (mut self ImageStorage) delete_by_id(mut s Screen, image_id u32, placement_id u32, delete_unused bool) {
+	mut matched := placement_id == 0
 	// If no placement, we delete all placements with the ID
 	if placement_id == 0 {
 		mut i := 0
@@ -831,13 +843,12 @@ fn (mut self ImageStorage) delete_by_id(mut s Screen, image_id u32, placement_id
 			image_id:     image_id
 			placement_id: PlacementId.init(.external, placement_id)
 		}
-		mut i := 0
-		for i < self.placements.len {
-			if self.placements[i].key == target_key {
-				self.placements[i].value.deinit(mut s)
+		for i, entry in self.placements {
+			if entry.key == target_key {
+				entry.value.deinit(mut s)
 				self.placements.delete(i)
-			} else {
-				i++
+				matched = true
+				break
 			}
 		}
 	}
@@ -845,7 +856,7 @@ fn (mut self ImageStorage) delete_by_id(mut s Screen, image_id u32, placement_id
 	self.remove_orphans(delete_unused)
 	// If this is specified, then we also delete the image
 	// if it is no longer in use.
-	if delete_unused {
+	if delete_unused && matched {
 		self.delete_if_unused(image_id)
 	}
 
@@ -889,7 +900,7 @@ fn (mut self ImageStorage) delete_intersecting(mut t Terminal, p Point, delete_u
 			i++
 			continue
 		}
-		if target_pin.is_between(r.top_left, r.bottom_right) {
+		if r.contains(target_pin) {
 			if filter_z := z {
 				if entry.value.z != filter_z {
 					i++

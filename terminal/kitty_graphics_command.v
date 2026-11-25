@@ -1070,18 +1070,10 @@ fn Delete.parse(kv map[u8]u32) !Delete {
 			r
 		}
 		`r`, `R` {
-			if `x` !in kv || `y` !in kv {
-				return error('InvalidFormat: range delete requires x and y')
-			}
-			x := kv[u8(`x`)]
-			y := kv[u8(`y`)]
-			if x > y {
-				return error('InvalidFormat: range x > y')
-			}
 			DeleteRange{
 				delete: what == `R`
-				first:  x
-				last:   y
+				first:  kv[u8(`x`)]
+				last:   kv[u8(`y`)]
 			}
 		}
 		`x`, `X` {

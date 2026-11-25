@@ -3856,8 +3856,7 @@ pub fn (mut self Terminal) erase_display(mode EraseDisplay, protected_req bool) 
 			}
 			// Unsets pending wrap state
 			self.screens.active.cursor.pending_wrap = false
-			// Clear all Kitty graphics state for this screen
-			self.screens.active.kitty_images.delete(mut self, DeleteAll{ delete: true })
+			self.screens.active.kitty_images.clear_screen_images(mut self)
 		}
 		.complete {
 			// If we're on the primary screen and our last non-empty row is
@@ -3873,8 +3872,7 @@ pub fn (mut self Terminal) erase_display(mode EraseDisplay, protected_req bool) 
 			// All active area
 			self.screens.active.clear_rows(Point.new(.active, Coordinate{}), ?Point(none), is_protected)
 			self.screens.active.cursor.pending_wrap = false
-			// Clear all Kitty graphics state for this screen
-			self.screens.active.kitty_images.delete(mut self, DeleteAll{ delete: true })
+			self.screens.active.kitty_images.clear_screen_images(mut self)
 			self.flags.set_dirty_clear(true)
 		}
 		.below {

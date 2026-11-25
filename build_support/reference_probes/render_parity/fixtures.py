@@ -204,6 +204,47 @@ def kitty_relative():
     return commands
 
 
+def kitty_delete_selection():
+    commands = bytearray(b"Kitty delete selection")
+    for row, col, image_id, color, place in (
+        (3, 4, 701, (240, 73, 70), True),
+        (3, 9, 702, (78, 229, 119), True),
+        (3, 14, 704, (91, 137, 242), True),
+        (3, 19, 705, (247, 201, 80), False),
+        (3, 24, 706, (192, 92, 241), True),
+        (3, 29, 707, (42, 199, 229), False),
+    ):
+        commands += kitty_solid(row, col, image_id, color, place=place)
+    commands += b"\x1b_Ga=d,d=r,x=702,y=704,q=2;\x1b\\"
+    commands += b"\x1b[4;9H\x1b_Ga=p,i=702,c=2,r=1,C=1,q=2;\x1b\\"
+    # The uppercase range also frees images that have no placements.
+    commands += b"\x1b_Ga=d,d=R,x=703,y=705,q=2;\x1b\\"
+    commands += b"\x1b[4;19H\x1b_Ga=p,i=705,c=2,r=1,C=1,q=2;\x1b\\"
+    commands += b"\x1b_Ga=d,d=R,y=701,q=2;\x1b\\"
+    # Deleting an absent placement ID leaves the transmitted image available.
+    commands += b"\x1b_Ga=d,d=I,i=707,p=9,q=2;\x1b\\"
+    commands += b"\x1b[4;29H\x1b_Ga=p,i=707,c=2,r=1,C=1,q=2;\x1b\\"
+    commands += b"\x1b[6;16H\x1b_Ga=p,i=706,c=3,r=3,C=1,q=2;\x1b\\"
+    # The cell is on a middle row of the image, outside its column bounds.
+    commands += b"\x1b_Ga=d,d=p,x=1,y=7,q=2;\x1b\\"
+    return commands
+
+
+def kitty_delete_visible():
+    commands = bytearray(kitty_solid(1, 3, 601, (240, 73, 70)))
+    commands += kitty_solid(1, 20, 602, (78, 229, 119), place=False)
+    commands += b"\x1b_Ga=p,i=602,p=1,c=2,r=2,C=1,q=2;\x1b\\"
+    commands += kitty_solid(1, 1, 603, (91, 137, 242), place=False)
+    commands += f"\x1b[{GRID_ROWS};1H\n".encode()
+    commands += kitty_solid(3, 30, 604, (247, 201, 80))
+    # One placement is wholly in history, and another straddles the top edge.
+    commands += b"\x1b_Ga=d,d=A,q=2;\x1b\\"
+    commands += b"\x1b[2;1HKitty delete visible\x1b_Ga=p,i=603,P=601,Q=1,H=3,V=5,c=3,r=1,q=2;\x1b\\"
+    commands += b"\x1b[7;19H\x1b_Ga=p,i=602,c=2,r=1,C=1,q=2;\x1b\\"
+    commands += b"\x1b[7;30H\x1b_Ga=p,i=604,c=2,r=1,C=1,q=2;\x1b\\"
+    return commands
+
+
 def main():
     fixture = sys.argv[1]
     output = {
@@ -259,6 +300,10 @@ def main():
         sys.stdout.buffer.write(kitty_layers())
     elif fixture == "kitty-relative":
         sys.stdout.buffer.write(kitty_relative())
+    elif fixture == "kitty-delete-selection":
+        sys.stdout.buffer.write(kitty_delete_selection())
+    elif fixture == "kitty-delete-visible":
+        sys.stdout.buffer.write(kitty_delete_visible())
     elif fixture in CURSOR_STYLES:
         # Reposition over an existing glyph and show a steady cursor.
         style = CURSOR_STYLES[fixture]

@@ -31,12 +31,14 @@ FIXTURES = (
     "ansi", "decorations", "unicode", "wide-wrap", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
+    "kitty-delete-selection", "kitty-delete-visible",
     *WALLPAPER_OPTIONS, "ls", "git", "vim", "shader",
 )
 OPTIONS = (
     "--config-default-files=false",
     "--gtk-single-instance=false",
     "--window-decoration=none",
+    "--scrollbar=never",
     "--window-save-state=never",
     "--resize-overlay=never",
     f"--window-width={GRID_COLUMNS}",

@@ -162,7 +162,8 @@ fn test_storage_delete_all_placements_and_images() ! {
 	s.dirty = false
 	s.delete(mut t, DeleteAll{ delete: true })
 	assert s.dirty
-	assert s.image_count() == 0
+	assert s.image_count() == 1
+	assert s.image_by_id(3) != none
 	assert s.placement_count() == 0
 	assert t.screens.active.pages.count_tracked_pins() == tracked
 }
@@ -188,7 +189,8 @@ fn test_storage_delete_all_placements_and_images_preserves_limit() ! {
 	s.dirty = false
 	s.delete(mut t, DeleteAll{ delete: true })
 	assert s.dirty
-	assert s.image_count() == 0
+	assert s.image_count() == 1
+	assert s.image_by_id(3) != none
 	assert s.placement_count() == 0
 	assert s.total_limit == 5000
 	assert t.screens.active.pages.count_tracked_pins() == tracked
@@ -584,7 +586,7 @@ fn test_storage_delete_images_by_range_2() ! {
 	s.add_image(mut t.screens.active, Image{ id: 2 })!
 	s.add_image(mut t.screens.active, Image{ id: 3 })!
 	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 1, 1))
-	s.add_placement(mut t.screens.active, 2, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 3, 1, pin_placement(mut t, 1, 1))
 	assert s.image_count() == 3
 	assert s.placement_count() == 2
 
@@ -596,8 +598,10 @@ fn test_storage_delete_images_by_range_2() ! {
 	})
 	assert s.dirty
 	assert s.image_count() == 1
-	assert s.placement_count() == 0
-	assert t.screens.active.pages.count_tracked_pins() == tracked
+	assert s.image_by_id(3) != none
+	assert s.placement_count() == 1
+	assert s.placements[0].key.image_id == 3
+	assert t.screens.active.pages.count_tracked_pins() == tracked + 1
 }
 
 fn test_storage_delete_images_by_range_3() ! {
@@ -620,6 +624,11 @@ fn test_storage_delete_images_by_range_3() ! {
 	assert s.placement_count() == 2
 
 	s.dirty = false
+	s.delete(mut t, DeleteRange{ delete: true, first: 2, last: 1 })
+	assert !s.dirty
+	assert s.image_count() == 3
+	assert s.placement_count() == 2
+
 	s.delete(mut t, DeleteRange{
 		delete: false
 		first:  1
@@ -627,8 +636,9 @@ fn test_storage_delete_images_by_range_3() ! {
 	})
 	assert s.dirty
 	assert s.image_count() == 3
-	assert s.placement_count() == 0
-	assert t.screens.active.pages.count_tracked_pins() == tracked
+	assert s.placement_count() == 1
+	assert s.placements[0].key.image_id == 2
+	assert t.screens.active.pages.count_tracked_pins() == tracked + 1
 }
 
 fn test_storage_delete_images_by_range_4() ! {
@@ -653,13 +663,14 @@ fn test_storage_delete_images_by_range_4() ! {
 	s.dirty = false
 	s.delete(mut t, DeleteRange{
 		delete: true
-		first:  1
 		last:   1
 	})
 	assert s.dirty
-	assert s.image_count() == 1
-	assert s.placement_count() == 0
-	assert t.screens.active.pages.count_tracked_pins() == tracked
+	assert s.image_count() == 2
+	assert s.image_by_id(1) == none
+	assert s.placement_count() == 1
+	assert s.placements[0].key.image_id == 2
+	assert t.screens.active.pages.count_tracked_pins() == tracked + 1
 }
 
 fn test_storage_aspect_ratio_calculation_when_only_columns_or_rows_specified() ! {

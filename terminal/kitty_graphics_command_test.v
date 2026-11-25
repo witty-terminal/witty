@@ -214,25 +214,18 @@ fn test_delete_range_command_2() {
 	assert range_.last == 11
 }
 
-fn test_delete_range_command_3() {
-	// x > y should fail
-	input := 'a=d,d=R,x=5,y=4'
-	CommandParser.parse_string(input) or { return }
-	assert false, 'expected error'
+fn test_delete_range_command_preserves_inverted_bounds() ! {
+	command := CommandParser.parse_string('a=d,d=R,x=5,y=4')!
+	range_ := (command.control as Delete) as DeleteRange
+	assert range_.first == 5
+	assert range_.last == 4
 }
 
-fn test_delete_range_command_4() {
-	// Missing y should fail
-	input := 'a=d,d=R,x=5'
-	CommandParser.parse_string(input) or { return }
-	assert false, 'expected error'
-}
-
-fn test_delete_range_command_5() {
-	// Missing x should fail
-	input := 'a=d,d=R,y=5'
-	CommandParser.parse_string(input) or { return }
-	assert false, 'expected error'
+fn test_delete_range_command_defaults_omitted_bounds_to_zero() ! {
+	without_last := CommandParser.parse_string('a=d,d=R,x=5')!
+	assert ((without_last.control as Delete) as DeleteRange).last == 0
+	without_first := CommandParser.parse_string('a=d,d=R,y=5')!
+	assert ((without_first.control as Delete) as DeleteRange).first == 0
 }
 
 fn test_ensure_large_negative_values() {
