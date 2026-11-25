@@ -70,20 +70,20 @@ pub mut:
 }
 
 pub fn DynamicLoop.init(opts Options) !DynamicLoop {
-	return DynamicLoop{
-		backend: match backend() {
-			.io_uring {
-				DynamicLoopUnion{
-					io_uring: IoUringLoop.init(opts)!
-				}
-			}
-			.epoll {
-				DynamicLoopUnion{
-					epoll: EpollLoop.init(opts)!
-				}
-			}
+	// Select the union member after constructing the wrapper. V can emit
+	// default initializers for the other member in a union literal.
+	mut loop := DynamicLoop{}
+	match backend() {
+		.io_uring {
+			backend_loop := IoUringLoop.init(opts)!
+			unsafe { loop.backend.io_uring = backend_loop }
+		}
+		.epoll {
+			backend_loop := EpollLoop.init(opts)!
+			unsafe { loop.backend.epoll = backend_loop }
 		}
 	}
+	return loop
 }
 
 pub fn (mut self DynamicLoop) deinit() {
