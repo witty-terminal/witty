@@ -471,6 +471,14 @@ pub mut:
 	more_chunks  bool // m
 }
 
+fn (t Transmission) response() Response {
+	return Response{
+		id:           t.image_id
+		image_number: t.image_number
+		placement_id: t.placement_id
+	}
+}
+
 pub enum TransmissionFormat as u8 {
 	rgb  // 24
 	rgba // 32

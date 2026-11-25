@@ -221,6 +221,8 @@ pub mut:
 	// Quiet settings for the initial load command (used if q isn't
 	// set on subsequent chunks).
 	quiet Quiet = .no
+	// Identifiers from the first chunk, used when replying to later chunks.
+	response Response
 }
 
 // Free the loading image data.
@@ -238,7 +240,7 @@ pub fn (mut self LoadingImage) destroy() {
 pub fn LoadingImage.init_from_cmd(cmd &Command) !LoadingImage {
 	t := cmd.transmission() or { return error('no transmission in command') }
 	mut result := LoadingImage{
-		image:   Image{
+		image:    Image{
 			id:          t.image_id
 			number:      t.image_number
 			width:       t.width
@@ -246,8 +248,9 @@ pub fn LoadingImage.init_from_cmd(cmd &Command) !LoadingImage {
 			compression: t.compression
 			format:      t.format_
 		}
-		display: cmd.display()
-		quiet:   cmd.quiet
+		display:  cmd.display()
+		quiet:    cmd.quiet
+		response: t.response()
 	}
 
 	// Special case for the direct medium, we just add the chunk directly.

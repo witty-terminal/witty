@@ -126,31 +126,24 @@ pub fn kitty_graphics_execute(mut t Terminal, cmd &Command) ?Response {
 		ControlQuery {
 			exec_query(cmd)
 		}
-		ControlTransmit {
-			if mut loading := storage.loading {
-				match cmd.quiet {
-					.no {
-						quiet = loading.quiet
-					}
-					.ok, .failures {
-						loading.quiet = cmd.quiet
+		ControlTransmit, TransmitAndDisplay {
+			transmission := cmd.transmission() or { panic('missing transmission data') }
+			if transmission.image_id > 0 && transmission.image_number > 0 {
+				mut invalid := transmission.response()
+				invalid.message = 'EINVAL: image ID and number are mutually exclusive'
+				invalid
+			} else {
+				if transmission.medium != .direct {
+					storage.abort_loading()
+				}
+				if mut loading := storage.loading {
+					match cmd.quiet {
+						.no { quiet = loading.quiet }
+						.ok, .failures { loading.quiet = cmd.quiet }
 					}
 				}
+				exec_transmit(mut t, cmd, transmission)
 			}
-			exec_transmit(mut t, cmd)
-		}
-		TransmitAndDisplay {
-			if mut loading := storage.loading {
-				match cmd.quiet {
-					.no {
-						quiet = loading.quiet
-					}
-					.ok, .failures {
-						loading.quiet = cmd.quiet
-					}
-				}
-			}
-			exec_transmit(mut t, cmd)
 		}
 		Display {
 			exec_display(mut t, cmd)
@@ -233,27 +226,16 @@ fn exec_query(cmd &Command) Response {
 // This loads the image, validates it, and puts it into the terminal
 // screen storage. It does not display the image (unless the command
 // is transmit_and_display).
-fn exec_transmit(mut t Terminal, cmd &Command) Response {
-	t_data := cmd.transmission() or {
-		return Response{ message: 'EINVAL: no transmission data' }
-	}
-
-	// Build a partial response to start.
-	mut result := Response{
-		id:           t_data.image_id
-		image_number: t_data.image_number
-		placement_id: t_data.placement_id
-	}
-
-	// Image ID and image number are mutually exclusive.
-	if t_data.image_id > 0 && t_data.image_number > 0 {
-		return Response{
-			message: 'EINVAL: image ID and number are mutually exclusive'
-		}
+fn exec_transmit(mut t Terminal, cmd &Command, transmission Transmission) Response {
+	storage := &t.screens.active.kitty_images
+	mut result := if loading := storage.loading {
+		loading.response
+	} else {
+		transmission.response()
 	}
 
 	// Load and add the image.
-	load_result := load_and_add_image(mut t, cmd) or {
+	load_result := load_and_add_image(mut t, cmd, transmission) or {
 		encode_error(mut result, err.msg())
 		return result
 	}
@@ -423,6 +405,7 @@ fn exec_delete(mut t Terminal, cmd &Command) Response {
 	}
 
 	mut storage := &t.screens.active.kitty_images
+	storage.abort_loading()
 	storage.delete(mut t, del)
 
 	// Delete never responds on success.
@@ -441,26 +424,23 @@ struct LoadResult {
 // Handles both single-shot and chunked loading. For chunked transfers,
 // the first chunk creates a LoadingImage and subsequent chunks add data
 // until the final chunk completes it.
-fn load_and_add_image(mut t Terminal, cmd &Command) !LoadResult {
-	t_data := cmd.transmission() or { return error('no transmission in command') }
+fn load_and_add_image(mut t Terminal, cmd &Command, transmission Transmission) !LoadResult {
 	mut storage := &t.screens.active.kitty_images
 
 	if mut loading_ptr := storage.loading {
 		loading_ptr.add_data(cmd.data)!
-		if t_data.more_chunks {
+		if transmission.more_chunks {
 			return LoadResult{
 				image: loading_ptr.image
 				more:  true
 			}
 		}
 
-		display := loading_ptr.display
-		img := loading_ptr.complete() or {
-			loading_ptr.destroy()
-			storage.loading = none
-			return err
+		defer {
+			storage.abort_loading()
 		}
-		storage.loading = none
+		display := loading_ptr.display
+		img := loading_ptr.complete()!
 		storage.add_image(mut t.screens.active, img)!
 		return LoadResult{
 			image:   img
@@ -468,7 +448,11 @@ fn load_and_add_image(mut t Terminal, cmd &Command) !LoadResult {
 		}
 	}
 
-	// No loading in progress - create a new LoadingImage from the command.
+	// An explicit ID replaces the image and its placements as soon as the
+	// new transmission begins, including while the remaining chunks arrive.
+	if transmission.image_id > 0 {
+		storage.delete_by_id(mut t.screens.active, transmission.image_id, 0, true)
+	}
 	mut loading := LoadingImage.init_from_cmd(cmd)!
 
 	// If the image has no ID, we assign one.
@@ -477,13 +461,13 @@ fn load_and_add_image(mut t Terminal, cmd &Command) !LoadResult {
 
 		// If the image also has no number then its auto-ID is "implicit".
 		// See the doc comment on the Image.implicit_id field for detail.
-		if t_data.image_number == 0 {
+		if transmission.image_number == 0 {
 			loading.image.implicit_id = true
 		}
 	}
 
 	// If this is chunked, this is the beginning of a new chunked transmission.
-	if t_data.more_chunks {
+	if transmission.more_chunks {
 		storage.loading = &loading
 		return LoadResult{
 			image: loading.image

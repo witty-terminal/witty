@@ -417,11 +417,16 @@ pub mut:
 	total_limit uint = 320 * 1000 * 1000 // 320MB
 }
 
-// Deinitialize the storage, freeing all images and placements.
-pub fn (mut self ImageStorage) deinit(mut s Screen) {
+fn (mut self ImageStorage) abort_loading() {
 	if mut loading := self.loading {
 		loading.destroy()
+		self.loading = none
 	}
+}
+
+// Deinitialize the storage, freeing all images and placements.
+pub fn (mut self ImageStorage) deinit(mut s Screen) {
+	self.abort_loading()
 
 	for _, mut img in self.images {
 		img.deinit()
@@ -447,7 +452,6 @@ pub fn (mut self ImageStorage) set_limit(mut s Screen, limit uint) {
 		self.deinit(mut s)
 		self.images = map[u32]Image{}
 		self.placements = []
-		self.loading = none
 		self.total_bytes = 0
 		self.total_limit = 0
 		self.dirty = false

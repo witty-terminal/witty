@@ -325,7 +325,7 @@ fn test_graphics_execute_persists_transmitted_image() ! {
 	assert image.data == [u8(255), 255, 255]
 }
 
-fn test_graphics_retransmit_removes_placements_after_the_last_chunk() ! {
+fn test_graphics_retransmit_removes_placements_on_the_first_chunk() ! {
 	mut t := make_graphics_terminal()!
 	defer { t.deinit() }
 	tracked := t.screens.active.pages.count_tracked_pins()
@@ -346,7 +346,9 @@ fn test_graphics_retransmit_removes_placements_after_the_last_chunk() ! {
 
 	first := CommandParser.parse_string('a=t,f=24,i=1,s=1,v=2,m=1;AP8A')!
 	assert kitty_graphics_execute(mut t, &first) == none
-	assert storage.placement_count() == 4
+	assert storage.placement_count() == 1
+	assert storage.image_by_id(1) == none
+	assert t.screens.active.pages.count_tracked_pins() == tracked + 1
 	last := CommandParser.parse_string('m=0;AP8A')!
 	reply := kitty_graphics_execute(mut t, &last) or { return error('expected transmit response') }
 	assert reply.ok()
@@ -362,6 +364,53 @@ fn test_graphics_retransmit_removes_placements_after_the_last_chunk() ! {
 	placed := kitty_graphics_execute(mut t, &place) or { return error('expected display response') }
 	assert placed.ok()
 	assert graphics_placement_row(&t, 1)! == 2
+}
+
+fn test_graphics_delete_aborts_chunked_upload_and_allows_retry() ! {
+	mut t := make_graphics_terminal()!
+	defer { t.deinit() }
+	storage := &t.screens.active.kitty_images
+	first := CommandParser.parse_string('a=T,f=24,i=1,p=9,s=1,v=2,c=1,r=2,C=1,m=1;AP8A')!
+	last := CommandParser.parse_string('m=0;AP8A')!
+	assert t.kitty_graphics(&first) == none
+	assert storage.loading != none
+
+	delete := CommandParser.parse_string('a=d,d=i,i=99')!
+	assert t.kitty_graphics(&delete) == none
+	assert storage.loading == none
+	assert t.kitty_graphics(&last) == none
+	assert storage.image_count() == 0
+	assert storage.placement_count() == 0
+
+	assert t.kitty_graphics(&first) == none
+	reply := t.kitty_graphics(&last) or { panic('expected transmit response') }
+	assert reply.ok()
+	assert reply.id == 1
+	assert reply.placement_id == 9
+	assert storage.loading == none
+	assert storage.image_count() == 1
+	assert storage.placement_count() == 1
+}
+
+fn test_graphics_chunked_upload_replies_keep_first_chunk_identifiers() ! {
+	mut t := make_graphics_terminal()!
+	defer { t.deinit() }
+	first := CommandParser.parse_string('a=t,f=24,I=73,p=2,s=1,v=2,m=1;AP8A')!
+	last := CommandParser.parse_string('m=0;AP8A')!
+	assert t.kitty_graphics(&first) == none
+	reply := t.kitty_graphics(&last) or { panic('expected transmit response') }
+	assert reply.ok()
+	assert reply.id > 0
+	assert reply.image_number == 73
+	assert reply.placement_id == 2
+
+	longer := CommandParser.parse_string('a=t,f=24,i=128,p=3,s=1,v=3,m=1;AP8A')!
+	assert t.kitty_graphics(&longer) == none
+	failure := t.kitty_graphics(&last) or { panic('expected transmit error') }
+	assert !failure.ok()
+	assert failure.id == 128
+	assert failure.placement_id == 3
+	assert t.screens.active.kitty_images.loading == none
 }
 
 fn test_graphics_execute_reports_invalid_image_length_as_invalid_data() ! {
