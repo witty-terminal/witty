@@ -137,6 +137,8 @@ fn C.adw_tab_view_new() AdwTabView
 
 fn C.adw_tab_view_set_shortcuts(view AdwTabView, shortcuts int)
 
+fn C.adw_tab_view_set_menu_model(view AdwTabView, model GMenuModel)
+
 fn C.adw_tab_page_get_child(page AdwTabPage) GtkWidget
 
 fn C.adw_tab_view_close_page_finish(view AdwTabView, page AdwTabPage, confirm int)
@@ -180,6 +182,8 @@ fn C.gtk_menu_button_new() GtkWidget
 fn C.gtk_menu_button_set_icon_name(button GtkWidget, icon_name &char)
 
 fn C.gtk_menu_button_get_active(button GtkWidget) int
+
+fn C.gtk_widget_set_can_focus(widget GtkWidget, can_focus int)
 
 fn C.gtk_window_controls_new(side int) GtkWidget
 
@@ -527,6 +531,9 @@ mut:
 	// retain the same weak GObject reference as Ghostty.
 	command_palette WeakRef = weak_ref_empty()
 
+	context_menu_page WeakRef = weak_ref_empty()
+	title_override    ?string
+
 	// Children in the programmatic equivalent of window.blp.
 	tab_overview           AdwTabOverview  = unsafe { nil }
 	tab_bar                AdwTabBar       = unsafe { nil }
@@ -564,18 +571,20 @@ fn window_main_menu_new() GMenu {
 	surface_menu_section(menu, section)
 
 	section = C.g_menu_new()
+	surface_menu_append(section, 'Change Window Title…', c'win.prompt-window-title')
 	surface_menu_append(section, 'New Window', c'win.new-window')
 	surface_menu_append(section, 'Close Window', c'win.close')
 	surface_menu_section(menu, section)
 
 	section = C.g_menu_new()
+	surface_menu_append(section, 'Change Tab Title…', c'win.prompt-tab-title')
 	surface_menu_append(section, 'New Tab', c'win.new-tab')
 	surface_menu_append(section, 'Close Tab', c'win.close-tab::this')
 	surface_menu_section(menu, section)
 
 	section = C.g_menu_new()
 	submenu := C.g_menu_new()
-	surface_menu_append(submenu, 'Change Title…', c'win.prompt-title')
+	surface_menu_append(submenu, 'Change Title…', c'win.prompt-surface-title')
 	surface_menu_append(submenu, 'Split Up', c'win.split-up')
 	surface_menu_append(submenu, 'Split Down', c'win.split-down')
 	surface_menu_append(submenu, 'Split Left', c'win.split-left')
@@ -614,7 +623,7 @@ fn window_split_button_new(menu GMenu, flat bool, self &Window) GtkWidget {
 	C.gtk_widget_set_tooltip_text(button, &char(tooltip.str))
 	C.adw_split_button_set_dropdown_tooltip(button, &char(dropdown_tooltip.str))
 	C.witty_gtk_menu_canvas_attach(button, GMenuModel(menu))
-	C.gtk_widget_set_focusable(button, 0)
+	C.gtk_widget_set_can_focus(button, 0)
 	C.gtk_widget_set_focus_on_click(button, 0)
 	C.g_signal_connect_data(button, c'clicked', GCallback(voidptr(window_new_tab_button_cb)),
 		voidptr(self), unsafe { nil }, 0)
@@ -629,7 +638,7 @@ fn window_overview_toggle_new(flat bool, self &Window) GtkWidget {
 	C.gtk_button_set_icon_name(button, c'view-grid-symbolic')
 	tooltip := i18n_('View Open Tabs')
 	C.gtk_widget_set_tooltip_text(button, &char(tooltip.str))
-	C.gtk_widget_set_focusable(button, 0)
+	C.gtk_widget_set_can_focus(button, 0)
 	C.gtk_widget_set_focus_on_click(button, 0)
 	C.g_signal_connect_data(button, c'toggled', GCallback(voidptr(window_overview_toggle_cb)),
 		voidptr(self), unsafe { nil }, 0)
@@ -645,7 +654,7 @@ fn window_menu_button_new(menu GMenu, flat bool, self &Window) GtkWidget {
 	C.witty_gtk_menu_canvas_attach(button, GMenuModel(menu))
 	tooltip := i18n_('Main Menu')
 	C.gtk_widget_set_tooltip_text(button, &char(tooltip.str))
-	C.gtk_widget_set_focusable(button, 0)
+	C.gtk_widget_set_can_focus(button, 0)
 	C.g_signal_connect_data(button, c'notify::active', GCallback(voidptr(window_menu_active_cb)),
 		voidptr(self), unsafe { nil }, 0)
 	return button
@@ -662,6 +671,10 @@ pub fn Window.new(app &Application) &Window {
 	C.gtk_widget_add_css_class(GtkWidget(obj), c'window')
 
 	tab_view := C.adw_tab_view_new()
+	tab_menu := C.g_menu_new()
+	surface_menu_append(tab_menu, 'Change Tab Title…', c'win.prompt-context-tab-title')
+	C.adw_tab_view_set_menu_model(tab_view, GMenuModel(tab_menu))
+	object_unref(GObject(tab_menu))
 	C.adw_tab_view_set_shortcuts(tab_view, 0)
 	toast_overlay := C.adw_toast_overlay_new()
 	C.adw_toast_overlay_set_child(toast_overlay, GtkWidget(tab_view))
@@ -759,6 +772,8 @@ pub fn Window.new(app &Application) &Window {
 		GCallback(voidptr(window_page_detached_cb)), voidptr(self), unsafe { nil }, 0)
 	C.g_signal_connect_data(self.tab_view, c'create-window',
 		GCallback(voidptr(window_create_window_cb)), voidptr(self), unsafe { nil }, 0)
+	C.g_signal_connect_data(self.tab_view, c'setup-menu', GCallback(voidptr(window_setup_tab_menu_cb)),
+		voidptr(self), unsafe { nil }, 0)
 	C.g_signal_connect_data(self.tab_overview, c'create-tab',
 		GCallback(voidptr(window_overview_create_tab_cb)), voidptr(self), unsafe { nil }, 0)
 	C.g_signal_connect_data(self.tab_overview, c'notify::open',
@@ -1142,6 +1157,15 @@ fn window_menu_active_cb(button GtkWidget, pspec voidptr, user_data voidptr) {
 	self.sync_actions()
 }
 
+fn window_setup_tab_menu_cb(_ AdwTabView, page AdwTabPage, user_data voidptr) {
+	if !isnil(user_data) {
+		mut self := unsafe { &Window(user_data) }
+		if !self.disposed {
+			self.context_menu_page.set(GObject(page))
+		}
+	}
+}
+
 fn window_overview_create_tab_cb(overview AdwTabOverview, user_data voidptr) AdwTabPage {
 	_ = overview
 	if isnil(user_data) {
@@ -1191,7 +1215,8 @@ fn (mut self Window) init_action_map() {
 	mut actions := []Action{}
 	for name in ['about', 'close', 'new-tab', 'new-window', 'ring-bell', 'split-right', 'split-left',
 		'split-up', 'split-down', 'copy', 'paste', 'reset', 'clear', 'toggle-command-palette',
-		'toggle-inspector'] {
+		'toggle-inspector', 'prompt-window-title', 'prompt-tab-title', 'prompt-context-tab-title',
+		'prompt-surface-title'] {
 		actions << Action.init(name, GCallback(voidptr(window_action_cb)), unsafe { nil })
 	}
 	actions << Action.init('close-tab', GCallback(voidptr(window_action_cb)), string_type)
@@ -1248,6 +1273,28 @@ fn window_action_cb(action GSimpleAction, parameter GVariant, data voidptr) {
 		}
 		'new-window' {
 			self.action_new_window()
+		}
+		'prompt-window-title' {
+			self.prompt_window_title()
+		}
+		'prompt-tab-title' {
+			self.perform_binding_action(input.ActionPromptTabTitle{})
+		}
+		'prompt-context-tab-title' {
+			page := self.context_menu_page.get()
+			if isnil(page) {
+				return
+			}
+			defer {
+				object_unref(page)
+			}
+			tab := self.tab_for_page(AdwTabPage(page)) or { return }
+			if tab.window == self {
+				tab.prompt_title()
+			}
+		}
+		'prompt-surface-title' {
+			self.perform_binding_action(input.ActionPromptSurfaceTitle{})
 		}
 		'ring-bell' {
 			self.action_ring_bell()
@@ -1499,15 +1546,7 @@ fn (self &Window) tab_for_page(page AdwTabPage) ?&Tab {
 	if isnil(page) {
 		return none
 	}
-	child := C.adw_tab_page_get_child(page)
-	if isnil(child) || C.g_type_check_instance_is_a(child, tab_get_type()) == 0 {
-		return none
-	}
-	priv := tab_priv(voidptr(child))
-	if isnil(priv.wrapper) {
-		return none
-	}
-	return unsafe { &Tab(priv.wrapper) }
+	return tab_from_widget(C.adw_tab_page_get_child(page))
 }
 
 // sync_selected_tab is the direct equivalent of Window's title binding group.
@@ -1521,8 +1560,9 @@ pub fn (mut self Window) sync_selected_tab() {
 	tab := self.get_selected_tab() or { return }
 	if title := tab.title {
 		self.set_title(title)
+	} else {
+		self.sync_window_title()
 	}
-	self.sync_window_title()
 }
 
 fn (self &Window) sync_window_title() {
@@ -1530,7 +1570,9 @@ fn (self &Window) sync_window_title() {
 		return
 	}
 	title_ptr := C.gtk_window_get_title(self.as_window())
-	C.adw_window_title_set_title(self.window_title, if isnil(title_ptr) {
+	C.adw_window_title_set_title(self.window_title, if override := self.title_override {
+		&char(override.str)
+	} else if isnil(title_ptr) {
 		c''
 	} else {
 		title_ptr
@@ -1544,6 +1586,27 @@ fn (self &Window) sync_window_title() {
 		}
 	}
 	C.adw_window_title_set_subtitle(self.window_title, &char(subtitle.str))
+}
+
+fn (self &Window) prompt_window_title() {
+	mut initial_value := self.title_override
+	if initial_value == none {
+		title := C.gtk_window_get_title(self.as_window())
+		if !isnil(title) {
+			initial_value = unsafe { cstring_to_vstring(title) }
+		}
+	}
+	prompt_title_dialog(self.as_widget(), self.config, i18n_('Change Window Title'), initial_value,
+		GCallback(voidptr(window_title_dialog_set_cb)))
+}
+
+fn window_title_dialog_set_cb(_ GObject, title &char, widget GtkWidget) {
+	mut self := window_from_native(widget) or { return }
+	if self.disposed {
+		return
+	}
+	self.title_override = title_override_from_entry(title)
+	self.sync_window_title()
 }
 
 // present_surface selects the tab that owns surface, focuses it, and raises the
@@ -2442,6 +2505,7 @@ fn (mut self Window) dispose_resources() {
 		self.tab_bar = unsafe { nil }
 	}
 	self.command_palette.set(unsafe { nil })
+	self.context_menu_page.set(unsafe { nil })
 	if !isnil(self.config_binding) {
 		object_unref(self.config_binding)
 		self.config_binding = unsafe { nil }
@@ -2522,9 +2586,7 @@ fn (self &Window) as_tab_bar_widget() GtkWidget {
 
 fn (self &Window) set_title(title string) {
 	C.gtk_window_set_title(self.as_window(), &char(title.str))
-	if !isnil(self.window_title) {
-		C.adw_window_title_set_title(self.window_title, &char(title.str))
-	}
+	self.sync_window_title()
 }
 
 fn (self &Window) set_icon_name(name string) {

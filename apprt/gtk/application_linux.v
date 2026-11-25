@@ -953,7 +953,8 @@ fn (mut self Application) sync_action_accelerators() {
 	self.sync_action_accelerator('win.paste', input.ActionPasteFromClipboard{})
 	self.sync_action_accelerator('win.reset', input.ActionReset{})
 	self.sync_action_accelerator('win.clear', input.ActionClearScreen{})
-	self.sync_action_accelerator('win.prompt-title', input.ActionPromptSurfaceTitle{})
+	self.sync_action_accelerator('win.prompt-surface-title', input.ActionPromptSurfaceTitle{})
+	self.sync_action_accelerator('win.prompt-tab-title', input.ActionPromptTabTitle{})
 	self.sync_action_accelerator('split-tree.new-split::left', input.ActionNewSplit{ value: .left })
 	self.sync_action_accelerator('split-tree.new-split::right', input.ActionNewSplit{ value: .right })
 	self.sync_action_accelerator('split-tree.new-split::up', input.ActionNewSplit{ value: .up })
@@ -2048,11 +2049,15 @@ pub fn (mut self Application) perform_action(target apprt.Target, action apprt.A
 		}
 		.prompt_title {
 			if data is apprt.PromptTitle {
-				if data != .surface {
-					return false
-				}
 				mut surface := surface_from_target(target) or { return false }
-				surface.prompt_title()
+				match data {
+					.surface { surface.prompt_title() }
+					.tab {
+						widget := C.gtk_widget_get_ancestor(surface.widget, tab_get_type())
+						tab := tab_from_widget(widget) or { return false }
+						tab.prompt_title()
+					}
+				}
 				return true
 			}
 		}

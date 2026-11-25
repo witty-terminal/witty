@@ -1279,8 +1279,7 @@ pub fn (mut self SurfaceWidget) set_title_override(title ?string) {
 	self.sync_tab()
 }
 
-// prompt_title asks for a manual surface-title override. GTK intentionally
-// does not support prompting for tab titles at this pinned Ghostty revision.
+// prompt_title asks for a manual surface-title override.
 pub fn (mut self SurfaceWidget) prompt_title() {
 	mut initial_value := ?string(none)
 	if title := self.title_override {
@@ -1288,11 +1287,8 @@ pub fn (mut self SurfaceWidget) prompt_title() {
 	} else if title := self.title {
 		initial_value = title
 	}
-	mut dialog := surface_title_dialog_new(initial_value)
-	gtk_canvas_overlay_set_mask(GtkWidget(dialog.obj), !isnil(self.config)
-		&& gtk_canvas_styles_enabled(self.config.get()))
-	C.g_signal_connect_data(dialog.obj, c'set', GCallback(voidptr(surface_title_dialog_set_cb)), voidptr(self), unsafe { nil }, 0)
-	dialog.present(self.widget)
+	prompt_title_dialog(self.widget, self.config, i18n_('Change Terminal Title'), initial_value,
+		GCallback(voidptr(surface_title_dialog_set_cb)))
 }
 
 // init_action_map registers the actions exposed by the surface context menu.
@@ -1351,14 +1347,9 @@ pub fn action_notify_on_next_command_finish(action GSimpleAction, parameter GVar
 	}))
 }
 
-fn surface_title_dialog_set_cb(dialog GObject, title_ptr &char, data voidptr) {
-	_ = dialog
-	if isnil(title_ptr) || isnil(data) {
-		return
-	}
-	mut self := unsafe { &SurfaceWidget(data) }
-	title := unsafe { cstring_to_vstring(title_ptr) }
-	self.set_title_override(if title.len == 0 { ?string(none) } else { ?string(title) })
+fn surface_title_dialog_set_cb(_ GObject, title &char, widget GtkWidget) {
+	mut self := window_surface_wrapper(widget) or { return }
+	self.set_title_override(title_override_from_entry(title))
 }
 
 // get_pwd returns the pwd, if any. Mirrors `Surface.getPwd`.

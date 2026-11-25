@@ -49,7 +49,8 @@ jobs:
             --fixture split-search --fixture key-state-overlay \
             --fixture link-preview --fixture link-preview-right --fixture readonly-overlay \
             --fixture command-palette --fixture command-palette-compact --fixture clipboard-confirmation \
-            --fixture config-errors --fixture terminal-title --fixture close-confirmation --fixture gtk-toast \
+            --fixture config-errors --fixture terminal-title --fixture tab-title \
+            --fixture close-confirmation --fixture gtk-toast \
             --fixture gtk-chrome-tabs --fixture gtk-chrome-native --fixture tab-overview
       - name: Upload screenshots and comparison report
         if: ${{ !cancelled() }}

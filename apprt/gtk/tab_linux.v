@@ -193,6 +193,7 @@ fn tab_finalize(obj voidptr) {
 	if !isnil(priv.wrapper) {
 		mut self := unsafe { &Tab(priv.wrapper) }
 		self.title = none
+		self.title_override = none
 		self.tooltip = none
 		self.widget = unsafe { nil }
 		self.split_tree = unsafe { nil }
@@ -283,6 +284,8 @@ pub mut:
 
 	// The split tree widget that holds this tab's surface(s) (template child).
 	split_tree &SplitTreeWidget = unsafe { nil }
+mut:
+	title_override ?string
 }
 
 // --- Construction ---------------------------------------------------------
@@ -540,6 +543,32 @@ pub fn (self &Tab) get_title() ?string {
 	return self.title
 }
 
+fn tab_from_widget(widget GtkWidget) ?&Tab {
+	if isnil(widget) || C.g_type_check_instance_is_a(widget, tab_get_type()) == 0 {
+		return none
+	}
+	priv := tab_priv(voidptr(widget))
+	if isnil(priv.wrapper) {
+		return none
+	}
+	return unsafe { &Tab(priv.wrapper) }
+}
+
+fn (self &Tab) prompt_title() {
+	prompt_title_dialog(self.widget, self.config, i18n_('Change Tab Title'),
+		if override := self.title_override { ?string(override) } else { self.title },
+		GCallback(voidptr(tab_title_dialog_set_cb)))
+}
+
+fn tab_title_dialog_set_cb(_ GObject, title &char, widget GtkWidget) {
+	mut self := tab_from_widget(widget) or { return }
+	if isnil(self.window) {
+		return
+	}
+	self.title_override = title_override_from_entry(title)
+	self.sync_from_active_surface()
+}
+
 // set_title sets the tab title. Mirrors the "title" property setter.
 pub fn (mut self Tab) set_title(title ?string) {
 	self.title = title
@@ -658,14 +687,14 @@ pub fn (mut self Tab) action_previous_page() {
 // --- Computed title -------------------------------------------------------
 
 // computed_title builds the display title for this tab. Faithful translation of
-// `closureComputedTitle`: the plain title is the override, else the terminal
-// title, else the config title, else a default; a zoom/bell prefix is added
-// per config.
+// `closureComputedTitle`: the tab override takes precedence over the surface
+// override, terminal title, configured title, and default.
 pub fn (self &Tab) computed_title(config_ &Config, terminal_ ?string, override_ ?string, zoomed bool, bell_ringing bool) string {
 	default_title := 'Witty'
 
-	// The plain title: override, else terminal, else config title, else default.
-	plain := if o := override_ {
+	plain := if tab_title := self.title_override {
+		tab_title
+	} else if o := override_ {
 		o
 	} else if t := terminal_ {
 		t

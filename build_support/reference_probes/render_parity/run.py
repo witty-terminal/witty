@@ -36,7 +36,8 @@ INTERACTIVE_FIXTURES = (
 LINK_PREVIEW_FIXTURES = ("link-preview", "link-preview-right")
 COMMAND_PALETTE_FIXTURES = ("command-palette", "command-palette-compact")
 WINDOW_CHROME_FIXTURES = ("gtk-chrome-tabs", "gtk-chrome-native")
-TERMINAL_DIALOG_FIXTURES = ("terminal-title", "close-confirmation")
+TITLE_DIALOG_ACTIONS = {"terminal-title": "prompt_surface_title", "tab-title": "prompt_tab_title"}
+TERMINAL_DIALOG_FIXTURES = (*TITLE_DIALOG_ACTIONS, "close-confirmation")
 WALLPAPER_OPTIONS = {
     "wallpaper-stretch": ("--background-image-fit=stretch",),
     "wallpaper-repeat": (
@@ -50,7 +51,7 @@ FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
     *INTERACTIVE_FIXTURES, "split-search", "visual-bell", "progress-overlay", "resize-overlay", "key-state-overlay",
     *LINK_PREVIEW_FIXTURES, "readonly-overlay", *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
-    "terminal-title", "gtk-toast",
+    *TITLE_DIALOG_ACTIONS, "gtk-toast",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -131,7 +132,7 @@ def fixture_args(name, work):
             "--keybind=ctrl+alt+t=new_tab", "--keybind=ctrl+alt+o=toggle_tab_overview", f"--command={program}",
         ]
     if name in TERMINAL_DIALOG_FIXTURES:
-        action = "prompt_surface_title" if name == "terminal-title" else "close_window"
+        action = TITLE_DIALOG_ACTIONS.get(name, "close_window")
         return [
             *options, "--window-width=72", "--window-height=22", "--confirm-close-surface=always",
             "--quit-after-last-window-closed=false", f"--keybind=ctrl+alt+t={action}",
@@ -628,7 +629,7 @@ def capture_config_errors(binary, args, helper, prefix, settle, scale):
 
 def capture_terminal_dialog(binary, args, helper, prefix, settle, config_dir, name, *, witty=False):
     # Closing the window is part of the close fixture, so launch it normally.
-    capture_args = [f"--screenshot={prefix}-terminal.png"] if witty and name == "terminal-title" else []
+    capture_args = [f"--screenshot={prefix}-terminal.png"] if witty and name in TITLE_DIALOG_ACTIONS else []
     fade = max(settle, 0.65)
     debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
     env = {**os.environ, "GSK_DEBUG": debug, "XDG_CONFIG_HOME": str(config_dir),
@@ -660,12 +661,12 @@ def capture_terminal_dialog(binary, args, helper, prefix, settle, config_dir, na
 
         xdotool("key", "ctrl+alt+t")
         time.sleep(fade)
-        if name == "terminal-title":
+        if name in TITLE_DIALOG_ACTIONS:
             xdotool("key", "ctrl+a", "type", "--delay", "0", "Parity title")
             xdotool("key", "Return")
             time.sleep(fade)
             if xdotool("getwindowname", window) != "Parity title":
-                raise RuntimeError("Enter did not apply the terminal title")
+                raise RuntimeError(f"Enter did not apply the title in {name}")
             xdotool("key", "ctrl+alt+t")
             time.sleep(fade)
             xdotool("key", "ctrl+a", "key", "BackSpace", "key", "Return")

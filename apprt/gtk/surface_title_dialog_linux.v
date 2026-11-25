@@ -43,6 +43,8 @@ fn C.adw_alert_dialog_choose(dialog AdwAlertDialog, parent GtkWidget, cancellabl
 
 fn C.adw_alert_dialog_choose_finish(dialog AdwAlertDialog, result GAsyncResult) &char
 
+fn C.g_signal_connect_object(instance GObject, signal &char, handler GCallback, object GObject, flags int) u64
+
 // --- GObject class registration -------------------------------------------
 // Hand-expansion of ghostty's `gobject.ext.defineClass` for
 // `GhosttySurfaceTitleDialog`, whose parent is `adw.AlertDialog` directly (NOT
@@ -218,6 +220,21 @@ pub fn surface_title_dialog_new(initial_value ?string) &SurfaceTitleDialog {
 	return &SurfaceTitleDialog{
 		obj: obj
 	}
+}
+
+fn prompt_title_dialog(parent GtkWidget, config &Config, heading string, initial_value ?string, on_set GCallback) {
+	mut dialog := surface_title_dialog_new(initial_value)
+	C.adw_alert_dialog_set_heading(AdwAlertDialog(dialog.obj), &char(heading.str))
+	gtk_canvas_overlay_set_mask(GtkWidget(dialog.obj), !isnil(config) && gtk_canvas_styles_enabled(config.get()))
+	C.g_signal_connect_object(dialog.obj, c'set', on_set, GObject(parent), 0)
+	dialog.present(parent)
+}
+
+fn title_override_from_entry(title &char) ?string {
+	if isnil(title) || unsafe { title[0] } == 0 {
+		return none
+	}
+	return unsafe { cstring_to_vstring(title) }.clone()
 }
 
 // get_initial_value returns the optional `initial-value` property. It is the
