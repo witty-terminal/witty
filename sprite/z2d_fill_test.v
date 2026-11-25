@@ -132,7 +132,7 @@ fn test_z2d_fill_plot_degenerate_line() {
 
 fn test_z2d_src_over_alpha_composition() {
 	mut canvas := Canvas.init(1, 1, 0, 0)
-	canvas.data[0] = 221
+	canvas.surface.pixels[0] = u32(221) << 24
 	z2d_composite_span(mut canvas, 0, 0, 1, .medium, 255)
-	assert canvas.data[0] == 239
+	assert canvas.surface.pixels[0] == u32(239) << 24
 }

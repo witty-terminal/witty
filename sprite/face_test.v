@@ -269,12 +269,11 @@ fn render_golden_atlas(batch u32, width u32, ascent u32, descent u32, thickness 
 		y_offset := int(stride_y * row)
 		for y in 0 .. int(stride_y) {
 			for x in 0 .. int(stride_x) {
-				atlas[(y_offset + y) * atlas_width + x_offset + x] = canvas.data[y * int(stride_x) + x]
+				atlas[(y_offset + y) * atlas_width + x_offset + x] = u8(canvas.surface.pixels[y * int(stride_x) +
+					x] >> 24)
 			}
 		}
-		for i in 0 .. canvas.data.len {
-			canvas.data[i] = 0
-		}
+		canvas.surface.clear(0)
 		canvas.clip_top = 0
 		canvas.clip_left = 0
 		canvas.clip_right = 0

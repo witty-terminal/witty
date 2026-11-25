@@ -420,14 +420,14 @@ fn clamp_int(value int, low int, high int) int {
 	} else if value > high { high } else { value }
 }
 
-fn z2d_composite_span(mut canvas Canvas, x int, y int, len u32, color Color, opacity u8) {
+fn z2d_composite_span(mut c Canvas, x int, y int, len u32, color Color, opacity u8) {
 	pattern_alpha := u32(u8(color))
 	source_alpha := pattern_alpha * u32(opacity) / 255
-	width := int(canvas.sfc_width())
+	width := c.surface.width
 	start := y * width + x
 	for i in 0 .. int(len) {
-		destination_alpha := u32(canvas.data[start + i])
-		canvas.data[start + i] = u8(source_alpha + destination_alpha - source_alpha * destination_alpha / 255)
+		destination_alpha := c.surface.pixels[start + i] >> 24
+		c.surface.pixels[start + i] = (source_alpha + destination_alpha - source_alpha * destination_alpha / 255) << 24
 	}
 }
 

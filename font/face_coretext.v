@@ -1,5 +1,6 @@
 module font
 
+import gg.canvas
 import log
 import macos
 import math
@@ -511,14 +512,27 @@ pub fn (self CoreTextFace) render_glyph(mut atlas Atlas, glyph_index u32, opts R
 		}
 		defer { color_space.release() }
 
-		mut pixels := []u8{len: int(uint(layout.px_width) * uint(layout.px_height) * uint(depth))}
+		bytes_per_row := uint(layout.px_width * depth)
+		byte_count := int(bytes_per_row * layout.px_height)
+		// CoreText writes color glyphs directly into the Canvas BGRA surface.
+		// Monochrome glyphs use the one-byte mask required by the grayscale atlas.
+		color_surface := if is_color {
+			canvas.new_raster_surface(width: int(layout.px_width), height: int(layout.px_height))!
+		} else {
+			canvas.RasterSurface{}
+		}
+		pixels := if is_color {
+			unsafe { (&u8(color_surface.pixels.data)).vbytes(byte_count) }
+		} else {
+			[]u8{len: byte_count}
+		}
 		context_opts := if is_color {
 			u32(macos.CGBitmapInfo.byte_order_32_little) | u32(macos.CGImageAlphaInfo.premultiplied_first)
 		} else {
 			u32(macos.CGImageAlphaInfo.only)
 		}
 		bitmap := macos.CGBitmapContext.create(pixels, uint(layout.px_width),
-			uint(layout.px_height), 8, uint(layout.px_width * depth), color_space, context_opts)!
+			uint(layout.px_height), 8, bytes_per_row, color_space, context_opts)!
 		context := bitmap.as_context()
 		defer { context.release() }
 

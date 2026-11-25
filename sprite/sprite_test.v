@@ -216,7 +216,7 @@ fn data_at(c &Canvas, x int, y int) u8 {
 	w := int(c.sfc_width())
 	px := x + int(c.padding_x)
 	py := y + int(c.padding_y)
-	return c.data[py * w + px]
+	return u8(c.surface.pixels[py * w + px] >> 24)
 }
 
 fn test_canvas_dimensions() {
@@ -228,8 +228,8 @@ fn test_canvas_dimensions() {
 	assert c.sfc_width() == 10 + 2 * 2
 	assert c.sfc_height() == 20 + 2 * 3
 	// Buffer is fully allocated and zeroed.
-	assert c.data.len == int(c.sfc_width() * c.sfc_height())
-	for v in c.data {
+	assert c.surface.pixels.len == int(c.sfc_width() * c.sfc_height())
+	for v in c.surface.pixels {
 		assert v == 0
 	}
 }
@@ -247,9 +247,9 @@ fn test_canvas_transformation_matches_padding_translation() {
 
 fn test_canvas_deinit_releases_owned_raster() {
 	mut c := Canvas.init(10, 20, 2, 3)
-	assert c.data.len > 0
+	assert c.surface.pixels.len > 0
 	c.deinit()
-	assert c.data.len == 0
+	assert c.surface.pixels.len == 0
 	assert c.sfc_width() == 0
 	assert c.sfc_height() == 0
 }
@@ -270,7 +270,7 @@ fn test_canvas_pixel_out_of_bounds_ignored() {
 	c.pixel(0, -1, .on)
 	c.pixel(4, 0, .on)
 	c.pixel(0, 4, .on)
-	for v in c.data {
+	for v in c.surface.pixels {
 		assert v == 0
 	}
 }
@@ -303,15 +303,24 @@ fn test_canvas_box_orders_corners() {
 	assert data_at(&c, 4, 1) == 0
 }
 
+fn test_canvas_rect_clips_to_the_padded_raster() {
+	mut c := Canvas.init(4, 4, 1, 1)
+	c.rect(SpriteRect{ x: -3, y: -2, width: 4, height: 3 }, .medium)
+	assert data_at(&c, -1, -1) == 128
+	assert data_at(&c, 0, 0) == 128
+	assert data_at(&c, 1, 0) == 0
+	assert data_at(&c, 0, 1) == 0
+}
+
 fn test_canvas_pixel_padding_offset() {
 	// With padding, cell-relative (0,0) maps to surface (padding_x, padding_y).
 	mut c := Canvas.init(4, 4, 2, 3)
 	c.pixel(0, 0, .on)
 	w := int(c.sfc_width())
 	// Direct surface index at (padding_x, padding_y).
-	assert c.data[3 * w + 2] == 255
+	assert c.surface.pixels[3 * w + 2] == u32(255) << 24
 	// Surface origin (0,0) untouched.
-	assert c.data[0] == 0
+	assert c.surface.pixels[0] == 0
 }
 
 // ------------------------------------------------------------
@@ -330,9 +339,7 @@ fn test_canvas_invert() {
 
 fn test_canvas_clear_clipping_regions() {
 	mut c := Canvas.init(5, 4, 0, 0)
-	for i in 0 .. c.data.len {
-		c.data[i] = 255
-	}
+	c.surface.clear(u32(255) << 24)
 	c.clip_left = 1
 	c.clip_right = 2
 	c.clip_top = 1
@@ -478,7 +485,7 @@ fn test_powerline_mirrored_variants_are_exact_flips() {
 
 	mut right := Canvas.init(12, 20, 0, 0)
 	draw_e0b7(0xe0b7, mut right, 12, 20, metrics)!
-	assert left.data == right.data
+	assert left.surface.pixels == right.surface.pixels
 }
 
 fn test_branch_arc_glyph_uses_box_bezier_arc() {
@@ -488,7 +495,7 @@ fn test_branch_arc_glyph_uses_box_bezier_arc() {
 
 	mut expected := Canvas.init(12, 20, 0, 0)
 	arc(metrics, mut expected, .br, .light)!
-	assert actual.data == expected.data
+	assert actual.surface.pixels == expected.surface.pixels
 }
 
 fn test_geometric_outline_uses_inner_stroke_path() {
@@ -506,7 +513,7 @@ fn test_geometric_outline_uses_inner_stroke_path() {
 		line_cap_mode: .butt
 		line_width: f64(Thickness.light.height(metrics.box_thickness))
 	}, .on)!
-	assert actual.data == expected.data
+	assert actual.surface.pixels == expected.surface.pixels
 }
 
 fn test_cursor_uses_cursor_thickness_metric() {
@@ -740,7 +747,7 @@ fn test_alignment_named_constants() {
 
 fn count_on(c &Canvas) int {
 	mut n := 0
-	for v in c.data {
+	for v in c.surface.pixels {
 		if v > 0 {
 			n++
 		}

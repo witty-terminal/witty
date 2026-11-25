@@ -15,8 +15,9 @@ module sprite
 // library. Its required path and raster operations are translated in this
 // module so Ghostty's Canvas behavior is preserved in V.
 
-import sprite_types as font
+import gg.canvas as ggcanvas
 import math
+import sprite_types as font
 
 // ============================================================
 // Color
@@ -76,11 +77,9 @@ pub:
 // Canvas
 // ============================================================
 
-// Canvas wraps a pixel surface for drawing sprite font glyphs.
-// The underlying `data` buffer is a single-channel (alpha8) surface
-// of dimensions `(width + 2*padding_x) x (height + 2*padding_y)`.
-// All drawing coordinates are cell-relative; the padding offset is
-// applied internally.
+// Canvas draws sprite font glyphs into a GG raster surface. The RGB channels
+// stay zero and the alpha channel holds Ghostty's coverage value. Coordinates
+// are cell-relative, with the padding applied internally.
 pub struct Canvas {
 pub mut:
 	width       u32
@@ -91,29 +90,39 @@ pub mut:
 	clip_left   u32
 	clip_right  u32
 	clip_bottom u32
-	data        []u8
+mut:
+	surface ggcanvas.RasterSurface
 }
 
 // sfc_width returns the full surface width (including padding).
 pub fn (c &Canvas) sfc_width() u32 {
-	return c.width + 2 * c.padding_x
+	return u32(c.surface.width)
 }
 
 // sfc_height returns the full surface height (including padding).
 pub fn (c &Canvas) sfc_height() u32 {
-	return c.height + 2 * c.padding_y
+	return u32(c.surface.height)
 }
 
 // init creates a new Canvas with the given dimensions.
 // We add padding to both sides (hence `2 *`).
 pub fn Canvas.init(w u32, h u32, pad_x u32, pad_y u32) Canvas {
-	total := (w + 2 * pad_x) * (h + 2 * pad_y)
+	width := int(w + 2 * pad_x)
+	height := int(h + 2 * pad_y)
+	surface := if width == 0 || height == 0 {
+		ggcanvas.RasterSurface{
+			width:  width
+			height: height
+		}
+	} else {
+		ggcanvas.new_raster_surface(width: width, height: height) or { panic(err) }
+	}
 	return Canvas{
 		width:     w
 		height:    h
 		padding_x: pad_x
 		padding_y: pad_y
-		data:      []u8{len: int(total)}
+		surface:   surface
 	}
 }
 
@@ -150,20 +159,29 @@ pub fn (mut c Canvas) pixel(x i32, y i32, color Color) {
 	if px >= w || py >= h {
 		return
 	}
-	c.data[py * w + px] = u8(color)
+	c.surface.pixels[py * w + px] = u32(color) << 24
 }
 
 // Draw and fill a rectangle. This is the main primitive for drawing
 // lines as well (which are just generally skinny rectangles).
 pub fn (mut c Canvas) rect(v SpriteRect, color Color) {
-	mut y := v.y
-	for y < v.y + v.height {
-		mut x := v.x
-		for x < v.x + v.width {
-			c.pixel(x, y, color)
-			x += 1
+	// Clip before iterating so margins and off-canvas glyph shapes do not
+	// require a bounds check for each covered pixel.
+	left := i64(v.x) + i64(c.padding_x)
+	top := i64(v.y) + i64(c.padding_y)
+	x0 := int(math.max(i64(0), left))
+	y0 := int(math.max(i64(0), top))
+	x1 := int(math.min(i64(c.surface.width), left + v.width))
+	y1 := int(math.min(i64(c.surface.height), top + v.height))
+	if x0 >= x1 || y0 >= y1 {
+		return
+	}
+	pixel := u32(color) << 24
+	for y in y0 .. y1 {
+		row := y * c.surface.width
+		for x in x0 .. x1 {
+			c.surface.pixels[row + x] = pixel
 		}
-		y += 1
 	}
 }
 
@@ -234,8 +252,8 @@ pub fn (mut c Canvas) get_context() Context {
 
 // Invert all pixels on the canvas.
 pub fn (mut c Canvas) invert() {
-	for i in 0 .. c.data.len {
-		c.data[i] = 255 - c.data[i]
+	for i, pixel in c.surface.pixels {
+		c.surface.pixels[i] = (u32(255) - (pixel >> 24)) << 24
 	}
 }
 
@@ -247,25 +265,25 @@ pub fn (mut c Canvas) clear_clipping_regions() {
 
 	for y in 0 .. height {
 		for x in 0 .. c.clip_left {
-			c.data[y * width + x] = 0
+			c.surface.pixels[y * width + x] = 0
 		}
 	}
 
 	for y in 0 .. height {
 		for x in width - c.clip_right .. width {
-			c.data[y * width + x] = 0
+			c.surface.pixels[y * width + x] = 0
 		}
 	}
 
 	for y in 0 .. c.clip_top {
 		for x in 0 .. width {
-			c.data[y * width + x] = 0
+			c.surface.pixels[y * width + x] = 0
 		}
 	}
 
 	for y in height - c.clip_bottom .. height {
 		for x in 0 .. width {
-			c.data[y * width + x] = 0
+			c.surface.pixels[y * width + x] = 0
 		}
 	}
 }
@@ -274,10 +292,11 @@ pub fn (mut c Canvas) clear_clipping_regions() {
 pub fn (mut c Canvas) flip_horizontal() {
 	w := int(c.sfc_width())
 	h := int(c.sfc_height())
-	clone := c.data.clone()
 	for y in 0 .. h {
-		for x in 0 .. w {
-			c.data[y * w + x] = clone[y * w + w - x - 1]
+		for x in 0 .. w / 2 {
+			left := y * w + x
+			right := y * w + w - x - 1
+			c.surface.pixels[left], c.surface.pixels[right] = c.surface.pixels[right], c.surface.pixels[left]
 		}
 	}
 	c.clip_left, c.clip_right = c.clip_right, c.clip_left
@@ -287,10 +306,11 @@ pub fn (mut c Canvas) flip_horizontal() {
 pub fn (mut c Canvas) flip_vertical() {
 	w := int(c.sfc_width())
 	h := int(c.sfc_height())
-	clone := c.data.clone()
-	for y in 0 .. h {
+	for y in 0 .. h / 2 {
 		for x in 0 .. w {
-			c.data[y * w + x] = clone[(h - y - 1) * w + x]
+			top := y * w + x
+			bottom := (h - y - 1) * w + x
+			c.surface.pixels[top], c.surface.pixels[bottom] = c.surface.pixels[bottom], c.surface.pixels[top]
 		}
 	}
 	c.clip_top, c.clip_bottom = c.clip_bottom, c.clip_top
@@ -308,7 +328,7 @@ fn (mut c Canvas) trim() {
 		x1 := width - c.clip_right
 		mut found := false
 		for x in x0 .. x1 {
-			if c.data[y * width + x] != 0 {
+			if c.surface.pixels[y * width + x] != 0 {
 				found = true
 				break
 			}
@@ -326,7 +346,7 @@ fn (mut c Canvas) trim() {
 		x1 := width - c.clip_right
 		mut found := false
 		for x in x0 .. x1 {
-			if c.data[y * width + x] != 0 {
+			if c.surface.pixels[y * width + x] != 0 {
 				found = true
 				break
 			}
@@ -344,7 +364,7 @@ fn (mut c Canvas) trim() {
 		y1 := height - c.clip_bottom
 		mut found := false
 		for y in y0 .. y1 {
-			if c.data[y * width + x] != 0 {
+			if c.surface.pixels[y * width + x] != 0 {
 				found = true
 				break
 			}
@@ -362,7 +382,7 @@ fn (mut c Canvas) trim() {
 		y1 := height - c.clip_bottom
 		mut found := false
 		for y in y0 .. y1 {
-			if c.data[y * width + x] != 0 {
+			if c.surface.pixels[y * width + x] != 0 {
 				found = true
 				break
 			}
@@ -384,33 +404,13 @@ fn sat_add(a u32, b u32) u32 {
 	return if b > u32(0xffff_ffff) - a { u32(0xffff_ffff) } else { a + b }
 }
 
-// write_atlas trims this drawing, reserves its exact clipped size in a
-// grayscale atlas, and copies the retained rectangle into that reservation.
-// The atlas parameter is generic only to avoid a V module cycle; it is
-// instantiated with font.Atlas by the live sprite face, matching Ghostty's
-// Canvas.writeAtlas operation and ordering.
+// write_atlas trims this drawing and stores its coverage in a grayscale atlas.
 pub fn (mut c Canvas) write_atlas[T](mut atlas T) !font.AtlasRegion {
-	assert atlas.format.depth() == 1
-	c.trim()
-
-	sfc_width := c.sfc_width()
-	sfc_height := c.sfc_height()
-	region_width := sat_sub(sat_sub(sfc_width, c.clip_left), c.clip_right)
-	region_height := sat_sub(sat_sub(sfc_height, c.clip_top), c.clip_bottom)
-	region := atlas.reserve(region_width, region_height)!
-
-	if region.width > 0 && region.height > 0 {
-		assert region.width == region_width
-		assert region.height == region_height
-		atlas.set_from_larger(region, c.data, sfc_width, c.clip_left, c.clip_top)
-	}
-
-	return region
+	return c.rasterize().write_atlas(mut atlas)
 }
 
-// rasterize trims transparent margins and returns the owned alpha surface plus
-// the source rectangle containing the glyph. This dependency-free projection
-// is retained for sprite tests and consumers that do not own an atlas.
+// rasterize trims transparent margins and exports the alpha mask with the
+// clipped rectangle. The atlas stores one byte of coverage per pixel.
 pub fn (mut c Canvas) rasterize() RasterizedGlyph {
 	c.trim()
 
@@ -422,8 +422,12 @@ pub fn (mut c Canvas) rasterize() RasterizedGlyph {
 	region_width := sat_sub(sat_sub(sfc_width, c.clip_left), c.clip_right)
 	region_height := sat_sub(sat_sub(sfc_height, c.clip_top), c.clip_bottom)
 
+	mut mask := []u8{len: c.surface.pixels.len}
+	for i, pixel in c.surface.pixels {
+		mask[i] = u8(pixel >> 24)
+	}
 	return RasterizedGlyph{
-		data:       c.data
+		data:       mask
 		data_width: sfc_width
 		source_x:   c.clip_left
 		source_y:   c.clip_top
@@ -440,6 +444,17 @@ pub:
 	source_y   u32
 	width      u32
 	height     u32
+}
+
+// write_atlas stores the clipped mask. The atlas type is supplied by the
+// caller so sprite can remain independent of the font module.
+pub fn (r &RasterizedGlyph) write_atlas[T](mut atlas T) !font.AtlasRegion {
+	assert atlas.format.depth() == 1
+	region := atlas.reserve(r.width, r.height)!
+	if region.width > 0 && region.height > 0 {
+		atlas.set_from_larger(region, r.data, r.data_width, r.source_x, r.source_y)
+	}
+	return region
 }
 
 // ============================================================
@@ -794,11 +809,12 @@ pub fn (mut c Canvas) inner_stroke_path(path Path, opts StrokeOptions, color Col
 		line_width:    opts.line_width * 2.0
 	}, color)!
 
-	for i in 0 .. c.data.len {
-		masked := u8(math.round(f64(fill_canvas.data[i]) * f64(stroke_canvas.data[i]) / 255.0))
-		dst := u32(c.data[i])
-		src := u32(masked)
-		c.data[i] = u8(src + dst - src * dst / 255)
+	for i, pixel in c.surface.pixels {
+		fill := fill_canvas.surface.pixels[i] >> 24
+		stroke := stroke_canvas.surface.pixels[i] >> 24
+		src := u32(math.round(f64(fill) * f64(stroke) / 255.0))
+		dst := pixel >> 24
+		c.surface.pixels[i] = (src + dst - src * dst / 255) << 24
 	}
 }
 

@@ -147,7 +147,6 @@ pub:
 
 pub struct RenderedGlyph {
 pub:
-	canvas   Canvas
 	raster   RasterizedGlyph
 	offset_x i32
 	offset_y i32
@@ -406,8 +405,7 @@ pub fn has_codepoint(cp u32) bool {
 // 2. Calculate width based on opts.cell_width
 // 3. Create a Canvas with appropriate dimensions and padding
 // 4. Call the draw function to rasterize the glyph
-// 5. Return the canvas and trimmed raster data to the font bridge. The bridge
-//    invokes Canvas.write_atlas because V cannot import font from sprite.
+// 5. Return the trimmed alpha mask to the font bridge for its grayscale atlas.
 pub fn (self &SpriteFace) render_glyph(cp u32, opts RenderOptions) !RenderedGlyph {
 	if buildcfg.runtime_safety {
 		// Ghostty traps unsupported sprite codepoints in runtime-safety builds.
@@ -435,12 +433,9 @@ pub fn (self &SpriteFace) render_glyph(cp u32, opts RenderOptions) !RenderedGlyp
 
 	draw(cp, mut canvas, width, height, metrics)!
 
-	// Trim the drawing and return the owned canvas plus its dependency-free
-	// raster projection. The font bridge invokes Canvas.write_atlas.
 	raster := canvas.rasterize()
 
 	return RenderedGlyph{
-		canvas: canvas
 		raster: raster
 		// Offsets account for padding and the trimmed edges, matching
 		// ghostty Face.renderGlyph.
