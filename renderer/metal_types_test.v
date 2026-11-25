@@ -62,7 +62,7 @@ $if macos && !renderer_opengl ? {
 					clear_color: [f64(1), 0, 0, 1]!
 				},
 			])!
-			assert clear.gg
+			assert clear.gg != unsafe { nil }
 			clear.complete()
 			load := frame.render_pass([MetalRenderPassAttachment{ target: attachment }])!
 			wait := blending.is_linear()

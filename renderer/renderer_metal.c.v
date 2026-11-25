@@ -305,7 +305,6 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			pass.step(MetalRenderStep{
 				pipeline: self.shaders.bg_color
 				uniforms: frame_state.uniforms
-				buffers:  [?MetalBuffer(none), ?MetalBuffer(frame_state.cells_bg)]
 				draw:     MetalRenderDraw{
 					draw_type:    .triangle
 					vertex_count: 3
@@ -313,7 +312,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			})
 		}
 
-		self.images.draw(&self.api, self.shaders.image, mut pass, .kitty_below_bg)
+		self.images.draw(&self.api, self.shaders.image, frame_state.uniforms, mut pass, .kitty_below_bg)
 		if self.cells.bg_cells.len > 0 && self.uniforms.grid_size[0] > 0
 			&& self.uniforms.grid_size[1] > 0 {
 			pass.step(MetalRenderStep{
@@ -326,7 +325,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 				}
 			})
 		}
-		self.images.draw(&self.api, self.shaders.image, mut pass, .kitty_below_text)
+		self.images.draw(&self.api, self.shaders.image, frame_state.uniforms, mut pass, .kitty_below_text)
 		pass.step(MetalRenderStep{
 			pipeline: self.shaders.cell_text
 			uniforms: frame_state.uniforms
@@ -338,8 +337,8 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 				instance_count: fg_count
 			}
 		})
-		self.images.draw(&self.api, self.shaders.image, mut pass, .kitty_above_text)
-		self.images.draw(&self.api, self.shaders.image, mut pass, .overlay)
+		self.images.draw(&self.api, self.shaders.image, frame_state.uniforms, mut pass, .kitty_above_text)
+		self.images.draw(&self.api, self.shaders.image, frame_state.uniforms, mut pass, .overlay)
 		if mut state := frame_state.custom_shader_state {
 			for index, pipeline in self.shaders.post_pipelines {
 				pass.complete()

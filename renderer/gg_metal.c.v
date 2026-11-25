@@ -6,8 +6,14 @@ import sokol.gfx
 import sync
 
 struct GGMetalTexture {
-	texture voidptr
-	image   gfx.Image
+	texture       voidptr
+	image         gfx.Image
+	render_target bool
+}
+
+struct GGMetalBuffer {
+	handle voidptr
+	buffer gfx.Buffer
 }
 
 // The frame holds the GG backend lock until its command buffer is submitted.
@@ -15,7 +21,9 @@ struct GGMetalTexture {
 struct GGMetalFrame {
 mut:
 	images      []GGMetalTexture
+	buffers     []GGMetalBuffer
 	attachments []gfx.Attachments
+	native_draw bool
 	finished    bool
 }
 
@@ -80,24 +88,21 @@ $if macos && !renderer_opengl ? {
 		return &GGMetalFrame{}
 	}
 
-	fn (mut frame GGMetalFrame) attachment(texture voidptr, width uint, height uint) !gfx.Image {
+	fn (mut frame GGMetalFrame) import_image(texture voidptr, width uint, height uint, format gfx.PixelFormat, render_target bool) !gfx.Image {
 		if texture == unsafe { nil } || width == 0 || height == 0 {
-			return error('GG Metal pass has no render texture')
+			return error('GG Metal image has no texture')
 		}
 		for value in frame.images {
-			if value.texture == texture {
+			if value.texture == texture && value.render_target == render_target {
 				return value.image
 			}
 		}
-		// The real texture already has its Metal pixel format, including
-		// BGRA8-sRGB when requested. GG uses this metadata to create a render
-		// attachment. Witty binds pipelines directly to its borrowed encoder.
 		retained := C.witty_gg_metal_retain_import(texture)
 		image := gfx.make_image(&gfx.ImageDesc{
-			render_target: true
+			render_target: render_target
 			width:         int(width)
 			height:        int(height)
-			pixel_format:  .bgra8
+			pixel_format:  format
 			mtl_textures:  [texture, unsafe { nil }]!
 		})
 		if gfx.query_image_state(image) != .valid {
@@ -105,9 +110,13 @@ $if macos && !renderer_opengl ? {
 			if retained {
 				macos.metal_release(texture)
 			}
-			return error('GG could not import the Metal render texture')
+			return error('GG could not import the Metal texture')
 		}
-		frame.images << GGMetalTexture{ texture: texture, image: image }
+		frame.images << GGMetalTexture{
+			texture:       texture
+			image:         image
+			render_target: render_target
+		}
 		return image
 	}
 
@@ -119,9 +128,15 @@ $if macos && !renderer_opengl ? {
 		}
 		for i, attachment in attachments {
 			value := attachment.target
+			// Sokol has no BGRA8-sRGB pipeline format. For such targets this
+			// descriptor supplies pass metadata and Metal uses the real texture.
 			target.colors[i].image = match value {
-				MetalTarget { frame.attachment(value.texture, value.width, value.height)! }
-				MetalTexture { frame.attachment(value.handle, value.width, value.height)! }
+				MetalTarget {
+					frame.import_image(value.texture, value.width, value.height, .bgra8, true)!
+				}
+				MetalTexture {
+					frame.import_image(value.handle, value.width, value.height, .bgra8, true)!
+				}
 			}
 			action.colors[i].store_action = .store
 			if clear := attachment.clear_color {
@@ -151,7 +166,8 @@ $if macos && !renderer_opengl ? {
 			gfx.end_pass()
 			return error('GG could not begin the Metal render pass')
 		}
-		return MetalRenderPass{ encoder: encoder, gg: true }
+		frame.native_draw = false
+		return MetalRenderPass{ encoder: encoder, gg: frame }
 	}
 
 	fn (mut frame GGMetalFrame) commit() {
@@ -162,6 +178,9 @@ $if macos && !renderer_opengl ? {
 		}
 		for entry in frame.images {
 			gfx.destroy_image(entry.image)
+		}
+		for entry in frame.buffers {
+			gfx.destroy_buffer(entry.buffer)
 		}
 		frame.finished = true
 		C.witty_gg_metal_unlock()

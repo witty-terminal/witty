@@ -2,6 +2,7 @@ module renderer
 
 // Image upload and drawing tests that need a Metal device.
 import macos
+import sokol.gfx
 
 struct ImageMetalFrameCapture {
 mut:
@@ -100,7 +101,9 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		defer {
 			api.deinit()
 		}
-		mut shaders := MetalShaders.init(api.device, []string{}, .bgra8unorm)!
+		api.draw_frame_start()
+		defer { api.draw_frame_end() }
+		mut shaders := api.init_shaders([]string{})!
 		defer {
 			shaders.deinit()
 		}
@@ -132,30 +135,86 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		defer {
 			target.deinit()
 		}
-		mut uniforms := MetalBuffer.init_fill(api.buffer_options(), [metal_uniforms(Uniforms{})])!
+		mut uniforms := MetalBuffer.init_fill(api.buffer_options(), [
+			metal_uniforms(Uniforms{
+				projection_matrix: [f32(0.5), 0, 0, 0, 0, -0.5, 0, 0, 0, 0, 1, 0, -1, 1, 0, 1]!
+				screen_size:       [f32(4), 4]!
+				cell_size:         [f32(1), 1]!
+				grid_size:         [u16(4), 4]!
+				bg_color:          [u8(0), 0, 0, 255]!
+				bools:             UniformBools{ use_display_p3: true }
+			}),
+		])!
 		defer {
 			uniforms.deinit()
 		}
+		mut colors := [][4]u8{len: 16}
+		colors[1] = [u8(0), 255, 0, 255]!
+		mut backgrounds := MetalBuffer.init_fill(api.buffer_options(), colors)!
+		defer { backgrounds.deinit() }
+		mut backdrop := MetalTexture.init(api.image_texture_options(.rgba, true), 1, 1,
+			[u8(0), 0, 255, 255])!
+		defer { backdrop.deinit() }
+		mut backdrop_vertices := MetalBuffer.init_fill(api.buffer_options(), [
+			BgImageBuffer{ info: bg_image_info(.br, .none_, true) },
+		])!
+		defer { backdrop_vertices.deinit() }
+		// Exercise a native draw between GG draws, as with text and Kitty layers.
+		native_background := MetalPipeline{ handle: shaders.bg_color.handle }
+		$if macos && !renderer_opengl ? {
+			assert shaders.bg_color.gg.pipeline.id != 0
+			assert shaders.cell_bg.gg.pipeline.id != 0
+			assert shaders.image.gg.pipeline.id != 0
+			assert shaders.bg_image.gg.pipeline.id != 0
+			gfx.enable_frame_stats()
+		}
+		defer {
+			$if macos && !renderer_opengl ? {
+				gfx.disable_frame_stats()
+			}
+		}
 		mut capture := ImageMetalFrameCapture{}
-		mut frame := MetalFrame.begin(api.queue, voidptr(&capture), voidptr(&target),
+		mut frame := MetalFrame.begin_for_device(&api, voidptr(&capture), voidptr(&target),
 			voidptr(image_metal_frame_completion))!
+		defer { frame.cancel() }
 		mut pass := frame.render_pass([MetalRenderPassAttachment{
 			target:      MetalRenderAttachmentTarget(target)
 			clear_color: [f64(0), 0, 0, 1]!
 		}])!
+		quad := MetalRenderDraw{ draw_type: .triangle, vertex_count: 3 }
 		pass.step(MetalRenderStep{
 			pipeline: shaders.bg_color
 			uniforms: uniforms
-			draw:     MetalRenderDraw{
-				draw_type:    .triangle
-				vertex_count: 3
-			}
+			draw:     quad
 		})
-		state.draw(&api, shaders.image, mut pass, .kitty_below_bg)
-		pass.complete()
-		frame.complete(true)
+		pass.step(MetalRenderStep{
+			pipeline: native_background
+			uniforms: uniforms
+			draw:     quad
+		})
+		pass.step(MetalRenderStep{
+			pipeline: shaders.bg_image
+			uniforms: uniforms
+			buffers:  [?MetalBuffer(backdrop_vertices)]
+			textures: [?MetalTexture(backdrop)]
+			draw:     quad
+		})
+		pass.step(MetalRenderStep{
+			pipeline: shaders.cell_bg
+			uniforms: uniforms
+			buffers:  [?MetalBuffer(none), ?MetalBuffer(backgrounds)]
+			draw:     quad
+		})
+		state.draw(&api, shaders.image, uniforms, mut pass, .kitty_below_bg)
+		frame.submit(&pass, true)!
 		assert capture.calls == 1
 		assert metal_command_buffer_status(capture.status) == .completed
 		assert capture.sync_
+		mut pixels := []u8{len: 12}
+		macos.metal_texture_get_bytes(target.texture, mut pixels, 12, 0, 0, 3, 1)
+		assert pixels == [u8(0), 0, 255, 255, 0, 255, 0, 255, 255, 0, 0, 255]
+		$if macos && !renderer_opengl ? {
+			assert gfx.query_frame_stats().num_draw == 4
+		}
 	}
 }

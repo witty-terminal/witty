@@ -214,7 +214,16 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 
 	// init_shaders initializes the built-in and optional post-process pipelines.
 	pub fn (self &MetalAPI) init_shaders(custom_shaders []string) !MetalShaders {
-		return MetalShaders.init(self.device, custom_shaders, self.target_pixel_format())
+		format := self.target_pixel_format()
+		mut shaders := MetalShaders.init(self.device, custom_shaders, format)!
+		$if macos && !renderer_opengl ? {
+			$if compiled_metallib ? {
+				if self.gg_owned && format == .bgra8unorm {
+					shaders.init_gg_pipelines()
+				}
+			}
+		}
+		return shaders
 	}
 
 	// present_last_target presents the last presented target again. (noop for

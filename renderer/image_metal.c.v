@@ -18,7 +18,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 	//
 	// Any placements that have non-uploaded images are ignored. Any
 	// graphics API errors during drawing are also ignored.
-	pub fn (mut self ImageRenderState) draw(api &MetalAPI, pipeline MetalPipeline, mut pass MetalRenderPass, placement_type DrawPlacements) {
+	pub fn (mut self ImageRenderState) draw(api &MetalAPI, pipeline MetalPipeline, uniforms MetalBuffer, mut pass MetalRenderPass, placement_type DrawPlacements) {
 		placements := match placement_type {
 			.kitty_below_bg {
 				self.kitty_placements[..int(self.kitty_bg_end)]
@@ -50,6 +50,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			mut buffer := MetalBuffer.init_fill(api.buffer_options(), [vertex]) or { continue }
 			pass.step(MetalRenderStep{
 				pipeline: pipeline
+				uniforms: uniforms
 				buffers:  [?MetalBuffer(buffer)]
 				textures: [?MetalTexture(MetalTexture(texture))]
 				draw:     MetalRenderDraw{

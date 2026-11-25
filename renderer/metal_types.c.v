@@ -296,7 +296,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		// The render command encoder handle.
 		encoder voidptr = unsafe { nil }
 	mut:
-		gg bool
+		gg &GGMetalFrame = unsafe { nil }
 	}
 
 	// MetalRenderStep describes a single step in a render pass.
@@ -357,6 +357,25 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		if s.draw.instance_count == 0 {
 			return
 		}
+		$if macos && !renderer_opengl ? {
+			if self.gg != unsafe { nil } {
+				mut frame := self.gg
+				if s.pipeline.gg.pipeline.id != 0 {
+					frame.draw(self.encoder, s) or {
+						log.debug('GG Metal draw unavailable: ${err}')
+						frame.native_draw = true
+						self.step_native(s)
+						return
+					}
+					return
+				}
+				frame.native_draw = true
+			}
+		}
+		self.step_native(s)
+	}
+
+	fn (self &MetalRenderPass) step_native(s MetalRenderStep) {
 		macos.metal_encoder_set_pipeline(self.encoder, s.pipeline.handle)
 		if s.buffers.len > 0 {
 			if buffer := s.buffers[0] {
@@ -386,7 +405,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 
 	pub fn (self &MetalRenderPass) complete() {
 		$if macos && !renderer_opengl ? {
-			if self.gg {
+			if self.gg != unsafe { nil } {
 				gg_metal_end_render_pass()
 				return
 			}
@@ -403,6 +422,8 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 	pub mut:
 		// The pipeline state handle.
 		handle voidptr = unsafe { nil }
+	mut:
+		gg GGMetalPipeline
 	}
 
 	pub struct MetalVertexAttribute {
@@ -463,6 +484,10 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 	}
 
 	pub fn (mut self MetalPipeline) deinit() {
+		$if macos && !renderer_opengl ? {
+			self.gg.deinit()
+			self.gg = GGMetalPipeline{}
+		}
 		macos.metal_release(self.handle)
 		self.handle = unsafe { nil }
 	}

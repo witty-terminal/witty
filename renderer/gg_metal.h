@@ -18,7 +18,7 @@ static inline void witty_gg_metal_unlock(void) {
 
 static inline bool witty_gg_metal_retain_import(void *object) {
 #if !__has_feature(objc_arc)
-	// Sokol releases the imported device and textures under manual reference
+	// Sokol releases imported Metal objects under manual reference
 	// counting. Give it its own reference alongside Witty's.
 	((void* (*)(void*, SEL))objc_msgSend)(object, sel_registerName("retain"));
 	return true;
