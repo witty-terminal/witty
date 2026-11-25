@@ -25,10 +25,7 @@ module gtk
 // `GhosttyConfigErrorsDialog`: a `.ui` template, a `config` object property,
 // a `reload-config` signal, private data, and a dispose vfunc.
 
-// Ghostty's ui/1.2/config-errors-dialog.blp as blueprint-compiler 0.16.0 emits it
-// (without the generated-file header). Ghostty compiles it into its
-// gresource and loads it with setTemplateFromResource; we load the same
-// bytes directly with gtk_widget_class_set_template.
+// Runtime template for ui/1.2/config-errors-dialog.blp.
 const config_errors_dialog_ui = '<?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <requires lib="gtk" version="4.0"/>
@@ -44,7 +41,7 @@ const config_errors_dialog_ui = '<?xml version="1.0" encoding="UTF-8"?>
         <property name="min-content-width">500</property>
         <property name="min-content-height">100</property>
         <child>
-          <object class="GtkTextView">
+          <object class="GtkTextView" id="diagnostics">
             <property name="editable">false</property>
             <property name="cursor-visible">false</property>
             <property name="top-margin">8</property>
@@ -66,11 +63,11 @@ const config_errors_dialog_ui = '<?xml version="1.0" encoding="UTF-8"?>
 </interface>
 '
 
-// The C-layout private struct mirroring ghostty\'s `Private`. It holds the
-// GObject pointer of the wrapped Config (Config.obj).
+// The private data holds the wrapped Config and the diagnostics text view.
 struct C.GhosttyConfigErrorsDialogPrivate {
 mut:
-	config voidptr
+	config      voidptr
+	diagnostics voidptr
 }
 
 // The GObject type id and private-data offset, registered lazily.
@@ -102,12 +99,18 @@ fn config_errors_dialog_set_property(obj voidptr, property_id u32, value voidptr
 		if !isnil(priv.config) {
 			object_unref(GObject(priv.config))
 		}
-		newv := GObject(C.g_value_get_object(value))
+		newv := C.g_value_get_object(value)
+		mut use_canvas := false
 		if !isnil(newv) {
-			priv.config = voidptr(object_ref(newv))
+			priv.config = voidptr(object_ref(GObject(newv)))
+			wrapper := config_priv(newv).wrapper
+			if !isnil(wrapper) {
+				use_canvas = gtk_canvas_styles_enabled(unsafe { (&Config(wrapper)).get() })
+			}
 		} else {
 			priv.config = unsafe { nil }
 		}
+		gtk_canvas_overlay_set_mask(GtkWidget(obj), use_canvas)
 	}
 }
 
@@ -115,6 +118,7 @@ fn config_errors_dialog_set_property(obj voidptr, property_id u32, value voidptr
 // and chains to the parent. Mirrors the `dispose` vfunc.
 fn config_errors_dialog_dispose(obj voidptr) {
 	mut priv := config_errors_dialog_priv(obj)
+	C.witty_gtk_dialog_canvas_set_fill_widget(GtkWidget(obj), unsafe { nil })
 	if !isnil(priv.config) {
 		object_unref(GObject(priv.config))
 		priv.config = unsafe { nil }
@@ -139,10 +143,14 @@ fn config_errors_dialog_native_response_cb(obj GObject, response_id &char) {
 fn config_errors_dialog_class_init(klass voidptr, class_data voidptr) {
 	C.g_type_class_adjust_private_offset(klass, &g_config_errors_dialog_priv_offset)
 	dialog_get_type()
+	C.witty_gtk_dialog_canvas_class_init(klass)
 
 	bytes := C.g_bytes_new_static(config_errors_dialog_ui.str, uint(config_errors_dialog_ui.len))
 	C.gtk_widget_class_set_template(klass, bytes)
 	C.g_bytes_unref(bytes)
+	offset := g_config_errors_dialog_priv_offset +
+		int(__offsetof(C.GhosttyConfigErrorsDialogPrivate, diagnostics))
+	C.gtk_widget_class_bind_template_child_full(klass, c'diagnostics', 0, offset)
 
 	pspec := C.g_param_spec_object(c'config', c'config', c'The config being shown', config_get_type(), g_param_readwrite)
 	C.witty_gobject_class_set_get_property(klass, voidptr(config_errors_dialog_get_property))
@@ -156,6 +164,8 @@ fn config_errors_dialog_class_init(klass voidptr, class_data voidptr) {
 
 fn config_errors_dialog_instance_init(instance voidptr, klass voidptr) {
 	C.gtk_widget_init_template(instance)
+	priv := config_errors_dialog_priv(instance)
+	C.witty_gtk_dialog_canvas_set_fill_widget(GtkWidget(instance), GtkWidget(priv.diagnostics))
 }
 
 // config_errors_dialog_get_type lazily registers the GhosttyConfigErrorsDialog
@@ -233,7 +243,7 @@ pub fn (mut self ConfigErrorsDialog) close() {
 // get_config returns the held config (without taking a reference). Mirrors
 // `getConfig` (the `config` property getter).
 pub fn (self &ConfigErrorsDialog) get_config() ?&Config {
-	config_obj := config_errors_dialog_priv(self.dialog.obj).config
+	config_obj := config_errors_dialog_priv(voidptr(self.dialog.obj)).config
 	if isnil(config_obj) {
 		return none
 	}

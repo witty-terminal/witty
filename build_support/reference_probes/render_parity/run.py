@@ -48,7 +48,7 @@ WALLPAPER_OPTIONS = {
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
     *INTERACTIVE_FIXTURES, "split-search", "visual-bell", "progress-overlay", "resize-overlay", "key-state-overlay",
-    *LINK_PREVIEW_FIXTURES, "readonly-overlay", *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation",
+    *LINK_PREVIEW_FIXTURES, "readonly-overlay", *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -120,6 +120,11 @@ def prepare_fixtures(path):
 def fixture_args(name, work):
     blend = "native" if name == "ansi" or name.startswith("kitty") else "linear-corrected"
     options = [*OPTIONS, f"--alpha-blending={blend}", f"--working-directory={work}"]
+    if name == "config-errors":
+        return [
+            *options, "--initial-window=false", "--quit-after-last-window-closed=false",
+            f"--config-file={work / 'diagnostics.conf'}",
+        ]
     if name in WINDOW_CHROME_FIXTURES:
         program = shlex.join([sys.executable, str(PROBE / "fixtures.py"), "window-chrome"])
         options.extend((
@@ -482,6 +487,42 @@ def capture_clipboard_confirmation(binary, args, helper, prefix, settle, *, witt
                 raise RuntimeError("Denying clipboard access did not close the confirmation")
 
 
+def capture_config_errors(binary, args, helper, prefix, settle, scale):
+    config = Path(args[-1].removeprefix("--config-file="))
+    config.write_text("fixture-unknown-option = value\n")
+    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
+    env = {**os.environ, "GSK_DEBUG": debug}
+    with open_window([binary, *args], prefix.with_suffix(".log"), env=env) as (process, window):
+        subprocess.run(
+            ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window, "5", "10"],
+            check=True, timeout=5,
+        )
+        time.sleep(settle)
+        with read_window(helper, window) as image:
+            width, height = image.size
+            image.save(prefix.with_suffix(".png"))
+
+        # Reload a repaired file and check that no diagnostics window remains.
+        config.write_text("font-size = 13\n")
+        subprocess.run(
+            ["xdotool", "mousemove", "--window", window, str(3 * width // 4), str(height - 50 * scale),
+             "click", "1"], check=True, timeout=5,
+        )
+        time.sleep(settle)
+        deadline = time.monotonic() + 4
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise RuntimeError("Reloading the configuration exited the application")
+            remaining = subprocess.run(
+                ["xdotool", "search", "--onlyvisible", "--pid", str(process.pid), "--name", "Configuration Errors"],
+                capture_output=True, timeout=5,
+            )
+            if not remaining.stdout:
+                return
+            time.sleep(0.05)
+        raise RuntimeError("Reloading the repaired configuration left the diagnostics window open")
+
+
 def drag_wide_selection(window, padding, cell_width, cell_height):
     # The emoji is in columns 13 and 14 (zero-based). Start on its
     # spacer tail and drag past the space in column 15.
@@ -753,6 +794,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name == "clipboard-confirmation":
                 capture_clipboard_confirmation(ghostty, args, helper, expected, settle)
                 capture_clipboard_confirmation(witty, args, helper, actual, settle, witty=True)
+            elif name == "config-errors":
+                capture_config_errors(ghostty, args, helper, expected, settle, scale)
+                capture_config_errors(witty, args, helper, actual, settle, scale)
             else:
                 capture_ghostty([ghostty, *args], helper, expected, settle)
                 capture_witty(witty, args, actual, settle)

@@ -333,7 +333,7 @@ fn clipboard_confirmation_dialog_set_property(obj voidptr, property_id u32, valu
 // the template and chains to the parent. Mirrors the `dispose` vfunc.
 fn clipboard_confirmation_dialog_dispose(obj voidptr) {
 	mut priv := clipboard_confirmation_dialog_priv(obj)
-	C.witty_gtk_clipboard_canvas_set_preview(GtkWidget(obj), unsafe { nil })
+	C.witty_gtk_dialog_canvas_set_fill_widget(GtkWidget(obj), unsafe { nil })
 	if !isnil(priv.clipboard_contents) {
 		object_unref(GObject(priv.clipboard_contents))
 		priv.clipboard_contents = unsafe { nil }
@@ -418,7 +418,7 @@ fn clipboard_confirmation_hide_clicked_cb(button voidptr, obj voidptr) {
 // confirm/deny signals, and overrides the get/set/dispose/finalize vfuncs.
 fn clipboard_confirmation_dialog_class_init(klass voidptr, class_data voidptr) {
 	C.g_type_class_adjust_private_offset(klass, &g_clipboard_confirmation_dialog_priv_offset)
-	C.witty_gtk_clipboard_canvas_class_init(klass)
+	C.witty_gtk_dialog_canvas_class_init(klass)
 	template_ui := if supports_switch_row() {
 		clipboard_confirmation_dialog_ui
 	} else {
@@ -469,7 +469,7 @@ fn clipboard_confirmation_dialog_class_init(klass voidptr, class_data voidptr) {
 fn clipboard_confirmation_dialog_instance_init(instance voidptr, klass voidptr) {
 	C.gtk_widget_init_template(instance)
 	priv := clipboard_confirmation_dialog_priv(instance)
-	C.witty_gtk_clipboard_canvas_set_preview(GtkWidget(instance), GtkWidget(priv.text_view))
+	C.witty_gtk_dialog_canvas_set_fill_widget(GtkWidget(instance), GtkWidget(priv.text_view))
 	// Trigger initial values (matches ghostty's `init`).
 	clipboard_confirmation_notify_blur_cb(instance, unsafe { nil }, unsafe { nil })
 	clipboard_confirmation_notify_request_cb(instance, unsafe { nil }, unsafe { nil })
