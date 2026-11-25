@@ -712,22 +712,22 @@ pub fn (self Value) tag() Type {
 
 struct RawValue {
 mut:
-	typ           int
-	integer_value int
+	typ           i32
+	integer_value i32
 	double_value  f64
 	string_value  &char = unsafe { nil }
-	bool_value    int
+	bool_value    i32
 	pointer_value voidptr = unsafe { nil }
 }
 
 // cval converts the value to the FcValue shim layout.
 fn (self Value) cval() RawValue {
 	mut result := RawValue{
-		typ: int(self.tag())
+		typ: i32(self.tag())
 	}
 	match self {
 		ValueUnknown, ValueVoid {}
-		ValueInteger { result.integer_value = int(self.value) }
+		ValueInteger { result.integer_value = self.value }
 		ValueDouble { result.double_value = self.value }
 		ValueString { result.string_value = &char(self.value.str) }
 		ValueBool { result.bool_value = if self.value { 1 } else { 0 } }

@@ -1,14 +1,15 @@
 #include <fontconfig/fontconfig.h>
+#include <stdint.h>
 
 // FcValue contains a C union. Keeping that union on the C side avoids
 // depending on V's representation of imported C unions while still exposing
 // the complete value API.
 typedef struct vt_fontconfig_value {
-	int type;
-	int integer_value;
+	int32_t type;
+	int32_t integer_value;
 	double double_value;
 	const char *string_value;
-	int bool_value;
+	int32_t bool_value;
 	const void *pointer_value;
 } vt_fontconfig_value;
 
