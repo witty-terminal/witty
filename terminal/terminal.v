@@ -3897,7 +3897,7 @@ pub fn (mut self Terminal) erase_display(mode EraseDisplay, protected_req bool) 
 			}
 		}
 		.scrollback {
-			self.screens.active.erase_rows(Point.new(.history, Coordinate{}), ?Point(none))
+			self.screens.active.erase_history()
 		}
 	}
 }

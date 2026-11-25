@@ -39,21 +39,32 @@ def kitty_scroll(down):
     return commands
 
 
-def kitty_retransmit():
-    def transmit(row, col, image_id, color, *, place=True):
-        action = "T" if place else "t"
-        placement = ",p=1,c=2,r=1,C=1" if place else ""
-        header = f"\x1b[{row};{col}H\x1b_Ga={action},f=24,i={image_id},s=1,v=1,q=2{placement};"
-        return header.encode() + base64.b64encode(bytes(color)) + b"\x1b\\"
+def kitty_solid(row, col, image_id, color, *, place=True):
+    action = "T" if place else "t"
+    placement = ",p=1,c=2,r=1,C=1" if place else ""
+    header = f"\x1b[{row};{col}H\x1b_Ga={action},f=24,i={image_id},s=1,v=1,q=2{placement};"
+    return header.encode() + base64.b64encode(bytes(color)) + b"\x1b\\"
 
+
+def kitty_retransmit():
     return (
         b"Kitty image replacement"
-        + transmit(4, 15, 401, (250, 50, 30))
+        + kitty_solid(4, 15, 401, (250, 50, 30))
         + b"\x1b[6;15H\x1b_Ga=p,i=401,p=2,c=2,r=1,C=1,q=2;\x1b\\"
-        + transmit(4, 30, 402, (250, 50, 30))
-        + transmit(4, 5, 403, (245, 190, 20))
-        + transmit(8, 15, 401, (50, 230, 70), place=False)
-        + transmit(8, 30, 402, (20, 120, 245))
+        + kitty_solid(4, 30, 402, (250, 50, 30))
+        + kitty_solid(4, 5, 403, (245, 190, 20))
+        + kitty_solid(8, 15, 401, (50, 230, 70), place=False)
+        + kitty_solid(8, 30, 402, (20, 120, 245))
+    )
+
+
+def kitty_history():
+    return (
+        kitty_solid(1, 5, 404, (250, 50, 30))
+        + b"\x1b[6;12H\x1b_Ga=p,i=404,p=1,c=4,r=2,C=1,q=2;\x1b\\"
+        + kitty_solid(2, 5, 405, (20, 120, 245))
+        # Scroll the blue image into history and erase that history.
+        + f"\x1b[{GRID_ROWS};1H\n\n\x1b[3J\x1b[2;1HKitty image history".encode()
     )
 
 
@@ -98,6 +109,8 @@ def main():
         sys.stdout.buffer.write(kitty_scroll(down=fixture == "kitty-scroll-down"))
     elif fixture == "kitty-retransmit":
         sys.stdout.buffer.write(kitty_retransmit())
+    elif fixture == "kitty-history":
+        sys.stdout.buffer.write(kitty_history())
     elif fixture in CURSOR_STYLES:
         # Reposition over an existing glyph and show a steady cursor.
         style = CURSOR_STYLES[fixture]

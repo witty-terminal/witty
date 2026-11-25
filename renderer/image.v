@@ -823,8 +823,7 @@ fn (mut self ImageRenderState) kitty_sort_and_index() {
 // Get the viewport-relative position for this placement and add it to
 // the placements list. Faithful translation of prepKittyPlacement.
 fn (mut self ImageRenderState) prep_kitty_placement(t &terminal.Terminal, top_y u32, bot_y u32, image terminal.Image, p terminal.Placement) ! {
-	// Get the rect for the placement. If this placement doesn't have
-	// a rect then its virtual or something so skip it.
+	// Skip virtual placements and anchors pruned from the retained rows.
 	rect := p.rect(image, t) or { return }
 
 	// This is expensive but necessary.

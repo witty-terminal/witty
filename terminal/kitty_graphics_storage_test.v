@@ -44,8 +44,8 @@ fn test_storage_add_placement_with_zero_placement_id() ! {
 	}
 	s.add_image(mut t.screens.active, Image{ id: 1, width: 50, height: 50 })!
 	s.add_image(mut t.screens.active, Image{ id: 2, width: 25, height: 25 })!
-	s.add_placement(1, 0, pin_placement(mut t, 25, 25))
-	s.add_placement(1, 0, pin_placement(mut t, 25, 25))
+	s.add_placement(mut t.screens.active, 1, 0, pin_placement(mut t, 25, 25))
+	s.add_placement(mut t.screens.active, 1, 0, pin_placement(mut t, 25, 25))
 
 	assert s.placement_count() == 2
 	assert s.image_count() == 2
@@ -61,6 +61,36 @@ fn test_storage_add_placement_with_zero_placement_id() ! {
 	}) != none
 }
 
+fn test_storage_placement_reclaims_pruned_anchors() ! {
+	mut t := Terminal.init(Options{ cols: 80, rows: 3, max_scrollback: 1 })!
+	defer { t.deinit() }
+	t.width_px = 800
+	t.height_px = 60
+	tracked := t.screens.active.pages.count_tracked_pins()
+
+	mut s := &t.screens.active.kitty_images
+	image := Image{ id: 1, width: 10, height: 10 }
+	s.add_image(mut t.screens.active, image)!
+	old := pin_placement(mut t, 0, 0)
+	s.add_placement(mut t.screens.active, image.id, 0, old)
+	assert old.rect(image, &t) != none
+	pin := (old.location as PlacementPin).pin
+	t.set_cursor_pos(3, 1)
+	for _ in 0 .. int(initial_capacity(t.cols).rows) * 4 {
+		t.index()!
+		if pin.garbage {
+			break
+		}
+	}
+	assert pin.garbage
+	assert old.rect(image, &t) == none
+
+	s.add_placement(mut t.screens.active, image.id, 0, pin_placement(mut t, 1, 1))
+	assert s.placement_count() == 1
+	assert s.image_count() == 1
+	assert t.screens.active.pages.count_tracked_pins() == tracked + 1
+}
+
 fn test_storage_retransmit_credits_existing_bytes_before_evicting() ! {
 	mut t := Terminal.init(Options{ rows: 3, cols: 3 })!
 	defer { t.deinit() }
@@ -70,7 +100,7 @@ fn test_storage_retransmit_credits_existing_bytes_before_evicting() ! {
 
 	for id in u32(1) .. u32(4) {
 		s.add_image(mut t.screens.active, Image{ id: id, data: [u8(0), 0, 0] })!
-		s.add_placement(id, 1, pin_placement(mut t, 1, 1))
+		s.add_placement(mut t.screens.active, id, 1, pin_placement(mut t, 1, 1))
 	}
 	s.add_image(mut t.screens.active, Image{ id: 1, data: [u8(1), 1, 1] })!
 	assert s.image_count() == 3
@@ -126,8 +156,8 @@ fn test_storage_delete_all_placements_and_images() ! {
 	s.add_image(mut t.screens.active, Image{ id: 1 })!
 	s.add_image(mut t.screens.active, Image{ id: 2 })!
 	s.add_image(mut t.screens.active, Image{ id: 3 })!
-	s.add_placement(1, 1, pin_placement(mut t, 1, 1))
-	s.add_placement(2, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 2, 1, pin_placement(mut t, 1, 1))
 
 	s.dirty = false
 	s.delete(mut t, DeleteAll{ delete: true })
@@ -152,8 +182,8 @@ fn test_storage_delete_all_placements_and_images_preserves_limit() ! {
 	s.add_image(mut t.screens.active, Image{ id: 1 })!
 	s.add_image(mut t.screens.active, Image{ id: 2 })!
 	s.add_image(mut t.screens.active, Image{ id: 3 })!
-	s.add_placement(1, 1, pin_placement(mut t, 1, 1))
-	s.add_placement(2, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 2, 1, pin_placement(mut t, 1, 1))
 
 	s.dirty = false
 	s.delete(mut t, DeleteAll{ delete: true })
@@ -178,8 +208,8 @@ fn test_storage_delete_all_placements() ! {
 	s.add_image(mut t.screens.active, Image{ id: 1 })!
 	s.add_image(mut t.screens.active, Image{ id: 2 })!
 	s.add_image(mut t.screens.active, Image{ id: 3 })!
-	s.add_placement(1, 1, pin_placement(mut t, 1, 1))
-	s.add_placement(2, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 2, 1, pin_placement(mut t, 1, 1))
 
 	s.dirty = false
 	s.delete(mut t, DeleteAll{ delete: false })
@@ -203,8 +233,8 @@ fn test_storage_delete_all_placements_by_image_id() ! {
 	s.add_image(mut t.screens.active, Image{ id: 1 })!
 	s.add_image(mut t.screens.active, Image{ id: 2 })!
 	s.add_image(mut t.screens.active, Image{ id: 3 })!
-	s.add_placement(1, 1, pin_placement(mut t, 1, 1))
-	s.add_placement(2, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 2, 1, pin_placement(mut t, 1, 1))
 
 	s.dirty = false
 	s.delete(mut t, DeleteById{ image_id: 2 })
@@ -228,8 +258,8 @@ fn test_storage_delete_all_placements_by_image_id_and_unused_images() ! {
 	s.add_image(mut t.screens.active, Image{ id: 1 })!
 	s.add_image(mut t.screens.active, Image{ id: 2 })!
 	s.add_image(mut t.screens.active, Image{ id: 3 })!
-	s.add_placement(1, 1, pin_placement(mut t, 1, 1))
-	s.add_placement(2, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 2, 1, pin_placement(mut t, 1, 1))
 
 	s.dirty = false
 	s.delete(mut t, DeleteById{
@@ -256,9 +286,9 @@ fn test_storage_delete_placement_by_specific_id() ! {
 	s.add_image(mut t.screens.active, Image{ id: 1 })!
 	s.add_image(mut t.screens.active, Image{ id: 2 })!
 	s.add_image(mut t.screens.active, Image{ id: 3 })!
-	s.add_placement(1, 1, pin_placement(mut t, 1, 1))
-	s.add_placement(1, 2, pin_placement(mut t, 1, 1))
-	s.add_placement(2, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 1, 2, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 2, 1, pin_placement(mut t, 1, 1))
 
 	s.dirty = false
 	s.delete(mut t, DeleteById{
@@ -287,8 +317,8 @@ fn test_storage_delete_intersecting_cursor() ! {
 	}
 	s.add_image(mut t.screens.active, Image{ id: 1, width: 50, height: 50 })!
 	s.add_image(mut t.screens.active, Image{ id: 2, width: 25, height: 25 })!
-	s.add_placement(1, 1, pin_placement(mut t, 0, 0))
-	s.add_placement(1, 2, pin_placement(mut t, 25, 25))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 0, 0))
+	s.add_placement(mut t.screens.active, 1, 2, pin_placement(mut t, 25, 25))
 
 	t.screens.active.cursor_absolute(12, 12)
 
@@ -321,8 +351,8 @@ fn test_storage_delete_intersecting_cursor_plus_unused() ! {
 	}
 	s.add_image(mut t.screens.active, Image{ id: 1, width: 50, height: 50 })!
 	s.add_image(mut t.screens.active, Image{ id: 2, width: 25, height: 25 })!
-	s.add_placement(1, 1, pin_placement(mut t, 0, 0))
-	s.add_placement(1, 2, pin_placement(mut t, 25, 25))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 0, 0))
+	s.add_placement(mut t.screens.active, 1, 2, pin_placement(mut t, 25, 25))
 
 	t.screens.active.cursor_absolute(12, 12)
 
@@ -355,8 +385,8 @@ fn test_storage_delete_intersecting_cursor_hits_multiple() ! {
 	}
 	s.add_image(mut t.screens.active, Image{ id: 1, width: 50, height: 50 })!
 	s.add_image(mut t.screens.active, Image{ id: 2, width: 25, height: 25 })!
-	s.add_placement(1, 1, pin_placement(mut t, 0, 0))
-	s.add_placement(1, 2, pin_placement(mut t, 25, 25))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 0, 0))
+	s.add_placement(mut t.screens.active, 1, 2, pin_placement(mut t, 25, 25))
 
 	t.screens.active.cursor_absolute(26, 26)
 
@@ -383,8 +413,8 @@ fn test_storage_delete_by_column() ! {
 	}
 	s.add_image(mut t.screens.active, Image{ id: 1, width: 50, height: 50 })!
 	s.add_image(mut t.screens.active, Image{ id: 2, width: 25, height: 25 })!
-	s.add_placement(1, 1, pin_placement(mut t, 0, 0))
-	s.add_placement(1, 2, pin_placement(mut t, 25, 25))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 0, 0))
+	s.add_placement(mut t.screens.active, 1, 2, pin_placement(mut t, 25, 25))
 
 	s.dirty = false
 	s.delete(mut t, DeleteColumn{
@@ -416,9 +446,9 @@ fn test_storage_delete_by_column_1x1() ! {
 		s.deinit(mut t.screens.active)
 	}
 	s.add_image(mut t.screens.active, Image{ id: 1, width: 1, height: 1 })!
-	s.add_placement(1, 1, pin_placement(mut t, 0, 0))
-	s.add_placement(1, 2, pin_placement(mut t, 1, 0))
-	s.add_placement(1, 3, pin_placement(mut t, 2, 0))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 0, 0))
+	s.add_placement(mut t.screens.active, 1, 2, pin_placement(mut t, 1, 0))
+	s.add_placement(mut t.screens.active, 1, 3, pin_placement(mut t, 2, 0))
 
 	s.delete(mut t, DeleteColumn{
 		delete: false
@@ -453,8 +483,8 @@ fn test_storage_delete_by_row() ! {
 	}
 	s.add_image(mut t.screens.active, Image{ id: 1, width: 50, height: 50 })!
 	s.add_image(mut t.screens.active, Image{ id: 2, width: 25, height: 25 })!
-	s.add_placement(1, 1, pin_placement(mut t, 0, 0))
-	s.add_placement(1, 2, pin_placement(mut t, 25, 25))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 0, 0))
+	s.add_placement(mut t.screens.active, 1, 2, pin_placement(mut t, 25, 25))
 
 	s.dirty = false
 	s.delete(mut t, DeleteRow{
@@ -486,9 +516,9 @@ fn test_storage_delete_by_row_1x1() ! {
 		s.deinit(mut t.screens.active)
 	}
 	s.add_image(mut t.screens.active, Image{ id: 1, width: 1, height: 1 })!
-	s.add_placement(1, 1, pin_placement(mut t, 0, 0))
-	s.add_placement(1, 2, pin_placement(mut t, 0, 1))
-	s.add_placement(1, 3, pin_placement(mut t, 0, 2))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 0, 0))
+	s.add_placement(mut t.screens.active, 1, 2, pin_placement(mut t, 0, 1))
+	s.add_placement(mut t.screens.active, 1, 3, pin_placement(mut t, 0, 2))
 
 	s.delete(mut t, DeleteRow{
 		delete: false
@@ -522,8 +552,8 @@ fn test_storage_delete_images_by_range_1() ! {
 	s.add_image(mut t.screens.active, Image{ id: 1 })!
 	s.add_image(mut t.screens.active, Image{ id: 2 })!
 	s.add_image(mut t.screens.active, Image{ id: 3 })!
-	s.add_placement(1, 1, pin_placement(mut t, 1, 1))
-	s.add_placement(2, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 2, 1, pin_placement(mut t, 1, 1))
 	assert s.image_count() == 3
 	assert s.placement_count() == 2
 
@@ -553,8 +583,8 @@ fn test_storage_delete_images_by_range_2() ! {
 	s.add_image(mut t.screens.active, Image{ id: 1 })!
 	s.add_image(mut t.screens.active, Image{ id: 2 })!
 	s.add_image(mut t.screens.active, Image{ id: 3 })!
-	s.add_placement(1, 1, pin_placement(mut t, 1, 1))
-	s.add_placement(2, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 2, 1, pin_placement(mut t, 1, 1))
 	assert s.image_count() == 3
 	assert s.placement_count() == 2
 
@@ -584,8 +614,8 @@ fn test_storage_delete_images_by_range_3() ! {
 	s.add_image(mut t.screens.active, Image{ id: 1 })!
 	s.add_image(mut t.screens.active, Image{ id: 2 })!
 	s.add_image(mut t.screens.active, Image{ id: 3 })!
-	s.add_placement(1, 1, pin_placement(mut t, 1, 1))
-	s.add_placement(2, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 2, 1, pin_placement(mut t, 1, 1))
 	assert s.image_count() == 3
 	assert s.placement_count() == 2
 
@@ -615,8 +645,8 @@ fn test_storage_delete_images_by_range_4() ! {
 	s.add_image(mut t.screens.active, Image{ id: 1 })!
 	s.add_image(mut t.screens.active, Image{ id: 2 })!
 	s.add_image(mut t.screens.active, Image{ id: 3 })!
-	s.add_placement(1, 1, pin_placement(mut t, 1, 1))
-	s.add_placement(2, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 1, 1, pin_placement(mut t, 1, 1))
+	s.add_placement(mut t.screens.active, 2, 1, pin_placement(mut t, 1, 1))
 	assert s.image_count() == 3
 	assert s.placement_count() == 2
 

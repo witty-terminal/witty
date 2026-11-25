@@ -355,7 +355,7 @@ fn exec_display(mut t Terminal, cmd &Command) Response {
 		z:             d.z
 	}
 
-	storage.add_placement(img.id, result.placement_id, p)
+	storage.add_placement(mut t.screens.active, img.id, result.placement_id, p)
 
 	// Apply cursor movement setting. This only applies to pin placements.
 	if p.location is PlacementPin && d.cursor_movement == .after {

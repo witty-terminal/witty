@@ -3138,6 +3138,14 @@ pub fn (mut self Screen) erase_rows(tl Point, bl ?Point) {
 	self.cursor_reload()
 }
 
+fn (mut self Screen) erase_history() {
+	// PageList remaps pins in removed rows to the surviving rows.
+	self.kitty_images.reap_placements(mut self, true)
+	self.erase_rows(Point.new(.history, Coordinate{}), none)
+	// Erasing history can change the viewport even with no removed placement.
+	self.kitty_images.dirty = true
+}
+
 // Clear the region specified by tl and bl, inclusive. Cleared cells are
 // colored with the current style background color. This will clear all
 // cells in the rows.
@@ -3529,12 +3537,11 @@ pub fn (mut self Screen) resize(opts ScreenResize) ! {
 	// erase our history. This is because PageList always keeps at least
 	// a page size of history.
 	if self.no_scrollback {
-		self.pages.erase_rows(Point.new(.history, Coordinate{}), none)
+		self.erase_history()
+	} else {
+		// The resize can move the cursor and invalidate its caches.
+		self.cursor_reload()
 	}
-
-	// If our cursor was updated, we do a full reload so all our cursor
-	// state is correct.
-	self.cursor_reload()
 
 	// If we reflowed a saved cursor, update it.
 	if !isnil(saved_cursor_pin) {

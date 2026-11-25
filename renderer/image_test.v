@@ -311,7 +311,7 @@ fn test_kitty_virtual_placement_uses_viewport_relative_row() ! {
 		height: 1
 		data: [u8(255), 255, 255]
 	})!
-	storage.add_placement(7, 9, terminal.Placement{
+	storage.add_placement(mut t.screens.active, 7, 9, terminal.Placement{
 		location: terminal.PlacementVirtual{}
 		columns: 1
 		rows: 1

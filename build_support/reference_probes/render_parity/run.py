@@ -29,7 +29,8 @@ WALLPAPER_OPTIONS = {
 }
 FIXTURES = (
     "ansi", "decorations", "unicode", "wide-wrap", *CURSOR_STYLES,
-    "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", *WALLPAPER_OPTIONS, "ls", "git", "vim", "shader",
+    "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history",
+    *WALLPAPER_OPTIONS, "ls", "git", "vim", "shader",
 )
 OPTIONS = (
     "--config-default-files=false",

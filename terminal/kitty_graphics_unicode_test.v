@@ -365,7 +365,7 @@ fn test_unicode_render_placement_dog_4x2() ! {
 		height: 306
 	}
 	s.add_image(mut t.screens.active, image)!
-	s.add_placement(1, 0, Placement{
+	s.add_placement(mut t.screens.active, 1, 0, Placement{
 		location: PlacementVirtual{}
 		columns:  4
 		rows:     2
@@ -439,7 +439,7 @@ fn test_unicode_render_placement_dog_2x2_with_blank_cells() ! {
 		height: 306
 	}
 	s.add_image(mut t.screens.active, image)!
-	s.add_placement(1, 0, Placement{
+	s.add_placement(mut t.screens.active, 1, 0, Placement{
 		location: PlacementVirtual{}
 		columns:  2
 		rows:     2
@@ -512,7 +512,7 @@ fn test_unicode_render_placement_dog_1x1() ! {
 		height: 306
 	}
 	s.add_image(mut t.screens.active, image)!
-	s.add_placement(1, 0, Placement{
+	s.add_placement(mut t.screens.active, 1, 0, Placement{
 		location: PlacementVirtual{}
 		columns:  1
 		rows:     1

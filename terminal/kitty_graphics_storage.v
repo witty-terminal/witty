@@ -189,11 +189,17 @@ pub fn (self &Placement) grid_size(image Image, t &Terminal) (u32, u32) {
 // occupies within the screen. Returns none if the placement
 // doesn't have an associated rect (i.e. a virtual placement).
 pub fn (self &Placement) rect(image Image, t &Terminal) ?Rect {
-	grid_cols, grid_rows := self.grid_size(image, t)
-
 	pin := match self.location {
 		PlacementPin { self.location.pin }
 		PlacementVirtual { return none }
+	}
+	if isnil(pin) || pin.garbage {
+		return none
+	}
+
+	grid_cols, grid_rows := self.grid_size(image, t)
+	if grid_cols == 0 || grid_rows == 0 {
+		return none
 	}
 
 	overflow := pin.down_overflow(uint(grid_rows) - 1)
@@ -485,10 +491,12 @@ pub fn (mut self ImageStorage) add_image(mut s Screen, img Image) ! {
 	self.dirty = true
 }
 
-// Add a placement for a given image. The caller must verify in advance
-// the image exists to prevent incorrect state.
-pub fn (mut self ImageStorage) add_placement(image_id u32, placement_id u32, p Placement) {
+// Add a placement for an existing image. Storage takes ownership of its pin.
+pub fn (mut self ImageStorage) add_placement(mut s Screen, image_id u32, placement_id u32, p Placement) {
 	assert image_id in self.images
+
+	// Reclaim anchors pruned with scrollback outside the scrolling hot path.
+	self.reap_placements(mut s, false)
 
 	// The important piece here is that the placement ID needs to
 	// be marked internal if it is zero. This allows multiple placements
@@ -509,6 +517,7 @@ pub fn (mut self ImageStorage) add_placement(image_id u32, placement_id u32, p P
 	// Check if entry already exists; if so, overwrite
 	for mut entry in self.placements {
 		if entry.key == key {
+			entry.value.deinit(mut s)
 			entry.value = p
 			self.dirty = true
 			return
@@ -520,6 +529,26 @@ pub fn (mut self ImageStorage) add_placement(image_id u32, placement_id u32, p P
 		value: p
 	}
 	self.dirty = true
+}
+
+// Keep image data while releasing anchors whose rows are gone. Before
+// erasing history, also release anchors still in the rows about to be erased.
+fn (mut self ImageStorage) reap_placements(mut s Screen, erase_history bool) {
+	mut i := 0
+	for i < self.placements.len {
+		placement := self.placements[i].value
+		location := placement.location
+		if location is PlacementPin {
+			pin := location.pin
+			if isnil(pin) || pin.garbage || (erase_history && !s.pages.pin_is_active(*pin)) {
+				placement.deinit(mut s)
+				self.placements.delete(i)
+				self.dirty = true
+				continue
+			}
+		}
+		i++
+	}
 }
 
 fn (mut self ImageStorage) clear_placements(mut s Screen) {

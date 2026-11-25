@@ -96,6 +96,90 @@ fn test_graphics_scroll_into_history_preserves_placements_below_margin() ! {
 	assert graphics_placement_row(&t, 2)! == 4
 }
 
+fn test_graphics_placement_overwrite_releases_the_old_anchor() ! {
+	mut t := make_graphics_terminal()!
+	defer { t.deinit() }
+	tracked := t.screens.active.pages.count_tracked_pins()
+	storage := &t.screens.active.kitty_images
+
+	transmit := CommandParser.parse_string('a=T,f=24,i=1,p=4,s=1,v=1,c=1,r=1,C=1;////')!
+	first := kitty_graphics_execute(mut t, &transmit) or { return error('expected response') }
+	assert first.ok()
+
+	move := CommandParser.parse_string('a=p,i=1,p=4,c=2,r=2,C=1')!
+	for row in u32(2) .. u32(5) {
+		t.set_cursor_pos(row, 2)
+		response := kitty_graphics_execute(mut t, &move) or { return error('expected response') }
+		assert response.ok()
+		assert storage.placement_count() == 1
+		assert t.screens.active.pages.count_tracked_pins() == tracked + 1
+		assert graphics_placement_row(&t, 1)! == row - 1
+		assert storage.placements[0].value.rows == 2
+	}
+
+	virtual := CommandParser.parse_string('a=p,i=1,p=4,c=2,r=2,U=1')!
+	response := kitty_graphics_execute(mut t, &virtual) or { return error('expected response') }
+	assert response.ok()
+	assert storage.placement_count() == 1
+	assert storage.placements[0].value.location is PlacementVirtual
+	assert t.screens.active.pages.count_tracked_pins() == tracked
+}
+
+fn test_graphics_erase_scrollback_removes_history_anchors() ! {
+	mut t := make_graphics_terminal()!
+	defer { t.deinit() }
+	tracked := t.screens.active.pages.count_tracked_pins()
+	mut storage := &t.screens.active.kitty_images
+	add_graphics_scroll_placement(mut t, 1, 0, 1, 1)!
+	add_graphics_scroll_placement(mut t, 2, 3, 1, 1)!
+	virtual := CommandParser.parse_string('a=p,i=1,p=7,c=1,r=1,U=1')!
+	response := kitty_graphics_execute(mut t, &virtual) or { return error('expected response') }
+	assert response.ok()
+	t.set_cursor_pos(5, 1)
+	t.index()!
+
+	assert storage.placement_count() == 3
+	assert t.screens.active.pages.total_rows == 6
+	t.erase_display(.scrollback, false)
+	assert storage.placement_count() == 2
+	assert storage.image_count() == 2
+	assert t.screens.active.pages.total_rows == 5
+	assert t.screens.active.pages.count_tracked_pins() == tracked + 1
+	assert graphics_placement_row(&t, 2)! == 2
+	assert storage.get_placement(PlacementKey{
+		image_id:     1
+		placement_id: PlacementId.init(.external, 7)
+	}) != none
+
+	// Clearing history can expose an active placement when the viewport
+	// is scrolled up, even if no placement is removed this time.
+	t.index()!
+	t.screens.active.scroll(ScrollTop{})
+	assert !t.screens.active.viewport_is_bottom()
+	storage.dirty = false
+	t.erase_display(.scrollback, false)
+	assert t.screens.active.viewport_is_bottom()
+	assert storage.dirty
+	assert storage.placement_count() == 2
+}
+
+fn test_graphics_resize_without_scrollback_removes_dropped_anchors() ! {
+	mut t := Terminal.init(Options{ rows: 3, cols: 10, max_scrollback: 0 })!
+	defer { t.deinit() }
+	t.width_px = 100
+	t.height_px = 60
+	t.print_string('one\ntwo\nthree')!
+	add_graphics_scroll_placement(mut t, 1, 0, 1, 1)!
+	add_graphics_scroll_placement(mut t, 2, 2, 1, 1)!
+
+	t.resize(10, 2)!
+	storage := &t.screens.active.kitty_images
+	assert t.screens.active.pages.total_rows == 2
+	assert storage.placement_count() == 1
+	assert storage.image_count() == 2
+	assert graphics_placement_row(&t, 2)! == 1
+}
+
 fn test_graphics_execute_persists_transmitted_image() ! {
 	mut t := make_graphics_terminal()!
 	defer {
