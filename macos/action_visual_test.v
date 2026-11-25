@@ -56,6 +56,8 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	assert !is_nil(msg_id(surface.secure_symbol, 'image'))
 	assert msg_id(surface.secure_badge, 'target') == surface.owner
 	assert !is_nil(msg_id(surface.secure_gradient, 'contents'))
+	assert !is_nil(msg_id(msg_id(surface.secure_card, 'mask'), 'contents'))
+	assert !is_nil(msg_id(surface.secure_outline, 'contents'))
 	assert !is_nil(msg_id(msg_id(surface.secure_wash, 'mask'), 'contents'))
 	rotation := msg_id1(surface.secure_gradient, 'animationForKey:', nsstring('secureRotation'))
 	pulse := msg_id1(surface.secure_wash, 'animationForKey:', nsstring('secureOpacity'))
@@ -286,6 +288,20 @@ fn test_hover_banner_raster_mirroring_and_display_string() {
 			assert left.pixels[row * 40 + column] == right.pixels[row * 40 + 39 - column]
 		}
 	}
+}
+
+fn test_secure_badge_outline_coverage_at_both_scales() {
+	one := secure_outline_mask(35, 1)!
+	two := secure_outline_mask(70, 2)!
+	assert one.width == 37 && two.width == 72
+	assert one.pixels[0] == 0 && two.pixels[0] == 0
+	// At 1× the stroke straddles the card edge with two half-covered pixels.
+	assert one.pixels[18] >> 24 == 128
+	assert one.pixels[one.width + 18] >> 24 == 128
+	assert one.pixels[2 * one.width + 18] == 0
+	assert two.pixels[36] >> 24 == 255
+	assert two.pixels[two.width + 36] >> 24 == 255
+	assert two.pixels[2 * two.width + 36] == 0
 }
 
 fn test_native_secure_badge_capture() {

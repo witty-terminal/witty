@@ -4,6 +4,8 @@ import gg.canvas
 import math
 
 const secure_card_side = 35.0
+const secure_corner_radius = 12.0
+const secure_outline_width = 1.0
 // The rotated square must still cover the whole badge at 45 degrees.
 const secure_texture_side = 50.0
 // Match the 25-point SwiftUI glyph after NSImageView applies its alignment insets.
@@ -20,9 +22,9 @@ fn (mut state NativeActionSurface) initialize_secure_visuals() {
 	layer_class := get_class('CALayer')
 	state.secure_card = msg_id(layer_class, 'layer')
 	msg_void_rect(state.secure_card, 'setFrame:', frame)
-	msg_void_f64(state.secure_card, 'setCornerRadius:', 12)
-	msg_void1(state.secure_card, 'setCornerCurve:', nsstring('continuous'))
-	msg_void_bool(state.secure_card, 'setMasksToBounds:', true)
+	card_mask := msg_id(layer_class, 'layer')
+	msg_void_rect(card_mask, 'setFrame:', frame)
+	msg_void1(state.secure_card, 'setMask:', card_mask)
 	msg_void1(root, 'addSublayer:', state.secure_card)
 
 	state.secure_wash = msg_id(layer_class, 'layer')
@@ -38,11 +40,6 @@ fn (mut state NativeActionSurface) initialize_secure_visuals() {
 	msg_void1(state.secure_wash, 'addSublayer:', state.secure_gradient)
 
 	state.secure_outline = msg_id(layer_class, 'layer')
-	msg_void_rect(state.secure_outline, 'setFrame:',
-		objc_rect(-0.5, -0.5, secure_card_side + 1, secure_card_side + 1))
-	msg_void_f64(state.secure_outline, 'setCornerRadius:', 12.5)
-	msg_void1(state.secure_outline, 'setCornerCurve:', nsstring('continuous'))
-	msg_void_f64(state.secure_outline, 'setBorderWidth:', 1)
 	msg_void1(root, 'addSublayer:', state.secure_outline)
 
 	state.secure_symbol = msg_id_rect(alloc('NSImageView'), 'initWithFrame:', frame)
@@ -140,6 +137,16 @@ fn secure_mask_image(scale f64) !voidptr {
 	return mask
 }
 
+fn secure_outline_mask(size int, scale f64) !canvas.RasterSurface {
+	// Pad to whole pixels so the centered stroke also samples cleanly at 1×.
+	half_stroke := secure_outline_width * scale / 2
+	pad := int(math.ceil(half_stroke))
+	outline_size := size + 2 * pad
+	return native_canvas_rounded_mask(outline_size, outline_size,
+		secure_corner_radius * scale + half_stroke, style: .continuous,
+		stroke: secure_outline_width * scale, padding: pad - half_stroke)
+}
+
 fn (mut state NativeActionSurface) update_secure_textures() {
 	color_class := get_class('NSColor')
 	mut palette := [5]u32{}
@@ -157,13 +164,30 @@ fn (mut state NativeActionSurface) update_secure_textures() {
 	if is_nil(base) { return }
 	defer { C.CFRelease(base) }
 
+	size := int(math.round(secure_card_side * scale))
+	silhouette := native_canvas_rounded_mask(size, size, secure_corner_radius * scale,
+		style: .continuous) or { return }
+	card_mask := C.witty_canvas_make_alpha_image(silhouette.pixels.data, size, size, 0xffffff, nil_obj())
+	if is_nil(card_mask) { return }
+	defer { C.CFRelease(card_mask) }
+
+	border := secure_outline_mask(size, scale) or { return }
+	pad := (border.width - size) / (2 * scale)
+	outline := C.witty_canvas_make_alpha_image(border.pixels.data, border.width, border.height,
+		palette[4], state.secure_art)
+	if is_nil(outline) { return }
+	defer { C.CFRelease(outline) }
+
 	transaction := get_class('CATransaction')
 	msg_void(transaction, 'begin')
 	msg_void_bool(transaction, 'setDisableActions:', true)
 	msg_void1(state.secure_card, 'setContents:', ObjId(base))
+	msg_void1(msg_id(state.secure_card, 'mask'), 'setContents:', ObjId(card_mask))
 	msg_void1(state.secure_gradient, 'setContents:', ObjId(gradient))
 	msg_void1(msg_id(state.secure_wash, 'mask'), 'setContents:', ObjId(mask))
-	msg_void1(state.secure_outline, 'setBorderColor:', msg_id(native_color(palette[4], 1), 'CGColor'))
+	msg_void_rect(state.secure_outline, 'setFrame:',
+		objc_rect(-pad, -pad, border.width / scale, border.height / scale))
+	msg_void1(state.secure_outline, 'setContents:', ObjId(outline))
 	msg_void(transaction, 'commit')
 	state.secure_palette = palette
 	state.secure_scale = scale

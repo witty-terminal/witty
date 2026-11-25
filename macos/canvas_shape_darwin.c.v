@@ -58,9 +58,10 @@ fn canvas_rounded_inset(y f64, height f64, radius f64, margin f64, style NativeC
 	return margin + radius * canvas_corner_cubic(canvas_corner_x[segment], (low + high) / 2)
 }
 
-fn canvas_rounded_span(x int, left f64) f64 {
+fn canvas_rounded_span(x int, width int, left f64) f64 {
 	if left < 0 { return 0 }
-	return math.min(1.0, math.max(0.0, x + 1 - left))
+	// At a tight corner, the two edges can meet within the middle pixel.
+	return math.max(0.0, math.min(f64(x + 1), width - left) - math.max(f64(x), left))
 }
 
 @[params]
@@ -68,23 +69,26 @@ struct NativeCanvasRoundedMaskOptions {
 	stroke  f64
 	opacity f64 = 1
 	style   NativeCanvasRoundedStyle
+	padding f64
 }
 
-// Create coverage for a fill or inside stroke. The radius and stroke are in backing pixels.
+// Create coverage for a fill or inside stroke. All dimensions are in backing pixels.
 fn native_canvas_rounded_mask(width int, height int, corner f64, opts NativeCanvasRoundedMaskOptions) !canvas.RasterSurface {
 	mut raster := canvas.new_raster_surface(width: width, height: height)!
-	extent_x := if opts.style == .circular { 1.0 } else { canvas_corner_y[2][3] }
-	extent_y := if opts.style == .continuous { extent_x } else { 1.0 }
-	radius := math.min(corner, math.min(width / (2 * extent_x), height / (2 * extent_y)))
+	extent_x := if opts.style == .continuous_capsule { canvas_corner_y[2][3] } else { 1.0 }
+	max_radius := math.min((width - 2 * opts.padding) / (2 * extent_x),
+		(height - 2 * opts.padding) / 2)
+	radius := math.max(0.0, math.min(corner, max_radius))
 	stroke := opts.stroke
 	for row in 0 .. height {
 		mut outer := [16]f64{}
 		mut inner := [16]f64{}
 		for i in 0 .. outer.len {
 			y := row + (i + 0.5) / outer.len
-			outer[i] = canvas_rounded_inset(y, height, radius, 0, opts.style)
+			outer[i] = canvas_rounded_inset(y, height, radius, opts.padding, opts.style)
 			inner[i] = if stroke > 0 {
-				canvas_rounded_inset(y, height, math.max(0.0, radius - stroke), stroke, opts.style)
+				canvas_rounded_inset(y, height, math.max(0.0, radius - stroke),
+					opts.padding + stroke, opts.style)
 			} else {
 				-1.0
 			}
@@ -92,7 +96,8 @@ fn native_canvas_rounded_mask(width int, height int, corner f64, opts NativeCanv
 		for column in 0 .. (width + 1) / 2 {
 			mut coverage := 0.0
 			for i, edge in outer {
-				coverage += canvas_rounded_span(column, edge) - canvas_rounded_span(column, inner[i])
+				coverage += canvas_rounded_span(column, width, edge)
+					- canvas_rounded_span(column, width, inner[i])
 			}
 			pixel := u32(math.round(255 * opts.opacity * coverage / outer.len)) << 24
 			raster.pixels[row * width + column] = pixel
