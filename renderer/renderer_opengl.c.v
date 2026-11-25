@@ -160,6 +160,7 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 
 		if self.reinitialize_shaders {
 			self.reinitialize_shaders = false
+			self.api.release_gg()
 			self.shaders.deinit()
 			post_shaders := load_from_files(self.config.custom_shaders, .glsl) or {
 				log.warn('error loading custom shaders err=${err}')
@@ -234,7 +235,7 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 				clear_color: [f32(0), 0, 0, 0]!
 			}
 		}
-		mut pass := GLRenderPass.begin([terminal_attachment])
+		mut pass := frame.render_pass(terminal_attachment)!
 
 		if image := self.bg_image {
 			if image is ImageReady && image.texture.id != 0 {
@@ -299,7 +300,7 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 						clear_color: [f32(0), 0, 0, 0]!
 					}
 				}
-				mut post_pass := GLRenderPass.begin([attachment])
+				mut post_pass := frame.render_pass(attachment)!
 				post_pass.step(GLRenderStep{
 					pipeline: pipeline
 					uniforms: state.uniforms

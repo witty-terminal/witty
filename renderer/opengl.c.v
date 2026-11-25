@@ -20,6 +20,8 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 		// The most recently presented target, in case the runtime needs to
 		// present it again without redrawing the terminal contents.
 		last_target ?GLTarget
+	mut:
+		gg GGOpenGLContext
 	}
 
 	// We require at least OpenGL 4.3
@@ -102,7 +104,21 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 	}
 
 	pub fn (mut self OpenGLAPI) deinit() {
+		self.release_gg()
 		self.last_target = none
+	}
+
+	fn (mut self OpenGLAPI) release_gg() {
+		$if linux && !renderer_metal ? {
+			if self.gg.handle != unsafe { nil } {
+				current := self.gg.native == C.witty_gg_gl_current_context()
+				if current {
+					self.gg.texture_fbo.destroy()
+				}
+				C.witty_gg_gl_destroy(self.gg.handle, current)
+				self.gg = GGOpenGLContext{}
+			}
+		}
 	}
 
 	// surface_init is called immediately after the runtime creates and makes its

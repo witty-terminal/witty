@@ -2886,5 +2886,6 @@ pub fn (mut r Renderer) display_unrealized() {
 		}
 		r.deinit_opengl_swap_chain()
 		r.shaders.deinit()
+		r.api.deinit()
 	}
 }

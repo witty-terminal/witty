@@ -2,6 +2,7 @@ module renderer
 
 import log
 import opengl
+import sokol.gfx
 
 $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 
@@ -167,11 +168,28 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 		}
 	}
 
+	fn (mut frame GLFrame) render_pass(attachment GLRenderAttachment) !GLRenderPass {
+		mut pass := GLRenderPass.begin([attachment])
+		$if linux && !renderer_metal ? {
+			scope, format := frame.api.gg_render_pass(attachment)!
+			pass.gg_scope = scope
+			pass.gg_format = format
+			pass.gg_api = frame.api
+			pass.gg_needs_reset = true
+		}
+		return pass
+	}
+
 	// Complete this frame and present the target.
 	//
 	// NOTE: For OpenGL, `sync` is ignored and we always block.
 	pub fn (mut self GLFrame) complete(sync_ bool) {
 		_ = sync_
+		$if linux && !renderer_metal ? {
+			if self.api != unsafe { nil } && self.api.gg.handle != unsafe { nil } {
+				C.witty_gg_gl_commit(self.api.gg.handle)
+			}
+		}
 		opengl.finish()
 
 		// If there are any GL errors, consider the frame unhealthy.
@@ -216,6 +234,11 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 	pub mut:
 		attachments []GLRenderAttachment
 		step_number uint
+	mut:
+		gg_scope       voidptr
+		gg_api         &OpenGLAPI = unsafe { nil }
+		gg_format      gfx.PixelFormat
+		gg_needs_reset bool
 	}
 
 	pub struct GLDraw {
@@ -249,12 +272,17 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 			return
 		}
 
-		program := opengl.Program{
-			id: s.pipeline.program
+		gg_draw := $if linux && !renderer_metal ? { self.apply_gg_pipeline(s) } $else { false }
+		mut program_binding := ?opengl.ProgramBinding(none)
+		if !gg_draw {
+			self.gg_needs_reset = true
+			program := opengl.Program{ id: s.pipeline.program }
+			program_binding = program.use() or { return }
 		}
-		pbind := program.use() or { return }
 		defer {
-			pbind.unbind()
+			if binding := program_binding {
+				binding.unbind()
+			}
 		}
 
 		vao := opengl.VertexArray{
@@ -265,42 +293,37 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 			vaobind.unbind()
 		}
 
-		mut fbobind := opengl.FramebufferBinding{
-			target: .framebuffer
-		}
-		attachment := self.attachments[0]
-		match attachment.target {
-			GLTarget {
-				fbo := opengl.Framebuffer{
-					id: attachment.target.fbo
-				}
-				fbobind = fbo.bind(.framebuffer) or { return }
-			}
-			GLTexture {
-				if s.pipeline.fbo == 0 {
-					return
-				}
-				fbo := opengl.Framebuffer{
-					id: s.pipeline.fbo
-				}
-				fbobind = fbo.bind(.framebuffer) or { return }
-				fbobind.texture_2d(.color0, attachment.target.target, opengl.Texture{
-					id: attachment.target.id
-				}, 0) or {
-					fbobind.unbind()
-					return
-				}
-			}
-		}
-
-		if self.step_number == 0 {
-			if color := attachment.clear_color {
-				opengl.clear_color(color[0], color[1], color[2], color[3])
-				opengl.clear(opengl.gl_color_buffer_bit)
-			}
-		}
+		mut framebuffer := ?opengl.FramebufferBinding(none)
 		defer {
-			fbobind.unbind()
+			if binding := framebuffer {
+				binding.unbind()
+			}
+		}
+		if self.gg_scope == unsafe { nil } {
+			attachment := self.attachments[0]
+			match attachment.target {
+				GLTarget {
+					fbo := opengl.Framebuffer{ id: attachment.target.fbo }
+					framebuffer = fbo.bind(.framebuffer) or { return }
+				}
+				GLTexture {
+					if s.pipeline.fbo == 0 {
+						return
+					}
+					fbo := opengl.Framebuffer{ id: s.pipeline.fbo }
+					binding := fbo.bind(.framebuffer) or { return }
+					framebuffer = binding
+					binding.texture_2d(.color0, attachment.target.target, opengl.Texture{
+						id: attachment.target.id
+					}, 0) or { return }
+				}
+			}
+			if self.step_number == 0 {
+				if color := attachment.clear_color {
+					opengl.clear_color(color[0], color[1], color[2], color[3])
+					opengl.clear(opengl.gl_color_buffer_bit)
+				}
+			}
 		}
 
 		if uniforms := s.uniforms {
@@ -347,20 +370,27 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 			}.bind(u32(i)) or { return }
 		}
 
-		if s.pipeline.blending_enabled {
-			opengl.enable(opengl.gl_blend) or { return }
-			opengl.blend_func(opengl.gl_one, opengl.gl_one_minus_src_alpha) or { return }
+		if gg_draw {
+			gfx.draw(0, int(s.draw.vertex_count), int(s.draw.instance_count))
 		} else {
-			opengl.disable(opengl.gl_blend) or { return }
-		}
-
-		opengl.draw_arrays_instanced(s.draw.primitive, 0, int(s.draw.vertex_count), int(s.draw.instance_count)) or {
-			return
+			if s.pipeline.blending_enabled {
+				opengl.enable(opengl.gl_blend) or { return }
+				opengl.blend_func(opengl.gl_one, opengl.gl_one_minus_src_alpha) or { return }
+			} else {
+				opengl.disable(opengl.gl_blend) or { return }
+			}
+			opengl.draw_arrays_instanced(s.draw.primitive, 0, int(s.draw.vertex_count), int(s.draw.instance_count)) or { return }
 		}
 		self.step_number++
 	}
 
 	pub fn (mut self GLRenderPass) complete() {
+		$if linux && !renderer_metal ? {
+			if self.gg_scope != unsafe { nil } {
+				C.witty_gg_gl_end_pass(self.gg_scope)
+				self.gg_scope = unsafe { nil }
+			}
+		}
 		opengl.flush()
 	}
 
@@ -375,6 +405,9 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 		vao              u32
 		stride           uint
 		blending_enabled bool = true
+	mut:
+		vertex_source   string
+		fragment_source string
 	}
 
 	pub struct GLPipelineOptions {
@@ -458,6 +491,8 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 			fbo:              fbo.id
 			stride:           opts.stride
 			blending_enabled: opts.blending_enabled
+			vertex_source:    opts.vertex_source
+			fragment_source:  opts.fragment_source
 		}
 	}
 
@@ -581,6 +616,7 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 		rbo    u32
 		width  uint
 		height uint
+		internal_format opengl.TextureInternalFormat = .rgba
 	}
 
 	pub struct GLTargetOptions {
@@ -610,6 +646,7 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 			rbo:    rbo.id
 			width:  opts.width
 			height: opts.height
+			internal_format: opts.internal_format
 		}
 	}
 
@@ -639,6 +676,7 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 		height uint
 		format opengl.TextureFormat = .rgba
 		target opengl.TextureTarget = .t2d
+		internal_format opengl.TextureInternalFormat = .rgba
 	}
 
 	pub struct GLTextureOptions {
@@ -696,6 +734,7 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 			height: height
 			format: opts.format
 			target: opts.target
+			internal_format: opts.internal_format
 		}
 	}
 

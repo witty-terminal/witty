@@ -1,0 +1,134 @@
+--- a/thirdparty/sokol/sokol_gfx.h
++++ b/thirdparty/sokol/sokol_gfx.h
+@@ -1562,6 +1562,7 @@
+         distribution.
+ */
+ #define SOKOL_GFX_INCLUDED (1)
++#define V_SOKOL_GL_CONTEXTS (1)
+ #include <stddef.h>     // size_t
+ #include <stdint.h>
+ #include <stdbool.h>
+@@ -4365,6 +4366,18 @@
+ // WebGPU: get internal pass resource objects
+ SOKOL_GFX_API_DECL sg_wgpu_attachments_info sg_wgpu_query_attachments_info(sg_attachments atts);
+ 
++#if defined(SOKOL_GLCORE)
++    /* Select independently owned GFX state for the current native context.
++       NULL selects the original default state. Restore the previous state
++       before switching native contexts. Pass false when its native context is lost. */
++    SOKOL_GFX_API_DECL void* sg_v_gl_alloc_state(void);
++    SOKOL_GFX_API_DECL void* sg_v_gl_select_state(void* state);
++    SOKOL_GFX_API_DECL void sg_v_gl_bind_vertex_array(void);
++    SOKOL_GFX_API_DECL void sg_v_gl_destroy_state(void* state, bool native_context_current);
++    /* Use the framebuffer sRGB setting of a native offscreen FBO. */
++    SOKOL_GFX_API_DECL void sg_v_gl_begin_fbo_pass(const sg_pass* pass, bool srgb);
++#endif
++
+ // GL: get internal buffer resource objects
+ SOKOL_GFX_API_DECL sg_gl_buffer_info sg_gl_query_buffer_info(sg_buffer buf);
+ // GL: get internal image resource objects
+@@ -5985,6 +5998,9 @@
+     } cur_pass;
+     sg_pipeline cur_pipeline;
+     bool next_draw_valid;
++    #if defined(SOKOL_GLCORE)
++    bool native_fbo_srgb;
++    #endif
+     #if defined(SOKOL_DEBUG)
+     sg_log_item validate_error;
+     #endif
+@@ -6010,7 +6026,24 @@
+     #endif
+     _sg_commit_listeners_t commit_listeners;
+ } _sg_state_t;
+-static _sg_state_t _sg;
++#if defined(SOKOL_GLCORE)
++    static _sg_state_t _sg_default_state;
++    static _Thread_local _sg_state_t* _sg_selected_state;
++    #define _sg (*(_sg_selected_state ? _sg_selected_state : &_sg_default_state))
++
++    SOKOL_API_IMPL void* sg_v_gl_alloc_state(void) {
++        return calloc(1, sizeof(_sg_state_t));
++    }
++
++    SOKOL_API_IMPL void* sg_v_gl_select_state(void* state) {
++        _sg_state_t* previous = _sg_selected_state;
++        _sg_selected_state = (_sg_state_t*)state;
++        return previous;
++    }
++
++#else
++    static _sg_state_t _sg;
++#endif
+ 
+ // ██       ██████   ██████   ██████  ██ ███    ██  ██████
+ // ██      ██    ██ ██       ██       ██ ████   ██ ██
+@@ -9009,7 +9042,11 @@
+     } else {
+         // default pass
+         #if defined(SOKOL_GLCORE)
+-        glDisable(GL_FRAMEBUFFER_SRGB);
++        if (_sg.native_fbo_srgb) {
++            glEnable(GL_FRAMEBUFFER_SRGB);
++        } else {
++            glDisable(GL_FRAMEBUFFER_SRGB);
++        }
+         #endif
+         // NOTE: on some platforms, the default framebuffer of a context
+         // is null, so we can't actually assert here that the
+@@ -9573,6 +9610,13 @@
+         }
+     }
+ }
++
++#if defined(SOKOL_GLCORE)
++SOKOL_API_IMPL void sg_v_gl_bind_vertex_array(void) {
++    SOKOL_ASSERT(_sg.gl.valid);
++    glBindVertexArray(_sg.gl.vao);
++}
++#endif
+ 
+ _SOKOL_PRIVATE void _sg_gl_commit(void) {
+     // "soft" clear bindings (only those that are actually bound)
+@@ -17895,6 +17939,24 @@
+     _SG_CLEAR_ARC_STRUCT(_sg_state_t, _sg);
+ }
+ 
++#if defined(SOKOL_GLCORE)
++SOKOL_API_IMPL void sg_v_gl_destroy_state(void* state, bool native_context_current) {
++    SOKOL_ASSERT(state && (state != _sg_selected_state));
++    void* previous = sg_v_gl_select_state(state);
++    if (_sg.valid) {
++        if (native_context_current) {
++            sg_shutdown();
++        } else {
++            // The native context owns the remaining GL objects.
++            _sg_discard_commit_listeners();
++            _sg_discard_pools(&_sg.pools);
++        }
++    }
++    sg_v_gl_select_state(previous);
++    free(state);
++}
++#endif
++
+ SOKOL_API_IMPL bool sg_isvalid(void) {
+     return _sg.valid;
+ }
+@@ -18837,6 +18899,16 @@
+     _sg_draw(base_element, num_elements, num_instances);
+     _SG_TRACE_ARGS(draw, base_element, num_elements, num_instances);
+ }
++
++#if defined(SOKOL_GLCORE)
++SOKOL_API_IMPL void sg_v_gl_begin_fbo_pass(const sg_pass* pass, bool srgb) {
++    SOKOL_ASSERT(pass);
++    SOKOL_ASSERT(pass->swapchain.gl.framebuffer != 0);
++    _sg.native_fbo_srgb = srgb;
++    sg_begin_pass(pass);
++    _sg.native_fbo_srgb = false;
++}
++#endif
+ 
+ SOKOL_API_IMPL void sg_end_pass(void) {
+     SOKOL_ASSERT(_sg.valid);
