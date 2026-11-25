@@ -2571,16 +2571,6 @@ fn (mut self SurfaceWidget) apply_resize_overlay_config() {
 pub fn (mut self SurfaceWidget) apply_config() {
 	self.apply_resize_overlay_config()
 	use_canvas := !isnil(self.config) && gtk_canvas_styles_enabled(self.config.get())
-	gtk_canvas_overlay_set_mask(self.terminal_page, use_canvas)
-	if !isnil(self.resize_overlay) {
-		gtk_canvas_overlay_set_enabled(self.resize_overlay.widget, use_canvas)
-	}
-	if !isnil(self.search_overlay) {
-		gtk_canvas_overlay_set_enabled(self.search_overlay.widget, use_canvas)
-	}
-	if !isnil(self.key_state_overlay) {
-		gtk_canvas_overlay_set_enabled(self.key_state_overlay.widget, use_canvas)
-	}
 	if !isnil(self.progress_bar_overlay) {
 		C.witty_gtk_progress_set_canvas(self.progress_bar_overlay, use_canvas)
 	}
@@ -3601,6 +3591,10 @@ pub fn new_surface_widget(window &Window, split_tree &SplitTreeWidget, config &C
 	resize_overlay := new_resize_overlay()
 	search_overlay := new_search_overlay()
 	key_state_overlay := new_key_state_overlay()
+	gtk_canvas_overlay_set_mask(terminal_page, true)
+	for overlay in [resize_overlay.widget, search_overlay.widget, key_state_overlay.widget] {
+		gtk_canvas_overlay_set_mask(C.adw_bin_get_child(overlay), true)
+	}
 	child_exited_overlay := new_surface_child_exited()
 	unfocused_revealer := surface_unfocused_revealer_new()
 	C.gtk_widget_set_visible(child_exited_overlay.widget, false)

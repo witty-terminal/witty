@@ -31,11 +31,13 @@ SELECTION_BACKGROUND = (23, 81, 107)
 SEARCH_BACKGROUND = (255, 224, 130)
 SEARCH_SELECTED_BACKGROUND = (242, 165, 126)
 PALETTE_THEME_BACKGROUND = (54, 87, 129)
+READONLY_THEME_BACKGROUND = (33, 128, 205)
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
 INTERACTIVE_FIXTURES = (
     "selection-wide", "wide-edit", "search-wrap", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES,
 )
 LINK_PREVIEW_FIXTURES = ("link-preview", "link-preview-right")
+READONLY_FIXTURES = ("readonly-overlay", "readonly-overlay-themed")
 COMMAND_PALETTE_FIXTURES = (
     "command-palette", "command-palette-compact", "command-palette-resize", "command-palette-themed",
 )
@@ -54,7 +56,7 @@ WALLPAPER_OPTIONS = {
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
     *INTERACTIVE_FIXTURES, "split-search", "visual-bell", "progress-overlay", "resize-overlay", "key-state-overlay",
-    *LINK_PREVIEW_FIXTURES, "readonly-overlay", *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
+    *LINK_PREVIEW_FIXTURES, *READONLY_FIXTURES, *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
     *TITLE_DIALOG_ACTIONS, "gtk-toast",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
@@ -193,8 +195,20 @@ def fixture_args(name, work):
         options.extend(("--keybind=copy/escape=deactivate_key_table", "--keybind=ctrl+alt+k=activate_key_table:copy"))
     if name in LINK_PREVIEW_FIXTURES:
         options.append("--link-previews=true")
-    if name == "readonly-overlay":
+    if name in READONLY_FIXTURES:
         options.append("--keybind=ctrl+alt+o=toggle_readonly")
+        if name == "readonly-overlay-themed":
+            css = work / "readonly.css"
+            css.write_text(
+                ".surface .readonly_overlay {\n"
+                f"  background: #{bytes(READONLY_THEME_BACKGROUND).hex()};\n"
+                "  background-clip: padding-box;\n"
+                "  border: 1.5px solid #917aa5;\n"
+                "  outline: 1.5px solid #c89768;\n"
+                "  border-radius: 5.5px;\n"
+                "}\n"
+            )
+            options.append(f"--gtk-custom-css={css}")
     if name in COMMAND_PALETTE_FIXTURES:
         options.extend((
             "--title=Palette Fixture",
@@ -424,7 +438,11 @@ def capture_surface_badge(binary, args, helper, prefix, name, settle, scale, *, 
             while time.monotonic() < deadline:
                 with read_window(helper, window) as image:
                     # The preview label can appear before the terminal has painted the underline.
-                    preview_visible = ImageChops.difference(before, image.crop(region)).getbbox()
+                    badge = image.crop(region)
+                    preview_visible = ImageChops.difference(before, badge).getbbox()
+                    if name == "readonly-overlay-themed":
+                        colors = badge.getcolors(badge.width * badge.height)
+                        preview_visible = any(color == READONLY_THEME_BACKGROUND for _, color in colors)
                     underline_visible = (
                         unhovered is None or ImageChops.difference(unhovered, image.crop(link_cells)).getbbox()
                     )
@@ -984,7 +1002,7 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name in ("resize-overlay", "key-state-overlay"):
                 capture_mode_overlay(ghostty, args, helper, expected, name, settle, scale)
                 capture_mode_overlay(witty, args, helper, actual, name, settle, scale, witty=True)
-            elif name in (*LINK_PREVIEW_FIXTURES, "readonly-overlay"):
+            elif name in (*LINK_PREVIEW_FIXTURES, *READONLY_FIXTURES):
                 capture_surface_badge(ghostty, args, helper, expected, name, settle, scale)
                 capture_surface_badge(witty, args, helper, actual, name, settle, scale, witty=True)
             elif name in COMMAND_PALETTE_FIXTURES:

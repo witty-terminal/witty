@@ -496,6 +496,7 @@ def main():
         "resize-overlay": b"Resize the terminal\r\n",
         "key-state-overlay": b"Activate a key table\r\n",
         "readonly-overlay": b"Toggle read-only mode\r\n",
+        "readonly-overlay-themed": b"Toggle read-only mode\r\n",
         "command-palette": b"GTK command palette\r\n",
         "command-palette-compact": b"GTK command palette\r\n",
         "command-palette-resize": b"GTK command palette\r\n",
