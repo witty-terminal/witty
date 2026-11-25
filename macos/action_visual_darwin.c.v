@@ -222,19 +222,6 @@ fn (mut surface NativeActionSurface) refresh_key_visuals() {
 }
 
 fn (mut surface NativeActionSurface) initialize_visuals() {
-	readonly_icon := msg_id2(get_class('NSImage'), 'imageWithSystemSymbolName:accessibilityDescription:', nsstring('eye.fill'), nil_obj())
-	msg_void1(surface.readonly_badge, 'setImage:', readonly_icon)
-	msg_void_u64(surface.readonly_badge, 'setImagePosition:', 2)
-	msg_void_bool(surface.readonly_badge, 'setBordered:', false)
-	msg_void1(surface.readonly_badge, 'setFont:', C.witty_action_id_f64_f64(get_class('NSFont'), sel('systemFontOfSize:weight:'), 12, 0.23))
-	msg_void1(surface.readonly_badge, 'setContentTintColor:', native_color(0xcc9766, 1))
-	msg_void1(surface.readonly_badge, 'setAccessibilityLabel:', nsstring('Read-only terminal'))
-	msg_void_bool(surface.readonly_badge, 'setWantsLayer:', true)
-	readonly_layer := msg_id(surface.readonly_badge, 'layer')
-	msg_void_f64(readonly_layer, 'setCornerRadius:', 6)
-	msg_void_f64(readonly_layer, 'setBorderWidth:', 1.5)
-	msg_void1(readonly_layer, 'setBorderColor:', msg_id(msg_id_f64(msg_id(get_class('NSColor'), 'systemOrangeColor'), 'colorWithAlphaComponent:', 0.6), 'CGColor'))
-	msg_void1(readonly_layer, 'setBackgroundColor:', msg_id(msg_id(get_class('NSColor'), 'controlBackgroundColor'), 'CGColor'))
 	layer_class := get_class('CALayer')
 	surface.bell_layer = msg_id(layer_class, 'layer')
 	for i in 0 .. surface.bell_edges.len {

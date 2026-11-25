@@ -94,6 +94,75 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	assert cursor_for_shape(4) == none
 }
 
+fn test_readonly_badge_canvas_stroke_and_silhouette() {
+	border := readonly_round_mask(197, 46, 2, 1.5, 0.6)!
+	mask := readonly_round_mask(197, 46, 2, 0, 1)!
+	assert mask.pixels[0] == 0
+	assert mask.pixels[98] == 0xff000000
+	assert border.pixels[98] >> 24 == 153
+	assert border.pixels[2 * 197 + 98] == border.pixels[98]
+	assert border.pixels[3 * 197 + 98] == 0
+	assert border.pixels[23 * 197 + 98] == 0
+	for row in 0 .. 46 {
+		for column in 0 .. 197 {
+			assert border.pixels[row * 197 + column] == border.pixels[(45 - row) * 197 + 196 - column]
+		}
+	}
+}
+
+fn test_native_readonly_badge_layout_and_capture() {
+	output := os.getenv('WITTY_READONLY_BADGE_OUTPUT')
+	app_init()
+	frame := objc_rect(0, 0, 180, 64)
+	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
+		frame, 0, ns_backing_store_buffered, false)
+	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
+	view := create_offscreen_terminal_view(180, 64)
+	msg_void1(window, 'setContentView:', view)
+	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{})
+	defer {
+		surface.deinit()
+		msg_void(window, 'close')
+		msg_void(window, 'release')
+		release_offscreen_terminal_view(view)
+	}
+	base := msg_id_rect(alloc('NSView'), 'initWithFrame:', frame)
+	msg_void_bool(base, 'setWantsLayer:', true)
+	C.witty_canvas_place_overlay(view, base, nil_obj())
+	C.witty_canvas_place_overlay(view, surface.overlay, nil_obj())
+	msg_void(base, 'release')
+	surface.scroll.layout()
+
+	assert msg_bool(surface.readonly_badge, 'isHidden')
+	surface.set_readonly(true)
+	assert !msg_bool(surface.readonly_badge, 'isHidden')
+	badge := msg_rect(surface.readonly_badge, 'frame')
+	assert badge.x + badge.width == frame.width - 8
+	assert badge.y == 8 && badge.height == 23
+	assert msg_id(surface.readonly_badge, 'target') == surface.owner
+	assert msg_id(surface.readonly_badge, 'action') == sel('readonly:')
+	assert !is_nil(msg_id(surface.readonly_material, 'maskImage'))
+	if output.len > 0 {
+		layer := msg_id(base, 'layer')
+		for index, appearance in ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
+			msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',
+				nsstring(appearance)))
+			mode := if index == 0 { 'light' } else { 'dark' }
+			for name, rgb in {'blue': [0.2, 0.3, 0.4], 'plain': [0.085, 0.095, 0.125]} {
+				color := C.witty_macos_color_rgba(rgb[0], rgb[1], rgb[2], 1)
+				msg_void1(layer, 'setBackgroundColor:', msg_id(color, 'CGColor'))
+				png := C.witty_overlay_test_png(surface.scroll.container)
+				assert !is_nil(png)
+				assert msg_bool2(png, 'writeToFile:atomically:',
+					nsstring(os.join_path(output, '${mode}-${name}-witty.png')), ObjId(1))
+			}
+		}
+	}
+	surface.set_readonly(false)
+	assert msg_bool(surface.readonly_badge, 'isHidden')
+}
+
 fn test_native_hover_banner_capture() {
 	output := os.getenv_opt('WITTY_HOVER_BANNER_OUTPUT') or { return }
 	app_init()

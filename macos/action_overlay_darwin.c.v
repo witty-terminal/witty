@@ -122,6 +122,10 @@ mut:
 	last_progress_scale f64
 	key_badge           ObjId
 	readonly_badge      ObjId
+	readonly_material   ObjId
+	readonly_ink        ObjId
+	readonly_scale      f64
+	readonly_title_width f64
 	health_label        ObjId
 	hover_label         ObjId
 	hover_url           string
@@ -233,8 +237,7 @@ pub fn new_action_surface(view voidptr, userdata voidptr, callbacks ActionCallba
 	g_action_surfaces[u64(view)] = state
 	state.key_badge = new_key_indicator(state)
 	msg_void1(state.overlay, 'addSubview:', state.key_badge)
-	state.readonly_badge = action_button(state, 'Read-only', 'readonly:', objc_rect(8, 8, 100, 28))
-	msg_void1(state.overlay, 'addSubview:', state.readonly_badge)
+	state.initialize_readonly_badge()
 	state.health_label = new_health_overlay()
 	msg_void1(state.overlay, 'addSubview:', state.health_label)
 	state.initialize_secure_visuals()
@@ -309,6 +312,7 @@ fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
 			state.refresh_bell_visuals()
 		}
 		state.refresh_hover_visuals()
+		state.refresh_readonly_badge()
 	}
 }
 
@@ -323,6 +327,7 @@ fn action_overlay_colors_changed(self ObjId, _cmd Sel, _notification ObjId) {
 		if state.highlighted { state.refresh_highlight() }
 		state.refresh_secure_visuals()
 		state.refresh_hover_appearance()
+		msg_void_bool(state.readonly_ink, 'setNeedsDisplay:', true)
 	}
 }
 
@@ -341,8 +346,7 @@ fn (mut state NativeActionSurface) refresh() {
 		}, 340, 42))
 	}
 	state.refresh_key_visuals()
-	msg_void_bool(state.readonly_badge, 'setHidden:', !state.readonly)
-	msg_void_rect(state.readonly_badge, 'setFrame:', objc_rect(width - 108, 8, 100, 28))
+	state.refresh_readonly_badge()
 	msg_void_bool(state.health_label, 'setHidden:', state.healthy)
 	msg_void_rect(state.health_label, 'setFrame:', objc_rect((width - 486) / 2, (height - 128) / 2, 486, 128))
 	state.refresh_hover_visuals()
