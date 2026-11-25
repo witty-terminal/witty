@@ -118,6 +118,31 @@ int witty_glDebugMessageCallback(void *callback, void *user_param) {
 	return 1;
 }
 
+int witty_gl_read_rgba8(int width, int height, void *pixels) {
+	if (!witty_gl_context.ReadPixels) {
+		return 0;
+	}
+
+	const GLenum pack_options[] = {
+		GL_PACK_ALIGNMENT, GL_PACK_ROW_LENGTH, GL_PACK_SKIP_ROWS, GL_PACK_SKIP_PIXELS,
+	};
+	const GLint pack_values[] = {4, 0, 0, 0};
+	GLint previous[4];
+	GLint pack_buffer;
+	witty_gl_context.GetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack_buffer);
+	witty_gl_context.BindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+	for (int i = 0; i < 4; ++i) {
+		witty_gl_context.GetIntegerv(pack_options[i], &previous[i]);
+		witty_gl_context.PixelStorei(pack_options[i], pack_values[i]);
+	}
+	witty_gl_context.ReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+	for (int i = 0; i < 4; ++i) {
+		witty_gl_context.PixelStorei(pack_options[i], previous[i]);
+	}
+	witty_gl_context.BindBuffer(GL_PIXEL_PACK_BUFFER, (GLuint)pack_buffer);
+	return 1;
+}
+
 static const GLubyte *witty_gl_test_get_string(GLenum name) {
 	if (name == GL_VERSION) {
 		return (const GLubyte *)"4.3 Witty Glad test";

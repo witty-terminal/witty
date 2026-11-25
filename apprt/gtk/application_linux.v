@@ -439,6 +439,8 @@ mut:
 	// Stable V wrappers for the GhosttyWindow objects owned by GtkApplication.
 	windows []&Window
 
+	screenshot ScreenshotCapture
+
 	// GObject dispose/finalize can run after the explicit application teardown.
 	disposed      bool
 	deinitialized bool
@@ -499,6 +501,11 @@ pub fn Application.new(rt_app &App, core_app &core.App) !&Application {
 	mut config := configpkg.Config.load() or {
 		application_default_config_after_load_error(err)
 	}
+	if rt_app.screenshot.path != '' {
+		config.initial_window = true
+		config.wait_after_command = true
+		config.window_save_state = .never
+	}
 
 	// Setup our GTK init env vars. This must happen BEFORE GTK init.
 	set_gtk_env(&config)
@@ -516,7 +523,7 @@ pub fn Application.new(rt_app &App, core_app &core.App) !&Application {
 
 	// Setup the flags for our application.
 	mut app_flags := g_application_default_flags
-	if !single_instance {
+	if !single_instance || rt_app.screenshot.path != '' {
 		app_flags |= g_application_non_unique
 	}
 
@@ -570,6 +577,7 @@ pub fn Application.new(rt_app &App, core_app &core.App) !&Application {
 		global_shortcuts: GlobalShortcuts.new()
 		winproto:         winproto
 		css_provider:     css_provider
+		screenshot:       ScreenshotCapture{ options: rt_app.screenshot }
 	}
 	obj := C.g_object_new(ghostty_application_get_type(), c'application-id', &char(app_id.str), c'flags', GApplicationFlags(app_flags), c'resource-base-path', c'/com/alexander/witty', &char(unsafe { nil }))
 	if isnil(obj) {
@@ -696,6 +704,7 @@ pub fn (mut self Application) run() ! {
 	defer {
 		// Ensure our timer source is removed.
 		self.stop_quit_timer()
+		self.stop_screenshot_timer()
 		// Sync any remaining settings.
 		C.g_settings_sync()
 		// Clear out the event loop without blocking.
@@ -739,6 +748,9 @@ pub fn (mut self Application) run() ! {
 		log.debug('exiting runloop')
 	}
 	self.running = true
+	if self.screenshot.options.path != '' {
+		self.start_screenshot_timer()
+	}
 	for self.running {
 		C.g_main_context_iteration(ctx, true)
 
@@ -756,6 +768,10 @@ pub fn (mut self Application) run() ! {
 			// unsafe to even access app/surface memory, so exit immediately.
 			self.quit_now()
 		}
+	}
+	if self.screenshot.options.path != '' {
+		if err := self.screenshot.failure { return err }
+		if !self.screenshot.complete { return error('terminal closed before screenshot') }
 	}
 }
 
@@ -2074,6 +2090,9 @@ pub fn (mut self Application) perform_action(target apprt.Target, action apprt.A
 		}
 		.show_child_exited {
 			if data is apprt.ChildExited {
+				if self.screenshot.options.path != '' && data.exit_code == 0 {
+					return true
+				}
 				mut surface := surface_from_target(target) or { return false }
 				return surface.child_exited(data)
 			}

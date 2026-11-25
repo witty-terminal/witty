@@ -49,6 +49,8 @@ fn C.witty_glGetError() u32
 
 fn C.witty_glGetIntegerv(pname u32, data &i32)
 
+fn C.witty_gl_read_rgba8(width i32, height i32, pixels voidptr) int
+
 fn C.witty_glGetStringi(name u32, index u32) &u8
 
 fn C.witty_glClearColor(red f32, green f32, blue f32, alpha f32)
@@ -1119,6 +1121,21 @@ pub fn Framebuffer.create() !Framebuffer {
 pub fn (f Framebuffer) destroy() {
 	mut id := f.id
 	C.witty_glDeleteFramebuffers(1, &id)
+}
+
+// read_rgba8 reads the first color attachment in OpenGL's bottom-up order.
+pub fn (f Framebuffer) read_rgba8(width u32, height u32) ![]u8 {
+	if width == 0 || height == 0 || u64(width) * u64(height) > u64(max_i32) / 4 {
+		return error('invalid OpenGL readback dimensions')
+	}
+	binding := f.bind(.read)!
+	defer { binding.unbind() }
+	mut pixels := []u8{len: int(u64(width) * u64(height) * 4)}
+	if C.witty_gl_read_rgba8(i32(width), i32(height), pixels.data) == 0 {
+		return error('OpenGL pixel readback is unavailable')
+	}
+	get_error()!
+	return pixels
 }
 
 pub fn (f Framebuffer) bind(target FramebufferTarget) !FramebufferBinding {

@@ -46,6 +46,7 @@ pub struct App {
 pub mut:
 	// The GObject Application instance.
 	app &Application = unsafe { nil }
+	screenshot ScreenshotOptions
 }
 
 // init initializes the App. Mirrors `App.init`.

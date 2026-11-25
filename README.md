@@ -23,14 +23,19 @@ VFLAGS='-cc clang' v -path "$PWD|@vlib|@vmodules" run tools/build install
 
 Run the installed application with `./v-out/bin/witty`.
 
-## Capturing the macOS terminal
+## Capturing the terminal
 
-Run the executable inside a built Witty app to save the terminal at backing-pixel resolution.
-Witty writes a Display P3 PNG of the terminal viewport from its own Metal frame and exits.
-Capture runs offscreen and leaves the active application focused. It works without Screen Recording permission.
+Witty saves the rendered terminal viewport at backing-pixel resolution and exits.
+On macOS, capture writes a Display P3 PNG offscreen and works without Screen Recording permission.
 
 ```sh
 ./Witty.app/Contents/MacOS/witty --screenshot=/tmp/witty.png -e /bin/ls -G
+```
+
+On Linux, capture reads the OpenGL frame from a GTK window. Run it on a desktop or use Xvfb for automation.
+
+```sh
+xvfb-run -a ./v-out/bin/witty --screenshot=/tmp/witty.png -e /bin/ls --color=always
 ```
 
 Set `SCREENSHOT_SETTLE_SECONDS` to change the default two-second wait before capture.

@@ -7,6 +7,8 @@ module main
 import core
 import apprt.gtk
 import global_state
+import internal_os
+import os
 import source_startup
 
 fn main() {
@@ -14,8 +16,22 @@ fn main() {
 		$compile_warn('Run `make` from the repository root to build Witty and its native dependencies.')
 	}
 	source_startup.prepare()
+	mut screenshot := ScreenshotLaunch{}
+	mut args := if os.args.len > 1 { os.args[1..] } else { []string{} }
+	// xdg-terminal-exec supplies a command in argv, including its own flags.
+	if internal_os.parse_terminal_exec(os.args) == none {
+		screenshot, args = parse_screenshot_launch(args) or {
+			eprintln('Witty: ${err.msg()}')
+			exit(1)
+		}
+		if screenshot.path != '' {
+			mut argv := [os.args[0]]
+			argv << args
+			internal_os.set_process_args(argv)
+		}
+	}
 	mut state := global_state.get_state_mut()
-	state.init() or {
+	state.init_args(args) or {
 		eprintln(startup_error_message(err))
 		exit(1)
 	}
@@ -32,7 +48,12 @@ fn main() {
 	}
 
 	// Create our runtime app.
-	mut app_runtime := gtk.App{}
+	mut app_runtime := gtk.App{
+		screenshot: gtk.ScreenshotOptions{
+			path: screenshot.path
+			delay_ms: i64(screenshot.delay * 1000)
+		}
+	}
 	app_runtime.init(app) or {
 		eprintln('failed to initialize runtime app: ${err}')
 		exit(1)

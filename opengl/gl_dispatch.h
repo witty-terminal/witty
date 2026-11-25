@@ -128,6 +128,7 @@ int witty_glBlitFramebuffer(
 	unsigned int filter
 );
 int witty_glDebugMessageCallback(void *callback, void *user_param);
+int witty_gl_read_rgba8(int width, int height, void *pixels);
 void *witty_gl_test_resolver_pointer(void);
 int witty_gl_test_context_loaded(void);
 
