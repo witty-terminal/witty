@@ -11,7 +11,10 @@ __global (
 fn inspector_test_init(_userdata voidptr,_device voidptr) voidptr { return voidptr(1) }
 fn inspector_test_alive(_userdata voidptr) bool { return true }
 fn inspector_test_size(_backend voidptr,w u32,h u32,x f64,y f64) { g_inspector_test_sizes=[f64(w),f64(h),x,y] }
-fn inspector_test_destroy(_userdata voidptr) { g_inspector_test_destroyed++ }
+fn inspector_test_destroy(_userdata voidptr, backend voidptr) {
+ assert backend == voidptr(1)
+ g_inspector_test_destroyed++
+}
 fn inspector_test_key(_backend voidptr,_action input.KeyAction,key input.Key,_mods int) { g_inspector_test_keys << key }
 fn test_native_inspector_metal_view_size_key_and_ime_consumers() {
  app_init()

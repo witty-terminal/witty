@@ -1066,6 +1066,12 @@ pub fn (mut self TerminalInspector) init_metal(device voidptr) bool {
 
 // render_metal renders the inspector using the Metal backend.
 pub fn (mut self TerminalInspector) render_metal(command_buffer voidptr, desc voidptr) ! {
+	self.prepare_metal_frame(desc)!
+	self.context.metal_render(command_buffer, desc)
+}
+
+// prepare_metal_frame advances the inspector and produces Dear ImGui draw data.
+pub fn (mut self TerminalInspector) prepare_metal_frame(desc voidptr) ! {
 	if !self.metal_active {
 		return error('inspector Metal backend is not initialized')
 	}
@@ -1078,8 +1084,6 @@ pub fn (mut self TerminalInspector) render_metal(command_buffer voidptr, desc vo
 		self.surface.core_surface.render_inspector(self.context.handle)
 		self.context.render_frame()
 	}
-
-	self.context.metal_render(command_buffer, desc)
 }
 
 }

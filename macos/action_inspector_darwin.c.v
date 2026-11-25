@@ -9,8 +9,8 @@ pub struct NativeInspectorCallbacks {
 pub:
  init fn (voidptr,voidptr) voidptr = unsafe{nil}
  alive fn (voidptr) bool = unsafe{nil}
- destroy fn (voidptr) = unsafe{nil}
- render fn (voidptr,voidptr,voidptr) = unsafe{nil}
+ destroy fn (voidptr,voidptr) = unsafe{nil}
+ render fn (voidptr,voidptr,voidptr,voidptr) = unsafe{nil}
  size fn (voidptr,u32,u32,f64,f64) = unsafe{nil}
  focus fn (voidptr,bool) = unsafe{nil}
  button fn (voidptr,input.MouseButtonState,input.MouseButton,int) = unsafe{nil}
@@ -114,7 +114,7 @@ fn (mut surface NativeActionSurface) hide_inspector() {
  surface.scroll.inspector_divider = nil_obj()
  surface.inspector = unsafe{nil}
  msg_void(state.view,'removeFromSuperview')
- if surface.callbacks.inspector.destroy != unsafe{nil} { surface.callbacks.inspector.destroy(surface.userdata) }
+ if surface.callbacks.inspector.destroy != unsafe{nil} { surface.callbacks.inspector.destroy(surface.userdata,state.backend) }
  C.macos_objc_set_ptr_ivar(state.view,cstr('inspector'),nil_obj())
  msg_void(state.marked,'release'); msg_void(state.queue,'release'); msg_void(state.view,'release')
  surface.scroll.layout()
@@ -141,13 +141,24 @@ fn inspector_update_size(state &NativeInspectorView) {
 fn inspector_backing(self ObjId,_cmd Sel) { view_super_void(self,'WittyInspectorView','viewDidChangeBackingProperties'); if state := inspector_state(self) { inspector_update_size(state) } }
 fn inspector_draw(self ObjId,_cmd Sel,_dirty ObjCRect) {
  state := inspector_state(self) or{return}
- command := msg_id(state.queue,'commandBuffer')
+ if !state.valid() || state.surface.callbacks.inspector.render == unsafe{nil} { return }
  descriptor := msg_id(self,'currentRenderPassDescriptor')
- if is_nil(command) || is_nil(descriptor) || !state.valid() { return }
+ drawable := msg_id(self,'currentDrawable')
+ if is_nil(descriptor) || is_nil(drawable) { return }
  inspector_update_size(state)
- if state.surface.callbacks.inspector.render != unsafe{nil} { state.surface.callbacks.inspector.render(state.backend,command,descriptor) }
- drawable := msg_id(self,'currentDrawable'); if is_nil(drawable) { return }
- msg_void1(command,'presentDrawable:',drawable); msg_void(command,'commit')
+ state.surface.callbacks.inspector.render(state.backend,state.queue,descriptor,drawable)
+}
+
+// The embedded Metal renderer consumes retained arguments. The MTKView and
+// command queue supply borrowed objects to the native view.
+pub fn inspector_retain_fallback_frame(command voidptr, descriptor voidptr) {
+ msg_void(ObjId(command), 'retain')
+ msg_void(ObjId(descriptor), 'retain')
+}
+
+pub fn inspector_present_frame(command voidptr, drawable voidptr) {
+ msg_void1(ObjId(command), 'presentDrawable:', ObjId(drawable))
+ msg_void(ObjId(command), 'commit')
 }
 fn inspector_occlusion(self ObjId,_cmd Sel,notification ObjId) {
  window := msg_id(notification,'object'); if window != view_window(voidptr(self)) { return }
