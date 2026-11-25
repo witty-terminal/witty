@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 
-from PIL import Image
+from PIL import Image, ImageChops
 
 from capture import (
     build_window_reader, capture_witty, configure_xvfb_capture, open_window,
@@ -33,6 +33,7 @@ PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
 INTERACTIVE_FIXTURES = (
     "selection-wide", "wide-edit", "search-wrap", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES,
 )
+LINK_PREVIEW_FIXTURES = ("link-preview", "link-preview-right")
 WALLPAPER_OPTIONS = {
     "wallpaper-stretch": ("--background-image-fit=stretch",),
     "wallpaper-repeat": (
@@ -45,6 +46,7 @@ WALLPAPER_OPTIONS = {
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
     *INTERACTIVE_FIXTURES, "split-search", "visual-bell", "progress-overlay", "resize-overlay", "key-state-overlay",
+    *LINK_PREVIEW_FIXTURES, "readonly-overlay",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -132,6 +134,10 @@ def fixture_args(name, work):
         options.extend(("--resize-overlay=always", "--resize-overlay-duration=5s"))
     if name == "key-state-overlay":
         options.extend(("--keybind=copy/escape=deactivate_key_table", "--keybind=ctrl+alt+k=activate_key_table:copy"))
+    if name in LINK_PREVIEW_FIXTURES:
+        options.append("--link-previews=true")
+    if name == "readonly-overlay":
+        options.append("--keybind=ctrl+alt+o=toggle_readonly")
     if name == "shader":
         options.extend(
             (
@@ -307,6 +313,49 @@ def capture_mode_overlay(binary, args, helper, prefix, name, settle, scale, *, w
                     return
             time.sleep(0.05)
         raise RuntimeError(f"The {name} did not render")
+
+
+def capture_surface_badge(binary, args, helper, prefix, name, settle, scale, *, witty=False):
+    capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
+    env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(settle + 8)}
+    link_preview = name in LINK_PREVIEW_FIXTURES
+    with open_window([binary, *capture_args, *args], prefix.with_suffix(".log"), env=env) as (_, window):
+        time.sleep(settle)
+        subprocess.run(
+            ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window, "8", str(80 * scale)],
+            check=True, timeout=5,
+        )
+        with read_window(helper, window) as idle:
+            width, height = idle.size
+            if link_preview:
+                command = ["keydown", "Control_L", "mousemove", "--window", window, str(30 * scale), str(10 * scale)]
+                if name == "link-preview-right":
+                    # Hover the lower URL to move the preview away from the pointer.
+                    command.extend(("sleep", "0.25", "mousemove", "--window", window,
+                                    str(30 * scale), str(height - 11 * scale)))
+                    region = (width // 2, height - 28 * scale, width, height)
+                else:
+                    region = (0, height - 28 * scale, width // 2, height)
+            else:
+                region = (width // 2, 0, width, 48 * scale)
+                command = ["key", "ctrl+alt+o"]
+            before = idle.crop(region)
+        try:
+            subprocess.run(["xdotool", *command], check=True, timeout=5)
+            # Read-only uses a 500 ms GTK crossfade.
+            if not link_preview:
+                time.sleep(0.65)
+            deadline = time.monotonic() + 4
+            while time.monotonic() < deadline:
+                with read_window(helper, window) as image:
+                    if ImageChops.difference(before, image.crop(region)).getbbox():
+                        image.save(prefix.with_suffix(".png"))
+                        return
+                time.sleep(0.05)
+            raise RuntimeError(f"The {name} did not render")
+        finally:
+            if link_preview:
+                subprocess.run(["xdotool", "keyup", "Control_L"], check=True, timeout=5)
 
 
 def drag_wide_selection(window, padding, cell_width, cell_height):
@@ -564,6 +613,9 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name in ("resize-overlay", "key-state-overlay"):
                 capture_mode_overlay(ghostty, args, helper, expected, name, settle, scale)
                 capture_mode_overlay(witty, args, helper, actual, name, settle, scale, witty=True)
+            elif name in (*LINK_PREVIEW_FIXTURES, "readonly-overlay"):
+                capture_surface_badge(ghostty, args, helper, expected, name, settle, scale)
+                capture_surface_badge(witty, args, helper, actual, name, settle, scale, witty=True)
             else:
                 capture_ghostty([ghostty, *args], helper, expected, settle)
                 capture_witty(witty, args, actual, settle)

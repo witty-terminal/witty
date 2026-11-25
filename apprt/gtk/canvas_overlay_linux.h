@@ -8,7 +8,7 @@
 
 static inline void witty_gtk_canvas_overlay_append_strip(GtkSnapshot *snapshot,
 		GskRenderNode *node, const graphene_rect_t *clip) {
-	if (clip->size.height > 0) {
+	if (clip->size.width > 0 && clip->size.height > 0) {
 		gtk_snapshot_push_clip(snapshot, clip);
 		gtk_snapshot_append_node(snapshot, node);
 		gtk_snapshot_pop(snapshot);
@@ -17,6 +17,13 @@ static inline void witty_gtk_canvas_overlay_append_strip(GtkSnapshot *snapshot,
 
 static inline bool witty_gtk_canvas_overlay_append_background(GtkSnapshot *snapshot,
 		GdkTexture *mask, GskRenderNode *node) {
+	if (gsk_render_node_get_node_type(node) == GSK_COLOR_NODE) {
+		graphene_rect_t bounds;
+		gsk_render_node_get_bounds(node, &bounds);
+		witty_gtk_canvas_snapshot_mask(snapshot, mask, gsk_color_node_get_color(node),
+			&bounds, &bounds, 1);
+		return true;
+	}
 	if (gsk_render_node_get_node_type(node) != GSK_ROUNDED_CLIP_NODE)
 		return false;
 	GskRenderNode *fill = gsk_rounded_clip_node_get_child(node);
@@ -48,25 +55,69 @@ static inline bool witty_gtk_canvas_overlay_append_background(GtkSnapshot *snaps
 	return true;
 }
 
-static inline void witty_gtk_canvas_overlay_append(GtkSnapshot *snapshot,
+static inline bool witty_gtk_canvas_overlay_append_outline(GtkSnapshot *snapshot,
 		GdkTexture *mask, GskRenderNode *node) {
-	// GTK places the styled child in the bin and paints its CSS background
-	// before the text, controls, and outline. Only replace the background.
-	if (gsk_render_node_get_node_type(node) == GSK_TRANSFORM_NODE) {
+	if (gsk_render_node_get_node_type(node) != GSK_BORDER_NODE)
+		return false;
+
+	const GskRoundedRect *outline = gsk_border_node_get_outline(node);
+	const float *widths = gsk_border_node_get_widths(node);
+	const GdkRGBA *colors = gsk_border_node_get_colors(node);
+	const float x = outline->bounds.origin.x, y = outline->bounds.origin.y;
+	const float width = outline->bounds.size.width, height = outline->bounds.size.height;
+	const float left = ceilf(MAX(widths[3], MAX(outline->corner[0].width, outline->corner[3].width)));
+	const float right = ceilf(MAX(widths[1], MAX(outline->corner[1].width, outline->corner[2].width)));
+	if (left + right >= width || x != floorf(x) || width != floorf(width)
+			|| widths[0] + widths[2] >= height)
+		return false;
+
+	// The middle sections are axis-aligned rectangles. Keep the rounded
+	// corners and the edge joins in the compositor's border primitive.
+	const graphene_rect_t left_strip = GRAPHENE_RECT_INIT(x, y, left, height);
+	const graphene_rect_t right_strip = GRAPHENE_RECT_INIT(x + width - right, y, right, height);
+	const graphene_rect_t top = GRAPHENE_RECT_INIT(x + left, y, width - left - right, widths[0]);
+	const graphene_rect_t bottom = GRAPHENE_RECT_INIT(x + left, y + height - widths[2],
+		width - left - right, widths[2]);
+	witty_gtk_canvas_overlay_append_strip(snapshot, node, &left_strip);
+	witty_gtk_canvas_overlay_append_strip(snapshot, node, &right_strip);
+	if (widths[0] > 0)
+		witty_gtk_canvas_snapshot_mask(snapshot, mask, &colors[0], &top, &top, 1);
+	if (widths[2] > 0)
+		witty_gtk_canvas_snapshot_mask(snapshot, mask, &colors[2], &bottom, &bottom, 1);
+	return true;
+}
+
+static inline void witty_gtk_canvas_overlay_append(GtkSnapshot *snapshot,
+		GdkTexture *mask, GskRenderNode *node, bool draw_outline) {
+	const GskRenderNodeType type = gsk_render_node_get_node_type(node);
+	if (type == GSK_TRANSFORM_NODE || type == GSK_OPACITY_NODE) {
+		GskRenderNode *content = type == GSK_TRANSFORM_NODE
+			? gsk_transform_node_get_child(node) : gsk_opacity_node_get_child(node);
 		GtkSnapshot *local = gtk_snapshot_new();
-		witty_gtk_canvas_overlay_append(local, mask, gsk_transform_node_get_child(node));
+		witty_gtk_canvas_overlay_append(local, mask, content, draw_outline);
 		g_autoptr(GskRenderNode) child = gtk_snapshot_free_to_node(local);
-		g_autoptr(GskRenderNode) placed = gsk_transform_node_new(child,
-			gsk_transform_node_get_transform(node));
+		if (!child) {
+			gtk_snapshot_append_node(snapshot, node);
+			return;
+		}
+		g_autoptr(GskRenderNode) placed = type == GSK_TRANSFORM_NODE
+			? gsk_transform_node_new(child, gsk_transform_node_get_transform(node))
+			: gsk_opacity_node_new(child, gsk_opacity_node_get_opacity(node));
 		gtk_snapshot_append_node(snapshot, placed);
-	} else if (gsk_render_node_get_node_type(node) == GSK_CONTAINER_NODE
-			&& gsk_container_node_get_n_children(node) > 0
-			&& witty_gtk_canvas_overlay_append_background(snapshot, mask,
-				gsk_container_node_get_child(node, 0))) {
+	} else if (type == GSK_CONTAINER_NODE) {
+		// GTK paints the background first and the outline after its contents.
 		guint count = gsk_container_node_get_n_children(node);
-		for (guint i = 1; i < count; ++i)
-			gtk_snapshot_append_node(snapshot, gsk_container_node_get_child(node, i));
-	} else {
+		for (guint i = 0; i < count; ++i) {
+			GskRenderNode *child = gsk_container_node_get_child(node, i);
+			if (i == 0 && witty_gtk_canvas_overlay_append_background(snapshot, mask, child))
+				continue;
+			if (draw_outline && i + 1 == count
+					&& witty_gtk_canvas_overlay_append_outline(snapshot, mask, child))
+				continue;
+			gtk_snapshot_append_node(snapshot, child);
+		}
+	} else if (!witty_gtk_canvas_overlay_append_background(snapshot, mask, node)
+			&& !(draw_outline && witty_gtk_canvas_overlay_append_outline(snapshot, mask, node))) {
 		gtk_snapshot_append_node(snapshot, node);
 	}
 }
@@ -83,7 +134,7 @@ static inline void witty_gtk_canvas_overlay_snapshot(GtkWidget *widget, GtkSnaps
 	native_class->snapshot(widget, layout);
 	GskRenderNode *node = gtk_snapshot_free_to_node(layout);
 	if (node) {
-		witty_gtk_canvas_overlay_append(snapshot, mask, node);
+		witty_gtk_canvas_overlay_append(snapshot, mask, node, false);
 		gsk_render_node_unref(node);
 	}
 }

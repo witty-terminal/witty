@@ -2579,6 +2579,7 @@ fn (mut self SurfaceWidget) apply_resize_overlay_config() {
 pub fn (mut self SurfaceWidget) apply_config() {
 	self.apply_resize_overlay_config()
 	use_canvas := !isnil(self.config) && gtk_canvas_styles_enabled(self.config.get())
+	gtk_canvas_overlay_set_mask(self.terminal_page, use_canvas)
 	if !isnil(self.resize_overlay) {
 		gtk_canvas_overlay_set_enabled(self.resize_overlay.widget, use_canvas)
 	}
@@ -3598,7 +3599,7 @@ pub fn new_surface_widget(window &Window, split_tree &SplitTreeWidget, config &C
 	C.gtk_box_append(box, GtkWidget(gl_area))
 	context_menu := surface_context_menu_new()
 	C.gtk_box_append(box, GtkWidget(context_menu))
-	terminal_page := C.gtk_overlay_new()
+	terminal_page := C.witty_gtk_terminal_overlay_new()
 	C.gtk_overlay_set_child(terminal_page, box)
 	readonly_revealer := surface_readonly_revealer_new()
 	progress_bar_overlay := surface_progress_bar_new()
@@ -3611,13 +3612,13 @@ pub fn new_surface_widget(window &Window, split_tree &SplitTreeWidget, config &C
 	child_exited_overlay := new_surface_child_exited()
 	unfocused_revealer := surface_unfocused_revealer_new()
 	C.gtk_widget_set_visible(child_exited_overlay.widget, false)
-	C.gtk_overlay_add_overlay(terminal_page, readonly_revealer)
+	C.witty_gtk_terminal_overlay_add(terminal_page, readonly_revealer)
 	C.gtk_overlay_add_overlay(terminal_page, progress_bar_overlay)
 	C.gtk_overlay_add_overlay(terminal_page, bell_revealer)
 	C.gtk_overlay_add_overlay(terminal_page, child_exited_overlay.widget)
 	C.gtk_overlay_add_overlay(terminal_page, resize_overlay.widget)
-	C.gtk_overlay_add_overlay(terminal_page, GtkWidget(url_left))
-	C.gtk_overlay_add_overlay(terminal_page, GtkWidget(url_right))
+	C.witty_gtk_terminal_overlay_add(terminal_page, GtkWidget(url_left))
+	C.witty_gtk_terminal_overlay_add(terminal_page, GtkWidget(url_right))
 	C.gtk_overlay_add_overlay(terminal_page, search_overlay.widget)
 	C.gtk_overlay_add_overlay(terminal_page, key_state_overlay.widget)
 	C.gtk_overlay_add_overlay(terminal_page, unfocused_revealer)

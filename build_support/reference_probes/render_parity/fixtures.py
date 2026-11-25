@@ -494,6 +494,7 @@ def main():
         "shader": b"Witty shader chain\n",
         "resize-overlay": b"Resize the terminal\r\n",
         "key-state-overlay": b"Activate a key table\r\n",
+        "readonly-overlay": b"Toggle read-only mode\r\n",
     }
     sys.stdout.buffer.write(CLEAR)
     sys.stdout.flush()
@@ -553,6 +554,12 @@ def main():
         return
     elif fixture == "progress-overlay":
         sys.stdout.buffer.write(b"Paused progress\r\n\x1b]9;4;1;32\x07\x1b]9;4;2;71\x07\x1b]9;4;4;51\x07")
+    elif fixture in ("link-preview", "link-preview-right"):
+        wait_for_initial_grid()
+        link = b"\x1b]8;;https://example.org/docs\x1b\\Read the docs\x1b]8;;\x1b\\"
+        sys.stdout.buffer.write(link)
+        if fixture == "link-preview-right":
+            sys.stdout.buffer.write(f"\x1b[{GRID_ROWS};1H".encode() + link)
     elif fixture == "wide-edit":
         edit_wrapped_wide()
         return
