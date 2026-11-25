@@ -77,15 +77,17 @@ static inline CGImageRef witty_canvas_rgba_image(CFDataRef data, int width, int 
 }
 
 static inline CGImageRef witty_canvas_make_srgb_tile(float r, float g, float b, float a) {
-    const uint16_t rgba[] = {
-        (uint16_t)lround(fmin(fmax(r, 0), 1) * 65535),
-        (uint16_t)lround(fmin(fmax(g, 0), 1) * 65535),
-        (uint16_t)lround(fmin(fmax(b, 0), 1) * 65535),
-        (uint16_t)lround(fmin(fmax(a, 0), 1) * 65535),
+    // Core Animation dithers 16-bit layer contents when compositing to the
+    // window. An 8-bit tile keeps the titlebar's flat color uniform.
+    const UInt8 rgba[] = {
+        (UInt8)lround(fmin(fmax(r, 0), 1) * 255),
+        (UInt8)lround(fmin(fmax(g, 0), 1) * 255),
+        (UInt8)lround(fmin(fmax(b, 0), 1) * 255),
+        (UInt8)lround(fmin(fmax(a, 0), 1) * 255),
     };
     CFDataRef data = CFDataCreate(NULL, (const UInt8 *)rgba, sizeof(rgba));
     CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGImageRef image = witty_canvas_rgba_image(data, 1, 1, 16, space, false);
+    CGImageRef image = witty_canvas_rgba_image(data, 1, 1, 8, space, false);
     if (space) CGColorSpaceRelease(space);
     if (data) CFRelease(data);
     return image;

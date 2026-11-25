@@ -251,7 +251,8 @@ fn test_native_window_canvas_fill_capture() {
 	}
 
 	// Use the native layer colors from the Ghostty titlebar styles as references.
-	names := ['opaque', 'translucent', 'very-dark', 'dark-buttons', 'light-buttons', 'clear']
+	names := ['opaque', 'translucent', 'very-dark', 'dark-buttons', 'light-buttons', 'clear',
+		'minimum-alpha', 'saturated-translucent', 'bright-translucent']
 	colors := [
 		native_color(0x224466, 1),
 		native_color(0x224466, 0.5),
@@ -259,6 +260,9 @@ fn test_native_window_canvas_fill_capture() {
 		native_color(0, 0.45),
 		C.witty_canvas_gamma22_gray(0.95),
 		native_color(0, 0),
+		native_color(0xffffff, 0.001),
+		native_color(0x008bff, 0.37),
+		native_color(0x12eeff, 0.9),
 	]
 	for i, name in names {
 		fill.clear()

@@ -27,12 +27,14 @@ static inline bool witty_overlay_test_srgb_tile_matches(CALayer *layer, NSColor 
     NSColor *srgb = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
     CGImageRef image = (CGImageRef)layer.contents;
     if (!srgb || srgb.alphaComponent == 0) return image == NULL;
-    if (!image || CGImageGetWidth(image) != 1 || CGImageGetHeight(image) != 1) return false;
+    if (!image || CGImageGetWidth(image) != 1 || CGImageGetHeight(image) != 1 ||
+        CGImageGetBitsPerComponent(image) != 8 ||
+        CGImageGetAlphaInfo(image) != kCGImageAlphaPremultipliedLast) return false;
     CGColorSpaceRef space = CGImageGetColorSpace(image);
     CFStringRef name = space ? CGColorSpaceGetName(space) : NULL;
     if (!name || !CFEqual(name, kCGColorSpaceSRGB)) return false;
     CFDataRef data = CGDataProviderCopyData(CGImageGetDataProvider(image));
-    uint16_t rgba[4];
+    uint8_t rgba[4];
     bool matches = data && CFDataGetLength(data) == sizeof(rgba);
     if (matches) {
         memcpy(rgba, CFDataGetBytePtr(data), sizeof(rgba));
@@ -40,7 +42,7 @@ static inline bool witty_overlay_test_srgb_tile_matches(CALayer *layer, NSColor 
         const double expected[] = { srgb.redComponent * alpha, srgb.greenComponent * alpha,
             srgb.blueComponent * alpha, alpha };
         for (int i = 0; i < 4; ++i) {
-            if (fabs(rgba[i] - expected[i] * 65535) > 1) matches = false;
+            if (fabs(rgba[i] - expected[i] * 255) > 0.50001) matches = false;
         }
     }
     if (data) CFRelease(data);
