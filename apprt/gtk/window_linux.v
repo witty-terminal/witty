@@ -601,8 +601,9 @@ fn window_main_menu_new() GMenu {
 	section = C.g_menu_new()
 	surface_menu_append(section, 'Command Palette', c'win.toggle-command-palette')
 	surface_menu_append(section, 'Terminal Inspector', c'win.toggle-inspector')
-	surface_menu_append(section, 'Open Configuration', c'app.open-config')
-	surface_menu_append(section, 'Reload Configuration', c'app.reload-config')
+	config_menu := config_menu_new()
+	surface_menu_append_submenu(section, 'Config', config_menu)
+	object_unref(GObject(config_menu))
 	surface_menu_section(menu, section)
 
 	section = C.g_menu_new()
@@ -1173,9 +1174,9 @@ fn window_overview_create_tab_cb(overview AdwTabOverview, user_data voidptr) Adw
 	}
 	mut self := unsafe { &Window(user_data) }
 	if mut surface := self.get_active_surface() {
-		return self.new_tab_page(surface.core(), .tab)
+		return self.new_tab_page(surface.core(), .tab, core.SurfaceInitOptions{})
 	}
-	return self.new_tab_page(none, .tab)
+	return self.new_tab_page(none, .tab, core.SurfaceInitOptions{})
 }
 
 fn window_overview_open_cb(overview AdwTabOverview, pspec voidptr, user_data voidptr) {
@@ -1379,17 +1380,17 @@ pub fn (mut self Window) winproto() &WinProtoWindow {
 // dictated by `window-new-tab-position`. The new tab is selected. Mirrors
 // `newTab`.
 pub fn (mut self Window) new_tab(parent ?&core.Surface) {
-	self.new_tab_page(parent, .tab)
+	self.new_tab_page(parent, .tab, core.SurfaceInitOptions{})
 }
 
 // new_tab_for_window mirrors `newTabForWindow`.
 pub fn (mut self Window) new_tab_for_window(parent ?&core.Surface) {
-	self.new_tab_page(parent, .window)
+	self.new_tab_page(parent, .window, core.SurfaceInitOptions{})
 }
 
 // new_tab_page creates a Tab, computes its insert position, inserts/selects it,
 // and wires the SplitTree changed signal. Mirrors `newTabPage`.
-fn (mut self Window) new_tab_page(parent ?&core.Surface, context apprt.NewSurfaceContext) AdwTabPage {
+fn (mut self Window) new_tab_page(parent ?&core.Surface, context apprt.NewSurfaceContext, options core.SurfaceInitOptions) AdwTabPage {
 	tab_view := self.tab_view
 	if isnil(tab_view) {
 		return AdwTabPage(unsafe { nil })
@@ -1397,6 +1398,9 @@ fn (mut self Window) new_tab_page(parent ?&core.Surface, context apprt.NewSurfac
 	mut tab := new_tab(self, self.config)
 	if p := parent {
 		tab.set_parent_with_context(p, context)
+	}
+	if mut surface := tab.get_active_surface() {
+		surface.init_options = options
 	}
 
 	// Compute the position to insert at.

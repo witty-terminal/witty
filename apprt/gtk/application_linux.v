@@ -1416,12 +1416,13 @@ fn (mut self Application) startup_action_map() {
 	C.g_variant_type_free(u64_type)
 }
 
-// application_action_descriptors is the exact pinned application action table.
+// application_action_descriptors lists the actions registered on GtkApplication.
 fn application_action_descriptors(string_array_type GVariantType, u64_type GVariantType) []Action {
 	return [
 		Action.init('new-window', GCallback(voidptr(application_action_new_window_cb)), unsafe { nil }),
 		Action.init('new-window-command', GCallback(voidptr(application_action_new_window_cb)), string_array_type),
 		Action.init('open-config', GCallback(voidptr(application_action_open_config_cb)), unsafe { nil }),
+		Action.init('open-config-new-window', GCallback(voidptr(application_action_open_config_new_window_cb)), unsafe { nil }),
 		Action.init('present-surface', GCallback(voidptr(application_action_present_surface_cb)), u64_type),
 		Action.init('quit', GCallback(voidptr(application_action_quit_cb)), unsafe { nil }),
 		Action.init('reload-config', GCallback(voidptr(application_action_reload_config_cb)), unsafe { nil }),
@@ -1486,6 +1487,18 @@ pub fn (mut self Application) action_open_config(action GSimpleAction, parameter
 	_ = parameter
 	mut mailbox := self.core().mailbox
 	_ = mailbox.push(core.Message(core.OpenConfigMsg{}), datastruct.blocking_queue_forever)
+}
+
+fn application_action_open_config_new_window_cb(_ GSimpleAction, _ GVariant, user_data voidptr) {
+	mut self := unsafe { &Application(user_data) }
+	path := configpkg.open_path() or {
+		log.warn('error getting config file path: ${err}')
+		return
+	}
+	options := config_editor_launch_options(path, os.getenv('VISUAL'), os.getenv('EDITOR'))
+	if !self.new_window_with_options(none, options) {
+		log.warn('unable to open configuration in a new window')
+	}
 }
 
 fn application_action_present_surface_cb(action GSimpleAction, parameter GVariant, user_data voidptr) {
@@ -2435,6 +2448,10 @@ fn (mut self Application) toggle_quick_terminal() bool {
 // creation has begun, construct the application-owned GhosttyWindow, seed its
 // first tab with window context, and present it.
 fn (mut self Application) new_window(parent ?&core.Surface) bool {
+	return self.new_window_with_options(parent, core.SurfaceInitOptions{})
+}
+
+fn (mut self Application) new_window_with_options(parent ?&core.Surface, options core.SurfaceInitOptions) bool {
 	self.requested_window = true
 	mut window := Window.new(self)
 	if isnil(window.obj) {
@@ -2442,7 +2459,8 @@ fn (mut self Application) new_window(parent ?&core.Surface) bool {
 	}
 	self.windows << window
 	window.bind_application_config(self)
-	window.new_tab_for_window(parent)
+	window.title_override = options.title
+	window.new_tab_page(parent, .window, options)
 	C.gtk_window_present(window.as_window())
 	return true
 }

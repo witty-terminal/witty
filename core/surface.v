@@ -2046,8 +2046,19 @@ fn (self &Surface) has_terminal() bool {
 
 // ---- Surface methods ----
 
+pub struct SurfaceInitOptions {
+pub:
+	command ?configpkg.Command
+	title   ?string
+}
+
 // init creates a new surface. This must be called from the main thread.
 pub fn (mut self Surface) init(config_original &Config, mut app App, rt_app &apprt.RuntimeApp, rt_surface &apprt.RuntimeSurface) ! {
+	self.init_with_options(config_original, mut app, rt_app, rt_surface, SurfaceInitOptions{})!
+}
+
+// init_with_options applies launch options after resolving conditional config.
+pub fn (mut self Surface) init_with_options(config_original &Config, mut app App, rt_app &apprt.RuntimeApp, rt_surface &apprt.RuntimeSurface, options SurfaceInitOptions) ! {
 	crash.set_dimensions_reader(crash_surface_dimensions)
 	// V has no errdefer. Each source errdefer is a reached defer that runs
 	// only while this flag is false, i.e. when initialization fails.
@@ -2091,7 +2102,11 @@ pub fn (mut self Surface) init(config_original &Config, mut app App, rt_app &app
 
 	// The first surface may use initial-command; every later surface uses the
 	// regular command. This selection is shared by termio and initial titles.
-	command := surface_command(config, app.first)
+	command := if override := options.command {
+		?configpkg.Command(override)
+	} else {
+		surface_command(config, app.first)
+	}
 
 	// Get our configuration
 	mut derived_config := DerivedConfig.from_config(config)!
@@ -2319,7 +2334,8 @@ pub fn (mut self Surface) init(config_original &Config, mut app App, rt_app &app
 
 	// Set the configured title, the complete xdg-terminal-exec command, or the
 	// argv[0] of a directly supplied command, in that priority order.
-	if title := surface_initial_title(config, command) {
+	initial_title := if title := options.title { ?string(title) } else { surface_initial_title(config, command) }
+	if title := initial_title {
 		self.rt_app.perform_action(
 			apprt.Target(apprt.SurfaceTarget{ surface: voidptr(&self) }),
 			.set_title,

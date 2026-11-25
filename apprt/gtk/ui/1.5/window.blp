@@ -296,14 +296,23 @@ menu main_menu {
       action: "win.toggle-inspector";
     }
 
-    item {
-      label: _("Open Configuration");
-      action: "app.open-config";
-    }
+    submenu {
+      label: _("Config");
 
-    item {
-      label: _("Reload Configuration");
-      action: "app.reload-config";
+      item {
+        label: _("Open Configuration in OS Editor");
+        action: "app.open-config";
+      }
+
+      item {
+        label: _("Open Configuration in New Window");
+        action: "app.open-config-new-window";
+      }
+
+      item {
+        label: _("Reload Configuration");
+        action: "app.reload-config";
+      }
     }
   }
 

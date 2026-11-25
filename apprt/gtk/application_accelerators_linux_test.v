@@ -122,7 +122,7 @@ fn test_application_activate_queues_new_window() {
 	assert core_app.mailbox.len() == 1
 }
 
-fn test_application_action_table_matches_ghostty() {
+fn test_application_action_table() {
 	string_array_type := C.g_variant_type_new(c'as')
 	u64_type := C.g_variant_type_new(c't')
 	actions := application_action_descriptors(string_array_type, u64_type)
@@ -130,15 +130,33 @@ fn test_application_action_table_matches_ghostty() {
 		'new-window',
 		'new-window-command',
 		'open-config',
+		'open-config-new-window',
 		'present-surface',
 		'quit',
 		'reload-config',
 	]
 	assert isnil(actions[0].parameter_type)
 	assert actions[1].parameter_type == string_array_type
-	assert actions[3].parameter_type == u64_type
+	assert isnil(actions[3].parameter_type)
+	assert actions[4].parameter_type == u64_type
 	C.g_variant_type_free(string_array_type)
 	C.g_variant_type_free(u64_type)
+}
+
+fn test_config_editor_launch_options_preserves_the_path_as_one_argument() {
+	path := "/tmp/config with spaces and 'quotes'.witty"
+	for i, setting in [['vim -u NONE', 'nano'], ['', 'nano'], ['', '']] {
+		options := config_editor_launch_options(path, setting[0], setting[1])
+		command := options.command or { panic('missing editor command') }
+		expected := ['vim -u NONE', 'nano', 'vi'][i]
+		assert (command as configpkg.DirectCmd).direct == [
+			'/bin/sh',
+			'-c',
+			expected + ' "$1"',
+			'witty-config-editor',
+			path,
+		]
+	}
 }
 
 fn test_application_action_callbacks_queue_core_messages() {

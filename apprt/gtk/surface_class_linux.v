@@ -1004,6 +1004,7 @@ pub mut:
 	app           &Application            = unsafe { nil }
 	split_tree    &SplitTreeWidget        = unsafe { nil }
 	context       apprt.NewSurfaceContext = .window
+	init_options  core.SurfaceInitOptions
 	terminal_page GtkWidget               = unsafe { nil }
 	error_page    GtkWidget               = unsafe { nil }
 
@@ -2705,7 +2706,8 @@ fn (mut self SurfaceWidget) init_surface() ! {
 	if pwd := self.pwd {
 		surface_config.working_directory = pwd
 	}
-	surface.init(&surface_config, mut core_app, &self.app.runtime_bridge, &self.core_runtime_surface) or {
+	surface.init_with_options(&surface_config, mut core_app, &self.app.runtime_bridge,
+		&self.core_runtime_surface, self.init_options) or {
 		log.warn('failed to initialize surface err=${err}')
 		core_app.delete_surface(surface_ref)
 		self.core_surface = unsafe { nil }
@@ -3512,9 +3514,7 @@ fn surface_context_menu_new() GtkPopover {
 	surface_menu_section(root, section)
 
 	section = C.g_menu_new()
-	submenu = C.g_menu_new()
-	surface_menu_append(submenu, 'Open Configuration', c'app.open-config')
-	surface_menu_append(submenu, 'Reload Configuration', c'app.reload-config')
+	submenu = config_menu_new()
 	surface_menu_append_submenu(section, 'Config', submenu)
 	object_unref(GObject(submenu))
 	surface_menu_section(root, section)
