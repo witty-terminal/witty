@@ -30,6 +30,7 @@ The Unicode input fixtures capture GTK’s underlined preview over a terminal wa
 The scrollback fixtures update the palette and append a row after scrolling into history, with `scroll-to-bottom=output` enabled and disabled.
 The search fixture drives scrollback search through keybindings and checks both highlight colors as navigation wraps from the newest match to the oldest and back.
 The split search fixture captures the full GTK client window and compares both panes as Find takes focus in the right pane.
+The `split-search-themed` fixture also checks custom CSS colors for the divider and the unfocused pane.
 The `readonly-overlay-themed` fixture checks that a custom badge background and fractional outlines match when the terminal enters read-only mode.
 The resize fixtures narrow the window with the cursor after blank cells or near the bottom of the screen. They also check which row of a newly wrapped Bash prompt clears and where the next character appears after widening a full row.
 

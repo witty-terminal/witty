@@ -1165,11 +1165,12 @@ pub fn new_split_tree_split(handle datastruct.Handle, layout datastruct.Layout, 
 		.vertical { GtkOrientation(1) }
 	}
 	paned := C.gtk_paned_new(orientation)
-	bin := C.adw_bin_new()
-	C.gtk_widget_add_css_class(GtkWidget(bin), c'split')
-	C.adw_bin_set_child(bin, GtkWidget(paned))
+	bin := C.witty_gtk_split_canvas_new()
+	gtk_canvas_overlay_set_mask(bin, true)
+	C.gtk_widget_add_css_class(bin, c'split')
+	C.adw_bin_set_child(AdwBin(bin), GtkWidget(paned))
 	mut self := &SplitTreeSplit{
-		widget: GtkWidget(bin)
+		widget: bin
 		handle: handle
 		paned:  paned
 	}

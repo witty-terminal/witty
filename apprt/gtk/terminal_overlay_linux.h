@@ -3,14 +3,20 @@
 
 #include "canvas_overlay_linux.h"
 
-static inline bool witty_gtk_terminal_overlay_draws_decoration(GtkWidget *child) {
-	if (!g_object_get_data(G_OBJECT(child), "witty-overlay-decoration"))
-		return false;
-	if (GTK_IS_REVEALER(child)) {
+typedef enum {
+	WITTY_OVERLAY_NATIVE,
+	WITTY_OVERLAY_BADGE,
+	WITTY_OVERLAY_DIMMING,
+} WittyOverlayPaint;
+
+static inline WittyOverlayPaint witty_gtk_terminal_overlay_paint(GtkWidget *child) {
+	WittyOverlayPaint paint = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(child), "witty-overlay-decoration"));
+	if (paint != WITTY_OVERLAY_NATIVE && GTK_IS_REVEALER(child)) {
 		GtkWidget *contents = gtk_revealer_get_child(GTK_REVEALER(child));
-		return contents && gtk_widget_get_mapped(contents);
+		if (!contents || !gtk_widget_get_mapped(contents))
+			return WITTY_OVERLAY_NATIVE;
 	}
-	return true;
+	return paint;
 }
 
 static inline void witty_gtk_terminal_overlay_snapshot(GtkWidget *widget, GtkSnapshot *snapshot) {
@@ -32,12 +38,14 @@ static inline void witty_gtk_terminal_overlay_snapshot(GtkWidget *widget, GtkSna
 		const bool clip = gtk_overlay_get_clip_overlay(overlay, child);
 		if (clip)
 			gtk_snapshot_push_clip(snapshot, &bounds);
-		if (witty_gtk_terminal_overlay_draws_decoration(child)) {
+		const WittyOverlayPaint paint = witty_gtk_terminal_overlay_paint(child);
+		if (paint != WITTY_OVERLAY_NATIVE) {
 			GtkSnapshot *layout = gtk_snapshot_new();
 			gtk_widget_snapshot_child(widget, child, layout);
 			g_autoptr(GskRenderNode) node = gtk_snapshot_free_to_node(layout);
 			if (node)
-				witty_gtk_canvas_overlay_append(snapshot, mask, node, true);
+				witty_gtk_canvas_overlay_append(snapshot, mask, node, paint == WITTY_OVERLAY_BADGE,
+					paint == WITTY_OVERLAY_DIMMING);
 		} else {
 			gtk_widget_snapshot_child(widget, child, snapshot);
 		}
@@ -65,8 +73,9 @@ static inline GtkWidget *witty_gtk_terminal_overlay_new(void) {
 	return g_object_new(type, NULL);
 }
 
-static inline void witty_gtk_terminal_overlay_add(GtkOverlay *overlay, GtkWidget *child) {
-	g_object_set_data(G_OBJECT(child), "witty-overlay-decoration", GINT_TO_POINTER(1));
+static inline void witty_gtk_terminal_overlay_add(GtkOverlay *overlay, GtkWidget *child, bool dimming) {
+	g_object_set_data(G_OBJECT(child), "witty-overlay-decoration",
+		GINT_TO_POINTER(dimming ? WITTY_OVERLAY_DIMMING : WITTY_OVERLAY_BADGE));
 	gtk_overlay_add_overlay(overlay, child);
 }
 

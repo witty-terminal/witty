@@ -123,29 +123,38 @@ static inline bool witty_gtk_canvas_overlay_append_solid_outline(GtkSnapshot *sn
 }
 
 static inline void witty_gtk_canvas_overlay_append(GtkSnapshot *snapshot,
-		GdkTexture *mask, GskRenderNode *node, bool draw_outline) {
+		GdkTexture *mask, GskRenderNode *node, bool draw_outline, bool preserve_opacity) {
 	const GskRenderNodeType type = gsk_render_node_get_node_type(node);
-	if (type == GSK_TRANSFORM_NODE) {
-		GskTransform *transform = gsk_transform_node_get_transform(node);
-		// GTK supplies coverage for subpixel placement and animation.
-		if (gsk_transform_get_category(transform) < GSK_TRANSFORM_CATEGORY_2D_TRANSLATE) {
-			gtk_snapshot_append_node(snapshot, node);
-			return;
-		}
-		float x, y;
-		gsk_transform_to_translate(transform, &x, &y);
-		if (x != floorf(x) || y != floorf(y)) {
-			gtk_snapshot_append_node(snapshot, node);
-			return;
+	if (type == GSK_TRANSFORM_NODE || (preserve_opacity && type == GSK_OPACITY_NODE)) {
+		GskTransform *transform = NULL;
+		GskRenderNode *contents;
+		if (type == GSK_TRANSFORM_NODE) {
+			transform = gsk_transform_node_get_transform(node);
+			// GTK supplies coverage for subpixel placement and animation.
+			if (gsk_transform_get_category(transform) < GSK_TRANSFORM_CATEGORY_2D_TRANSLATE) {
+				gtk_snapshot_append_node(snapshot, node);
+				return;
+			}
+			float x, y;
+			gsk_transform_to_translate(transform, &x, &y);
+			if (x != floorf(x) || y != floorf(y)) {
+				gtk_snapshot_append_node(snapshot, node);
+				return;
+			}
+			contents = gsk_transform_node_get_child(node);
+		} else {
+			contents = gsk_opacity_node_get_child(node);
 		}
 		GtkSnapshot *local = gtk_snapshot_new();
-		witty_gtk_canvas_overlay_append(local, mask, gsk_transform_node_get_child(node), draw_outline);
+		witty_gtk_canvas_overlay_append(local, mask, contents, draw_outline, preserve_opacity);
 		g_autoptr(GskRenderNode) child = gtk_snapshot_free_to_node(local);
 		if (!child) {
 			gtk_snapshot_append_node(snapshot, node);
 			return;
 		}
-		g_autoptr(GskRenderNode) placed = gsk_transform_node_new(child, transform);
+		g_autoptr(GskRenderNode) placed = type == GSK_TRANSFORM_NODE
+			? gsk_transform_node_new(child, transform)
+			: gsk_opacity_node_new(child, gsk_opacity_node_get_opacity(node));
 		gtk_snapshot_append_node(snapshot, placed);
 	} else if (type == GSK_CONTAINER_NODE) {
 		// GTK paints the background after outer shadows and the outline after its contents.
@@ -181,7 +190,7 @@ static inline void witty_gtk_canvas_overlay_snapshot(GtkWidget *widget, GtkSnaps
 	native_class->snapshot(widget, layout);
 	GskRenderNode *node = gtk_snapshot_free_to_node(layout);
 	if (node) {
-		witty_gtk_canvas_overlay_append(snapshot, mask, node, false);
+		witty_gtk_canvas_overlay_append(snapshot, mask, node, false, false);
 		gsk_render_node_unref(node);
 	}
 }

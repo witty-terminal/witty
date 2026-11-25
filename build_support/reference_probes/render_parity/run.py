@@ -32,12 +32,14 @@ SEARCH_BACKGROUND = (255, 224, 130)
 SEARCH_SELECTED_BACKGROUND = (242, 165, 126)
 PALETTE_THEME_BACKGROUND = (54, 87, 129)
 READONLY_THEME_BACKGROUND = (33, 128, 205)
+SPLIT_THEME_DIVIDER = (190, 115, 185)
 PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
 INTERACTIVE_FIXTURES = (
     "selection-wide", "wide-edit", "search-wrap", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES,
 )
 LINK_PREVIEW_FIXTURES = ("link-preview", "link-preview-right")
 READONLY_FIXTURES = ("readonly-overlay", "readonly-overlay-themed")
+SPLIT_SEARCH_FIXTURES = ("split-search", "split-search-themed")
 COMMAND_PALETTE_FIXTURES = (
     "command-palette", "command-palette-compact", "command-palette-resize", "command-palette-themed",
 )
@@ -55,7 +57,7 @@ WALLPAPER_OPTIONS = {
 }
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "wide-wrap", "colored-line-erase",
-    *INTERACTIVE_FIXTURES, "split-search", "visual-bell", "progress-overlay", "resize-overlay", "key-state-overlay",
+    *INTERACTIVE_FIXTURES, *SPLIT_SEARCH_FIXTURES, "visual-bell", "progress-overlay", "resize-overlay", "key-state-overlay",
     *LINK_PREVIEW_FIXTURES, *READONLY_FIXTURES, *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
     *TITLE_DIALOG_ACTIONS, "gtk-toast",
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
@@ -166,8 +168,15 @@ def fixture_args(name, work):
         else:
             options.extend(("--gtk-titlebar-style=native", "--gtk-tabs-location=bottom", "--window-theme=light"))
         return options
-    if name == "split-search":
-        command = [sys.executable, str(PROBE / "fixtures.py"), name]
+    if name in SPLIT_SEARCH_FIXTURES:
+        command = [sys.executable, str(PROBE / "fixtures.py"), "split-search"]
+        if name == "split-search-themed":
+            css = work / "split-theme.css"
+            css.write_text(
+                "widget.unfocused-split { background-color: #21b443; opacity: .43; }\n"
+                f".window .split paned > separator {{ background-color: #{bytes(SPLIT_THEME_DIVIDER).hex()}; }}\n"
+            )
+            options.append(f"--gtk-custom-css={css}")
         return [
             *options, "--keybind=ctrl+alt+d=new_split:right", "--unfocused-split-fill=81315a",
             "--split-divider-color=47637c", f"--command={shlex.join([*command, 'Right'])}",
@@ -276,7 +285,7 @@ def capture_ghostty(command, helper, prefix, settle):
             image.save(prefix.with_suffix(".png"))
 
 
-def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir, *, witty=False):
+def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir, *, themed=False, witty=False):
     # Screenshot mode suppresses Witty's debug banner. The X11 capture
     # includes both panes and the search widget above the terminal content.
     capture_args = [f"--screenshot={prefix}-active-pane.png"] if witty else []
@@ -293,6 +302,11 @@ def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir
                 if image.getpixel((3 * image.width // 4, image.height // 8))[:3] == SPLIT_RIGHT_COLOR:
                     probe = (image.width // 2, 10 * scale)
                     divider = image.getpixel(probe)
+                    if themed:
+                        dimming = image.getpixel((image.width // 6, image.height // 8))
+                        # GTK can tint the handle with its focus highlight.
+                        if divider[0] < 150 or divider[2] < 150 or dimming[1] <= dimming[0]:
+                            raise RuntimeError("Custom CSS did not color the split divider and unfocused pane")
                     break
             time.sleep(0.05)
         else:
@@ -986,13 +1000,14 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
             elif name in INTERACTIVE_FIXTURES:
                 capture_interactive(ghostty, args, helper, expected, name, settle, scale)
                 capture_interactive(witty, args, helper, actual, name, settle, scale, witty=True)
-            elif name == "split-search":
-                config_dir = work / "split-search-config"
+            elif name in SPLIT_SEARCH_FIXTURES:
+                config_dir = work / f"{name}-config"
                 gtk_config = config_dir / "gtk-4.0"
                 gtk_config.mkdir(parents=True)
                 (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
-                capture_split_search(ghostty, args, helper, expected, settle, scale, config_dir)
-                capture_split_search(witty, args, helper, actual, settle, scale, config_dir, witty=True)
+                themed = name == "split-search-themed"
+                capture_split_search(ghostty, args, helper, expected, settle, scale, config_dir, themed=themed)
+                capture_split_search(witty, args, helper, actual, settle, scale, config_dir, themed=themed, witty=True)
             elif name == "visual-bell":
                 capture_visual_bell(ghostty, args, helper, expected, settle, scale)
                 capture_visual_bell(witty, args, helper, actual, settle, scale, witty=True)

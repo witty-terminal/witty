@@ -1092,12 +1092,10 @@ fn application_runtime_css(config &configpkg.Config, gtk_416 bool) string {
 
 	fill := config.unfocused_split_fill or { config.background }
 	css += 'widget.unfocused-split {\n opacity: ${1.0 - config.unfocused_split_opacity:.2f};\n'
-	// Keep background-color available to custom stylesheets that override it.
-	use_canvas := gtk_canvas_styles_enabled(config)
-	css += split_background_style(fill, use_canvas, 'background-color') + '}\n'
+	css += ' background-color: rgb(${fill.r},${fill.g},${fill.b});\n}\n'
 	if divider := config.split_divider_color {
 		css += '.window .split paned > separator {\n  color: rgb(${divider.r},${divider.g},${divider.b});\n'
-		css += split_background_style(divider, use_canvas, 'background') + '}\n'
+		css += ' background: rgb(${divider.r},${divider.g},${divider.b});\n}\n'
 	}
 	if font_family := config.window_title_font_family {
 		css += '.window headerbar {\n  font-family: "${font_family}";\n}\n'
