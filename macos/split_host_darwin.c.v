@@ -1,12 +1,6 @@
 module macos
 
 import math
-import gg.canvas
-
-#insert "@VMODROOT/macos/split_divider_darwin.h"
-
-fn C.witty_split_place_overlay(parent voidptr, child voidptr)
-fn C.witty_split_present_dividers(target voidptr, pixel &u32, positions voidptr, count int)
 
 @[heap]
 pub struct NativeSplitHost {
@@ -102,7 +96,7 @@ pub fn (mut host NativeSplitHost) layout() {
 	}
 	host.dividers = split_dividers(root, area, host.increment_width, host.increment_height)
 	host.layout_divider_view(bounds)
-	host.refresh_dimming()
+	host.refresh_surface_appearance()
 }
 
 fn (mut host NativeSplitHost) layout_divider_view(bounds ObjCRect) {
@@ -112,10 +106,10 @@ fn (mut host NativeSplitHost) layout_divider_view(bounds ObjCRect) {
 	}
 	if is_nil(host.divider_view) {
 		host.divider_view = msg_id_rect(alloc('WittySplitDividerOverlay'), 'initWithFrame:', bounds)
-		C.witty_split_place_overlay(host.container, host.divider_view)
+		C.witty_canvas_place_overlay(host.container, host.divider_view, nil_obj())
 		msg_void(host.divider_view, 'release')
 	} else if msg_id(msg_id(host.container, 'subviews'), 'lastObject') != host.divider_view {
-		C.witty_split_place_overlay(host.container, host.divider_view)
+		C.witty_canvas_place_overlay(host.container, host.divider_view, nil_obj())
 	}
 	msg_void_rect(host.divider_view, 'setFrame:', bounds)
 	msg_void_bool(host.divider_view, 'setHidden:', false)
@@ -143,27 +137,29 @@ fn split_divider_channel(value u32, brightness f64) u32 {
 
 pub fn (mut host NativeSplitHost) set_appearance(config NativeWindowConfig, focused_view voidptr) {
 	divider_color := native_split_divider_color(config)
+	fill := config.unfocused_split_fill or { config.background }
+	opacity := 1.0 - config.unfocused_split_opacity
+	if host.focused_view == focused_view && host.dim_fill == fill && host.dim_opacity == opacity
+		&& host.divider_color == divider_color {
+		return
+	}
 	if host.divider_color != divider_color {
 		host.divider_color = divider_color
 		msg_void_bool(host.divider_view, 'setNeedsDisplay:', true)
 	}
-	fill := config.unfocused_split_fill or { config.background }
-	opacity := 1.0 - config.unfocused_split_opacity
-	if host.focused_view == focused_view && host.dim_fill == fill && host.dim_opacity == opacity {
-		return
-	}
 	host.focused_view = focused_view
 	host.dim_fill = fill
 	host.dim_opacity = opacity
-	host.refresh_dimming()
+	host.refresh_surface_appearance()
 }
 
-fn (host &NativeSplitHost) refresh_dimming() {
+fn (host &NativeSplitHost) refresh_surface_appearance() {
 	leaves := host.tree.root.leaves()
 	focused := if host.focused_view in leaves { host.focused_view } else if leaves.len > 0 { leaves[0] } else { unsafe { nil } }
 	for view in leaves {
 		dim := leaves.len > 1 && host.tree.zoomed == unsafe { nil } && view != focused
 		set_surface_split_dimming(view, host.dim_fill, if dim { host.dim_opacity } else { 0.0 })
+		set_surface_inspector_divider_color(view, host.divider_color)
 	}
 }
 pub fn view_window(view voidptr) voidptr { return msg_id(view, 'window') }
@@ -200,26 +196,15 @@ fn split_dividers(n &NativeSplitNode, bounds SplitBounds, iw f64, ih f64) []Nati
 }
 fn split_divider_draw(self ObjId, _cmd Sel, _dirty ObjCRect) {
 	host := split_host(msg_id(self, 'superview')) or { return }
-	context := msg_id(msg_id(get_class('NSGraphicsContext'), 'currentContext'), 'CGContext')
-	if is_nil(context) { return }
-	host.draw_dividers(context, math.max(1, msg_f64(msg_id(self, 'window'), 'backingScaleFactor')))
+	host.draw_dividers(native_canvas_overlay_context(), view_backing_scale(voidptr(self)))
 }
 
 fn (host &NativeSplitHost) draw_dividers(context voidptr, scale f64) {
-	if host.dividers.len == 0 { return }
-	mut tile := canvas.new_raster_surface(width: 1, height: 1) or { return }
-	tile.clear(0xff000000 | host.divider_color)
 	mut rects := []ObjCRect{cap: host.dividers.len}
 	for divider in host.dividers {
-		line := divider.line
-		// SwiftUI snaps both edges to the backing grid, including at 1x.
-		x := math.round(line.x * scale)
-		y := math.round(line.y * scale)
-		right := math.round((line.x + line.width) * scale)
-		bottom := math.round((line.y + line.height) * scale)
-		rects << objc_rect(x / scale, y / scale, (right - x) / scale, (bottom - y) / scale)
+		rects << native_canvas_overlay_rect(divider.line, scale)
 	}
-	C.witty_split_present_dividers(context, unsafe { &tile.pixels[0] }, rects.data, rects.len)
+	native_canvas_fill_rects(context, host.divider_color, rects)
 }
 
 fn (host &NativeSplitHost) divider_at(point ObjCPoint) ?NativeSplitDivider {

@@ -18,11 +18,31 @@ fn test_native_inspector_metal_view_size_key_and_ime_consumers() {
  msg_void(shared_app(),'finishLaunching')
  view := create_window(640,480,'inspector')
  mut surface := new_action_surface(view,unsafe{nil},ActionCallbacks{inspector:NativeInspectorCallbacks{init:inspector_test_init,alive:inspector_test_alive,size:inspector_test_size,destroy:inspector_test_destroy,key:inspector_test_key}})
- defer { surface.deinit(); close_tab(view) }
+ mut host := create_split_host(view)
+ defer { surface.deinit(); close_tab(view); msg_void(host.container, 'release') }
  msg_void1(msg_id(get_class('NSRunLoop'),'currentRunLoop'),'runUntilDate:',msg_id_f64(get_class('NSDate'),'dateWithTimeIntervalSinceNow:',0.1))
  surface.control_inspector(1)
  assert surface.inspector != unsafe{nil}
  inspector := surface.inspector
+ scroll := surface.scroll
+ assert msg_id(msg_id(scroll.container, 'subviews'), 'lastObject') == scroll.inspector_divider
+ bounds := msg_rect(scroll.container, 'bounds')
+ top_height := native_split_first_extent(bounds.height, 0.5, 1)
+ terminal_frame := msg_rect(scroll.scroll, 'frame')
+ inspector_frame := msg_rect(inspector.view, 'frame')
+ assert terminal_frame.height == top_height
+ assert inspector_frame.height == terminal_frame.y - 0.5
+ assert scroll.inspector_divider_hit(ObjCPoint{ x: 4, y: terminal_frame.y + 3 })
+ assert scroll.inspector_divider_hit(ObjCPoint{ x: 4, y: terminal_frame.y - 3 })
+ assert !scroll.inspector_divider_hit(ObjCPoint{ x: 4, y: terminal_frame.y + 4 })
+ parent_point := msg_point_point_obj(msg_id(scroll.container, 'superview'), 'convertPoint:fromView:',
+  ObjCPoint{ x: 4, y: terminal_frame.y - 3 }, scroll.container)
+ assert surface_inspector_hit_test(scroll.container, nil_obj(), parent_point) == scroll.container
+ config := NativeWindowConfig{ split_divider_color: u32(0x47637c) }
+ host.set_appearance(config, view)
+ assert scroll.inspector_divider_color == 0x47637c
+ host.set_appearance(NativeWindowConfig{ ...config, split_divider_color: u32(0xa85b66) }, view)
+ assert scroll.inspector_divider_color == 0xa85b66
  msg_void1(msg_id(get_class('NSRunLoop'),'currentRunLoop'),'runUntilDate:',msg_id_f64(get_class('NSDate'),'dateWithTimeIntervalSinceNow:',0.03))
  assert msg_id(view_window(view),'firstResponder') == inspector.view
  assert msg_u64(inspector.view,'preferredFramesPerSecond') == 30
@@ -43,6 +63,7 @@ fn test_native_inspector_metal_view_size_key_and_ime_consumers() {
  assert g_inspector_test_destroyed == 0
  surface.control_inspector(0)
  assert surface.inspector == unsafe{nil}
+ assert is_nil(scroll.inspector_divider)
  msg_void1(msg_id(get_class('NSRunLoop'),'currentRunLoop'),'runUntilDate:',msg_id_f64(get_class('NSDate'),'dateWithTimeIntervalSinceNow:',0.03))
  assert msg_id(view_window(view),'firstResponder') == view
  assert g_inspector_test_destroyed == 1

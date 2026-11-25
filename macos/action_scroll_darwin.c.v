@@ -1,5 +1,7 @@
 module macos
 
+import math
+
 // SurfaceScrollView.swift: viewport renderer inside a document sized to the
 // scrollback grid, with AppKit's bottom-origin coordinate conversion.
 @[heap]
@@ -19,6 +21,8 @@ mut:
  inspector ObjId
  inspector_ratio f64 = 0.5
  inspector_dragging bool
+ inspector_divider ObjId
+ inspector_divider_color u32
  split_dimming ObjId
 }
 fn C.witty_action_scroll_point(clip voidptr, y f64)
@@ -38,7 +42,7 @@ fn register_surface_scroll() {
  cls := C.macos_objc_allocate_class_pair(get_class('NSView'),cstr('WittySurfaceContainer'),0)
  add_ptr_ivar(cls,'scroll')
  add_method(cls,'resizeSubviewsWithOldSize:',voidptr(surface_scroll_resize),'v@:{CGSize=dd}')
- add_method(cls,'drawRect:',voidptr(surface_inspector_draw),'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
+ add_method(cls,'hitTest:',voidptr(surface_inspector_hit_test),'@@:{CGPoint=dd}')
  add_method(cls,'mouseDown:',voidptr(surface_inspector_down),'v@:@')
  add_method(cls,'mouseDragged:',voidptr(surface_inspector_dragged),'v@:@')
  add_method(cls,'mouseUp:',voidptr(surface_inspector_up),'v@:@')
@@ -53,6 +57,12 @@ fn register_surface_scroll() {
  add_method(cls,'mouseMoved:',voidptr(surface_scroll_mouse_moved),'v@:@')
  add_method(cls,'updateTrackingAreas',voidptr(surface_scroll_tracking),'v@:')
  C.macos_objc_register_class_pair(cls)
+
+ divider := C.macos_objc_allocate_class_pair(get_class('NSView'),cstr('WittyInspectorDividerOverlay'),0)
+ add_method(divider,'isFlipped',voidptr(action_flipped),'B@:')
+ add_method(divider,'hitTest:',voidptr(action_passive_hit),'@@:{CGPoint=dd}')
+ add_method(divider,'drawRect:',voidptr(surface_inspector_draw),'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
+ C.macos_objc_register_class_pair(divider)
 }
 fn surface_scroll_insets(_self ObjId,_cmd Sel) C.witty_action_insets { return C.witty_action_insets{} }
 fn new_surface_scroll(surface &NativeActionSurface) &NativeSurfaceScroll {
@@ -118,7 +128,7 @@ fn set_surface_split_dimming(view voidptr, fill u32, opacity f64) {
 	if is_nil(scroll.split_dimming) {
 		scroll.split_dimming = msg_id_rect(alloc('WittyPassiveOverlay'), 'initWithFrame:', msg_rect(scroll.scroll, 'frame'))
 		msg_void_bool(scroll.split_dimming, 'setWantsLayer:', true)
-		msg_void1(scroll.container, 'addSubview:', scroll.split_dimming)
+		C.witty_canvas_place_overlay(scroll.container, scroll.split_dimming, scroll.scroll)
 		msg_void(scroll.split_dimming, 'release')
 	}
 	transaction := get_class('CATransaction')
@@ -133,12 +143,16 @@ fn surface_scroll_resize(self ObjId,_cmd Sel,_size ObjCSize) { if mut state := n
 fn surface_scroll_layout(self ObjId,_cmd Sel) { if mut state := native_surface_scroll(self) { state.layout() } }
 fn (mut state NativeSurfaceScroll) layout() {
  bounds := msg_rect(state.container,'bounds')
- height := if is_nil(state.inspector) { bounds.height } else { bounds.height * state.inspector_ratio - 0.5 }
- scroll_y := if is_nil(state.inspector) { 0.0 } else { bounds.height - height }
+ height := if is_nil(state.inspector) { bounds.height } else { native_split_first_extent(bounds.height, state.inspector_ratio, 1) }
+ scroll_y := bounds.height - height
  scroll_frame := objc_rect(0,scroll_y,bounds.width,height)
  msg_void_rect(state.scroll,'setFrame:',scroll_frame)
  if !is_nil(state.split_dimming) { msg_void_rect(state.split_dimming, 'setFrame:', scroll_frame) }
- if !is_nil(state.inspector) { msg_void_rect(state.inspector,'setFrame:',objc_rect(0,0,bounds.width,scroll_y-1)) }
+ if !is_nil(state.inspector) {
+  msg_void_rect(state.inspector,'setFrame:',objc_rect(0,0,bounds.width,math.max(0,scroll_y-0.5)))
+  msg_void_rect(state.inspector_divider,'setFrame:',bounds)
+  msg_void_bool(state.inspector_divider,'setNeedsDisplay:',true)
+ }
  visible := msg_rect(state.scroll,'bounds')
  doc := msg_rect(state.document,'frame')
  msg_void_rect(state.document,'setFrame:',objc_rect(doc.x,doc.y,visible.width,doc.height))

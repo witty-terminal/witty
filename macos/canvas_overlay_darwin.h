@@ -1,16 +1,16 @@
-#ifndef WITTY_SPLIT_DIVIDER_DARWIN_H
-#define WITTY_SPLIT_DIVIDER_DARWIN_H
+#ifndef WITTY_CANVAS_OVERLAY_DARWIN_H
+#define WITTY_CANVAS_OVERLAY_DARWIN_H
 
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 #include <AppKit/AppKit.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <stdint.h>
 
-static inline void witty_split_place_overlay(void *parent, void *child) {
-    [(NSView *)parent addSubview:(NSView *)child positioned:NSWindowAbove relativeTo:nil];
+static inline void witty_canvas_place_overlay(void *parent, void *child, void *above) {
+    [(NSView *)parent addSubview:(NSView *)child positioned:NSWindowAbove relativeTo:(NSView *)above];
 }
 
-static inline void witty_split_present_dividers(void *target, const uint32_t *pixel, const void *positions, int count) {
+static inline void witty_canvas_present_tile(void *target, const uint32_t *pixel, const void *positions, int count) {
     CGContextRef context = (CGContextRef)target;
     if (!context || count <= 0) return;
     const CGRect *rects = positions;

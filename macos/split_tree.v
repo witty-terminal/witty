@@ -193,18 +193,21 @@ pub fn (t NativeSplitTree) borders(direction SplitFocusDirection, target &Native
 	return false
 }
 
+fn native_split_first_extent(extent f64, ratio f64, increment f64) f64 {
+	first := extent * ratio - 0.5
+	return first - math.fmod(first, increment)
+}
+
 // SplitView.leftRect/rightRect leaves half a point between the child frames.
 fn native_split_children(n &NativeSplitNode, bounds SplitBounds, increment_width f64, increment_height f64) (SplitBounds, SplitBounds) {
 	mut left := bounds
 	mut right := bounds
 	if n.axis == .horizontal {
-		left.width = bounds.width * n.ratio - 0.5
-		left.width -= math.fmod(left.width, increment_width)
+		left.width = native_split_first_extent(bounds.width, n.ratio, increment_width)
 		right.x += left.width + 0.5
 		right.width -= left.width + 0.5
 	} else {
-		left.height = bounds.height * n.ratio - 0.5
-		left.height -= math.fmod(left.height, increment_height)
+		left.height = native_split_first_extent(bounds.height, n.ratio, increment_height)
 		right.y += left.height + 0.5
 		right.height -= left.height + 0.5
 	}

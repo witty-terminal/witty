@@ -93,6 +93,10 @@ pub fn (mut surface NativeActionSurface) control_inspector(mode int) {
  surface.inspector = state
  surface.scroll.inspector = view
  msg_void1(surface.scroll.container,'addSubview:',view)
+ bounds := msg_rect(surface.scroll.container, 'bounds')
+ surface.scroll.inspector_divider = msg_id_rect(alloc('WittyInspectorDividerOverlay'), 'initWithFrame:', bounds)
+ C.witty_canvas_place_overlay(surface.scroll.container, surface.scroll.inspector_divider, nil_obj())
+ msg_void(surface.scroll.inspector_divider, 'release')
  surface.scroll.layout()
  dispatch_main(inspector_focus_main,voidptr(state))
 }
@@ -105,6 +109,9 @@ fn (mut surface NativeActionSurface) hide_inspector() {
  msg_void1(msg_id(get_class('NSNotificationCenter'),'defaultCenter'),'removeObserver:',state.view)
  move_focus(surface.view,unsafe{nil},none)
  surface.scroll.inspector = nil_obj()
+ surface.scroll.inspector_dragging = false
+ msg_void(surface.scroll.inspector_divider, 'removeFromSuperview')
+ surface.scroll.inspector_divider = nil_obj()
  surface.inspector = unsafe{nil}
  msg_void(state.view,'removeFromSuperview')
  if surface.callbacks.inspector.destroy != unsafe{nil} { surface.callbacks.inspector.destroy(surface.userdata) }
@@ -199,14 +206,44 @@ fn inspector_insert(self ObjId,_cmd Sel,value ObjId,_replacement NativeRange) {
 fn inspector_command(_self ObjId,_cmd Sel,_selector Sel) {
  // Source intentionally absorbs commands to suppress interpretKeyEvents NSBeep.
 }
-fn surface_inspector_down(self ObjId,_cmd Sel,event ObjId) {
- mut state := native_surface_scroll(self) or{return}; if is_nil(state.inspector) { return }
- point := msg_point_point_obj(self,'convertPoint:fromView:',msg_point(event,'locationInWindow'),nil_obj())
- height := msg_rect(self,'bounds').height
- divider := height*(1-state.inspector_ratio)
- if math.abs(point.y-divider) > 3.5 { return }
- if msg_u64(event,'clickCount') == 2 { state.surface.perform('equalize_splits'); return }
- state.inspector_dragging = true
+fn set_surface_inspector_divider_color(view voidptr, color u32) {
+	surface := g_action_surfaces[u64(view)] or { return }
+	mut scroll := surface.scroll
+	if scroll == unsafe { nil } || scroll.inspector_divider_color == color { return }
+	scroll.inspector_divider_color = color
+	msg_void_bool(scroll.inspector_divider, 'setNeedsDisplay:', true)
+}
+
+fn (state &NativeSurfaceScroll) inspector_divider_line(bounds ObjCRect) SplitBounds {
+	top := native_split_first_extent(bounds.height, state.inspector_ratio, 1)
+	return SplitBounds{y: top - 0.5, width: bounds.width, height: 1}
+}
+
+fn (state &NativeSurfaceScroll) inspector_divider_hit(point ObjCPoint) bool {
+	if is_nil(state.inspector) { return false }
+	bounds := msg_rect(state.container, 'bounds')
+	line := state.inspector_divider_line(bounds)
+	y := bounds.height - point.y
+	return point.x >= 0 && point.x <= bounds.width && y >= line.y - 3 && y <= line.y + line.height + 3
+}
+
+fn surface_inspector_hit_test(self ObjId, _cmd Sel, point ObjCPoint) ObjId {
+	if state := native_surface_scroll(self) {
+		local := msg_point_point_obj(self, 'convertPoint:fromView:', point, msg_id(self, 'superview'))
+		if state.inspector_divider_hit(local) { return self }
+	}
+	return C.witty_action_hit_super(self, get_class('WittySurfaceContainer'), point.x, point.y)
+}
+
+fn surface_inspector_down(self ObjId, _cmd Sel, event ObjId) {
+	mut state := native_surface_scroll(self) or { return }
+	point := msg_point_point_obj(self, 'convertPoint:fromView:', msg_point(event, 'locationInWindow'), nil_obj())
+	if !state.inspector_divider_hit(point) { return }
+	if msg_u64(event, 'clickCount') == 2 {
+		state.surface.perform('equalize_splits')
+		return
+	}
+	state.inspector_dragging = true
 }
 fn surface_inspector_dragged(self ObjId,_cmd Sel,event ObjId) {
  mut state := native_surface_scroll(self) or{return}; if !state.inspector_dragging { return }
@@ -217,9 +254,13 @@ fn surface_inspector_dragged(self ObjId,_cmd Sel,event ObjId) {
 }
 fn surface_inspector_up(self ObjId,_cmd Sel,_event ObjId) { if mut state := native_surface_scroll(self) { state.inspector_dragging = false } }
 
-fn surface_inspector_draw(self ObjId,_cmd Sel,_dirty ObjCRect) {
- state := native_surface_scroll(self) or { return }; if is_nil(state.inspector) { return }
- bounds := msg_rect(self,'bounds')
- msg_void(msg_id(get_class('NSColor'),'separatorColor'),'setFill')
- msg_void_rect(get_class('NSBezierPath'),'fillRect:',objc_rect(0,bounds.height*(1-state.inspector_ratio)-0.5,bounds.width,1))
+fn surface_inspector_draw(self ObjId, _cmd Sel, _dirty ObjCRect) {
+	state := native_surface_scroll(msg_id(self, 'superview')) or { return }
+	state.draw_inspector_divider(native_canvas_overlay_context(), msg_rect(self, 'bounds'),
+		view_backing_scale(voidptr(self)))
+}
+
+fn (state &NativeSurfaceScroll) draw_inspector_divider(context voidptr, bounds ObjCRect, scale f64) {
+	line := native_canvas_overlay_rect(state.inspector_divider_line(bounds), scale)
+	native_canvas_fill_rects(context, state.inspector_divider_color, [line])
 }
