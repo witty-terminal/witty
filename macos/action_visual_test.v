@@ -450,29 +450,37 @@ fn test_hover_banner_raster_mirroring_and_display_string() {
 }
 
 fn test_hover_banner_live_corner_coverage_near_straight_edge() {
-	one := hover_corner_coverage(14, 14, 1, true, 0)
-	two := hover_corner_coverage(28, 28, 2, true, 0)
+	one := hover_corner_coverage(16, 14, 1, true, 0)
+	two := hover_corner_coverage(30, 28, 2, true, 0)
 	// The corner still covers part of the first row where it approaches the straight edge.
 	assert math.round(one[12] * 255) == 249
 	assert math.round(two[24] * 255) == 242
 }
 
-fn test_hover_banner_live_narrow_corner_keeps_its_radius() {
-	full := hover_corner_coverage(28, 28, 2, true, 0)
+fn test_hover_banner_live_corner_compresses_at_the_top_edge() {
+	full := hover_corner_coverage(30, 28, 2, true, 0)
 	narrow := hover_corner_coverage(24, 28, 2, true, 0)
-	assert narrow[6 * 24 + 4] == full[6 * 28 + 4]
-	assert narrow[24 * 24] == full[24 * 28]
-	assert narrow[13] == full[13]
+	assert narrow[6 * 24 + 4] == full[6 * 30 + 4]
+	assert narrow[24 * 24] == full[24 * 30]
+	assert math.abs(narrow[13] * 255 - 83.7) <= 1
+
+	minimum := hover_corner_coverage(20, 28, 2, true, 0)
+	clipped := hover_corner_coverage(14, 28, 2, true, 0)
+	assert clipped[12] == minimum[12]
+	assert math.abs(clipped[12] * 255 - 49.1) <= 1
+
+	one := hover_corner_coverage(10, 14, 1, true, 0)
+	assert math.abs(one[7] * 255 - 202) <= 1
 }
 
 fn test_hover_banner_live_corner_follows_backing_pixel_phase() {
-	x_odd := hover_corner_coverage(28, 28, 2, true, 1)
-	y_odd := hover_corner_coverage(28, 28, 2, true, 2)
-	mirrored := hover_corner_coverage(28, 28, 2, false, 1)
+	x_odd := hover_corner_coverage(30, 28, 2, true, 1)
+	y_odd := hover_corner_coverage(30, 28, 2, true, 2)
+	mirrored := hover_corner_coverage(30, 28, 2, false, 1)
 	for row in 0 .. 28 {
 		for column in 0 .. 28 {
-			assert x_odd[row * 28 + column] == y_odd[column * 28 + row]
-			assert x_odd[row * 28 + column] == mirrored[row * 28 + 27 - column]
+			assert x_odd[row * 30 + column] == y_odd[column * 30 + row]
+			assert x_odd[row * 30 + column] == mirrored[row * 30 + 29 - column]
 		}
 	}
 	assert x_odd[12] > y_odd[12]
