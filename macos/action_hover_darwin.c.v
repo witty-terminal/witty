@@ -7,7 +7,9 @@ import strings
 #insert "@VMODROOT/macos/action_hover_darwin.h"
 
 fn C.witty_hover_line(text ObjId, limit f64, width &f64) voidptr
-fn C.witty_hover_rasterize_line(line voidptr, view ObjId, pixels &u32, width int, height int, padding f64, baseline f64) voidptr
+fn C.witty_hover_draw_line(target voidptr, line voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int, padding f64, baseline f64)
+fn C.witty_hover_rasterize_circular_corner(pixels &u32, width int, height int, radius f64, round_left bool) bool
+fn C.witty_hover_draw_background(target voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int)
 
 const hover_padding = 5.0
 const hover_height = 26.0
@@ -132,25 +134,41 @@ fn (mut surface NativeActionSurface) refresh_hover_appearance() {
 	}
 }
 
-fn hover_canvas_mask(width int, height int, scale f64, round_left bool) !canvas.RasterSurface {
+fn hover_canvas_mask(width int, height int, scale f64, round_left bool, live bool) !canvas.RasterSurface {
 	mut raster := canvas.new_raster_surface(width: width, height: height)!
-	raster.clear(0xff000000)
-	radius := math.min(hover_radius * scale, math.min(width, height))
-	corner := int(math.ceil(radius))
-	// Integrate the covered width across each pixel row of the rounded corner.
-	for row in 0 .. corner {
-		mut insets := [16]f64{}
-		for i in 0 .. insets.len {
-			dy := math.max(0, radius - row - (i + 0.5) / insets.len)
-			insets[i] = radius - math.sqrt(radius * radius - dy * dy)
+	if !live {
+		radius := math.min(hover_radius * scale, math.min(width, height))
+		if !C.witty_hover_rasterize_circular_corner(raster.pixels.data, width, height, radius,
+			round_left) {
+			return error('Could not rasterize the hover banner corner')
 		}
+		return raster
+	}
+
+	raster.clear(0xff000000)
+	extent := canvas_corner_x[0][0]
+	radius := math.min(hover_radius * scale, math.min(width, height) / extent)
+	corner := math.min(math.min(width, height), int(math.ceil(radius * extent)))
+	mut insets := []f64{len: corner}
+	mut spans := []f64{len: corner}
+	// Measure the curve along the axis with the gentler slope and spread the
+	// transition over the projected width of a screen pixel.
+	for i in 0 .. corner {
+		inset := canvas_rounded_inset(i + 0.5, f64(2 * corner), radius, 0, .continuous)
+		// Allow for the live compositor's inward coverage bias. Taper the
+		// adjustment to zero where the curve meets a straight edge.
+		insets[i] = inset + math.min(1.0 / 16, inset * 4)
+		before := canvas_rounded_inset(i, f64(2 * corner), radius, 0, .continuous)
+		after := canvas_rounded_inset(i + 1, f64(2 * corner), radius, 0, .continuous)
+		spans[i] = 1 + before - after
+	}
+	for row in 0 .. corner {
 		for column in 0 .. corner {
-			mut coverage := 0.0
-			for inset in insets {
-				coverage += math.min(1, math.max(0, column + 1 - inset))
-			}
+			major := math.max(row, column)
+			distance := math.min(row, column) + 0.5 - insets[major]
+			coverage := math.clamp(0.5 + distance / spans[major], 0.0, 1.0)
 			x := if round_left { column } else { width - column - 1 }
-			raster.pixels[row * width + x] = u32(math.round(255 * coverage / insets.len)) << 24
+			raster.pixels[row * width + x] = u32(math.round(255 * coverage)) << 24
 		}
 	}
 	return raster
@@ -164,20 +182,12 @@ fn action_hover_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 	scale := view_backing_scale(surface.view)
 	width := int(math.round(bounds.width * scale))
 	height := int(math.round(bounds.height * scale))
-	mut raster := hover_canvas_mask(width, height, scale, surface.hover_left) or { return }
-	color := C.witty_canvas_resolve_srgb(self, msg_id(get_class('NSColor'), 'windowBackgroundColor'))
-	image := C.witty_canvas_make_alpha_image(raster.pixels.data, width, height, color, self)
-	if !is_nil(image) {
-		C.witty_canvas_present_tile(context, image, &bounds, 1)
-		C.CFRelease(image)
-	}
+	live := C.CGBitmapContextGetBitsPerComponent(context) == 0
+	mut raster := hover_canvas_mask(width, height, scale, surface.hover_left, live) or { return }
+	C.witty_hover_draw_background(context, self, &bounds, raster.pixels.data, width, height)
 	if surface.hover_line != unsafe { nil } && bounds.width > 2 * hover_padding {
 		raster.clear(0)
-		label := C.witty_hover_rasterize_line(surface.hover_line, self, raster.pixels.data, width,
-			height, hover_padding, 8)
-		if !is_nil(label) {
-			C.witty_canvas_present_tile(context, label, &bounds, 1)
-			C.CFRelease(label)
-		}
+		C.witty_hover_draw_line(context, surface.hover_line, self, &bounds, raster.pixels.data,
+			width, height, hover_padding, 8)
 	}
 }

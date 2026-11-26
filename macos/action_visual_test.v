@@ -289,7 +289,9 @@ fn test_native_readonly_badge_layout_and_capture() {
 }
 
 fn test_native_hover_banner_capture() {
-	output := os.getenv_opt('WITTY_HOVER_BANNER_OUTPUT') or { return }
+	output := os.getenv('WITTY_HOVER_BANNER_OUTPUT')
+	live := os.getenv('WITTY_HOVER_BANNER_LIVE_OUTPUT')
+	if output.len == 0 && live.len == 0 { return }
 	app_init()
 	frame := objc_rect(0, 0, 240, 80)
 	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
@@ -314,9 +316,9 @@ fn test_native_hover_banner_capture() {
 	msg_void(base, 'release')
 	surface.scroll.layout()
 
-	names := ['short', 'long', 'unicode', 'file']
+	names := ['short', 'long', 'unicode', 'file', 'emoji']
 	urls := ['https://example.org/path', 'https://example.org/long/path/to/an/application/file.html',
-		'https://example.org/é/東京', 'file:///private/tmp/../tmp/']
+		'https://example.org/é/東京', 'file:///private/tmp/../tmp/', 'https://x.test/🚀/😃']
 	for m, appearance in ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
 		msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',
 			nsstring(appearance)))
@@ -329,10 +331,17 @@ fn test_native_hover_banner_capture() {
 				} else {
 					action_hover_entered(surface.owner, nil_obj(), nil_obj())
 				}
-				png := C.witty_overlay_test_png(surface.scroll.container)
-				assert !is_nil(png)
-				path := os.join_path(output, '${mode}-${names[i]}-${side}-witty.png')
-				assert msg_bool2(png, 'writeToFile:atomically:', nsstring(path), ObjId(1))
+				filename := '${mode}-${names[i]}-${side}-witty.png'
+				if output.len > 0 {
+					png := C.witty_overlay_test_png(surface.scroll.container)
+					assert !is_nil(png)
+					assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(output, filename)), ObjId(1))
+				}
+				if live.len > 0 {
+					png := C.witty_overlay_test_window_png(window)
+					assert !is_nil(png)
+					assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(live, filename)), ObjId(1))
+				}
 			}
 		}
 	}
@@ -341,14 +350,19 @@ fn test_native_hover_banner_capture() {
 fn test_hover_banner_raster_mirroring_and_display_string() {
 	assert hover_display_url('https://example.org/é/東京') == 'https://example.org/é/東京'
 	assert hover_display_url('https://example.org/a\u202eb') == 'https://example.org/a\\u{202E}b'
-	left := hover_canvas_mask(40, 52, 2, true)!
-	right := hover_canvas_mask(40, 52, 2, false)!
-	assert left.pixels[0] == 0
-	assert left.pixels[39] == 0xff000000
-	assert left.pixels[51 * 40] == 0xff000000
-	for row in 0 .. 52 {
-		for column in 0 .. 40 {
-			assert left.pixels[row * 40 + column] == right.pixels[row * 40 + 39 - column]
+	for live in [false, true] {
+		left := hover_canvas_mask(40, 52, 2, true, live)!
+		right := hover_canvas_mask(40, 52, 2, false, live)!
+		assert left.pixels[0] >> 24 == 0
+		assert left.pixels[39] >> 24 == 255
+		assert left.pixels[51 * 40] >> 24 == 255
+		for row in 0 .. 52 {
+			for column in 0 .. 40 {
+				a := int(left.pixels[row * 40 + column] >> 24)
+				b := int(right.pixels[row * 40 + 39 - column] >> 24)
+				// Quartz rounds the circular outline independently in each direction.
+				assert math.abs(a - b) <= if live { 0 } else { 1 }
+			}
 		}
 	}
 }

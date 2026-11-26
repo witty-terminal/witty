@@ -12,6 +12,7 @@ typedef struct {
     bool flipped;
     bool premultiply_translucent_ink;
     bool round_ink_coverage_up;
+    bool use_bitmap_color_glyphs;
 } WittyCanvasTextLayout;
 
 static inline CTLineRef witty_canvas_text_line(NSString *text, NSDictionary *attributes) {
@@ -54,7 +55,7 @@ static inline void witty_canvas_draw_text_runs(CGContextRef target, CTLineRef li
         NSColor *tint = attributes[NSForegroundColorAttributeName] ?: color;
         const double x = layout.position.x;
         const double y = layout.position.y + (color_glyphs ? layout.color_baseline_offset : 0);
-        if (color_glyphs && CGBitmapContextGetBitsPerComponent(target) == 0) {
+        if (color_glyphs && !layout.use_bitmap_color_glyphs && CGBitmapContextGetBitsPerComponent(target) == 0) {
             CGContextSaveGState(target);
             CGContextClipToRect(target, layout.clip);
             if (layout.flipped) {
