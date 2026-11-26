@@ -6,11 +6,14 @@ import math
 import os
 from pathlib import Path
 import platform
+import shutil
 import subprocess
 import sys
+import tempfile
 
 from PIL import Image
 
+from applications import TMUX_ACTIVE, prepare_applications, tmux_fixture_command
 from capture import capture_witty, output_directory, write_versions
 from fixtures import CLEAR as CLEAR_FRAME
 from fixtures import (
@@ -20,11 +23,12 @@ from fixtures import (
 
 
 REFERENCE = Path(__file__).with_name("ghostty-1.4.0-macos.tsv")
+WINDOW_COLUMNS, WINDOW_ROWS = 56, 15
 OPTIONS = (
     "--config-default-files=false",
     "--window-save-state=never",
-    "--window-width=56",
-    "--window-height=15",
+    f"--window-width={WINDOW_COLUMNS}",
+    f"--window-height={WINDOW_ROWS}",
     "--shell-integration=none",
     "--window-colorspace=display-p3",
     "--window-theme=dark",
@@ -34,6 +38,7 @@ OPTIONS = (
     "--cursor-style-blink=false",
 )
 DEFAULT_WINDOW = ("--window-width=0", "--window-height=0")
+TMUX_FIXTURES = ("tmux", "tmux-switch-pane")
 TRANSLUCENT_WINDOW = (
     "--background-opacity=0.5", "--window-padding-x=7,5", "--window-padding-y=3,8",
 )
@@ -180,17 +185,37 @@ def fixture_args(work):
     }
 
 
-def run(witty, output, settle, references):
+def capture_tmux_frame(witty, tmux, options, work, prefix, settle, switch_pane):
+    with tempfile.TemporaryDirectory(prefix="witty-tmux-", dir="/tmp") as socket_dir:
+        server = [tmux, "-S", f"{socket_dir}/server"]
+        args = [
+            *options, "--term=xterm-256color", f"--palette=2={bytes(TMUX_ACTIVE).hex()}",
+            "-e", "/usr/bin/env", "-u", "TMUX", "-u", "TMUX_PANE",
+            *tmux_fixture_command(server, work, WINDOW_COLUMNS, WINDOW_ROWS, switch_pane=switch_pane),
+        ]
+        try:
+            capture_witty(witty, args, prefix, settle)
+        finally:
+            subprocess.run([*server, "kill-server"], stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=5)
+
+
+def run(witty, output, settle, references, tmux=None):
     os.environ.pop("GHOSTTY_RESOURCES_DIR", None)
     os.environ.pop("LSCOLORS", None)
     os.environ.update(LC_ALL="en_US.UTF-8", MTL_DEBUG_LAYER="1")
     work = output / "fixtures"
     prepare_fixtures(work)
+    if tmux:
+        prepare_applications(work, ("tmux",))
     commands = fixture_args(work)
+    options = [*OPTIONS, f"--working-directory={work}"]
     write_versions(output, witty)
     with (output / "versions.txt").open("a") as versions:
         versions.write(f"macOS {platform.mac_ver()[0]} {platform.machine()}\n")
         versions.write(f"Reference: {REFERENCE.name}\n")
+        if tmux:
+            versions.write(subprocess.check_output([tmux, "-V"], text=True, timeout=5))
     print(f"Captures and logs: {output}", flush=True)
     matches = True
     with (output / "results.tsv").open("w") as report:
@@ -199,8 +224,10 @@ def run(witty, output, settle, references):
         print(header, flush=True)
         for name, reference in references.items():
             prefix = output / f"{name}-witty"
-            args = [*OPTIONS, f"--working-directory={work}", *commands[name]]
-            capture_witty(witty, args, prefix, settle)
+            if name in TMUX_FIXTURES:
+                capture_tmux_frame(witty, tmux, options, work, prefix, settle, name == "tmux-switch-pane")
+            else:
+                capture_witty(witty, [*options, *commands[name]], prefix, settle)
             with Image.open(prefix.with_suffix(".png")) as png:
                 actual_size = f"{png.width}x{png.height}"
                 digest = hashlib.sha256(png.convert("RGBA").tobytes()).hexdigest()
@@ -226,7 +253,8 @@ def main():
     parser.add_argument("witty", type=Path, help="path to the Witty executable")
     parser.add_argument("--output", type=Path, help="new directory for screenshots, logs, and the report")
     parser.add_argument("--settle-seconds", type=float, default=1.1)
-    parser.add_argument("--fixture", choices=references.keys(), action="append")
+    parser.add_argument("--fixture", choices=references.keys(), action="append",
+                        help="run a specific fixture, including optional tmux cases")
     args = parser.parse_args()
     if sys.platform != "darwin":
         parser.error("run on macOS")
@@ -234,9 +262,16 @@ def main():
         parser.error("--settle-seconds must be finite and nonnegative")
     if not args.witty.is_file() or not os.access(args.witty, os.X_OK):
         parser.error(f"expected an executable file at {args.witty}")
-    selected = {name: references[name] for name in args.fixture or references}
+    default_fixtures = [name for name in references if name not in TMUX_FIXTURES]
+    selected = {name: references[name] for name in args.fixture or default_fixtures}
+    tmux = None
+    if any(name in selected for name in TMUX_FIXTURES):
+        executable = shutil.which("tmux")
+        if executable is None:
+            parser.error("the tmux fixtures require tmux on PATH")
+        tmux = Path(executable).resolve()
     try:
-        return run(args.witty.resolve(), output_directory(args.output), args.settle_seconds, selected)
+        return run(args.witty.resolve(), output_directory(args.output), args.settle_seconds, selected, tmux)
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         print(f"Render comparison failed: {error}", file=sys.stderr)
         return 1

@@ -87,4 +87,11 @@ The wallpaper fixtures stretch and tile an alpha PNG behind styled text and colo
 
 The `text-balanced` fixture checks equal vertical padding in a viewport with room left after laying out the grid. The `vim-saved` fixture uses explicit grid dimensions and padding to reproduce the viewport from a restored Ghostty window.
 
+The optional `tmux` and `tmux-switch-pane` fixtures compare pane borders, the status line, and the active-pane highlight. The second case selects the left pane when the client attaches. The references use tmux 3.8. With `tmux` on `PATH`, run both cases with the same Witty executable.
+
+```sh
+python3 build_support/reference_probes/render_parity/run_macos.py \
+  ./Witty.app/Contents/MacOS/witty --fixture tmux --fixture tmux-switch-pane
+```
+
 The [reference table](ghostty-1.4.0-macos.tsv) uses captures from Ghostty's own terminal IOSurface at 2× on Apple Silicon running macOS 27.2. The Metal output is Display P3, including in fixtures where the terminal interprets its input colors as sRGB. The application fixtures cover Vim and `less` at explicit and default window sizes, colored `ls`, Git diff, and zsh. The `less` fixtures wait for the PTY grid before capturing the numbered lines and status prompt. The original Ghostty 1.4.0 executable had SHA-256 `4b30ac9b049cdf9eb75b6d8c7764856c2b882de97c688dce8a1b80916b55271b`. [Ghostty download](https://ghostty.org/download)

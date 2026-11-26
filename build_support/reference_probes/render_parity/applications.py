@@ -67,19 +67,28 @@ def capture_less(binary, args, helper, output, app, work, settle, scale, padding
                                       lambda image: image.getpixel(point) == LESS_MARKERS[row])
 
 
+def tmux_fixture_command(server, work, columns, rows, *, switch_pane=False):
+    left = r"printf '\033[?25lLeft pane\r\n┌────┐\r\n│ ░░ │\r\n└────┘\r\n'; exec sleep 60"
+    right = r"printf '\033[?25lRight pane\r\n╔════╗\r\n║ ██ ║\r\n╚════╝\r\n'; exec sleep 60"
+    command = [
+        *server, "-f", work / "tmux.conf", "new-session", "-d", "-x", str(columns),
+        "-y", str(rows), "-s", "parity", left, ";", "split-window", "-h", "-t", "parity", right, ";",
+    ]
+    if switch_pane:
+        command.extend(("set-hook", "-t", "parity", "client-attached", "select-pane -t parity:.0", ";"))
+    command.extend(("attach-session", "-t", "parity"))
+    return command
+
+
 def capture_tmux(binary, args, helper, output, app, work, settle, scale):
     env = os.environ.copy()
     env.pop("TMUX", None)
     env.pop("TMUX_PANE", None)
-    left = r"printf '\033[?25lLeft pane\r\n┌────┐\r\n│ ░░ │\r\n└────┘\r\n'; exec sleep 60"
-    right = r"printf '\033[?25lRight pane\r\n╔════╗\r\n║ ██ ║\r\n╚════╝\r\n'; exec sleep 60"
     with tempfile.TemporaryDirectory(prefix="witty-tmux-", dir="/tmp") as socket_dir:
         tmux = [shutil.which("tmux"), "-S", f"{socket_dir}/server"]
         command = [
             binary, *args, f"--palette=2={bytes(TMUX_ACTIVE).hex()}",
-            "-e", *tmux, "-f", work / "tmux.conf", "new-session", "-d",
-            "-x", str(GRID_COLUMNS), "-y", str(GRID_ROWS), "-s", "parity", left, ";",
-            "split-window", "-h", "-t", "parity", right, ";", "attach-session", "-t", "parity",
+            "-e", *tmux_fixture_command(tmux, work, GRID_COLUMNS, GRID_ROWS),
         ]
         try:
             with open_window(command, output / f"tmux-{app}.log", env=env) as (_, window):
