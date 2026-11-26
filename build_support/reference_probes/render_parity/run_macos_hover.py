@@ -39,13 +39,13 @@ def prepare_fixture(directory):
     (directory / "hover.sh").write_text(INPUT_FRAME_START + "exec /bin/sleep 20\n")
 
 
-def capture(binary, app, work, helper, prefix, kind, appearance):
-    ready = prefix.with_suffix(".ready")
+def capture(binary, app, work, helper, prefix, kind, appearance, color_space, opacity):
+    ready = prefix.with_name(f"{prefix.name}.ready")
     ready.unlink(missing_ok=True)
     images = {state: prefix.parent / f"{prefix.name}-{state}.png" for state in STATES}
     for image in images.values():
         image.unlink(missing_ok=True)
-    log_path = prefix.with_suffix(".log")
+    log_path = prefix.with_name(f"{prefix.name}.log")
     env = {
         **os.environ,
         "DYLD_INSERT_LIBRARIES": str(helper),
@@ -60,6 +60,7 @@ def capture(binary, app, work, helper, prefix, kind, appearance):
         env["WITTY_VIEWPORT_HOVER_GHOSTTY"] = "1"
         extra = ("--auto-update=off", "--drag-handle=never")
     args = (*OPTIONS, *HOVER_OPTIONS, *extra, f"--window-theme={appearance}",
+            f"--window-colorspace={color_space}", f"--background-opacity={opacity:g}",
             "-e", "/bin/sh", "hover.sh", kind, f"{WINDOW_ROWS} {WINDOW_COLUMNS}", ready)
     with log_path.open("wb") as log:
         result = subprocess.run([binary, *args], cwd=work, env=env, stdout=log,
@@ -73,15 +74,20 @@ def capture(binary, app, work, helper, prefix, kind, appearance):
     return frames
 
 
-def verify_transitions(frames, fixture):
-    width, height = frames["idle"].size
+def verify_transitions(frames, fixture, opacity):
+    idle = frames["idle"]
+    width, height = idle.size
     if any(frame.size != (width, height) for frame in frames.values()):
         raise RuntimeError(f"Terminal size changed during {fixture}")
+    alpha = idle.getpixel((width // 2, height // 2))[3]
+    if abs(alpha - 255 * opacity) > 0.5:
+        raise RuntimeError(f"Terminal background alpha {alpha} does not match opacity {opacity:g} in {fixture}")
     # The preview extends above the last text row. Check placement in that band.
     bounds = (0, 3 * height // 4, width, height - height // WINDOW_ROWS)
-    strips = {state: frame.crop(bounds).convert("RGB") for state, frame in frames.items()}
+    strips = {state: frame.crop(bounds) for state, frame in frames.items()}
+    idle_rgb = strips["idle"].convert("RGB")
     for state, on_right in (("hover", False), ("relocated", True), ("rethemed", True), ("returned", False)):
-        box = ImageChops.difference(strips["idle"], strips[state]).getbbox()
+        box = ImageChops.difference(idle_rgb, strips[state].convert("RGB")).getbbox()
         if box:
             at_edge = box[0] > 0 and box[2] == width if on_right else box[0] == 0 and box[2] < width
         else:
@@ -89,7 +95,9 @@ def verify_transitions(frames, fixture):
         if not at_edge:
             side = "right" if on_right else "left"
             raise RuntimeError(f"Link preview did not appear on the {side} in {fixture} {state}")
-    if strips["relocated"] == strips["rethemed"] or strips["idle"] != strips["cleared"]:
+        if strips[state].getchannel("A").getextrema() != (alpha, 255):
+            raise RuntimeError(f"Link preview did not retain its opaque fill in {fixture} {state}")
+    if strips["relocated"] == strips["rethemed"] or idle != frames["cleared"]:
         raise RuntimeError(f"Link preview did not repaint and clear in {fixture}")
 
 
@@ -110,19 +118,20 @@ def run(witty, ghostty, output, tolerance):
     passed = True
     with report.open("w", newline="") as stream:
         writer = csv.writer(stream, delimiter="\t")
-        writer.writerow(("link", "appearance", "state", "witty_size", "ghostty_size",
-                         "different_pixels", "maximum_channel_error", "status"))
-        for kind, appearance in itertools.product(("plain", "osc8"), ("light", "dark")):
+        writer.writerow(("color_space", "background_opacity", "link", "appearance", "state", "witty_size",
+                         "ghostty_size", "different_pixels", "maximum_channel_error", "status"))
+        fixtures = itertools.product(("display-p3", "srgb"), (1.0, 0.7), ("plain", "osc8"), ("light", "dark"))
+        for color_space, opacity, kind, appearance in fixtures:
             frames = {}
             for app, binary in (("ghostty", ghostty), ("witty", witty)):
-                fixture = f"{kind}-{appearance}-{app}"
-                frames[app] = capture(binary, app, work, helper, output / fixture, kind, appearance)
-                verify_transitions(frames[app], fixture)
+                fixture = f"{color_space}-{opacity:g}-{kind}-{appearance}-{app}"
+                frames[app] = capture(binary, app, work, helper, output / fixture, kind, appearance, color_space, opacity)
+                verify_transitions(frames[app], fixture, opacity)
             for state in STATES:
                 actual, reference = frames["witty"][state], frames["ghostty"][state]
                 count, error = compare(actual, reference)
                 within_limit = isinstance(error, int) and error <= tolerance
-                writer.writerow((kind, appearance, state, f"{actual.width}x{actual.height}",
+                writer.writerow((color_space, opacity, kind, appearance, state, f"{actual.width}x{actual.height}",
                                  f"{reference.width}x{reference.height}", count, error,
                                  "pass" if within_limit else "mismatch"))
                 passed &= within_limit
