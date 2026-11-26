@@ -1160,7 +1160,7 @@ Valid values:
     keybind actions, etc. but you will not have a visual UI widget showing
     a scrollbar.
 
-This only applies to macOS currently. GTK doesn't yet support scrollbars.
+Available on macOS and Linux.
 link
 Match a regular expression against the terminal text and associate clicking
 it with an action. This can be used to match URLs, file paths, etc. Actions
@@ -2291,42 +2291,11 @@ terminal would be half a screen tall, and 500 pixels wide.
 
 Available since: 1.2.0
 gtk-quick-terminal-layer
-The layer of the quick terminal window. The higher the layer,
-the more windows the quick terminal may conceal.
+Legacy configuration option for the retired GTK runtime.
 
-Valid values are:
-
- * `overlay`
-
-   The quick terminal appears in front of all windows.
-
- * `top` (default)
-
-   The quick terminal appears in front of normal windows but behind
-   fullscreen overlays like lock screens.
-
- * `bottom`
-
-   The quick terminal appears behind normal windows but in front of
-   wallpapers and other windows in the background layer.
-
- * `background`
-
-   The quick terminal appears behind all windows.
-
-GTK Wayland only.
-
-Available since: 1.2.0
 gtk-quick-terminal-namespace
-The namespace for the quick terminal window.
+Legacy configuration option for the retired GTK runtime.
 
-This is an identifier that is used by the Wayland compositor and/or
-scripts to determine the type of layer surfaces and to possibly apply
-unique effects.
-
-GTK Wayland only.
-
-Available since: 1.2.0
 quick-terminal-screen
 The screen where the quick terminal should show up.
 
@@ -3116,110 +3085,32 @@ Witty to exit or new surfaces to not be created.
 Note: This currently only affects cgroup initialization. Subprocesses
 must always be able to move themselves into an isolated cgroup.
 gtk-opengl-debug
-Enable or disable GTK's OpenGL debugging logs. The default is `true` for
-debug builds, `false` for all others.
+Legacy configuration option for the retired GTK runtime.
 
-Available since: 1.1.0
 gtk-single-instance
-If `true`, the Witty GTK application will run in single-instance mode:
-each new `witty` process launched will result in a new window if there is
-already a running process.
+Legacy configuration option for the retired GTK runtime.
 
-If `false`, each new witty process will launch a separate application.
-
-If `detect`, Witty will assume true (single instance) unless one of
-the following scenarios is found:
-
-1. TERM_PROGRAM environment variable is a non-empty value. In this
-case, we assume Witty is being launched from a graphical terminal
-session and you want a dedicated instance.
-
-2. Any CLI arguments exist. In this case, we assume you are passing
-custom Witty configuration. Single instance mode inherits the
-configuration from when it was launched, so we must disable single
-instance to load the new configuration.
-
-If either of these scenarios is producing a false positive, you can
-set this configuration explicitly to the behavior you want.
-
-The pre-1.2 option `desktop` has been deprecated. Please replace
-this with `detect`.
-
-The default value is `detect`.
-
-Note that debug builds of Witty have a separate single-instance ID
-so you can test single instance without conflicting with release builds.
 gtk-titlebar
-When enabled, the full GTK titlebar is displayed instead of your window
-manager's simple titlebar. The behavior of this option will vary with your
-window manager.
+Legacy configuration option for the retired GTK runtime.
 
-This option does nothing when `window-decoration` is none or when running
-under macOS.
 gtk-tabs-location
-Determines the side of the screen that the GTK tab bar will stick to.
-Top, bottom, and hidden are supported. The default is top.
+Legacy configuration option for the retired GTK runtime.
 
-When `hidden` is set, a tab button displaying the number of tabs will appear
-in the title bar. It has the ability to open a tab overview for displaying
-tabs. Alternatively, you can use the `toggle_tab_overview` action in a
-keybind if your window doesn't have a title bar, or you can switch tabs
-with keybinds.
 gtk-titlebar-hide-when-maximized
-If this is `true`, the titlebar will be hidden when the window is maximized,
-and shown when the titlebar is unmaximized. GTK only.
+Legacy configuration option for the retired GTK runtime.
 
-Available since: 1.1.0
 gtk-toolbar-style
-Determines the appearance of the top and bottom bars tab bar.
+Legacy configuration option for the retired GTK runtime.
 
-Valid values are:
-
- * `flat` - Top and bottom bars are flat with the terminal window.
- * `raised` - Top and bottom bars cast a shadow on the terminal area.
- * `raised-border` - Similar to `raised` but the shadow is replaced with a
-   more subtle border.
 gtk-titlebar-style
-The style of the GTK titlebar. Available values are `native` and `tabs`.
+Legacy configuration option for the retired GTK runtime.
 
-The `native` titlebar style is a traditional titlebar with a title, a few
-buttons and window controls. A separate tab bar will show up below the
-titlebar if you have multiple tabs open in the window.
-
-The `tabs` titlebar merges the tab bar and the traditional titlebar.
-This frees up vertical space on your screen if you use multiple tabs. One
-limitation of the `tabs` titlebar is that you cannot drag the titlebar
-by the titles any longer (as they are tab titles now). Other areas of the
-`tabs` title bar can be used to drag the window around.
-
-The default style is `native`.
 gtk-wide-tabs
-If `true` (default), then the Witty GTK tabs will be "wide." Wide tabs
-are the new typical Gnome style where tabs fill their available space.
-If you set this to `false` then tabs will only take up space they need,
-which is the old style.
+Legacy configuration option for the retired GTK runtime.
+
 gtk-custom-css
-Custom CSS files to be loaded.
+Legacy configuration option for the retired GTK runtime.
 
-GTK CSS documentation can be found at the following links:
-
-  * https://docs.gtk.org/gtk4/css-overview.html - An overview of GTK CSS.
-  * https://docs.gtk.org/gtk4/css-properties.html - A comprehensive list
-    of supported CSS properties.
-
-Launch Witty with `env GTK_DEBUG=interactive witty` to tweak Witty's
-CSS in real time using the GTK Inspector. Errors in your CSS files would
-also be reported in the terminal you started Witty from. See
-https://developer.gnome.org/documentation/tools/inspector.html for more
-information about the GTK Inspector.
-
-This configuration can be repeated multiple times to load multiple files.
-Prepend a ? character to the file path to suppress errors if the file does
-not exist. If you want to include a file that begins with a literal ?
-character, surround the file path in double quotes (").
-The file size limit for a single stylesheet is 5MiB.
-
-Available since: 1.1.0
 desktop-notifications
 If `true` (default), applications running in the terminal can show desktop
 notifications using certain escape sequences such as OSC 9 or OSC 777.

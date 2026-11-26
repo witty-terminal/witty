@@ -47,6 +47,6 @@ fn build_mode_name() string {
 fn runtime_name(runtime apprt.Runtime) string {
 	return match runtime {
 		.none_ { 'none' }
-		.gtk { 'gtk' }
+		.ui2 { 'ui2' }
 	}
 }

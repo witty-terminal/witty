@@ -106,7 +106,7 @@ pub fn thread_main_posix(fd int, quit int, io &Termio) {
 		// Wait for data using poll with infinite timeout (-1).
 		pollfds[0].revents = 0
 		pollfds[1].revents = 0
-		poll_result := C.poll(&pollfds[0], u32(2), -1)
+		poll_result := C.witty_posix_poll(&pollfds[0], u32(2), -1)
 		if poll_result < 0 {
 			errno := C.errno
 			if errno == C.EINTR {

@@ -321,7 +321,7 @@ pub fn (mut self GlobalState) init_args(args []string) ! {
 	// are initialized, but before any subsystem initialization can fail.
 	log.info('witty version=${build_meta.version_string}')
 	optimize := buildcfg.mode_string
-	runtime := $if app_runtime_none ? { 'none' } $else $if app_runtime_gtk ? { 'gtk' } $else $if linux || freebsd { 'gtk' } $else { 'none' }
+	runtime := $if app_runtime_none ? { 'none' } $else $if app_runtime_ui2 ? { 'ui2' } $else $if linux { 'ui2' } $else { 'none' }
 	renderer_backend := $if renderer_opengl ? { 'opengl' } $else $if renderer_metal ? { 'metal' } $else $if renderer_webgl ? { 'webgl' } $else $if macos || ios {
 		'metal'
 	} $else $if wasm32 {

@@ -1,0 +1,54 @@
+--- a/ui/ui_immediate.c.v
++++ b/ui/ui_immediate.c.v
+@@ -177,0 +178,5 @@
++	type WindowEventFilter = fn (&gg.Event) bool
++	type WindowCleanupFn = fn ()
++	__global g_window_event_filter = WindowEventFilter(unsafe { nil })
++	__global g_window_cleanup_handler = WindowCleanupFn(unsafe { nil })
++	__global g_pending_field_focus = ''
+@@ -476,0 +482,3 @@
++		gl sapp.GlDesc
++		fullscreen bool
++		borderless bool
+@@ -530,0 +539,2 @@
++			fullscreen: opts.fullscreen
++			borderless_window: opts.borderless
+@@ -540,0 +551 @@
++		g_gg_app.ctx.window.gl = opts.gl
+@@ -691,0 +703,10 @@
++	// A filter may handle a window event before widget dispatch.
++	pub fn set_window_event_filter(handler fn (&gg.Event) bool) {
++		g_window_event_filter = handler
++	}
++
++	// The cleanup callback runs on the UI thread with the GL context current.
++	pub fn on_window_cleanup(handler fn ()) {
++		g_window_cleanup_handler = handler
++	}
++
+@@ -847,0 +869,6 @@
++		if id == '' {
++			g_pending_field_focus = ''
++			g_focused_field = ''
++			invalidate_custom_paint()
++			return
++		}
+@@ -856,2 +883,4 @@
+-			return
+-		}
++			g_pending_field_focus = id
++			return
++		}
++		g_pending_field_focus = ''
+@@ -1117,0 +1147,3 @@
++		if g_window_cleanup_handler != unsafe { nil } {
++			g_window_cleanup_handler()
++		}
+@@ -1292,0 +1325,3 @@
++			if g_pending_field_focus != '' {
++				focus(g_pending_field_focus)
++			}
+@@ -1460,0 +1496,3 @@
++		if g_window_event_filter != unsafe { nil } && g_window_event_filter(e) {
++			return
++		}

@@ -30,6 +30,12 @@ $if linux && !renderer_metal ? {
 	fn C.witty_gg_gl_begin_pass(state voidptr, pass &gfx.Pass) voidptr
 	fn C.witty_gg_gl_end_pass(scope voidptr)
 	fn C.witty_gg_gl_commit(state voidptr)
+	fn C.witty_gg_gl_restore_ui_state()
+
+	// Terminal rendering and UI2 share a GL context but use separate GFX state.
+	pub fn restore_ui2_opengl_state() {
+		C.witty_gg_gl_restore_ui_state()
+	}
 
 	fn (mut api OpenGLAPI) gg_render_pass(attachment GLRenderAttachment) !(voidptr, gfx.PixelFormat) {
 		native := C.witty_gg_gl_current_context()

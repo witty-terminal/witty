@@ -1,22 +1,6 @@
 module build_support
 
-import gtk_resources
 import os
-
-fn (d Driver) prepare_gtk_resources() ! {
-	if d.cfg.app_runtime != 'gtk' { return }
-	distributed := os.join_path(d.cfg.root, 'apprt', 'gtk', 'witty_resources.c')
-	if !os.exists(os.join_path(d.cfg.root, '.git')) && os.exists(distributed) {
-		output := d.cache_path('gtk')
-		os.mkdir_all(output)!
-		for name in ['witty_resources.c', 'witty_resources.h'] {
-			os.cp(os.join_path(d.cfg.root, 'apprt', 'gtk', name), os.join_path(output, name))!
-		}
-		return
-	}
-	adwaita := checked_process(d.cfg.root, ['pkg-config', '--modversion', 'libadwaita-1'])!.trim_space()
-	gtk_resources.build(d.cfg.root, adwaita)!
-}
 
 pub fn (d Driver) install_benchmarks() ! {
 	selected := Driver{cfg: Config{...d.cfg, mode: .release_fast}}

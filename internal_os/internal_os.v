@@ -22,7 +22,7 @@ $if windows {
 	#include <pwd.h>
 }
 
-fn C.pipe(fds &int) int
+fn C.pipe(fds &i32) i32
 
 fn C.fcntl(fd i32, cmd i32, arg ...voidptr) i32
 

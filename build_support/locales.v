@@ -23,15 +23,12 @@ pub fn (d Driver) install_locales() ! {
 
 pub fn (d Driver) update_translations() ! {
 	if !d.cfg.i18n { return error('cannot update translations when i18n is disabled') }
-	mut args := ['xgettext', '--language=C', '--from-code=UTF-8', '--add-comments=Translators',
-		'--keyword=_', '--keyword=C_:1c,2', '--package-name=com.alexander.witty',
+	mut args := ['xgettext', '--language=JavaScript', '--from-code=UTF-8', '--add-comments=Translators',
+		'--keyword=translate', '--package-name=com.alexander.witty',
 		'--msgid-bugs-address=m@mitchellh.com', '--copyright-holder="Mitchell Hashimoto, Ghostty contributors"', '-o', '-']
 	// Input paths must be relative to the checkout, and source files sorted,
 	// because extraction locations become part of the committed catalogs.
-	mut blueprints := os.walk_ext(os.join_path(d.cfg.root, 'apprt', 'gtk', 'ui'), '.blp')
-	blueprints.sort()
-	for path in blueprints { args << path[d.cfg.root.len + 1..] }
-	mut sources := os.walk_ext(os.join_path(d.cfg.root, 'apprt', 'gtk'), '.v')
+	mut sources := os.walk_ext(os.join_path(d.cfg.root, 'apprt', 'ui2_runtime'), '.v')
 	sources.sort()
 	for path in sources { args << path[d.cfg.root.len + 1..] }
 	pot := checked_process(d.cfg.root, args)!

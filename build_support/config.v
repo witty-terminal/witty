@@ -64,8 +64,6 @@ pub mut:
 	app_runtime string
 	renderer string
 	font_backend string
-	x11 bool
-	wayland bool
 	sentry bool
 	simd bool
 	i18n bool
@@ -140,7 +138,7 @@ pub fn init_config(root string, args []string) !Config {
 	}
 	for key, _ in options {
 		if key !in ['optimize', 'target', 'xcframework-target', 'font-backend', 'app-runtime', 'renderer',
-			'flatpak', 'snap', 'sentry', 'simd', 'gtk-wayland', 'gtk-x11', 'i18n', 'version-string',
+			'flatpak', 'snap', 'sentry', 'simd', 'i18n', 'version-string',
 			'patch-rpath', 'pie', 'strip', 'emit-exe', 'emit-test-exe', 'emit-unicode-table-gen',
 			'emit-bench', 'emit-helpgen', 'emit-docs', 'emit-terminfo', 'emit-termcap', 'emit-themes',
 			'emit-webdata', 'emit-xcframework', 'emit-macos-app', 'wasm-shared'] {
@@ -158,12 +156,10 @@ pub fn init_config(root string, args []string) !Config {
 	if target.darwin() && target.minimum == '' {
 		target = Target{...target, minimum: if target.os == 'macos' { '13.0' } else { '17.0' }}
 	}
-	mut x11 := false
-	mut wayland := false
-	gtk := run_process(root, ['pkg-config', '--variable=targets', 'gtk4']) or { os.Result{exit_code: 1} }
-	if gtk.exit_code == 0 { x11 = gtk.output.contains('x11'); wayland = gtk.output.contains('wayland') }
-	runtime := options['app-runtime'] or { if target.os in ['linux', 'freebsd'] { 'gtk' } else { 'none' } }
-	if runtime !in ['gtk', 'none'] { return error('invalid app-runtime') }
+	runtime := options['app-runtime'] or { if target.os == 'linux' { 'ui2' } else { 'none' } }
+	if runtime !in ['ui2', 'none'] || (runtime == 'ui2' && target.os != 'linux') {
+		return error('invalid app-runtime for ${target.os}')
+	}
 	renderer := options['renderer'] or { if target.arch == 'wasm32' { 'webgl' } else if target.darwin() { 'metal' } else { 'opengl' } }
 	if renderer !in ['metal', 'opengl', 'webgl'] { return error('invalid renderer') }
 	font_backend := options['font-backend'] or { if target.arch == 'wasm32' { 'web_canvas' } else if target.darwin() { 'coretext' } else { 'fontconfig_freetype' } }
@@ -190,11 +186,9 @@ pub fn init_config(root string, args []string) !Config {
 	for lib in ['glslang', 'spirv-cross', 'simdutf', 'highway'] {
 		if lib !in system_libraries { system_libraries[lib] = false }
 	}
-	if 'gtk4-layer-shell' !in system_libraries { system_libraries['gtk4-layer-shell'] = true }
 	return Config{
 		root: os.abs_path(root), prefix: prefix, compiler: compiler, target: target, mode: mode,
 		xcframework_target: xc_target, app_runtime: runtime, renderer: renderer, font_backend: font_backend,
-		x11: option_bool(options, 'gtk-x11', x11)!, wayland: option_bool(options, 'gtk-wayland', wayland)!,
 		sentry: option_bool(options, 'sentry', target.darwin())!, simd: option_bool(options, 'simd', !target.wasm())!,
 		i18n: option_bool(options, 'i18n', target.darwin() || (target.os in ['linux', 'freebsd'] && target.abi == 'gnu'))!,
 		wasm_shared: option_bool(options, 'wasm-shared', true)!, version: version,
@@ -218,8 +212,7 @@ pub fn (cfg Config) change_entrypoint(entrypoint Entrypoint) Config { return Con
 
 pub fn (cfg Config) options(artifact Artifact) ![]string {
 	mut args := compile_options(cfg.root, cfg.mode, artifact, cfg.version)!
-	for name, enabled in {'flatpak': cfg.flatpak, 'snap': cfg.snap, 'gtk_x11': cfg.x11,
-		'gtk_wayland': cfg.wayland, 'sentry': cfg.sentry, 'wasm_shared': cfg.wasm_shared} {
+	for name, enabled in {'flatpak': cfg.flatpak, 'snap': cfg.snap, 'sentry': cfg.sentry, 'wasm_shared': cfg.wasm_shared} {
 		if enabled { args << ['-d', name] }
 	}
 	if !cfg.sentry { args << ['-d', 'no_sentry'] }

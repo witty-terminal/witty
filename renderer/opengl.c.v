@@ -5,7 +5,7 @@ import font
 import log
 import opengl
 
-$if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
+$if renderer_opengl ?|| (!renderer_metal ?&& !macos && !ios) {
 
 	// Graphics API wrapper for OpenGL.
 	//
@@ -19,7 +19,9 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 
 		// The most recently presented target, in case the runtime needs to
 		// present it again without redrawing the terminal contents.
-		last_target ?GLTarget
+		last_target    ?GLTarget
+		texture_output bool
+		texture_target ?GLTarget
 	mut:
 		gg GGOpenGLContext
 	}
@@ -106,6 +108,8 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 	pub fn (mut self OpenGLAPI) deinit() {
 		self.release_gg()
 		self.last_target = none
+		if mut output := self.texture_target { output.deinit() }
+		self.texture_target = none
 	}
 
 	fn (mut self OpenGLAPI) release_gg() {
@@ -124,7 +128,7 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 	// surface_init is called immediately after the runtime creates and makes its
 	// OpenGL context current.
 	pub fn OpenGLAPI.surface_init() ! {
-		$if app_runtime_gtk ?|| ( ( linux || freebsd ) && !app_runtime_none ?) {
+		$if app_runtime_ui2 ?|| (linux && !app_runtime_none ?) {
 			prepare_opengl_context(unsafe { nil })!
 		}
 		// The source embedded runtime intentionally does not prepare a context.
@@ -136,7 +140,7 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 		_ = self
 	}
 
-	// thread_enter is a renderer-thread lifecycle hook. GTK performs OpenGL work
+	// thread_enter is a renderer-thread lifecycle hook. UI2 performs OpenGL work
 	// on the main thread, so there is no context work here.
 	pub fn (self &OpenGLAPI) thread_enter() ! {
 		_ = self
@@ -151,14 +155,14 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 	// display_realized reloads the bindings after GTK recreates a surface.
 	pub fn (self &OpenGLAPI) display_realized() {
 		_ = self
-		$if app_runtime_gtk ? || ((linux || freebsd) && !app_runtime_none ?) {
+		$if app_runtime_ui2 ?|| (linux && !app_runtime_none ?) {
 			prepare_opengl_context(unsafe { nil }) or {
 				log.warn('error preparing GL context in display_realized: ${err}')
 			}
 		} $else {
 			// Zig checks this only when the callback is called; V checks every
 			// method eagerly, so retain its unsupported-runtime invariant here.
-			panic('only GTK should be calling displayRealized')
+			panic('display_realized requires the standalone OpenGL runtime')
 		}
 	}
 
@@ -188,7 +192,6 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 
 	// init_target creates an off-screen render target suitable for presentation.
 	pub fn (self &OpenGLAPI) init_target(width uint, height uint) !GLTarget {
-		_ = self
 		// The final target is sRGB for every blending mode in Ghostty 1.4.
 		return GLTarget.init(GLTargetOptions{
 			width:           width
@@ -211,6 +214,30 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 			opengl.enable(opengl.gl_framebuffer_srgb) or {
 				log.error('error re-enabling GL_FRAMEBUFFER_SRGB: ${err}')
 			}
+		}
+		if self.texture_output {
+			mut output := self.texture_target or { GLTarget{} }
+			if output.width != target.width || output.height != target.height {
+				replacement := GLTarget.init(GLTargetOptions{
+					width:           target.width
+					height:          target.height
+					internal_format: .rgba
+					texture:         true
+				})!
+				output.deinit()
+				output = replacement
+				self.texture_target = output
+			}
+			// Creating a target binds both framebuffer targets. Restore the read
+			// attachment before copying its already encoded sRGB bytes for UI2.
+			read := opengl.Framebuffer{ id: target.fbo }.bind(.read)!
+			defer { read.unbind() }
+			draw := opengl.Framebuffer{ id: output.fbo }.bind(.draw)!
+			defer { draw.unbind() }
+			opengl.blit_framebuffer(0, 0, int(target.width), int(target.height), 0, 0,
+				int(target.width), int(target.height), opengl.gl_color_buffer_bit, .nearest)!
+			self.last_target = target
+			return
 		}
 		opengl.blit_framebuffer(0, 0, int(target.width), int(target.height), 0, 0, int(target.width), int(target.height), opengl.gl_color_buffer_bit, .nearest)!
 		self.last_target = target

@@ -98,6 +98,13 @@ static inline void witty_gg_gl_end_pass(void *capture) {
 	free(scope);
 }
 
+static inline void witty_gg_gl_restore_ui_state(void) {
+	if (sg_isvalid()) {
+		sg_v_gl_bind_vertex_array();
+		sg_reset_state_cache();
+	}
+}
+
 static inline void witty_gg_gl_commit(void *state) {
 	void *previous = sg_v_gl_select_state(state);
 	GLint vertex_array, array_buffer;
@@ -115,7 +122,15 @@ static inline void *witty_gg_gl_setup(const sg_desc *desc) { return NULL; }
 static inline void witty_gg_gl_destroy(void *state, bool current) {}
 static inline void *witty_gg_gl_begin_pass(void *state, const sg_pass *pass) { return NULL; }
 static inline void witty_gg_gl_end_pass(void *capture) {}
+static inline void witty_gg_gl_restore_ui_state(void) {
+	if (sg_isvalid()) {
+		sg_v_gl_bind_vertex_array();
+		sg_reset_state_cache();
+	}
+}
+
 static inline void witty_gg_gl_commit(void *state) {}
+static inline void witty_gg_gl_restore_ui_state(void) {}
 #endif
 
 #endif

@@ -177,7 +177,6 @@ pub fn (d Driver) build_native_dependencies(vt_only bool) !NativeDeps {
 	if d.cfg.target.darwin() && d.cfg.i18n {
 		deps.archives << native_libintl.build(d.cfg.root, cc.compiler, cc.arguments, d.native_dir())!
 	}
-	d.prepare_gtk_resources()!
 	d.generate_help_strings()!
 	deps.defines << 'generated_help_strings'
 	return deps

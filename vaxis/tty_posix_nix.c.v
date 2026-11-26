@@ -8,12 +8,12 @@ import term.termios
 #include "tty_winch.h"
 #include <fcntl.h>
 #include <errno.h>
-#include <poll.h>
+#include "@VMODROOT/internal_os/posix_poll.h"
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
 
-fn C.poll(fds voidptr, nfds u32, timeout int) int
+fn C.witty_posix_poll(fds voidptr, nfds u32, timeout int) int
 
 fn C.read(fd int, buf voidptr, count uint) int
 
@@ -149,7 +149,7 @@ fn (mut tty Tty) poll_posix() {
 		fd:     tty.fd
 		events: i16(C.POLLIN)
 	}
-	for C.poll(&pfd, 1, 0) > 0 && pfd.revents & i16(C.POLLIN) != 0 {
+	for C.witty_posix_poll(&pfd, 1, 0) > 0 && pfd.revents & i16(C.POLLIN) != 0 {
 		mut buf := [1024]u8{}
 		count := C.read(tty.fd, &buf[0], uint(buf.len))
 		if count <= 0 {

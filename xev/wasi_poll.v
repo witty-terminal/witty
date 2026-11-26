@@ -579,7 +579,11 @@ $if !windows {
 			mut events := [wasi_batch_capacity]WasiEvent{}
 			assert uint(events.len) >= self.batch.len
 			mut n := uint(0)
-			if C.__wasi_poll_oneoff(voidptr(&self.batch.array[0]), voidptr(&events[0]), self.batch.len, &n) != 0 {
+			$if wasm32_wasi {
+				if C.__wasi_poll_oneoff(voidptr(&self.batch.array[0]), voidptr(&events[0]), self.batch.len, &n) != 0 {
+					return new_error(.unexpected)
+				}
+			} $else {
 				return new_error(.unexpected)
 			}
 			for event in events[..int(n)] {
@@ -632,17 +636,17 @@ $if !windows {
 					.recv { u8(1) }
 					.send { u8(2) }
 				}
-				immediate = WasiShutdownResult{
-					err: if C.__wasi_sock_shutdown(u32(c.op.socket), how) == 0 {
-						none
-					} else {
-						ErrorKind.unexpected
+				immediate = $if wasm32_wasi {
+					WasiShutdownResult{
+						err: if C.__wasi_sock_shutdown(u32(c.op.socket), how) == 0 { none } else { ErrorKind.unexpected }
 					}
+				} $else {
+					WasiShutdownResult{ err: .unexpected }
 				}
 			}
 			WasiCloseOp {
 				// std.posix.close deliberately ignores WASI fd_close's result.
-				_ = C.__wasi_fd_close(u32(c.op.fd))
+				$if wasm32_wasi { _ = C.__wasi_fd_close(u32(c.op.fd)) }
 				immediate = WasiCloseResult{}
 			}
 			WasiAsyncWaitOp { self.asyncs.push(c) }
@@ -790,31 +794,43 @@ $if !windows {
 				return wasi_result_n(tag, n)
 			}
 			WasiRecvOp {
-				buf := self.op.buffer.slice_ptr()
-				iov := WasiIovec{ base: buf.data, len: uint(buf.len) }
-				mut n := uint(0)
-				mut roflags := u16(0)
-				if C.__wasi_sock_recv(u32(self.op.fd), voidptr(&iov), 1, 0, &n, &roflags) != 0 {
+				$if wasm32_wasi {
+					buf := self.op.buffer.slice_ptr()
+					iov := WasiIovec{ base: buf.data, len: uint(buf.len) }
+					mut n := uint(0)
+					mut roflags := u16(0)
+					if C.__wasi_sock_recv(u32(self.op.fd), voidptr(&iov), 1, 0, &n, &roflags) != 0 {
+						return wasi_result_kind(.recv, .unexpected)
+					}
+					return wasi_result_n(.recv, n)
+				} $else {
 					return wasi_result_kind(.recv, .unexpected)
 				}
-				return wasi_result_n(.recv, n)
 			}
 			WasiSendOp {
-				buf := self.op.buffer.bytes()
-				iov := WasiIovec{ base: buf.data, len: uint(buf.len) }
-				mut n := uint(0)
-				if C.__wasi_sock_send(u32(self.op.fd), voidptr(&iov), 1, 0, &n) != 0 {
+				$if wasm32_wasi {
+					buf := self.op.buffer.bytes()
+					iov := WasiIovec{ base: buf.data, len: uint(buf.len) }
+					mut n := uint(0)
+					if C.__wasi_sock_send(u32(self.op.fd), voidptr(&iov), 1, 0, &n) != 0 {
+						return wasi_result_kind(.send, .unexpected)
+					}
+					return wasi_result_n(.send, n)
+				} $else {
 					return wasi_result_kind(.send, .unexpected)
 				}
-				return wasi_result_n(.send, n)
 			}
 			WasiAcceptOp {
-				mut fd := u32(0)
-				if C.__wasi_sock_accept(u32(self.op.socket), 0, &fd) != 0 {
+				$if wasm32_wasi {
+					mut fd := u32(0)
+					if C.__wasi_sock_accept(u32(self.op.socket), 0, &fd) != 0 {
+						return WasiAcceptResult{ err: .unexpected }
+					}
+					assert fd <= 0x7fffffff
+					return WasiAcceptResult{ socket: int(fd) }
+				} $else {
 					return WasiAcceptResult{ err: .unexpected }
 				}
-				assert fd <= 0x7fffffff
-				return WasiAcceptResult{ socket: int(fd) }
 			}
 			else { panic('unreachable') }
 		}

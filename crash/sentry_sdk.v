@@ -60,7 +60,7 @@ fn C.sentry_free(data voidptr)
 fn C.sentry_uuid_new_v4() C.sentry_uuid_t
 fn C.sentry_uuid_as_string(uuid &C.sentry_uuid_t, out &char)
 
-const selected_runtime_name = $if app_runtime_none ? { 'none' } $else $if app_runtime_gtk ? { 'gtk' } $else $if linux || freebsd { 'gtk' } $else { 'none' }
+const selected_runtime_name = $if app_runtime_none ? { 'none' } $else $if app_runtime_ui2 ? { 'ui2' } $else $if linux { 'ui2' } $else { 'none' }
 const selected_renderer_name = $if renderer_opengl ? { 'opengl' } $else $if renderer_metal ? { 'metal' } $else $if renderer_webgl ? { 'webgl' } $else $if macos || ios { 'metal' } $else $if wasm32 { 'webgl' } $else { 'opengl' }
 
 pub struct BuildInfo {

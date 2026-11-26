@@ -11,7 +11,7 @@ import log
 // getting user input (mouse/keyboard), etc.
 //
 // This enables compile-time interfaces to be built to swap out the underlying
-// application runtime. For example: pure macOS Cocoa, GTK+, browser, etc.
+// application runtime. For example: UI2, macOS Cocoa, or a browser.
 //
 // The goal is to have different implementations share as much of the core
 // logic as possible, and to only reach out to platform-specific implementation
@@ -125,8 +125,8 @@ pub mut:
 	selection_clipboard bool
 	default_env         map[string]string
 	linux_cgroup        ?string
-	// Native NSView/UIView used by the Metal renderer. GTK leaves this nil
-	// because its current GL context is the rendering surface.
+	// Native NSView/UIView used by the Metal renderer. The Linux runtime
+	// supplies an OpenGL context instead.
 	renderer_view         voidptr = unsafe { nil }
 	user_data             voidptr = unsafe { nil }
 	close_fn              RuntimeSurfaceCloseFn = unsafe { nil }

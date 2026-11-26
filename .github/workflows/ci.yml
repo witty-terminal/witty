@@ -85,32 +85,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            clang pkg-config gettext python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 \
-            libgtk-4-dev libadwaita-1-dev meson ninja-build \
-            libfreetype-dev libharfbuzz-dev libfontconfig-dev libonig-dev \
-            libx11-dev libxi-dev libxcursor-dev libwayland-dev wayland-protocols \
+            clang pkg-config gettext \
+            libfreetype-dev libharfbuzz-dev libfontconfig-dev libonig-dev libglib2.0-dev \
+            libx11-dev libxi-dev libxcursor-dev libxrandr-dev libwayland-dev wayland-protocols \
             libegl-dev libgl-dev libgl1-mesa-dri \
-            dbus-daemon python3-pil xauth xdotool xvfb
-      - name: Build gtk4-layer-shell
-        # Ubuntu 24.04 does not package it; 1.1.0 is the version Ghostty pins.
-        run: |
-          git clone --depth 1 --branch v1.1.0 https://github.com/wmww/gtk4-layer-shell "$RUNNER_TEMP/gtk4-layer-shell"
-          cd "$RUNNER_TEMP/gtk4-layer-shell"
-          meson setup build --prefix=/usr -Dintrospection=false -Dvapi=false -Ddocs=false -Dexamples=false -Dtests=false
-          ninja -C build
-          sudo ninja -C build install
-      - name: Install blueprint-compiler
-        # Ghostty's UI files need 0.16.0+; Ubuntu 24.04's package is older.
-        run: |
-          git clone --depth 1 --branch v0.16.0 https://gitlab.gnome.org/GNOME/blueprint-compiler.git "$RUNNER_TEMP/blueprint-compiler"
-          cd "$RUNNER_TEMP/blueprint-compiler"
-          meson setup build --prefix=/usr
-          sudo ninja -C build install
-          blueprint-compiler --version
+            python3-pil xauth xclip xdotool xvfb
       - name: Install V
         run: bash .github/scripts/install-v.sh
+      - name: Install UI2
+        run: bash .github/scripts/install-ui2.sh
       - name: Check
-        run: v -check .
+        run: v -path "$PWD|$PWD/.witty-build/ui2-modules|@vlib|@vmodules" -check .
       - name: Verify standalone build generators
         run: |
           test ! -e .witty-build/native/libglslang.a
@@ -125,10 +110,13 @@ jobs:
       - name: Verify installed executable
         run: |
           test -z "$(find "$RUNNER_TEMP/witty" -iname '*ghostty*' -print -quit)"
-          "$RUNNER_TEMP/witty/bin/witty" --version
+          exe="$RUNNER_TEMP/witty/bin/witty"
+          "$exe" --version | tee "$RUNNER_TEMP/witty-version"
+          grep -E 'app runtime +: ui2$' "$RUNNER_TEMP/witty-version"
+          ! ldd "$exe" | grep -Ei 'libgtk|libgdk|libadwaita'
       - name: Capture Linux terminal screenshots
         run: |
-          xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- \
+          xvfb-run -a -s "-screen 0 1440x900x24" \
             python3 build_support/reference_probes/render_parity/smoke_linux.py \
             "$RUNNER_TEMP/witty/bin/witty" --output "$RUNNER_TEMP/linux-screenshot-smoke"
       - name: Upload screenshot diagnostics on failure

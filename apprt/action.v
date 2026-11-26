@@ -54,7 +54,7 @@ pub enum ActionKey as i32 {
 	toggle_window_decorations
 	// Toggle the quick terminal in or out.
 	toggle_quick_terminal
-	// Toggle the command palette. This currently only works on macOS.
+	// Toggle the command palette.
 	toggle_command_palette
 	// Toggle the visibility of all Ghostty terminal windows.
 	toggle_visibility
@@ -91,7 +91,7 @@ pub enum ActionKey as i32 {
 	render
 	// Control whether the inspector is shown or hidden.
 	inspector
-	// Show the GTK inspector.
+	// Legacy action tag retained for C ABI compatibility.
 	show_gtk_inspector
 	// The inspector for the given target has changes and should be
 	// rendered at the next opportunity.

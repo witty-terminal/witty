@@ -1,18 +1,17 @@
 module cli
 
-import apprt
-import apprt.gtk
+import os
 
 fn perform_new_window_ipc(opts NewWindowOptions) !bool {
-	target := if class := opts.class {
-		apprt.IpcTarget(apprt.IpcTargetClass{ class: class })
-	} else {
-		apprt.IpcTarget(apprt.IpcTargetDetect{})
+	executable := os.executable()
+	mut args := []string{}
+	if class := opts.class {
+		args << '--class=${class}'
 	}
-	action := apprt.IpcAction{
-		new_window: apprt.IpcNewWindow{
-			arguments: opts.arguments
-		}
+	if command := opts.arguments {
+		args << '-e'
+		args << command
 	}
-	return gtk.App.perform_ipc(target, action)
+	os.execvp(executable, args)!
+	return true
 }

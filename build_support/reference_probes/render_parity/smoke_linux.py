@@ -1,4 +1,5 @@
 import argparse
+import os
 from pathlib import Path
 import subprocess
 import time
@@ -76,7 +77,7 @@ def check_shader_reload(binary, output):
         shader.write_text(f"void mainImage(out vec4 color, in vec2 uv) {{ color = vec4({color}, 1); }}\n")
     config.write_text(f"custom-shader = {red}\n")
     command = [
-        binary, "--config-default-files=false", "--gtk-single-instance=false",
+        binary, "--config-default-files=false",
         "--window-decoration=none", "--window-save-state=never", "--shell-integration=none",
         f"--config-file={config}", "--keybind=ctrl+alt+9=reload_config",
         "-e", "/bin/sleep", "30",
@@ -86,6 +87,51 @@ def check_shader_reload(binary, output):
         config.write_text(f"custom-shader = {green}\n")
         subprocess.run(["xdotool", "windowfocus", "--sync", window, "key", "ctrl+alt+9"], check=True, timeout=5)
         wait_for_shader_color(process, helper, window, (0, 255, 0), work / "after.png")
+
+
+
+def check_ui2_input(binary, output):
+    work = output / "terminal-input"
+    work.mkdir()
+    events = work / "pty.log"
+    shell = work / "test-shell"
+    shell.write_text(
+        "#!/bin/sh\n"
+        "printf 'shell\\n' >> \"$WITTY_SMOKE_LOG\"\n"
+        "while IFS= read -r line; do printf 'input:%s\\n' \"$line\" >> \"$WITTY_SMOKE_LOG\"; done\n"
+    )
+    shell.chmod(0o755)
+    command = [
+        binary, "--config-default-files=false", "--shell-integration=none",
+        f"--command=direct:{shell}", "--window-show-tab-bar=auto",
+        "--keybind=ctrl+alt+7=start_search", "--keybind=ctrl+alt+8=new_tab", "--keybind=ctrl+alt+9=new_split:right",
+    ]
+
+    def wait_for(line, count=1):
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if events.exists() and events.read_text().splitlines().count(line) >= count:
+                return
+            time.sleep(0.05)
+        raise RuntimeError(f"Expected {count} PTY event(s) {line!r}. See {work}")
+
+    env = dict(os.environ, WITTY_SMOKE_LOG=str(events))
+    with open_window(command, work / "witty.log", env=env) as (_, window):
+        wait_for("shell")
+        subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True, timeout=5)
+        def key(*keys):
+            subprocess.run(["xdotool", "key", *keys], check=True, timeout=5)
+
+        key("ctrl+alt+7")
+        subprocess.run(["xdotool", "type", "find only"], check=True, timeout=5)
+        key("Escape")
+        for contents, shortcut in [("first", None), ("split", "ctrl+alt+9"), ("tab", "ctrl+alt+8")]:
+            if shortcut:
+                key(shortcut)
+                wait_for("shell", 2 if contents == "split" else 3)
+            subprocess.run(["xdotool", "type", contents], check=True, timeout=5)
+            key("Return")
+            wait_for(f"input:{contents}")
 
 
 def main():
@@ -109,7 +155,6 @@ def main():
         with_tabs = capture_grid(
             binary, output / "grid-60x12-tabs", COLUMNS, ROWS,
             "--window-decoration=client",
-            "--gtk-titlebar-style=tabs",
             "--window-show-tab-bar=always",
         )
         if with_tabs != (width, height):
@@ -125,9 +170,10 @@ def main():
         if "error initializing postprocess shaders" not in log.read_text():
             raise RuntimeError(f"Expected OpenGL to reject the post-processing pipeline. See {log}")
         check_shader_reload(binary, output)
+        check_ui2_input(binary, output)
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         parser.exit(1, f"Linux screenshot check failed: {error}\n")
-    print(f"Verified initial PTY and screenshot sizing, full-width erase, shader fallback, and shader reload. See {output}")
+    print(f"Verified initial PTY and screenshot sizing, full-width erase, shader fallback and reload, and input through UI2 tabs and splits. See {output}")
 
 
 if __name__ == "__main__":

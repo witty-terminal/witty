@@ -7,5 +7,5 @@ Actions=RunWittyDir
 [Desktop Action RunWittyDir]
 Name=Open Witty Here
 Icon=com.alexander.witty
-Exec=witty --working-directory=%F --gtk-single-instance=false
+Exec=witty --working-directory=%F
 

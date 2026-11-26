@@ -47,9 +47,9 @@ pub fn (d Driver) test_files(vt_only bool) ![]string {
 	return files
 }
 
-fn (d Driver) valgrind_arguments(executable string) []string {
+fn valgrind_arguments(executable string) []string {
 	return ['valgrind', '--leak-check=full', '--num-callers=50',
-		'--suppressions=' + os.join_path(d.cfg.root, 'valgrind.supp'), '--gen-suppressions=all',
+		'--gen-suppressions=all',
 		executable]
 }
 
@@ -102,7 +102,7 @@ pub fn (d Driver) run_tests(vt_only bool, valgrind bool, install_only bool) ! {
 		}
 		if install_only { continue
 		 }
-		command := if valgrind { d.valgrind_arguments(executable) } else { [
+		command := if valgrind { valgrind_arguments(executable) } else { [
 				executable,
 			] }
 		checked_process(d.cfg.root, command)!
@@ -132,7 +132,7 @@ pub fn (d Driver) run_executable(valgrind bool) ! {
 	}
 	deps := selected.build_native_dependencies(false)!
 	executable := selected.build_executable(deps)!
-	mut args := if valgrind { d.valgrind_arguments(executable) } else { [executable] }
+	mut args := if valgrind { valgrind_arguments(executable) } else { [executable] }
 	args << d.cfg.run_args
 	if valgrind {
 		run_foreground(d.cfg.root, args, map[string]string{})!

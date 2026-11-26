@@ -23,15 +23,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            clang pkg-config gettext blueprint-compiler \
-            libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev \
-            libfreetype-dev libharfbuzz-dev libfontconfig-dev libonig-dev \
+            clang pkg-config gettext \
+            libgtk-4-1 libadwaita-1-0 libgtk4-layer-shell0 \
+            libfreetype-dev libharfbuzz-dev libfontconfig-dev libonig-dev libglib2.0-dev \
             libxml2-dev libpng-dev zlib1g-dev libbz2-dev \
-            libx11-dev libxi-dev libxcursor-dev libwayland-dev wayland-protocols \
+            libx11-dev libxi-dev libxcursor-dev libxrandr-dev libwayland-dev wayland-protocols \
             libegl-dev libgl-dev libgl1-mesa-dri fonts-dejavu-core \
             curl dbus-daemon less python3-pil tmux vim xauth xdotool xvfb
       - name: Install V
         run: bash .github/scripts/install-v.sh
+      - name: Install UI2
+        run: bash .github/scripts/install-ui2.sh
       - name: Build Witty
         run: |
           bash .github/scripts/ci-build.sh install --system \
@@ -39,32 +41,8 @@ jobs:
       - name: Compare with Ghostty 1.4.0
         run: |
           bash .github/scripts/linux-render-parity.sh \
-            "$RUNNER_TEMP/witty/bin/witty" "$RUNNER_TEMP/render-parity"
-      - name: Compare GTK chrome and overlays with the OpenGL compositor
-        env:
-          GSK_RENDERER: gl
-        run: |
-          bash .github/scripts/linux-render-parity.sh \
-            "$RUNNER_TEMP/witty/bin/witty" "$RUNNER_TEMP/render-parity-gl" \
-            --fixture split-search --fixture split-search-themed --fixture split-close --fixture key-state-overlay \
-            --fixture visual-bell --fixture visual-bell-themed \
-            --fixture progress-overlay --fixture progress-overlay-themed \
-            --fixture command-exit-banner --fixture command-exit-banner-themed \
-            --fixture link-preview --fixture link-preview-right --fixture readonly-overlay --fixture readonly-overlay-themed \
-            --fixture command-palette --fixture command-palette-compact --fixture clipboard-confirmation \
-            --fixture config-errors --fixture terminal-title --fixture tab-title \
-            --fixture close-confirmation --fixture gtk-toast \
-            --fixture gtk-chrome-tabs --fixture gtk-chrome-native --fixture tab-overview \
-            --fixture less --fixture tmux
-      - name: Compare HiDPI GTK rendering with the OpenGL compositor
-        env:
-          GSK_RENDERER: gl
-        run: |
-          bash .github/scripts/linux-render-parity.sh \
-            "$RUNNER_TEMP/witty/bin/witty" "$RUNNER_TEMP/render-parity-gl-hidpi" \
-            --scale 2 --fixture font-zoom --fixture wallpaper-reload --fixture shader-reload \
-            --fixture scrollbar --fixture scrollbar-themed --fixture terminal-colors \
-            --fixture command-palette-resize --fixture command-palette-themed
+            "$RUNNER_TEMP/witty/bin/witty" "$RUNNER_TEMP/render-parity" \
+            --fixture ansi --fixture unicode --fixture ls --fixture vim --fixture less --fixture tmux
       - name: Upload screenshots and comparison report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7

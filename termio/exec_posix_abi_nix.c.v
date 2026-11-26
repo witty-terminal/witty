@@ -9,13 +9,13 @@ import time
 
 #include <unistd.h>
 
-#include <poll.h>
+#include "@VMODROOT/internal_os/posix_poll.h"
 
 #include <fcntl.h>
 
 #include <sys/wait.h>
 
-fn C.pipe(fds voidptr) int
+fn C.pipe(fds &i32) i32
 
 fn C.close(fd int) int
 
@@ -27,7 +27,7 @@ fn C.witty_read_error_kind() int
 
 fn C.write(fd int, buf voidptr, count uint) int
 
-fn C.poll(fds voidptr, nfds u32, timeout int) int
+fn C.witty_posix_poll(fds voidptr, nfds u32, timeout int) int
 
 fn C.fcntl(fd i32, cmd i32, arg ...voidptr) i32
 
@@ -57,7 +57,7 @@ const pollhup = i16(int(C.POLLHUP))
 // waitpid options
 const wnohang = int(C.WNOHANG)
 
-// pollfd struct for C.poll()
+// pollfd struct for C.witty_posix_poll()
 struct PollFd {
 mut:
 	fd      i32

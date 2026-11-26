@@ -223,7 +223,7 @@ module renderer
 // Stop our display link. If this fails its okay it just means
 // that we either never started it or the view its attached to
 // is gone which is fine.
-// This is called by the GTK apprt after the surface is
+// This is called by the runtime after the surface is
 // reinitialized due to any of the events mentioned in
 // the doc comment for `displayUnrealized`.
 // If our API has to do things on realize, let it.
@@ -233,7 +233,7 @@ module renderer
 // `displayUnrealized`, in which case it should be
 // marked defunct. If not, we have a problem.
 // We reinitialize our shaders and our swap chain.
-// This is called by the GTK apprt when the surface is being destroyed.
+// This is called by the runtime when the surface is being destroyed.
 // This can happen because the surface is being closed but also when
 // moving the window between displays or splitting.
 // If our API has to do things on unrealize, let it.
@@ -2867,7 +2867,7 @@ pub fn (mut r Renderer) loop_exit() {
 	}
 }
 
-// This is called by the GTK apprt after the surface is
+// This is called by the runtime after the surface is
 // reinitialized due to any of the events mentioned in
 // the doc comment for display_unrealized.
 pub fn (mut r Renderer) display_realized() ! {
@@ -2908,7 +2908,7 @@ pub fn (mut r Renderer) display_realized() ! {
 	}
 }
 
-// This is called by the GTK apprt when the surface is being destroyed.
+// This is called by the runtime when the surface is being destroyed.
 // This can happen because the surface is being closed but also when
 // moving the window between displays or splitting.
 pub fn (mut r Renderer) display_unrealized() {

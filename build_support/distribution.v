@@ -1,19 +1,12 @@
 module build_support
 
-import gtk_resources
 import os
 
-// GhosttyDist.init: add VERSION and generated GTK/frame resources to git's
+// GhosttyDist.init: add VERSION and generated frame data to git's
 // tracked, export-ignore-aware source archive. --add-file uses the most recent
 // prefix and the added file's basename, so copies retain the distributed names.
 pub fn (d Driver) build_distribution(check bool) !string {
-	adwaita :=
-		checked_process(d.cfg.root, ['pkg-config', '--modversion', 'libadwaita-1'])!.trim_space()
-	gtk_c := gtk_resources.build(d.cfg.root, adwaita)!
 	resources := {
-		'apprt/gtk/witty_resources.c':              gtk_c
-		'apprt/gtk/witty_resources.h':              os.join_path(os.dir(gtk_c),
-			'witty_resources.h')
 		'build_assets/framegen/framedata.compressed': d.generate_frame_data()!
 	}
 	dir := d.cache_path('dist', 'inputs')

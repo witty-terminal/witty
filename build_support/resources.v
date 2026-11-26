@@ -126,13 +126,9 @@ fn (d Driver) install_linux_resources() ! {
 	debug := d.cfg.mode in [.debug, .release_safe]
 	name := 'Witty${if debug { ' (Debug)' } else { '' }}'
 	app_id := 'com.alexander.witty${if debug { '-debug' } else { '' }}'
-	mut templates := {
+	templates := {
 		'app.desktop.in': 'share/applications/${app_id}.desktop'
-		'dbus.service${if d.cfg.flatpak { '.flatpak' } else { '' }}.in': 'share/dbus-1/services/${app_id}.service'
 		'com.alexander.witty.metainfo.xml.in': 'share/metainfo/${app_id}.metainfo.xml'
-	}
-	if !d.cfg.flatpak {
-		templates['systemd.service.in'] = '${if d.cfg.system_package { 'lib' } else { 'share' }}/systemd/user/app-${app_id}.service'
 	}
 	for source, destination in templates {
 		text := os.read_file(os.join_path(d.cfg.root, 'build_assets', 'dist', 'linux', source))!

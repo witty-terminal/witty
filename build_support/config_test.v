@@ -5,7 +5,7 @@ import os
 fn test_config_source_defaults_and_cross_target_decisions() ! {
 	root := os.dir(@FILE)
 	linux := init_config(root, ['-Dtarget=x86_64-linux-gnu', '-Dversion-string=1.3.0'])!
-	assert linux.app_runtime == 'gtk'
+	assert linux.app_runtime == 'ui2'
 	assert linux.font_backend == 'fontconfig_freetype'
 	assert linux.renderer == 'opengl'
 	assert linux.i18n && linux.simd && !linux.sentry
@@ -27,10 +27,10 @@ fn test_config_source_defaults_and_cross_target_decisions() ! {
 fn test_config_source_artifacts_overrides_and_retargeting() ! {
 	root := os.dir(@FILE)
 	cfg := init_config(root, ['--system', '-Dtarget=x86_64-linux-gnu', '-Dversion-string=2.1.0-beta.1',
-		'-Doptimize=ReleaseSmall', '-Demit-bench', '-Demit-docs=false', '-Dgtk-x11=false',
-		'-Dgtk-wayland=true', '-fsys=glslang', 'run', '--', '+version'])!
+		'-Doptimize=ReleaseSmall', '-Demit-bench', '-Demit-docs=false',
+		'-fsys=glslang', 'run', '--', '+version'])!
 	assert cfg.strip && cfg.pie && !cfg.emit_docs && cfg.emit_bench
-	assert !cfg.x11 && cfg.wayland && cfg.system_libraries['glslang'] && cfg.system_libraries['freetype']
+	assert cfg.system_libraries['glslang'] && cfg.system_libraries['freetype']
 	assert cfg.steps == ['run'] && cfg.run_args == ['+version']
 	retargeted := cfg.retarget(Target{arch: 'aarch64', os: 'ios', minimum: '17.0', abi: 'simulator', cpu: 'apple_a17'})
 	assert retargeted.target.os == 'ios' && cfg.target.os == 'linux'

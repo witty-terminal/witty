@@ -612,10 +612,11 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 
 	pub struct GLTarget {
 	pub mut:
-		fbo    u32
-		rbo    u32
-		width  uint
-		height uint
+		fbo             u32
+		rbo             u32
+		texture         u32
+		width           uint
+		height          uint
 		internal_format opengl.TextureInternalFormat = .rgba
 	}
 
@@ -624,45 +625,56 @@ $if renderer_opengl ?|| ( !renderer_metal ?&& !macos && !ios ) {
 		width           uint                        @[required]
 		height          uint                        @[required]
 		internal_format opengl.TextureInternalFormat @[required]
+		texture         bool
 	}
 
 	pub fn GLTarget.init(opts GLTargetOptions) !GLTarget {
-		rbo := opengl.Renderbuffer.create()!
-		rbo_bind := rbo.bind()!
-		defer {
-			rbo_bind.unbind()
-		}
-		rbo_bind.storage(opts.internal_format, int(opts.width), int(opts.height))!
-
 		fbo := opengl.Framebuffer.create()!
-		fbo_bind := fbo.bind(.framebuffer)!
+		mut result := GLTarget{ fbo: fbo.id, width: opts.width, height: opts.height,
+			internal_format: opts.internal_format }
+		mut complete := false
 		defer {
-			fbo_bind.unbind()
+			if !complete { result.deinit() }
 		}
-		fbo_bind.renderbuffer(.color0, rbo)!
-
-		return GLTarget{
-			fbo:    fbo.id
-			rbo:    rbo.id
-			width:  opts.width
-			height: opts.height
-			internal_format: opts.internal_format
+		fbo_bind := fbo.bind(.framebuffer)!
+		defer { fbo_bind.unbind() }
+		if opts.texture {
+			texture := GLTexture.init(GLTextureOptions{
+				format: .rgba
+				internal_format: opts.internal_format
+				target: .t2d
+				min_filter: .linear
+				mag_filter: .linear
+				wrap_s: .clamp_to_edge
+				wrap_t: .clamp_to_edge
+			}, opts.width, opts.height, none)!
+			result.texture = texture.id
+			fbo_bind.texture_2d(.color0, .t2d, opengl.Texture{ id: texture.id }, 0)!
+		} else {
+			rbo := opengl.Renderbuffer.create()!
+			result.rbo = rbo.id
+			rbo_bind := rbo.bind()!
+			defer { rbo_bind.unbind() }
+			rbo_bind.storage(opts.internal_format, int(opts.width), int(opts.height))!
+			fbo_bind.renderbuffer(.color0, rbo)!
 		}
+		complete = true
+		return result
 	}
 
 	pub fn (mut self GLTarget) deinit() {
 		if self.fbo != 0 {
-			opengl.Framebuffer{
-				id: self.fbo
-			}.destroy()
+			opengl.Framebuffer{ id: self.fbo }.destroy()
 		}
 		if self.rbo != 0 {
-			opengl.Renderbuffer{
-				id: self.rbo
-			}.destroy()
+			opengl.Renderbuffer{ id: self.rbo }.destroy()
+		}
+		if self.texture != 0 {
+			opengl.Texture{ id: self.texture }.destroy()
 		}
 		self.fbo = 0
 		self.rbo = 0
+		self.texture = 0
 	}
 
 	// ============================================================

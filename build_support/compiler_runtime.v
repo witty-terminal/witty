@@ -30,6 +30,15 @@ fn (d Driver) compiler_runtime_path() !string {
 }
 
 fn (d Driver) compiler_module_path() !string {
+	mut paths := [d.cfg.root]
+	modules := d.cache_path('ui2-modules')
+	if os.exists(os.join_path(modules, 'ui2', '.witty-ui2')) {
+		paths << modules
+	}
 	runtime := d.compiler_runtime_path()!
-	return d.cfg.root + '|' + if runtime.len > 0 { runtime + '|@vlib|@vmodules' } else { '@vlib|@vmodules' }
+	if runtime.len > 0 {
+		paths << runtime
+	}
+	paths << ['@vlib', '@vmodules']
+	return paths.join('|')
 }

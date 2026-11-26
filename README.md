@@ -7,7 +7,7 @@ A translated fork of Ghostty
 
 ## Building on Linux
 
-Install `make`, the V revision pinned in CI, and the Linux dependencies listed in the CI workflow. [V compiler setup](.github/scripts/install-v.sh) · [Linux dependencies](.github/workflows/ci.yml)
+Witty uses UI2 for its Linux desktop interface. Install `make`, the V revision pinned in CI, and the Linux dependencies listed in the CI workflow. [V compiler setup](.github/scripts/install-v.sh) · [Linux dependencies](.github/workflows/ci.yml)
 
 Run this command from the repository root.
 
@@ -18,6 +18,7 @@ make
 Witty builds its bundled glslang shader compiler into `.witty-build/native/libglslang.a`. The `libslang-devel` package provides the separate S-Lang library. If `v .` reports that the archive is missing, run `make` from the Witty checkout or invoke the build driver directly. Both commands build the native dependencies before compiling Witty.
 
 ```sh
+bash .github/scripts/install-ui2.sh
 VFLAGS='-cc clang' v -path "$PWD|@vlib|@vmodules" run tools/build install
 ```
 
@@ -32,7 +33,7 @@ On macOS, capture writes a Display P3 PNG offscreen and works without Screen Rec
 ./Witty.app/Contents/MacOS/witty --screenshot=/tmp/witty.png -e /bin/ls -G
 ```
 
-On Linux, capture uses a GTK window that gives the requested grid the full content area. Run it on a desktop or use Xvfb for automation.
+On Linux, capture reads the terminal surface at the configured grid size. Run it on a desktop or use Xvfb for automation.
 
 ```sh
 xvfb-run -a ./v-out/bin/witty --screenshot=/tmp/witty.png -e /bin/ls --color=always

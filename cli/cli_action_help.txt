@@ -219,45 +219,15 @@ Flags:
 @@boo
 The `boo` command is used to display the animation from the Witty website in the terminal
 @@new-window
-The `new-window` will use native platform IPC to open up a new window in a
-running instance of Witty.
+Open a new Witty window on Linux.
 
-If the `--class` flag is not set, the `new-window` command will try and
-connect to a running instance of Witty based on what optimizations the
-Witty CLI was compiled with. Otherwise the `new-window` command will try
-and contact a running Witty instance that was configured with the same
-`class` as was given on the command line.
-
-If the `-e` flag is included on the command line, any arguments that follow
-will be sent to the running Witty instance and used as the command to run
-in the new window rather than the default. If `-e` is not specified, Witty
-will use the default command (either specified with `command` in your config
-or your default shell as configured on your system).
-
-GTK uses an application ID to identify instances of applications. If Witty
-is compiled with release optimizations, the default application ID will be
-`com.alexander.witty`. If Witty is compiled with debug optimizations,
-the default application ID will be `com.alexander.witty-debug`.  The
-`class` configuration entry can be used to set up a custom application
-ID. The class name must follow the requirements defined [in the GTK
-documentation](https://docs.gtk.org/gio/type_func.Application.id_is_valid.html)
-or it will be ignored and Witty will use the default as defined above.
-
-On GTK, D-Bus activation must be properly configured. Witty does not need
-to be running for this to open a new window, making it suitable for binding
-to keys in your window manager (if other methods for configuring global
-shortcuts are unavailable). D-Bus will handle launching a new instance
-of Witty if it is not already running. See the Witty website for
-information on properly configuring D-Bus activation.
-
-Only supported on GTK.
+If specified, the arguments after the `-e` flag will be interpreted as a
+command to run in the new window. With no command, Witty loads the
+configured command or default shell.
 
 Flags:
 
-  * `--class=<class>`: If set, open up a new window in a custom instance of
-    Witty. The class must be a valid GTK application ID.
-
-  * `-e`: Any arguments after this will be interpreted as a command to
-    execute inside the new window instead of the default command.
+  * `--class=<class>`: Set the class configuration for the new window.
+  * `-e`: Run the remaining arguments as a command.
 
 Available since: 1.2.0
