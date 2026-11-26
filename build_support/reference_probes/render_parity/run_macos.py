@@ -25,7 +25,7 @@ from fixtures import (
     TERMINAL_COLOR_PALETTE, TERMINAL_COLOR_RESET, TERMINAL_COLOR_SCREEN,
     WALLPAPER_OPTIONS, colored_line_erase, grapheme_sequences, kitty_layers, kitty_layout,
     kitty_retransmit, kitty_unicode, prepare_raster_effects, shader_fixture_options,
-    terminal_color_updates, wrapped_wide_edits, wrapped_wide_glyphs,
+    terminal_color_updates, wide_selection_frame, wrapped_wide_edits, wrapped_wide_glyphs,
 )
 
 
@@ -61,6 +61,14 @@ SCROLLBACK_KEYS = {
 SCROLLBACK_OUTPUT_OPTIONS = {
     "scrollback-keep-position": "--scroll-to-bottom=no-keystroke,no-output",
     "scrollback-follow-output": "--scroll-to-bottom=no-keystroke,output",
+}
+SELECTION_DRAGS = {
+    # The emoji spans columns 13 and 14. Begin the drag on the second cell.
+    "selection-wide": (14.25, 3.5, 19.8, 3.5),
+    "selection-wide-translucent": (14.25, 3.5, 19.8, 3.5),
+    # Drag from the continuation line back across the trailing cell at the right edge.
+    "selection-wrap-backward": (5.8, 7.5, 55.2, 6.5),
+    "selection-rectangle": (12.25, 2.5, 20.75, 4.5),
 }
 TRANSLUCENT_WINDOW = (
     "--background-opacity=0.5", "--window-padding-x=7,5", "--window-padding-y=3,8",
@@ -129,8 +137,10 @@ VIM_RETURN = GRID_FRAME_START + r'''
 printf 'ready'
 exec /bin/sleep 20
 '''
-SCROLLBACK = GRID_FRAME_START + r'''
+INPUT_FRAME_START = GRID_FRAME_START + r'''
 : > "$1" || exit 1
+'''
+SCROLLBACK = INPUT_FRAME_START + r'''
 if /bin/dd bs=1 count=1 of=/dev/null 2>/dev/null; then
     printf '\033]4;42;#a94376\007\r\n\033[1mNew output, row 49\033[0m'
 fi
@@ -326,7 +336,7 @@ def prepare_tmux_copy_history(work):
     (work / "tmux-copy-history.txt").write_text("".join(lines), encoding="utf-8")
 
 
-def prepare_scrollback_fixture(work, output):
+def prepare_scrollback_fixture(work):
     rows = []
     for row in range(1, 49):
         label = "needle" if row in (5, 38, 44) else "normal"
@@ -334,15 +344,43 @@ def prepare_scrollback_fixture(work, output):
         rows.append(f"{background}  \x1b[0m Output {row:02d}  {label} · {'█' * (row % 13)}")
     (work / "scrollback.bin").write_bytes(CLEAR_FRAME + b"\x1b[?25l" + "\r\n".join(rows).encode())
     (work / "scrollback.sh").write_text(SCROLLBACK)
-    source = Path(__file__).with_name("macos_probe_keys.m")
-    library = output / "macos-probe-keys.dylib"
+
+
+def prepare_selection_fixtures(work):
+    frame = CLEAR_FRAME + b"\x1b[?25l" + wide_selection_frame().removesuffix(b"\n").replace(b"\n", b"\r\n")
+    wrap = "wide at the right edge".ljust(WINDOW_COLUMNS - 2, "·")
+    wrap = f"\x1b[7;1H{wrap}\x1b[3;96m界\x1b[0m next e\u0301 sample"
+    (work / "selection-wide.bin").write_bytes(frame)
+    (work / "selection-wrap.bin").write_bytes(frame + wrap.encode())
+    (work / "selection.sh").write_text(INPUT_FRAME_START + "exec /bin/sleep 20\n")
+
+
+def build_probe_input(output):
+    source = Path(__file__).with_name("macos_probe_input.m")
+    library = output / "macos-probe-input.dylib"
     subprocess.run(["/usr/bin/xcrun", "clang", "-fobjc-arc", "-dynamiclib", "-framework", "AppKit",
                     source, "-o", library], check=True, timeout=30)
     return library
 
 
-def capture_scrollback(witty, options, prefix, settle, name, library):
+def capture_with_input(witty, args, prefix, settle, library, script, frame, *, keys=(), drag=(),
+                       option_drag=False):
     ready = prefix.with_suffix(".ready")
+    env = {
+        "DYLD_INSERT_LIBRARIES": str(library),
+        "WITTY_VIEWPORT_KEYS": ",".join(keys),
+        "WITTY_VIEWPORT_DRAG": ",".join(map(str, drag)),
+        "WITTY_VIEWPORT_DRAG_OPTION": "1" if option_drag else "",
+        "WITTY_VIEWPORT_READY": str(ready),
+    }
+    command = (*args, "-e", "/bin/sh", script, frame, f"{WINDOW_ROWS} {WINDOW_COLUMNS}", ready)
+    capture_witty(witty, command, prefix, settle + 2, env=env)
+    log = prefix.with_suffix(".log")
+    if "macOS render probe dispatched input" not in log.read_text():
+        raise RuntimeError(f"Probe input was not dispatched. Use a standalone Witty build and check {log}")
+
+
+def capture_scrollback(witty, options, prefix, settle, name, library):
     output_option = SCROLLBACK_OUTPUT_OPTIONS.get(name)
     args = [
         *options, "--palette=42=176879", "--search-background=ffe082",
@@ -352,17 +390,22 @@ def capture_scrollback(witty, options, prefix, settle, name, library):
     ]
     if output_option:
         args.append(output_option)
-    args.extend(("-e", "/bin/sh", "scrollback.sh", "scrollback",
-                 f"{WINDOW_ROWS} {WINDOW_COLUMNS}", ready))
-    env = {
-        "DYLD_INSERT_LIBRARIES": str(library),
-        "WITTY_VIEWPORT_KEYS": ",".join(SCROLLBACK_KEYS[name]),
-        "WITTY_VIEWPORT_READY": str(ready),
-    }
-    capture_witty(witty, args, prefix, settle + 2, env=env)
-    log = prefix.with_suffix(".log")
-    if "macOS render probe dispatched all keys" not in log.read_text():
-        raise RuntimeError(f"Scrollback probe keys were not dispatched. Use a standalone Witty build and check {log}")
+    capture_with_input(witty, args, prefix, settle, library, "scrollback.sh", "scrollback",
+                       keys=SCROLLBACK_KEYS[name])
+
+
+def capture_selection(witty, options, prefix, settle, name, library):
+    args = [
+        *options, "--window-padding-x=0", "--window-padding-y=0", "--window-padding-balance=false",
+        "--copy-on-select=false", "--selection-foreground=fef1d4", "--selection-background=17516b",
+    ]
+    if name == "selection-wide-translucent":
+        args.extend(("--background-opacity=0.55", "--background-opacity-cells=true"))
+    frame = "selection-wrap" if name == "selection-wrap-backward" else "selection-wide"
+    x0, y0, x1, y1 = SELECTION_DRAGS[name]
+    drag = (x0 / WINDOW_COLUMNS, y0 / WINDOW_ROWS, x1 / WINDOW_COLUMNS, y1 / WINDOW_ROWS)
+    capture_with_input(witty, args, prefix, settle, library, "selection.sh", frame, drag=drag,
+                       option_drag=name == "selection-rectangle")
 
 
 def start_tmux_copy_fixture(server, work, *, select):
@@ -438,9 +481,13 @@ def run(witty, output, settle, references, programs):
         prepare_applications(work, ("tmux",))
     if any(name in references for name in TMUX_COPY_FIXTURES):
         prepare_tmux_copy_history(work)
-    probe_keys = None
-    if any(name in SCROLLBACK_KEYS for name in references):
-        probe_keys = prepare_scrollback_fixture(work, output)
+    scrollback = any(name in SCROLLBACK_KEYS for name in references)
+    selection = any(name in SELECTION_DRAGS for name in references)
+    if scrollback:
+        prepare_scrollback_fixture(work)
+    if selection:
+        prepare_selection_fixtures(work)
+    probe_input = build_probe_input(output) if scrollback or selection else None
     commands = fixture_args(work)
     if "nvim" in programs:
         commands.update(prepare_neovim(work, programs["nvim"]))
@@ -464,7 +511,9 @@ def run(witty, output, settle, references, programs):
             if name in TMUX_FIXTURES:
                 capture_tmux_frame(witty, tmux, options, work, prefix, settle, name)
             elif name in SCROLLBACK_KEYS:
-                capture_scrollback(witty, options, prefix, settle, name, probe_keys)
+                capture_scrollback(witty, options, prefix, settle, name, probe_input)
+            elif name in SELECTION_DRAGS:
+                capture_selection(witty, options, prefix, settle, name, probe_input)
             else:
                 capture_witty(witty, [*options, *commands[name]], prefix, settle)
             with Image.open(prefix.with_suffix(".png")) as png:
@@ -503,6 +552,7 @@ def main():
         parser.error(f"expected an executable file at {args.witty}")
     optional_fixtures = {name for fixtures in OPTIONAL_APPLICATIONS.values() for name in fixtures}
     optional_fixtures.update(SCROLLBACK_KEYS)
+    optional_fixtures.update(SELECTION_DRAGS)
     default_fixtures = [name for name in references if name not in optional_fixtures]
     selected = {name: references[name] for name in args.fixture or default_fixtures}
     programs = {}
