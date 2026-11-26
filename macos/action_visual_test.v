@@ -316,9 +316,10 @@ fn test_native_hover_banner_capture() {
 	msg_void(base, 'release')
 	surface.scroll.layout()
 
-	names := ['short', 'long', 'unicode', 'file', 'emoji']
+	names := ['short', 'long', 'unicode', 'file', 'emoji', 'emoji-sequences']
 	urls := ['https://example.org/path', 'https://example.org/long/path/to/an/application/file.html',
-		'https://example.org/é/東京', 'file:///private/tmp/../tmp/', 'https://x.test/🚀/😃']
+		'https://example.org/é/東京', 'file:///private/tmp/../tmp/', 'https://x.test/🚀/😃',
+		'https://x.test/👍🏽/🇯🇵']
 	for m, appearance in ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
 		msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',
 			nsstring(appearance)))

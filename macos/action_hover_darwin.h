@@ -90,7 +90,7 @@ static inline void witty_hover_set_background(NSView *view, CALayer *bottom, CAL
 
 static inline void witty_hover_draw_line(CGContextRef target, CTLineRef line, NSView *view,
         const CGRect *bounds, uint32_t *pixels, int width, int height, double padding, double baseline) {
-    // SwiftUI rounds mixed-color label opacity to nearest and uses an sRGB bitmap in cached views.
+    // Cached mixed-color previews use an sRGB bitmap. Live previews apply label opacity in the compositor.
     const bool mixed_color = witty_hover_line_has_color(line);
     const bool bitmap_target = CGBitmapContextGetBitsPerComponent(target) != 0;
     const WittyCanvasTextLayout layout = {
@@ -99,8 +99,9 @@ static inline void witty_hover_draw_line(CGContextRef target, CTLineRef line, NS
         .position = CGPointMake(bounds->origin.x + padding, bounds->origin.y + baseline),
         .color_baseline_offset = -0.5,
         .bitmap_color_space = mixed_color && bitmap_target ? kCGColorSpaceSRGB : NULL,
-        .ink_rounding = mixed_color ? WittyCanvasRoundInkNearest : WittyCanvasRoundInkUp,
-        .use_bitmap_color_glyphs = true,
+        .ink_rounding = !mixed_color ? WittyCanvasRoundInkUp :
+            (bitmap_target ? WittyCanvasRoundInkNearest : WittyCanvasNativeInk),
+        .fit_color_glyphs_to_backing = true,
     };
     [[view effectiveAppearance] performAsCurrentDrawingAppearance:^{
         witty_canvas_draw_text_runs(target, line, [NSColor labelColor], layout, pixels, width, height);

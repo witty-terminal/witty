@@ -141,12 +141,17 @@ fn (mut surface NativeActionSurface) refresh_hover_visuals() {
 	width := math.min(available, math.ceil((surface.hover_text_width + 2 * hover_padding) * scale) / scale)
 	y := view_height(surface.view) - hover_height
 	x := if surface.hover_left { available - width } else { 0.0 }
+	old_width := view_width(surface.hover_ink)
 	msg_void_rect(surface.hover_label, 'setFrame:', objc_rect(x, y, width, hover_height))
 	msg_void_bool(surface.hover_label, 'setHidden:', false)
 	surface.refresh_hover_background()
 	msg_void_bool(surface.hover_label, 'setNeedsDisplay:', true)
 	// Moving an existing preview can reuse its glyph layer.
 	if rebuild_line {
+		if width == old_width {
+			// A same-size redraw can reuse a raster backing and change glyph color rounding.
+			msg_void1(msg_id(surface.hover_ink, 'layer'), 'setContents:', nil_obj())
+		}
 		msg_void_bool(surface.hover_ink, 'setNeedsDisplay:', true)
 	}
 

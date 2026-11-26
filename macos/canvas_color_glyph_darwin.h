@@ -20,7 +20,7 @@ static inline uint32_t witty_sbix_u32(const UInt8 *bytes) {
     return CFSwapInt32BigToHost(value);
 }
 
-static inline const UInt8 *witty_sbix_largest_strike(CFDataRef table, size_t *length) {
+static inline const UInt8 *witty_sbix_strike(CFDataRef table, size_t *length, double target) {
     const size_t size = (size_t)CFDataGetLength(table);
     const UInt8 *bytes = CFDataGetBytePtr(table);
     // Version 1 bitmaps without additional vector outlines.
@@ -28,20 +28,21 @@ static inline const UInt8 *witty_sbix_largest_strike(CFDataRef table, size_t *le
     const size_t count = witty_sbix_u32(bytes + 4);
     if (count > (size - 8) / 4) return NULL;
 
-    const UInt8 *largest = NULL;
-    uint16_t largest_ppem = 0;
+    const UInt8 *selected = NULL;
+    uint16_t selected_ppem = 0;
     for (size_t i = 0; i < count; i++) {
         const size_t begin = witty_sbix_u32(bytes + 8 + i * 4);
         const size_t end = i + 1 == count ? size : witty_sbix_u32(bytes + 8 + (i + 1) * 4);
         if (begin < 8 + count * 4 || end > size || begin > end || end - begin < 4) return NULL;
         const uint16_t ppem = witty_sbix_u16(bytes + begin);
-        if (ppem > largest_ppem) {
-            largest_ppem = ppem;
-            largest = bytes + begin;
+        const bool have_fit = target > 0 && selected_ppem >= target;
+        if (have_fit ? ppem >= target && ppem < selected_ppem : ppem > selected_ppem) {
+            selected_ppem = ppem;
+            selected = bytes + begin;
             *length = end - begin;
         }
     }
-    return largest;
+    return selected;
 }
 
 static inline CGImageRef witty_sbix_png(const UInt8 *strike, size_t length, size_t count, CGGlyph glyph) {
@@ -78,20 +79,21 @@ typedef struct {
     CGRect bounds;
 } WittyCanvasColorGlyph;
 
-// Preserve the full-resolution bitmap Core Text uses in AppKit's display
-// list. Pre-rasterizing it at the viewport scale selects a smaller strike
-// and discards detail before the window compositor samples the image.
-static inline bool witty_canvas_draw_color_glyphs(CGContextRef context, CTRunRef run, CTFontRef font) {
+// Present the font's bitmap in AppKit's display list. Some views need the
+// smallest strike that covers the backing-pixel dimensions of the glyph.
+static inline bool witty_canvas_draw_color_glyphs(CGContextRef context, CTRunRef run, CTFontRef font,
+        bool fit_to_backing) {
     // Extra transforms change Core Text's subpixel placement in the display list.
     const CGAffineTransform transform = CGContextGetCTM(context);
     if (fabs(transform.a) != 1 || fabs(transform.d) != 1 || transform.b != 0 || transform.c != 0) return false;
     if (!CGAffineTransformIsIdentity(CTRunGetTextMatrix(run))) return false;
     CFDataRef table = CTFontCopyTable(font, kCTFontTableSbix, kCTFontTableOptionNoOptions);
     if (!table) return false;
-    size_t length = 0;
-    const UInt8 *strike = witty_sbix_largest_strike(table, &length);
+    size_t default_length = 0;
+    const UInt8 *default_strike = fit_to_backing ? NULL : witty_sbix_strike(table, &default_length, 0);
     const CFIndex count = CTRunGetGlyphCount(run);
-    WittyCanvasColorGlyph *glyphs = strike && count > 0 ? calloc((size_t)count, sizeof(*glyphs)) : NULL;
+    WittyCanvasColorGlyph *glyphs = count > 0 && (fit_to_backing || default_strike)
+        ? calloc((size_t)count, sizeof(*glyphs)) : NULL;
     bool complete = glyphs != NULL;
     if (glyphs) {
         const size_t font_glyphs = (size_t)CTFontGetGlyphCount(font);
@@ -103,9 +105,12 @@ static inline bool witty_canvas_draw_color_glyphs(CGContextRef context, CTRunRef
             const CFRange range = CFRangeMake(i, 1);
             const CGRect bounds = CTRunGetImageBounds(run, context, range);
             if (CGRectIsEmpty(bounds)) continue;
+            size_t length = default_length;
+            const double target = fmax(bounds.size.width * sx, bounds.size.height * sy);
+            const UInt8 *strike = fit_to_backing ? witty_sbix_strike(table, &length, target) : default_strike;
             CGGlyph glyph;
             CTRunGetGlyphs(run, range, &glyph);
-            glyphs[i].image = witty_sbix_png(strike, length, font_glyphs, glyph);
+            glyphs[i].image = strike ? witty_sbix_png(strike, length, font_glyphs, glyph) : NULL;
             complete = glyphs[i].image != NULL;
             // Core Text snaps each glyph relative to the run's text origin.
             glyphs[i].bounds = CGRectMake(origin.x + floor((bounds.origin.x - origin.x) * sx + 0.5) / sx,

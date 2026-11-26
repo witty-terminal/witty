@@ -19,7 +19,7 @@ typedef struct {
     bool flipped;
     bool premultiply_translucent_ink;
     WittyCanvasInkRounding ink_rounding;
-    bool use_bitmap_color_glyphs;
+    bool fit_color_glyphs_to_backing;
 } WittyCanvasTextLayout;
 
 static inline bool witty_canvas_font_has_color_glyphs(CTFontRef font) {
@@ -68,7 +68,7 @@ static inline void witty_canvas_draw_text_runs(CGContextRef target, CTLineRef li
         NSColor *tint = attributes[NSForegroundColorAttributeName] ?: color;
         const double x = layout.position.x;
         const double y = layout.position.y + (color_glyphs ? layout.color_baseline_offset : 0);
-        if (color_glyphs && !layout.use_bitmap_color_glyphs && CGBitmapContextGetBitsPerComponent(target) == 0) {
+        if (color_glyphs && CGBitmapContextGetBitsPerComponent(target) == 0) {
             CGContextSaveGState(target);
             CGContextClipToRect(target, layout.clip);
             if (layout.flipped) {
@@ -77,7 +77,7 @@ static inline void witty_canvas_draw_text_runs(CGContextRef target, CTLineRef li
             }
             CGContextSetTextMatrix(target, CGAffineTransformIdentity);
             CGContextSetTextPosition(target, x, y);
-            const bool drawn = witty_canvas_draw_color_glyphs(target, run, font);
+            const bool drawn = witty_canvas_draw_color_glyphs(target, run, font, layout.fit_color_glyphs_to_backing);
             CGContextRestoreGState(target);
             if (drawn) continue;
         }
