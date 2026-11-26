@@ -86,7 +86,7 @@ python3 build_support/reference_probes/render_parity/run_macos_hover.py \
   .witty-build/artifacts/witty /Applications/Ghostty.app/Contents/MacOS/ghostty
 ```
 
-The probe Command-hovers over a plain URL and an OSC 8 link in light and dark windows. It captures both the terminal underline and the preview, switches the window appearance while the preview is open, then moves the pointer away. The report includes the exact number of differing pixels and the largest channel difference per frame. The default tolerance is zero. Pass `--maximum-channel-error 1` to allow one level of color rounding while keeping the exact counts in the report.
+The probe Command-hovers over a plain URL and an OSC 8 link in light and dark windows. It captures the terminal underline and the preview before and after the pointer crosses into the preview area, switches the window appearance while the preview is on the right, then checks that the preview returns to the left and clears. The report includes the exact number of differing pixels and the largest channel difference per frame. The default tolerance is zero. Pass `--maximum-channel-error 1` to allow one level of color rounding while keeping the exact counts in the report.
 
 The terminal text fixtures cover ligatures, ANSI colors and decorations, box drawing, Powerline separators, combining accents, wide characters, and emoji. The translucent cases check how styled cells and glyphs blend over a partially transparent background with unequal padding.
 

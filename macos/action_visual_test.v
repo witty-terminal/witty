@@ -93,10 +93,14 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	assert C.witty_overlay_test_has_16bit_coverage(msg_id(surface.hover_background_layer, 'mask'))
 	assert objc_utf8_string(msg_id(surface.hover_label, 'accessibilityValue')) == 'https://example.com/long/path'
 	tracking := surface.hover_tracking
+	tracking_owner := msg_id(tracking, 'owner')
 	assert msg_rect(surface.hover_label, 'frame').x == 0
-	action_hover_entered(surface.owner, nil_obj(), nil_obj())
+	msg_void1(tracking_owner, 'mouseEntered:', nil_obj())
 	frame := msg_rect(surface.hover_label, 'frame')
 	assert frame.x + frame.width == view_width(view)
+	assert surface.hover_tracking == tracking
+	msg_void1(tracking_owner, 'mouseExited:', nil_obj())
+	assert msg_rect(surface.hover_label, 'frame').x == 0
 	assert surface.hover_tracking == tracking
 	surface.mouse_over_link('')
 	assert is_nil(surface.hover_tracking)

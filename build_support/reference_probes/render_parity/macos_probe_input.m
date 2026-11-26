@@ -134,12 +134,52 @@ static bool capture_hover_frame(NSView *view, NSString *prefix, NSString *state)
     return [[pixels representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:path atomically:YES];
 }
 
-static void move_pointer(NSView *view, double x, double y, NSEventModifierFlags modifiers) {
+static NSEvent *move_pointer(NSView *view, double x, double y, NSEventModifierFlags modifiers) {
     NSPoint point = [view convertPoint:terminal_point(view, x, y) toView:nil];
     NSEvent *event = [NSEvent mouseEventWithType:NSEventTypeMouseMoved location:point
         modifierFlags:modifiers timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:view.window.windowNumber
         context:nil eventNumber:0 clickCount:0 pressure:0];
     [view mouseMoved:event];
+    return event;
+}
+
+static NSEvent *tracking_event(NSEvent *motion, bool inside) {
+    return [NSEvent enterExitEventWithType:inside ? NSEventTypeMouseEntered : NSEventTypeMouseExited
+        location:motion.locationInWindow modifierFlags:motion.modifierFlags timestamp:motion.timestamp
+        windowNumber:motion.windowNumber context:nil eventNumber:0 trackingNumber:0 userData:NULL];
+}
+
+static void move_hover_pointer(NSView *view, double y, bool ghostty) {
+    NSEvent *motion = move_pointer(view, .067, y, NSEventModifierFlagCommand);
+    // The probe drives tracking in the launched app without moving the desktop pointer.
+    if (ghostty) {
+        static bool hosting_entered;
+        for (NSView *host = view.superview; host; host = host.superview) {
+            if (![NSStringFromClass(host.class) containsString:@"NSHostingView"]) continue;
+            if (!hosting_entered) {
+                [host mouseEntered:tracking_event(motion, true)];
+                hosting_entered = true;
+            }
+            [host mouseMoved:motion];
+            break;
+        }
+        return;
+    }
+
+    static bool inside_preview;
+    for (NSView *overlay in view.subviews) {
+        if (![NSStringFromClass(overlay.class) isEqualToString:@"WittyActionOverlay"]) continue;
+        NSPoint point = [overlay convertPoint:motion.locationInWindow fromView:nil];
+        for (NSTrackingArea *area in overlay.trackingAreas) {
+            if (!(area.options & NSTrackingMouseEnteredAndExited)) continue;
+            bool inside = NSPointInRect(point, area.rect);
+            if (inside == inside_preview) continue;
+            inside_preview = inside;
+            NSEvent *event = tracking_event(motion, inside);
+            if (inside) [area.owner mouseEntered:event];
+            else [area.owner mouseExited:event];
+        }
+    }
 }
 
 static void send_command_flag(NSView *view, bool pressed) {
@@ -151,8 +191,8 @@ static void send_command_flag(NSView *view, bool pressed) {
     CFRelease(cg);
 }
 
-static void capture_hover(NSView *view, NSString *prefix, NSUInteger step) {
-    NSArray<NSString *> *states = @[@"idle", @"hover", @"rethemed", @"cleared"];
+static void capture_hover(NSView *view, NSString *prefix, BOOL ghostty, NSUInteger step) {
+    NSArray<NSString *> *states = @[@"idle", @"hover", @"relocated", @"rethemed", @"returned", @"cleared"];
     if (!capture_hover_frame(view, prefix, states[step])) {
         fprintf(stderr, "macOS render probe could not capture the foreground terminal window\n");
         exit(EXIT_FAILURE);
@@ -161,20 +201,25 @@ static void capture_hover(NSView *view, NSString *prefix, NSUInteger step) {
         // The fixture prints the link on the second row, beginning at the second column.
         move_pointer(view, .065, .10, 0);
         send_command_flag(view, true);
-        move_pointer(view, .067, .10, NSEventModifierFlagCommand);
+        move_hover_pointer(view, .10, ghostty);
     } else if (step == 1) {
+        // The same link on the last row keeps the preview active during relocation.
+        move_hover_pointer(view, .97, ghostty);
+    } else if (step == 2) {
         NSString *appearance = [view.window.effectiveAppearance bestMatchFromAppearancesWithNames:
             @[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
         view.window.appearance = [NSAppearance appearanceNamed:
             [appearance isEqualToString:NSAppearanceNameAqua] ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
-    } else if (step == 2) {
+    } else if (step == 3) {
+        move_hover_pointer(view, .10, ghostty);
+    } else if (step == 4) {
         send_command_flag(view, false);
         move_pointer(view, .5, .65, 0);
     } else {
         exit(EXIT_SUCCESS);
     }
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 450 * NSEC_PER_MSEC),
-        dispatch_get_main_queue(), ^{ capture_hover(view, prefix, step + 1); });
+        dispatch_get_main_queue(), ^{ capture_hover(view, prefix, ghostty, step + 1); });
 }
 
 static void wait_for_terminal(const char *ready, int attempts, BOOL ghostty, void (^dispatch_input)(NSView *)) {
@@ -224,7 +269,7 @@ __attribute__((constructor)) static void install_probe_input(void) {
                 [view.window makeKeyAndOrderFront:nil];
                 [NSApp activateIgnoringOtherApps:YES];
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 400 * NSEC_PER_MSEC),
-                    dispatch_get_main_queue(), ^{ capture_hover(view, prefix, 0); });
+                    dispatch_get_main_queue(), ^{ capture_hover(view, prefix, ghostty, 0); });
             });
         });
         return;

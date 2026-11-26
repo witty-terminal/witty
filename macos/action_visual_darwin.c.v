@@ -3,8 +3,8 @@ module macos
 fn C.witty_action_shadow_offset(layer voidptr, x f64, y f64)
 
 fn register_action_visual_methods(cls ObjId) {
-	add_method(cls, 'hoverEntered:', voidptr(action_hover_entered), 'v@:@')
-	add_method(cls, 'hoverExited:', voidptr(action_hover_exited), 'v@:@')
+	add_method(cls, 'mouseEntered:', voidptr(action_hover_entered), 'v@:@')
+	add_method(cls, 'mouseExited:', voidptr(action_hover_exited), 'v@:@')
 	add_method(cls, 'presentAgain:', voidptr(action_present_again), 'v@:@')
 	add_method(cls, 'highlightExpired:', voidptr(action_highlight_expired), 'v@:@')
 }

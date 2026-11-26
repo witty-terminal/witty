@@ -14,7 +14,7 @@ from capture import output_directory, write_versions
 from run_macos import INPUT_FRAME_START, OPTIONS, WINDOW_COLUMNS, WINDOW_ROWS, build_probe_input
 
 
-STATES = ("idle", "hover", "rethemed", "cleared")
+STATES = ("idle", "hover", "relocated", "rethemed", "returned", "cleared")
 URL = b"https://example.org/path?q=parity"
 HOVER_OPTIONS = (
     "--window-decoration=none",
@@ -32,8 +32,10 @@ HOVER_OPTIONS = (
 def prepare_fixture(directory):
     directory.mkdir(exist_ok=True)
     start = b"\x1b[2J\x1b[H\x1b[?25l\x1b[2;2H"
-    (directory / "plain.bin").write_bytes(start + URL)
-    (directory / "osc8.bin").write_bytes(start + b"\x1b]8;;" + URL + b"\x1b\\Example link\x1b]8;;\x1b\\")
+    last_row = f"\x1b[{WINDOW_ROWS};2H".encode("ascii")
+    osc8 = b"\x1b]8;;" + URL + b"\x1b\\Example link\x1b]8;;\x1b\\"
+    for kind, link in (("plain", URL), ("osc8", osc8)):
+        (directory / f"{kind}.bin").write_bytes(start + link + last_row + link)
     (directory / "hover.sh").write_text(INPUT_FRAME_START + "exec /bin/sleep 20\n")
 
 
@@ -75,10 +77,20 @@ def verify_transitions(frames, fixture):
     width, height = frames["idle"].size
     if any(frame.size != (width, height) for frame in frames.values()):
         raise RuntimeError(f"Terminal size changed during {fixture}")
-    bounds = (0, 3 * height // 4, width, height)
-    idle, hover, rethemed, cleared = (frames[state].crop(bounds) for state in STATES)
-    if idle == hover or idle == rethemed or hover == rethemed or idle != cleared:
-        raise RuntimeError(f"Link preview did not appear, repaint, and clear in {fixture}")
+    # The preview extends above the last text row. Check placement in that band.
+    bounds = (0, 3 * height // 4, width, height - height // WINDOW_ROWS)
+    strips = {state: frame.crop(bounds).convert("RGB") for state, frame in frames.items()}
+    for state, on_right in (("hover", False), ("relocated", True), ("rethemed", True), ("returned", False)):
+        box = ImageChops.difference(strips["idle"], strips[state]).getbbox()
+        if box:
+            at_edge = box[0] > 0 and box[2] == width if on_right else box[0] == 0 and box[2] < width
+        else:
+            at_edge = False
+        if not at_edge:
+            side = "right" if on_right else "left"
+            raise RuntimeError(f"Link preview did not appear on the {side} in {fixture} {state}")
+    if strips["relocated"] == strips["rethemed"] or strips["idle"] != strips["cleared"]:
+        raise RuntimeError(f"Link preview did not repaint and clear in {fixture}")
 
 
 def compare(witty, ghostty):
