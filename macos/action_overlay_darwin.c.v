@@ -138,6 +138,7 @@ mut:
 	health_label        ObjId
 	hover_label         ObjId
 	hover_fill          [2]ObjId
+	hover_corner_layer  ObjId
 	hover_ink           ObjId
 	hover_url           string
 	hover_display       string

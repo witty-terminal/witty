@@ -66,11 +66,10 @@ static inline int witty_hover_corner_phase(NSView *view, bool round_left) {
 }
 
 static inline void witty_hover_draw_background(CGContextRef target, NSView *view, const CGRect *bounds,
-        const CGRect *clip, const uint32_t *pixels, int width, int height) {
+        const uint32_t *pixels, int width, int height) {
     CGImageRef mask = witty_canvas_make_text_mask(pixels, width, height);
     if (!mask) return;
     CGContextSaveGState(target);
-    CGContextClipToRect(target, *clip);
     CGContextSetInterpolationQuality(target, kCGInterpolationNone);
     CGContextClipToMask(target, *bounds, mask);
     [[view effectiveAppearance] performAsCurrentDrawingAppearance:^{
@@ -81,8 +80,8 @@ static inline void witty_hover_draw_background(CGContextRef target, NSView *view
     CGImageRelease(mask);
 }
 
-static inline void witty_hover_set_background(NSView *view, CALayer *bottom, CALayer *top,
-        const CGRect *corner) {
+static inline void witty_hover_set_background(NSView *view, CALayer *bottom, CALayer *top, CALayer *edge,
+        const CGRect *corner, const float *coverage, int width, int height, double scale) {
     const CGRect bounds = view.bounds;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -91,10 +90,32 @@ static inline void witty_hover_set_background(NSView *view, CALayer *bottom, CAL
     const bool left = CGRectGetMinX(*corner) == bounds.origin.x;
     top.frame = CGRectMake(left ? CGRectGetMaxX(*corner) : bounds.origin.x, corner->origin.y,
         bounds.size.width - corner->size.width, corner->size.height);
+    edge.frame = *corner;
     [[view effectiveAppearance] performAsCurrentDrawingAppearance:^{
         bottom.backgroundColor = NSColor.windowBackgroundColor.CGColor;
         top.backgroundColor = bottom.backgroundColor;
+        edge.backgroundColor = bottom.backgroundColor;
     }];
+    // Core Animation applies the 16-bit coverage to the same tint as the opaque fill.
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceExtendedLinearSRGB);
+    CGImageRef image = witty_canvas_alpha_image(NULL, coverage, width, height, space, 0, 0, 0, 1);
+    if (space) CGColorSpaceRelease(space);
+    if (image) {
+        CALayer *mask = edge.mask;
+        if (!mask) {
+            mask = [CALayer layer];
+            mask.contentsFormat = kCAContentsFormatRGBA16Float;
+            mask.minificationFilter = kCAFilterNearest;
+            mask.magnificationFilter = kCAFilterNearest;
+            edge.mask = mask;
+        }
+        mask.frame = edge.bounds;
+        mask.contentsScale = scale;
+        mask.contents = (id)image;
+        CGImageRelease(image);
+    } else {
+        edge.mask = nil;
+    }
     [CATransaction commit];
 }
 

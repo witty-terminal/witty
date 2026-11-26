@@ -89,6 +89,7 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	assert is_nil(msg_id1(surface.secure_wash, 'animationForKey:', nsstring('secureOpacity')))
 	surface.mouse_over_link('https://example.com/long/path')
 	assert !is_nil(surface.hover_tracking)
+	assert C.witty_overlay_test_has_16bit_coverage(msg_id(surface.hover_corner_layer, 'mask'))
 	assert objc_utf8_string(msg_id(surface.hover_label, 'accessibilityValue')) == 'https://example.com/long/path'
 	tracking := surface.hover_tracking
 	assert msg_rect(surface.hover_label, 'frame').x == 0
@@ -351,40 +352,40 @@ fn test_native_hover_banner_capture() {
 fn test_hover_banner_raster_mirroring_and_display_string() {
 	assert hover_display_url('https://example.org/é/東京') == 'https://example.org/é/東京'
 	assert hover_display_url('https://example.org/a\u202eb') == 'https://example.org/a\\u{202E}b'
-	for live in [false, true] {
-		left := hover_canvas_mask(40, 52, 2, true, live, 0)!
-		right := hover_canvas_mask(40, 52, 2, false, live, 0)!
-		assert left.pixels[0] >> 24 == 0
-		assert left.pixels[39] >> 24 == 255
-		assert left.pixels[51 * 40] >> 24 == 255
-		for row in 0 .. 52 {
-			for column in 0 .. 40 {
-				a := int(left.pixels[row * 40 + column] >> 24)
-				b := int(right.pixels[row * 40 + 39 - column] >> 24)
-				// Quartz rounds the circular outline independently in each direction.
-				assert math.abs(a - b) <= if live { 0 } else { 1 }
-			}
+	left := hover_canvas_mask(40, 52, 2, true)!
+	right := hover_canvas_mask(40, 52, 2, false)!
+	assert left.pixels[0] >> 24 == 0
+	assert left.pixels[39] >> 24 == 255
+	assert left.pixels[51 * 40] >> 24 == 255
+	for row in 0 .. 52 {
+		for column in 0 .. 40 {
+			a := int(left.pixels[row * 40 + column] >> 24)
+			b := int(right.pixels[row * 40 + 39 - column] >> 24)
+			// Quartz rounds the circular outline independently in each direction.
+			assert math.abs(a - b) <= 1
 		}
 	}
 }
 
 fn test_hover_banner_live_corner_coverage_near_straight_edge() {
-	one := hover_canvas_mask(40, 52, 1, true, true, 0)!
-	two := hover_canvas_mask(40, 52, 2, true, true, 0)!
+	one := hover_corner_coverage(14, 14, 1, true, 0)
+	two := hover_corner_coverage(28, 28, 2, true, 0)
 	// The corner still covers part of the first row where it approaches the straight edge.
-	assert one.pixels[12] >> 24 == 249
-	assert two.pixels[24] >> 24 == 242
+	assert math.round(one[12] * 255) == 249
+	assert math.round(two[24] * 255) == 242
 }
 
 fn test_hover_banner_live_corner_follows_backing_pixel_phase() {
-	x_odd := hover_canvas_mask(40, 52, 2, true, true, 1)!
-	y_odd := hover_canvas_mask(40, 52, 2, true, true, 2)!
+	x_odd := hover_corner_coverage(28, 28, 2, true, 1)
+	y_odd := hover_corner_coverage(28, 28, 2, true, 2)
+	mirrored := hover_corner_coverage(28, 28, 2, false, 1)
 	for row in 0 .. 28 {
 		for column in 0 .. 28 {
-			assert x_odd.pixels[row * 40 + column] == y_odd.pixels[column * 40 + row]
+			assert x_odd[row * 28 + column] == y_odd[column * 28 + row]
+			assert x_odd[row * 28 + column] == mirrored[row * 28 + 27 - column]
 		}
 	}
-	assert x_odd.pixels[12] > y_odd.pixels[12]
+	assert x_odd[12] > y_odd[12]
 }
 
 fn test_secure_badge_outline_coverage_at_both_scales() {

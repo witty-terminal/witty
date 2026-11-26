@@ -10,8 +10,8 @@ fn C.witty_hover_line(text ObjId, limit f64, width &f64) voidptr
 fn C.witty_hover_draw_line(target voidptr, line voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int, padding f64, baseline f64)
 fn C.witty_hover_rasterize_circular_corner(pixels &u32, width int, height int, radius f64, round_left bool) bool
 fn C.witty_hover_corner_phase(view ObjId, round_left bool) int
-fn C.witty_hover_draw_background(target voidptr, view ObjId, bounds &ObjCRect, clip &ObjCRect, pixels &u32, width int, height int)
-fn C.witty_hover_set_background(view ObjId, bottom ObjId, top ObjId, corner &ObjCRect)
+fn C.witty_hover_draw_background(target voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int)
+fn C.witty_hover_set_background(view ObjId, bottom ObjId, top ObjId, edge ObjId, corner &ObjCRect, coverage &f32, width int, height int, scale f64)
 
 const hover_padding = 5.0
 const hover_height = 26.0
@@ -19,10 +19,10 @@ const hover_spacer = 8.0
 const hover_radius = 9.0
 // Unit-radius intercepts and slopes fitted to live corners at several radii.
 // Each knot marks an equally spaced diagonal, measured as the difference between x and y.
-const hover_corner_positions = [0.2929178, 0.2039349, 0.1295417, 0.0731713, 0.0359497, 0.0157460,
-	0.0070678, 0.0027824, 0.0]!
-const hover_corner_slopes = [-0.5, -0.4309238, -0.3447405, -0.2445001, -0.1470687, -0.0688628,
-	-0.0275557, -0.0210720, -0.0011837]!
+const hover_corner_positions = [0.2929106, 0.2039366, 0.1295453, 0.0731686, 0.0359282, 0.0157617,
+	0.0070775, 0.0027773, 0.0]!
+const hover_corner_slopes = [-0.5, -0.4313139, -0.3448212, -0.2448693, -0.1468378, -0.0693243,
+	-0.0276623, -0.0198053, -0.0004360]!
 
 struct HoverCornerDiagonal {
 	intercept f64
@@ -59,6 +59,16 @@ fn (mut surface NativeActionSurface) initialize_hover_banner() {
 		surface.hover_fill[i] = msg_id(get_class('CALayer'), 'layer')
 		msg_void1(msg_id(view, 'layer'), 'addSublayer:', surface.hover_fill[i])
 	}
+	mut corner_class := get_class('WittyHoverCornerLayer')
+	if is_nil(corner_class) {
+		corner_class = C.macos_objc_allocate_class_pair(get_class('CALayer'),
+			cstr('WittyHoverCornerLayer'), 0)
+		add_method(corner_class, 'renderInContext:', voidptr(action_hover_render_corner_in_context),
+			'v@:^v')
+		C.macos_objc_register_class_pair(corner_class)
+	}
+	surface.hover_corner_layer = msg_id(corner_class, 'layer')
+	msg_void1(msg_id(view, 'layer'), 'addSublayer:', surface.hover_corner_layer)
 
 	// Drawing the glyph image in the background's layer dithers the solid fill.
 	ink := msg_id_rect(msg_id(ink_class, 'alloc'), 'initWithFrame:', objc_rect(0, 0, 0, 0))
@@ -68,6 +78,10 @@ fn (mut surface NativeActionSurface) initialize_hover_banner() {
 	msg_void_u64(ink, 'setAutoresizingMask:', 18)
 	msg_void1(view, 'addSubview:', ink)
 	msg_void(ink, 'release')
+}
+
+fn action_hover_render_corner_in_context(_self ObjId, _cmd Sel, _context voidptr) {
+	// The view draws the circular corner when AppKit captures a bitmap.
 }
 
 fn action_hover_entered(self ObjId, _cmd Sel, _event ObjId) {
@@ -198,7 +212,7 @@ fn hover_corner_diagonal(diagonal int, radius f64) HoverCornerDiagonal {
 	// The rasterizer's coverage ramp lies between diagonal and normal distance.
 	return HoverCornerDiagonal{
 		intercept: radius * position
-		distance_scale: (1 + 1 / math.hypot(1 + slope, slope)) / 2
+		distance_scale: 1 + 0.52 * (1 / math.hypot(1 + slope, slope) - 1)
 	}
 }
 
@@ -207,18 +221,18 @@ fn hover_corner_distance(x int, y int, diagonals []HoverCornerDiagonal) f64 {
 	return (math.min(x, y) + 0.5 - diagonal.intercept) * diagonal.distance_scale
 }
 
-fn hover_canvas_mask(width int, height int, scale f64, round_left bool, live bool, phase int) !canvas.RasterSurface {
+fn hover_canvas_mask(width int, height int, scale f64, round_left bool) !canvas.RasterSurface {
 	mut raster := canvas.new_raster_surface(width: width, height: height)!
-	if !live {
-		radius := math.min(hover_radius * scale, math.min(width, height))
-		if !C.witty_hover_rasterize_circular_corner(raster.pixels.data, width, height, radius,
-			round_left) {
-			return error('Could not rasterize the hover banner corner')
-		}
-		return raster
+	radius := math.min(hover_radius * scale, math.min(width, height))
+	if !C.witty_hover_rasterize_circular_corner(raster.pixels.data, width, height, radius,
+		round_left) {
+		return error('Could not rasterize the hover banner corner')
 	}
+	return raster
+}
 
-	raster.clear(0xff000000)
+fn hover_corner_coverage(width int, height int, scale f64, round_left bool, phase int) []f32 {
+	mut coverage := []f32{len: width * height, init: 1.0}
 	extent := canvas_corner_x[0][0]
 	radius := math.min(hover_radius * scale, math.min(width, height) / extent)
 	corner := math.min(math.min(width, height), int(math.ceil(radius * extent)))
@@ -236,19 +250,24 @@ fn hover_canvas_mask(width int, height int, scale f64, round_left bool, live boo
 			distance := hover_corner_distance(column, row, diagonals)
 			horizontal := dx * (hover_corner_distance(column + dx, row, diagonals) - distance)
 			vertical := dy * (hover_corner_distance(column, row + dy, diagonals) - distance)
-			coverage := math.clamp(0.5 + distance / (horizontal + vertical), 0.0, 1.0)
 			x := if round_left { column } else { width - column - 1 }
-			raster.pixels[row * width + x] = u32(math.round(255 * coverage)) << 24
+			coverage[row * width + x] = f32(math.clamp(0.5 + distance / (horizontal + vertical), 0.0, 1.0))
 		}
 	}
-	return raster
+	return coverage
 }
 
 fn (surface &NativeActionSurface) refresh_hover_background() {
 	bounds := msg_rect(surface.hover_label, 'bounds')
-	corner := surface.hover_corner(bounds, view_backing_scale(surface.view))
+	scale := view_backing_scale(surface.view)
+	corner := surface.hover_corner(bounds, scale)
+	width := int(math.round(corner.width * scale))
+	height := int(math.round(corner.height * scale))
+	if width <= 0 || height <= 0 { return }
+	phase := C.witty_hover_corner_phase(surface.hover_label, surface.hover_left)
+	coverage := hover_corner_coverage(width, height, scale, surface.hover_left, phase)
 	C.witty_hover_set_background(surface.hover_label, surface.hover_fill[0], surface.hover_fill[1],
-		&corner)
+		surface.hover_corner_layer, &corner, coverage.data, width, height, scale)
 }
 
 fn (surface &NativeActionSurface) hover_corner(bounds ObjCRect, scale f64) ObjCRect {
@@ -262,17 +281,13 @@ fn (surface &NativeActionSurface) hover_corner(bounds ObjCRect, scale f64) ObjCR
 fn action_hover_draw_background(self ObjId, _cmd Sel, _rect ObjCRect) {
 	surface := action_owner_state(self) or { return }
 	context := native_canvas_overlay_context()
-	if is_nil(context) { return }
+	if is_nil(context) || C.CGBitmapContextGetBitsPerComponent(context) == 0 { return }
 	bounds := msg_rect(self, 'bounds')
 	scale := view_backing_scale(surface.view)
 	width := int(math.round(bounds.width * scale))
 	height := int(math.round(bounds.height * scale))
-	live := C.CGBitmapContextGetBitsPerComponent(context) == 0
-	// The opaque fill layers cover the rest of the live banner.
-	clip := if live { surface.hover_corner(bounds, scale) } else { bounds }
-	phase := if live { C.witty_hover_corner_phase(self, surface.hover_left) } else { 0 }
-	raster := hover_canvas_mask(width, height, scale, surface.hover_left, live, phase) or { return }
-	C.witty_hover_draw_background(context, self, &bounds, &clip, raster.pixels.data, width, height)
+	raster := hover_canvas_mask(width, height, scale, surface.hover_left) or { return }
+	C.witty_hover_draw_background(context, self, &bounds, raster.pixels.data, width, height)
 }
 
 fn action_hover_draw_text(self ObjId, _cmd Sel, _rect ObjCRect) {
