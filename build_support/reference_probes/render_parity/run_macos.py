@@ -6,16 +6,18 @@ import math
 import os
 from pathlib import Path
 import platform
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 from PIL import Image
 
 from applications import (
     NEOVIM_FIXTURES, TMUX_ACTIVE, prepare_applications, prepare_neovim, tmux_fixture_command,
-    write_pager_fixture,
+    tmux_session_command, write_pager_fixture,
 )
 from capture import capture_witty, output_directory, write_versions
 from fixtures import CLEAR as CLEAR_FRAME
@@ -43,7 +45,9 @@ OPTIONS = (
     "--cursor-style-blink=false",
 )
 DEFAULT_WINDOW = ("--window-width=0", "--window-height=0")
-TMUX_FIXTURES = ("tmux", "tmux-switch-pane")
+TMUX_COPY_FIXTURES = ("tmux-copy-search", "tmux-copy-selection")
+TMUX_COPY_MATCH = "needle: first"
+TMUX_FIXTURES = ("tmux", "tmux-switch-pane", *TMUX_COPY_FIXTURES)
 OPTIONAL_APPLICATIONS = {"tmux": TMUX_FIXTURES, "nvim": NEOVIM_FIXTURES}
 TRANSLUCENT_WINDOW = (
     "--background-opacity=0.5", "--window-padding-x=7,5", "--window-padding-y=3,8",
@@ -290,15 +294,74 @@ def fixture_args(work):
     }
 
 
-def capture_tmux_frame(witty, tmux, options, work, prefix, settle, switch_pane):
+def prepare_tmux_copy_history(work):
+    lines = []
+    for i in range(1, 37):
+        label = "history in right pane"
+        if i == 8:
+            label = f"{TMUX_COPY_MATCH} café 🚀"
+        elif i in (18, 28):
+            label = "needle: café 🚀"
+        lines.append(f"\x1b[38;2;{50 + i * 3};175;215m{i:02d}\x1b[0m {label}\n")
+    (work / "tmux-copy-history.txt").write_text("".join(lines), encoding="utf-8")
+
+
+def start_tmux_copy_fixture(server, work, *, select):
+    command = ["/usr/bin/env", "-u", "TMUX", "-u", "TMUX_PANE", *server]
+    history = shlex.quote(str(work / "tmux-copy-history.txt"))
+    right = rf"printf '\033[?25l'; /bin/cat {history}; exec /bin/sleep 60"
+    subprocess.run(
+        tmux_session_command(command, work, WINDOW_COLUMNS, WINDOW_ROWS, right=right),
+        check=True, timeout=5,
+    )
+
+    def tmux(*args):
+        return subprocess.check_output([*command, *args], encoding="utf-8", timeout=5)
+
+    # Keep the detached grid when the client attaches and suppress the focus-dependent cursor.
+    tmux("resize-window", "-t", "parity:", "-x", str(WINDOW_COLUMNS), "-y", str(WINDOW_ROWS))
+    tmux("set-option", "-as", "terminal-overrides", r",xterm-256color:cnorm=\E[?25l:cvvis=\E[?25l")
+    tmux("set-option", "-w", "-t", "parity:", "copy-mode-position-format",
+         "#[align=right][#{copy_position}/#{copy_position_limit}]#{?search_count, (#{search_count} results),}")
+
+    pane = "parity:.1"
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        captured = tmux("capture-pane", "-p", "-t", pane, "-S", "-")
+        if f"08 {TMUX_COPY_MATCH}" in captured and "36 history in right pane" in captured:
+            break
+        time.sleep(0.025)
+    else:
+        raise RuntimeError("tmux copy-mode fixture timed out waiting for pane history")
+
+    tmux("copy-mode", "-t", pane)
+    tmux("send-keys", "-t", pane, "-X", "history-top")
+    tmux("send-keys", "-t", pane, "-X", "search-forward", TMUX_COPY_MATCH)
+    if tmux("display-message", "-p", "-t", pane, "#{search_count}").strip() != "1":
+        raise RuntimeError("tmux copy mode did not find the history search match")
+    if select:
+        tmux("send-keys", "-t", pane, "-X", "begin-selection")
+        tmux("send-keys", "-t", pane, "-X", "end-of-line")
+    state = tmux("display-message", "-p", "-t", pane,
+                 "#{pane_mode} #{scroll_position} #{selection_active}").split()
+    if len(state) != 3 or state[0] != "copy-mode" or state[1] == "0" or state[2] != str(int(select)):
+        raise RuntimeError(f"tmux did not reach the requested copy-mode state ({' '.join(state)})")
+
+
+def capture_tmux_frame(witty, tmux, options, work, prefix, settle, name):
     with tempfile.TemporaryDirectory(prefix="witty-tmux-", dir="/tmp") as socket_dir:
         server = [tmux, "-S", f"{socket_dir}/server"]
-        args = [
-            *options, "--term=xterm-256color", f"--palette=2={bytes(TMUX_ACTIVE).hex()}",
-            "-e", "/usr/bin/env", "-u", "TMUX", "-u", "TMUX_PANE",
-            *tmux_fixture_command(server, work, WINDOW_COLUMNS, WINDOW_ROWS, switch_pane=switch_pane),
-        ]
         try:
+            if name in TMUX_COPY_FIXTURES:
+                start_tmux_copy_fixture(server, work, select=name == "tmux-copy-selection")
+                command = [*server, "attach-session", "-t", "parity"]
+            else:
+                command = tmux_fixture_command(server, work, WINDOW_COLUMNS, WINDOW_ROWS,
+                                               switch_pane=name == "tmux-switch-pane")
+            args = [
+                *options, "--term=xterm-256color", f"--palette=2={bytes(TMUX_ACTIVE).hex()}",
+                "-e", "/usr/bin/env", "-u", "TMUX", "-u", "TMUX_PANE", *command,
+            ]
             capture_witty(witty, args, prefix, settle)
         finally:
             subprocess.run([*server, "kill-server"], stdout=subprocess.DEVNULL,
@@ -314,6 +377,8 @@ def run(witty, output, settle, references, programs):
     tmux = programs.get("tmux")
     if tmux:
         prepare_applications(work, ("tmux",))
+    if any(name in references for name in TMUX_COPY_FIXTURES):
+        prepare_tmux_copy_history(work)
     commands = fixture_args(work)
     if "nvim" in programs:
         commands.update(prepare_neovim(work, programs["nvim"]))
@@ -335,7 +400,7 @@ def run(witty, output, settle, references, programs):
         for name, reference in references.items():
             prefix = output / f"{name}-witty"
             if name in TMUX_FIXTURES:
-                capture_tmux_frame(witty, tmux, options, work, prefix, settle, name == "tmux-switch-pane")
+                capture_tmux_frame(witty, tmux, options, work, prefix, settle, name)
             else:
                 capture_witty(witty, [*options, *commands[name]], prefix, settle)
             with Image.open(prefix.with_suffix(".png")) as png:

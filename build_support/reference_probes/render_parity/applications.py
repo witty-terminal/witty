@@ -128,13 +128,18 @@ def capture_less(binary, args, helper, output, app, work, settle, scale, padding
                                       lambda image: image.getpixel(point) == LESS_MARKERS[row])
 
 
-def tmux_fixture_command(server, work, columns, rows, *, switch_pane=False):
+def tmux_session_command(server, work, columns, rows, *, right=None):
     left = r"printf '\033[?25lLeft pane\r\n┌────┐\r\n│ ░░ │\r\n└────┘\r\n'; exec sleep 60"
-    right = r"printf '\033[?25lRight pane\r\n╔════╗\r\n║ ██ ║\r\n╚════╝\r\n'; exec sleep 60"
-    command = [
+    if right is None:
+        right = r"printf '\033[?25lRight pane\r\n╔════╗\r\n║ ██ ║\r\n╚════╝\r\n'; exec sleep 60"
+    return [
         *server, "-f", work / "tmux.conf", "new-session", "-d", "-x", str(columns),
-        "-y", str(rows), "-s", "parity", left, ";", "split-window", "-h", "-t", "parity", right, ";",
+        "-y", str(rows), "-s", "parity", left, ";", "split-window", "-h", "-t", "parity", right,
     ]
+
+
+def tmux_fixture_command(server, work, columns, rows, *, switch_pane=False):
+    command = [*tmux_session_command(server, work, columns, rows), ";"]
     if switch_pane:
         command.extend(("set-hook", "-t", "parity", "client-attached", "select-pane -t parity:.0", ";"))
     command.extend(("attach-session", "-t", "parity"))

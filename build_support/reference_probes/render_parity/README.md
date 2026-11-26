@@ -102,6 +102,8 @@ python3 build_support/reference_probes/render_parity/run_macos.py \
   ./Witty.app/Contents/MacOS/witty --fixture tmux --fixture tmux-switch-pane
 ```
 
+The optional `tmux-copy-search` and `tmux-copy-selection` fixtures use tmux 3.8 to search the right pane's scrollback and select text containing an accented character and an emoji. The copy-mode header uses a fixed format and the fixture hides the terminal cursor so the comparison can run without window focus.
+
 The optional `nvim-diagnostics` and `nvim-selection` fixtures use Neovim 0.12.6. They check the colored diagnostic undercurl, inline diagnostic text, and a visual selection across a wide emoji. With `nvim` on `PATH`, select both fixtures to compare the editor frames.
 
 ```sh
