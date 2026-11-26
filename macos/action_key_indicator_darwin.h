@@ -1,8 +1,9 @@
 #include <AppKit/AppKit.h>
 #include <CoreText/CoreText.h>
-#include "canvas_overlay_darwin.h"
 
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
+#include "canvas_text_darwin.h"
+
 static inline void witty_key_indicator_clip_material(NSView *view, double radius) {
     CALayer *layer = view.layer;
     // Clip the backdrop in its own layer so coverage is applied when it composites.
@@ -23,28 +24,25 @@ static inline double witty_key_indicator_width(NSString *text, bool keycap) {
     return [text sizeWithAttributes:@{NSFontAttributeName: witty_key_indicator_font(keycap)}].width;
 }
 
-static inline CGImageRef witty_key_indicator_rasterize_text(NSString *label, bool keycap,
+static inline void witty_key_indicator_draw_text(CGContextRef target, NSString *label, bool keycap,
         const CGRect *clip, const CGRect *bounds, uint32_t *pixels, int width, int height) {
-    CGContextRef context = witty_canvas_bitmap_context(pixels, width, height, *bounds);
-    if (!context) return NULL;
+    NSColor *color = [NSColor labelColor];
     NSDictionary *attributes = @{
         NSFontAttributeName: witty_key_indicator_font(keycap),
-        NSForegroundColorAttributeName: [NSColor labelColor],
+        NSForegroundColorAttributeName: color,
+        (__bridge NSString *)kCTForegroundColorFromContextAttributeName: @YES,
     };
-    NSAttributedString *value = [[NSAttributedString alloc] initWithString:label attributes:attributes];
-    CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)value);
-    [value release];
-    CGImageRef image = NULL;
-    if (line) {
-        CGContextClipToRect(context, *clip);
-        CGContextSetTextMatrix(context, CGAffineTransformIdentity);
-        CGContextSetTextPosition(context, clip->origin.x, (clip->size.height - (keycap ? 15 : 16)) / 2 + 3);
-        CTLineDraw(line, context);
-        CFRelease(line);
-        image = CGBitmapContextCreateImage(context);
-    }
-    CGContextRelease(context);
-    return image;
+    CTLineRef line = witty_canvas_text_line(label, attributes);
+    if (!line) return;
+    const double baseline = (clip->size.height - (keycap ? 15 : 16)) / 2 + 3;
+    const WittyCanvasTextLayout layout = {
+        .bounds = *bounds,
+        .clip = *clip,
+        .position = CGPointMake(clip->origin.x, baseline),
+        .round_ink_coverage_up = true,
+    };
+    witty_canvas_draw_text_runs(target, line, color, layout, pixels, width, height);
+    CFRelease(line);
 }
 
 static inline NSImage *witty_key_indicator_symbol(bool chevron, double x, double height,

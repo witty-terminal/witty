@@ -6,7 +6,7 @@ import math
 #insert "@VMODROOT/macos/action_key_indicator_darwin.h"
 
 fn C.witty_key_indicator_width(text ObjId, keycap bool) f64
-fn C.witty_key_indicator_rasterize_text(text ObjId, keycap bool, clip &ObjCRect, bounds &ObjCRect, pixels &u32, width int, height int) voidptr
+fn C.witty_key_indicator_draw_text(context voidptr, text ObjId, keycap bool, clip &ObjCRect, bounds &ObjCRect, pixels &u32, width int, height int)
 fn C.witty_key_indicator_symbol(chevron bool, x f64, height f64, frame &ObjCRect) ObjId
 fn C.witty_key_indicator_clip_material(view ObjId, radius f64)
 
@@ -254,11 +254,8 @@ fn draw_indicator_text(context voidptr, text string, keycap bool, x f64, width f
 	mut w, mut h := 0, 0
 	C.witty_canvas_pixel_bounds(context, &clip, &bounds, &w, &h)
 	mut raster := canvas.new_raster_surface(width: w, height: h) or { return }
-	image := C.witty_key_indicator_rasterize_text(nsstring(text), keycap, &clip, &bounds,
+	C.witty_key_indicator_draw_text(context, nsstring(text), keycap, &clip, &bounds,
 		raster.pixels.data, w, h)
-	if is_nil(image) { return }
-	C.witty_canvas_present_tile(context, image, &bounds, 1)
-	C.CFRelease(image)
 }
 
 fn draw_indicator_divider(view ObjId, context voidptr, x f64, badge_height f64) {

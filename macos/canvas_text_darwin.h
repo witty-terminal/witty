@@ -11,6 +11,7 @@ typedef struct {
     double color_baseline_offset;
     bool flipped;
     bool premultiply_translucent_ink;
+    bool round_ink_coverage_up;
 } WittyCanvasTextLayout;
 
 static inline CTLineRef witty_canvas_text_line(NSString *text, NSDictionary *attributes) {
@@ -18,6 +19,21 @@ static inline CTLineRef witty_canvas_text_line(NSString *text, NSDictionary *att
     CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)value);
     [value release];
     return line;
+}
+
+static inline void witty_canvas_round_text_coverage_up(uint32_t *pixels, size_t count, double opacity) {
+    // SwiftUI rounds glyph coverage up after applying the 8-bit label opacity.
+    const uint32_t tint_alpha = (uint32_t)lround(opacity * 255);
+    for (size_t i = 0; i < count; ++i) {
+        const uint32_t pixel = pixels[i];
+        const uint32_t coverage = pixel >> 24;
+        if (coverage == 0) continue;
+        const uint32_t alpha = (coverage * tint_alpha + 254) / 255;
+        const uint32_t r = (((pixel >> 16) & 255) * alpha + coverage / 2) / coverage;
+        const uint32_t g = (((pixel >> 8) & 255) * alpha + coverage / 2) / coverage;
+        const uint32_t b = ((pixel & 255) * alpha + coverage / 2) / coverage;
+        pixels[i] = (alpha << 24) | (r << 16) | (g << 8) | b;
+    }
 }
 
 static inline void witty_canvas_draw_text_runs(CGContextRef target, CTLineRef line, NSColor *color,
@@ -52,8 +68,10 @@ static inline void witty_canvas_draw_text_runs(CGContextRef target, CTLineRef li
             if (drawn) continue;
         }
 
-        const bool rgba = color_glyphs || (layout.premultiply_translucent_ink && CGColorGetAlpha(tint.CGColor) < 1);
-        NSColor *paint = rgba ? tint : [tint colorWithAlphaComponent:1];
+        const double opacity = CGColorGetAlpha(tint.CGColor);
+        const bool round_coverage = layout.round_ink_coverage_up && !color_glyphs && opacity < 1;
+        const bool rgba = color_glyphs || round_coverage || (layout.premultiply_translucent_ink && opacity < 1);
+        NSColor *paint = rgba && !round_coverage ? tint : [tint colorWithAlphaComponent:1];
         CGContextSaveGState(context);
         CGContextClipToRect(context, layout.clip);
         CGContextSetFillColorWithColor(context, paint.CGColor);
@@ -61,6 +79,7 @@ static inline void witty_canvas_draw_text_runs(CGContextRef target, CTLineRef li
         CGContextSetTextPosition(context, x, y);
         CTRunDraw(run, context, CFRangeMake(0, 0));
         CGContextRestoreGState(context);
+        if (round_coverage) witty_canvas_round_text_coverage_up(pixels, (size_t)width * height, opacity);
 
         CGImageRef image = rgba ? CGBitmapContextCreateImage(context)
             : witty_canvas_make_text_mask(pixels, width, height);
