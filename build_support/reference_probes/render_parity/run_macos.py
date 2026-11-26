@@ -24,11 +24,12 @@ from capture import capture_witty, output_directory, write_versions
 from fixtures import CLEAR as CLEAR_FRAME
 from fixtures import (
     RESIZE_WRAP_COLOR, TERMINAL_COLOR_PALETTE, TERMINAL_COLOR_RESET, TERMINAL_COLOR_SCREEN,
-    WALLPAPER_OPTIONS, colored_line_erase, font_zoom_frame, grapheme_sequences, kitty_animation,
+    WALLPAPER_OPTIONS, WALLPAPER_RELOAD_MARKER, WALLPAPER_RELOAD_STAGES,
+    colored_line_erase, font_zoom_frame, grapheme_sequences, kitty_animation,
     kitty_chunked_frames, kitty_cursor, kitty_delete_selection, kitty_delete_visible, kitty_history,
     kitty_layers, kitty_layout, kitty_relative, kitty_retransmit, kitty_scroll, kitty_unicode,
     kitty_unicode_pinned, prepare_raster_effects, shader_fixture_options, terminal_color_updates,
-    wide_selection_frame, wrapped_wide_edits, wrapped_wide_glyphs,
+    wallpaper_reload_configs, wide_selection_frame, wrapped_wide_edits, wrapped_wide_glyphs,
 )
 
 
@@ -78,6 +79,9 @@ SCROLLBACK_KEYS = {
 SCROLLBACK_OUTPUT_OPTIONS = {
     "scrollback-keep-position": "--scroll-to-bottom=no-keystroke,no-output",
     "scrollback-follow-output": "--scroll-to-bottom=no-keystroke,output",
+}
+WALLPAPER_RELOAD_STEPS = {
+    f"wallpaper-reload{suffix}": step for step, suffix in enumerate(WALLPAPER_RELOAD_STAGES)
 }
 SELECTION_DRAGS = {
     # The emoji spans columns 13 and 14. Begin the drag on the second cell.
@@ -484,6 +488,18 @@ def prepare_selection_fixtures(work):
     (work / "selection.sh").write_text(INPUT_FRAME_START + "exec /bin/sleep 20\n")
 
 
+def prepare_wallpaper_reload(work):
+    marker = ";".join(map(str, WALLPAPER_RELOAD_MARKER))
+    frame = (
+        f"\x1b[48;2;{marker}m  Text over the wallpaper  \x1b[0m\r\n"
+        "\x1b[38;2;235;174;114mTerminal text that stays visible\x1b[0m"
+    )
+    (work / "wallpaper-reload.bin").write_bytes(CLEAR_FRAME + frame.encode())
+    (work / "wallpaper-reload.sh").write_text(INPUT_FRAME_START + "exec /bin/sleep 20\n")
+    for step, settings in enumerate(wallpaper_reload_configs(work)[1:], start=1):
+        (work / f"wallpaper-reload.conf.{step}").write_text(settings)
+
+
 def build_probe_input(output):
     source = Path(__file__).with_name("macos_probe_input.m")
     library = output / "macos-probe-input.dylib"
@@ -493,7 +509,7 @@ def build_probe_input(output):
 
 
 def capture_with_input(witty, args, prefix, settle, library, script, frame, *, keys=(), drag=(),
-                       option_drag=False, resize=(), script_args=()):
+                       option_drag=False, resize=(), script_args=(), reload_config=None):
     ready = prefix.with_suffix(".ready")
     env = {
         "DYLD_INSERT_LIBRARIES": str(library),
@@ -502,12 +518,26 @@ def capture_with_input(witty, args, prefix, settle, library, script, frame, *, k
         "WITTY_VIEWPORT_DRAG_OPTION": "1" if option_drag else "",
         "WITTY_VIEWPORT_RESIZE": "x".join(map(str, resize)),
         "WITTY_VIEWPORT_READY": str(ready),
+        "WITTY_VIEWPORT_RELOAD_CONFIG": str(reload_config) if reload_config else "",
     }
     command = (*args, "-e", "/bin/bash", script, frame, f"{WINDOW_ROWS} {WINDOW_COLUMNS}", ready, *script_args)
     capture_witty(witty, command, prefix, settle + 2, env=env)
     log = prefix.with_suffix(".log")
     if "macOS render probe dispatched input" not in log.read_text():
         raise RuntimeError(f"Probe input was not dispatched. Use a standalone Witty build and check {log}")
+
+
+def capture_wallpaper_reload(witty, options, work, prefix, settle, step, library):
+    config = work / "wallpaper-reload.conf"
+    config.write_text("")
+    args = (*options, f"--config-file={config}", "--keybind=f7=reload_config",
+            "--app-notifications=no-config-reload")
+    if step == 0:
+        capture_witty(witty, (*args, "-e", "/bin/sh", "grid-frame.sh", "wallpaper-reload",
+                              f"{WINDOW_ROWS} {WINDOW_COLUMNS}"), prefix, settle)
+        return
+    capture_with_input(witty, args, prefix, settle + step * 0.45, library,
+                       "wallpaper-reload.sh", "wallpaper-reload", keys=("f7",) * step, reload_config=config)
 
 
 def capture_scrollback(witty, options, prefix, settle, name, library):
@@ -631,6 +661,7 @@ def run(witty, output, settle, references, programs):
     selection = any(name in SELECTION_DRAGS for name in references)
     font_zoom = any(name in FONT_ZOOM_KEYS for name in references)
     resize = any(name in WINDOW_RESIZES for name in references)
+    wallpaper_reload = any(name in WALLPAPER_RELOAD_STEPS for name in references)
     if scrollback:
         prepare_scrollback_fixture(work)
     if selection:
@@ -640,7 +671,9 @@ def run(witty, output, settle, references, programs):
         (work / "font-zoom-pty.sh").write_text(FONT_ZOOM_PTY, encoding="utf-8")
     if resize:
         prepare_resize_fixtures(work)
-    probe_input = build_probe_input(output) if scrollback or selection or font_zoom or resize else None
+    if wallpaper_reload:
+        prepare_wallpaper_reload(work)
+    probe_input = build_probe_input(output) if scrollback or selection or font_zoom or resize or wallpaper_reload else None
     commands = fixture_args(work)
     if "nvim" in programs:
         commands.update(prepare_neovim(work, programs["nvim"]))
@@ -671,6 +704,9 @@ def run(witty, output, settle, references, programs):
                 capture_font_zoom(witty, options, prefix, settle, name, probe_input)
             elif name in WINDOW_RESIZES:
                 capture_resize(witty, options, prefix, settle, name, probe_input)
+            elif name in WALLPAPER_RELOAD_STEPS:
+                capture_wallpaper_reload(witty, options, work, prefix, settle,
+                                         WALLPAPER_RELOAD_STEPS[name], probe_input)
             else:
                 capture_witty(witty, [*options, *commands[name]], prefix, settle)
             with Image.open(prefix.with_suffix(".png")) as png:
@@ -712,6 +748,7 @@ def main():
     optional_fixtures.update(SELECTION_DRAGS)
     optional_fixtures.update(FONT_ZOOM_KEYS)
     optional_fixtures.update(WINDOW_RESIZES)
+    optional_fixtures.update(WALLPAPER_RELOAD_STEPS)
     default_fixtures = [name for name in references if name not in optional_fixtures]
     selected = {name: references[name] for name in args.fixture or default_fixtures}
     programs = {}

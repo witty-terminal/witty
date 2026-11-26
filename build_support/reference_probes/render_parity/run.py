@@ -22,8 +22,9 @@ from fixtures import (
     CURSOR_STYLES, FONT_ZOOM_MARKER, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES, RESIZE_WRAP_COLOR,
     SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED, SCROLLBAR_MARKER,
     SHADER_RELOAD_MARKER, SPLIT_RIGHT_COLOR, TERMINAL_COLOR_OVERRIDES, TERMINAL_COLOR_PALETTE,
-    TERMINAL_COLOR_RESET, WALLPAPER_OPTIONS, WALLPAPER_RELOAD_MARKER, WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE,
-    prepare_raster_effects, shader_fixture_options, terminal_color_updates,
+    TERMINAL_COLOR_RESET, WALLPAPER_OPTIONS, WALLPAPER_RELOAD_MARKER, WALLPAPER_RELOAD_STAGES,
+    WALLPAPER_RELOAD_TILE, WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE, prepare_raster_effects,
+    shader_fixture_options, terminal_color_updates, wallpaper_reload_configs,
 )
 
 
@@ -46,7 +47,6 @@ PROGRESS_THEME_FILL = (33, 128, 205)
 FONT_ZOOM_ACTIONS = (
     ("", None, 0), ("-larger", "1", 1), ("-restored", "2", 0), ("-smaller", "2", -1), ("-reset", "3", 0),
 )
-WALLPAPER_RELOAD_STAGES = ("", "-load", "-repeat", "-fade", "-replace", "-remove", "-restore")
 SHADER_RELOAD_STAGES = ("", "-enable", "-chain", "-reorder", "-replace", "-remove", "-restore")
 TERMINAL_COLOR_STAGES = ("", "-palette", "-foreground", "-background", "-cursor", "-reset", "-reload")
 SCROLLBAR_FIXTURES = ("scrollbar", "scrollbar-themed")
@@ -389,35 +389,29 @@ def capture_font_zoom(binary, args, helper, output, app, settle, scale):
 def capture_wallpaper_reload(binary, args, helper, output, work, app, settle, scale):
     config = work / "wallpaper-reload.conf"
     config.write_text("")
-    tile = work / "reload-tile.png"
-    cover = work / "reload-cover.jpeg"
-    tile_color = (114, 69, 180)
-    with Image.new("RGB", (31, 19), tile_color) as png:
-        png.save(tile)
-    with Image.new("RGB", (19, 31), (36, 150, 107)) as jpeg:
-        jpeg.save(cover, quality=92, progressive=True)
+    configs = wallpaper_reload_configs(work)
 
-    natural = f"background-image = {tile}\nbackground-image-fit = none\n"
-    repeated = natural + "background-image-repeat = true\n"
-    empty = ("", lambda left, center: left == center == BACKGROUND)
-    loaded = (natural, lambda left, center: left == BACKGROUND and center == tile_color)
-    stages = (
+    def empty(left, center):
+        return left == center == BACKGROUND
+
+    def loaded(left, center):
+        return left == BACKGROUND and center == WALLPAPER_RELOAD_TILE
+
+    checks = (
         empty,
         loaded,
-        (repeated, lambda left, center: left == center == tile_color),
-        (repeated + "background-image-opacity = 0.6\n",
-         lambda left, center: left == center and BACKGROUND[0] < left[0] < tile_color[0]),
-        (f"background-image = {cover}\nbackground-image-fit = cover\n",
-         lambda left, center: left == center and left[1] > 125),
+        lambda left, center: left == center == WALLPAPER_RELOAD_TILE,
+        lambda left, center: left == center and BACKGROUND[0] < left[0] < WALLPAPER_RELOAD_TILE[0],
+        lambda left, center: left == center and left[1] > 125,
         empty,
         loaded,
     )
     capture_args = [f"--screenshot={output / 'wallpaper-reload-terminal.png'}"] if app == "witty" else []
-    delay = len(stages) * (settle + 5) + 5
+    delay = len(configs) * (settle + 5) + 5
     env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(delay)}
     with open_window([binary, *capture_args, *args], output / f"wallpaper-reload-{app}.log", env=env) as (_, window):
         subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True, timeout=5)
-        for stage, (settings, ready) in zip(WALLPAPER_RELOAD_STAGES, stages, strict=True):
+        for stage, settings, ready in zip(WALLPAPER_RELOAD_STAGES, configs, checks, strict=True):
             if stage:
                 config.write_text(settings)
                 subprocess.run(["xdotool", "key", "ctrl+alt+r"], check=True, timeout=5)

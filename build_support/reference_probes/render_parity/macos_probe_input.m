@@ -19,10 +19,18 @@ static NSView *terminal_view(NSView *view, BOOL ghostty) {
     return nil;
 }
 
-static void send_key_sequence(NSView *view, NSArray<NSString *> *keys, NSUInteger index) {
+static void send_key_sequence(NSView *view, NSArray<NSString *> *keys, NSUInteger index, NSString *config_path) {
     if (index == keys.count) {
         fprintf(stderr, "macOS render probe dispatched input\n");
         return;
+    }
+    if (config_path) {
+        NSString *stage = [config_path stringByAppendingFormat:@".%lu", (unsigned long)index + 1];
+        NSData *settings = [NSData dataWithContentsOfFile:stage];
+        if (![settings writeToFile:config_path atomically:YES]) {
+            fprintf(stderr, "macOS render probe could not install staged config %s\n", stage.fileSystemRepresentation);
+            exit(EXIT_FAILURE);
+        }
     }
     static const struct {
         const char *name;
@@ -48,8 +56,9 @@ static void send_key_sequence(NSView *view, NSArray<NSString *> *keys, NSUIntege
             else [view keyDown:event];
         }
         // Let terminal actions update the viewport before the next binding.
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 350 * NSEC_PER_MSEC),
-            dispatch_get_main_queue(), ^{ send_key_sequence(view, keys, index + 1); });
+        int delay_ms = config_path ? 450 : 350;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, delay_ms * NSEC_PER_MSEC),
+            dispatch_get_main_queue(), ^{ send_key_sequence(view, keys, index + 1, config_path); });
         return;
     }
     fprintf(stderr, "macOS render probe does not support key %s\n", key.UTF8String);
@@ -282,7 +291,11 @@ __attribute__((constructor)) static void install_probe_input(void) {
             wait_for_terminal(ready, 50, NO, ^(NSView *view) { send_mouse_drag(view, drag, modifiers); });
         } else {
             NSArray<NSString *> *keys = [[NSString stringWithUTF8String:sequence] componentsSeparatedByString:@","];
-            wait_for_terminal(ready, 50, NO, ^(NSView *view) { send_key_sequence(view, keys, 0); });
+            const char *path = getenv("WITTY_VIEWPORT_RELOAD_CONFIG");
+            NSString *config_path = path && *path ? [NSString stringWithUTF8String:path] : nil;
+            wait_for_terminal(ready, 50, config_path != nil, ^(NSView *view) {
+                send_key_sequence(view, keys, 0, config_path);
+            });
         }
     });
 }

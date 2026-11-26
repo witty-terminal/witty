@@ -12,6 +12,8 @@ CLEAR = b"\x1b[2J\x1b[H\x1b[?25l"
 GRID_ROWS, GRID_COLUMNS = 12, 60
 FONT_ZOOM_MARKER = (37, 147, 112)
 WALLPAPER_RELOAD_MARKER = (55, 89, 143)
+WALLPAPER_RELOAD_TILE = (114, 69, 180)
+WALLPAPER_RELOAD_STAGES = ("", "-load", "-repeat", "-fade", "-replace", "-remove", "-restore")
 SHADER_RELOAD_MARKER = (56, 128, 211)
 WALLPAPER_OPTIONS = {
     "wallpaper-stretch": ("--background-image-fit=stretch",),
@@ -79,6 +81,24 @@ def shader_fixture_options(work):
         f"--custom-shader={work / 'tint.glsl'}",
         f"--custom-shader={work / 'flip-rb.glsl'}",
         "--custom-shader-animation=false",
+    )
+
+
+def wallpaper_reload_configs(work):
+    from PIL import Image
+
+    tile = work / "reload-tile.png"
+    cover = work / "reload-cover.jpeg"
+    with Image.new("RGB", (31, 19), WALLPAPER_RELOAD_TILE) as png:
+        png.save(tile)
+    with Image.new("RGB", (19, 31), (36, 150, 107)) as jpeg:
+        jpeg.save(cover, quality=92, progressive=True)
+
+    natural = f"background-image = {tile}\nbackground-image-fit = none\n"
+    repeated = natural + "background-image-repeat = true\n"
+    return (
+        "", natural, repeated, repeated + "background-image-opacity = 0.6\n",
+        f"background-image = {cover}\nbackground-image-fit = cover\n", "", natural,
     )
 
 
