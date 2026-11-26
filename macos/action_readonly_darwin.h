@@ -1,5 +1,6 @@
 #include <AppKit/AppKit.h>
 #include <CoreText/CoreText.h>
+#include "canvas_overlay_darwin.h"
 
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 static inline NSFont *witty_readonly_font(void) {
@@ -10,17 +11,24 @@ static inline double witty_readonly_title_width(NSString *title) {
     return [title sizeWithAttributes:@{NSFontAttributeName: witty_readonly_font()}].width;
 }
 
-static inline void witty_readonly_draw_title(CGContextRef context, NSString *title, double height, NSColor *tint) {
+static inline CGImageRef witty_readonly_rasterize_title(NSString *title, NSColor *tint,
+        const CGRect *bounds, uint32_t *pixels, int width, int height) {
     NSDictionary *attributes = @{NSFontAttributeName: witty_readonly_font(), NSForegroundColorAttributeName: tint};
     NSAttributedString *text = [[NSAttributedString alloc] initWithString:title attributes:attributes];
     CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)text);
     [text release];
-    if (!line) return;
-    CGContextSaveGState(context);
+    if (!line) return NULL;
+    CGContextRef context = witty_canvas_text_context(pixels, width, height, *bounds);
+    if (!context) {
+        CFRelease(line);
+        return NULL;
+    }
     CGContextSetTextMatrix(context, CGAffineTransformIdentity);
-    CGContextSetTextPosition(context, 31, (height - 15) / 2 + 3);
+    CGContextSetTextPosition(context, 31, (bounds->size.height - 15) / 2 + 3);
+    // Core Text adjusts glyph coverage for the actual text color.
     CTLineDraw(line, context);
-    CGContextRestoreGState(context);
+    CGContextRelease(context);
     CFRelease(line);
+    return witty_canvas_make_text_mask(pixels, width, height);
 }
 #endif

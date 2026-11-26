@@ -5,7 +5,7 @@ import math
 #insert "@VMODROOT/macos/action_readonly_darwin.h"
 
 fn C.witty_readonly_title_width(title ObjId) f64
-fn C.witty_readonly_draw_title(context voidptr, title ObjId, height f64, tint ObjId)
+fn C.witty_readonly_rasterize_title(title ObjId, tint ObjId, bounds &ObjCRect, pixels &u32, width int, height int) voidptr
 
 const readonly_title = 'Read-only'
 const readonly_height = 23.0
@@ -68,13 +68,18 @@ fn readonly_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 	scale := view_backing_scale(voidptr(self))
 	w := int(math.round(bounds.width * scale))
 	h := int(math.round(bounds.height * scale))
-	border := native_canvas_rounded_mask(w, h, readonly_corner * scale, style: .continuous,
+	mut raster := native_canvas_rounded_mask(w, h, readonly_corner * scale, style: .continuous,
 		stroke: readonly_border_width * scale, opacity: 0.6) or { return }
 	color := C.witty_canvas_resolve_srgb(self, msg_id(get_class('NSColor'), 'systemOrangeColor'))
-	native_canvas_draw_mask(context, self, bounds, border, color)
+	native_canvas_draw_mask(context, self, bounds, raster, color)
 	tint := C.witty_macos_color_rgba(0.8, 0.592, 0.4, 1)
 	symbol := C.witty_canvas_system_symbol(nsstring('eye.fill'), 12, 0)
 	native_canvas_draw_symbol(context, self, symbol, objc_rect(8, (bounds.height - 12) / 2, 18, 12),
 		tint)
-	C.witty_readonly_draw_title(context, nsstring(readonly_title), bounds.height, tint)
+	raster.clear(0)
+	image := C.witty_readonly_rasterize_title(nsstring(readonly_title), tint, &bounds,
+		raster.pixels.data, w, h)
+	if is_nil(image) { return }
+	C.witty_canvas_present_text_mask(context, image, &bounds, tint, false)
+	C.CFRelease(image)
 }

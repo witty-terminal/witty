@@ -44,8 +44,19 @@ static inline CTLineRef witty_update_line(NSString *text, NSDictionary *attribut
     return line;
 }
 
-static inline void witty_update_draw_pill_text(CGContextRef context, NSString *text, NSColor *color,
-        double origin, double baseline, double width, double height, double scale, bool flipped) {
+static inline bool witty_update_line_has_color_glyphs(CTLineRef line) {
+    CFArrayRef runs = CTLineGetGlyphRuns(line);
+    for (CFIndex i = 0; i < CFArrayGetCount(runs); i++) {
+        CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runs, i);
+        CTFontRef font = CFDictionaryGetValue(CTRunGetAttributes(run), kCTFontAttributeName);
+        if (font && (CTFontGetSymbolicTraits(font) & kCTFontColorGlyphsTrait)) return true;
+    }
+    return false;
+}
+
+static inline void witty_update_draw_pill_text(CGContextRef target, NSString *text, NSColor *color,
+        double origin, double baseline, double width, double scale, const CGRect *bounds,
+        uint32_t *pixels, int pixel_width, int pixel_height, bool flipped) {
     if (width <= 0) return;
     NSRange newline = [text rangeOfCharacterFromSet:[NSCharacterSet newlineCharacterSet]];
     if (newline.location != NSNotFound) {
@@ -69,17 +80,38 @@ static inline void witty_update_draw_pill_text(CGContextRef context, NSString *t
     }
     double laidOutWidth = ceil(advance * scale) / scale;
     double x = round((origin + (width - laidOutWidth) / 2) * scale) / scale;
+    // A tint mask represents a single color. Core Text keeps the original colors of bitmap glyphs.
+    const bool color_glyphs = witty_update_line_has_color_glyphs(line);
+    CGContextRef context = color_glyphs ? target
+        : witty_canvas_text_context(pixels, pixel_width, pixel_height, *bounds);
+    if (!context) {
+        CFRelease(line);
+        return;
+    }
     CGContextSaveGState(context);
-    if (flipped) {
-        CGContextTranslateCTM(context, 0, height);
+    if (color_glyphs && flipped) {
+        CGContextTranslateCTM(context, 0, bounds->size.height);
         CGContextScaleCTM(context, 1, -1);
     }
-    CGContextClipToRect(context, CGRectMake(origin, 0, width, height));
+    CGContextClipToRect(context, CGRectMake(origin, 0, width, bounds->size.height));
     CGContextSetTextMatrix(context, CGAffineTransformIdentity);
     CGContextSetTextPosition(context, x, baseline);
     CTLineDraw(line, context);
     CGContextRestoreGState(context);
     CFRelease(line);
+    if (color_glyphs) return;
+    const bool opaque = CGColorGetAlpha(color.CGColor) == 1;
+    CGImageRef image = opaque
+        ? witty_canvas_make_text_mask(CGBitmapContextGetData(context), pixel_width, pixel_height)
+        : CGBitmapContextCreateImage(context);
+    CGContextRelease(context);
+    if (!image) return;
+    if (opaque) {
+        witty_canvas_present_text_mask(target, image, bounds, color, flipped);
+    } else {
+        witty_canvas_present_oriented_image(target, image, bounds, flipped);
+    }
+    CGImageRelease(image);
 }
 
 static inline NSImage *witty_update_pill_symbol(NSString *name, double width, double height,

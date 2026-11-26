@@ -22,6 +22,7 @@ fn C.witty_canvas_pixel_bounds(context voidptr, frame &ObjCRect, bounds &ObjCRec
 fn C.witty_canvas_rasterize_attributed_text(text ObjId, frame &ObjCRect, bounds &ObjCRect, pixels &u32, width int, height int, flipped bool) voidptr
 fn C.witty_canvas_symbol_mask(symbol ObjId, glyph &ObjCRect, bounds &ObjCRect, pixels &u32, width int, height int, flipped bool) bool
 fn C.witty_canvas_present_oriented_image(context voidptr, image voidptr, bounds &ObjCRect, flipped bool)
+fn C.witty_canvas_present_text_mask(context voidptr, mask voidptr, bounds &ObjCRect, tint ObjId, flipped bool)
 
 fn native_canvas_material_view(frame ObjCRect) ObjId {
 	mut cls := get_class('WittyCanvasMaterial')

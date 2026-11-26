@@ -114,7 +114,7 @@ fn test_native_update_pill_capture() {
 	}
 
 	names := ['permission', 'checking', 'available', 'not-found', 'error', 'download',
-		'download-unknown', 'extract', 'install']
+		'download-unknown', 'extract', 'install', 'unicode-error']
 	states := [
 		UpdateState{kind: .permission_request},
 		UpdateState{kind: .checking},
@@ -125,6 +125,7 @@ fn test_native_update_pill_capture() {
 		UpdateState{kind: .downloading},
 		UpdateState{kind: .extracting, extraction_progress: 0.75},
 		UpdateState{kind: .installing},
+		UpdateState{kind: .error, error_description: 'Cannot open café 👩‍💻'},
 	]
 	scale := view_backing_scale(voidptr(view))
 	assert states[5].pill_width(scale) == states[6].pill_width(scale)

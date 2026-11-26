@@ -16,7 +16,7 @@ const update_pill_text_x = update_pill_horizontal_padding + update_badge_slot + 
 const update_pill_insets = update_pill_text_x + update_pill_horizontal_padding
 const update_badge_side = 18
 
-fn C.witty_update_draw_pill_text(context voidptr, text ObjId, color ObjId, x f64, baseline f64, width f64, height f64, scale f64, flipped bool)
+fn C.witty_update_draw_pill_text(context voidptr, text ObjId, color ObjId, x f64, baseline f64, width f64, scale f64, bounds &ObjCRect, pixels &u32, pixel_width int, pixel_height int, flipped bool)
 fn C.witty_update_pill_symbol(name ObjId, width f64, height f64, scale f64, frame &ObjCRect) ObjId
 
 struct UpdateRingTransition {
@@ -139,11 +139,13 @@ fn update_pill_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 	h := int(math.round(bounds.height * scale))
 	mut opacity := 0.0
 	color := C.witty_canvas_resolve_srgb_alpha(self, update_color(state.background_color()), &opacity)
-	mask := native_canvas_rounded_mask(w, h, h / 2.0, style: .continuous_capsule,
+	mut raster := native_canvas_rounded_mask(w, h, h / 2.0, style: .continuous_capsule,
 		opacity: opacity) or { return }
-	native_canvas_draw_mask(context, self, bounds, mask, color)
+	native_canvas_draw_mask(context, self, bounds, raster, color)
+	raster.clear(0)
 	C.witty_update_draw_pill_text(context, nsstring(state.text()), update_color(state.foreground_color()),
-		update_pill_text_x, 7, state.pill_text_width(), bounds.height, scale, msg_bool(self, 'isFlipped'))
+		update_pill_text_x, 7, state.pill_text_width(), scale, &bounds, raster.pixels.data, w, h,
+		msg_bool(self, 'isFlipped'))
 }
 
 // UpdateBadge.swift: the source's 14-point symbol, clamped progress ring with

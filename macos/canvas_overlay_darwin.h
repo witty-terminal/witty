@@ -265,6 +265,22 @@ static inline CGContextRef witty_canvas_text_context(uint32_t *pixels, int width
     return context;
 }
 
+static inline CGImageRef witty_canvas_make_text_mask(const uint32_t *pixels, int width, int height) {
+    size_t count = (size_t)width * height;
+    CFMutableDataRef data = CFDataCreateMutable(NULL, count);
+    if (!data) return NULL;
+    CFDataSetLength(data, count);
+    UInt8 *samples = CFDataGetMutableBytePtr(data);
+    // Core Graphics image masks store inverse opacity.
+    for (size_t i = 0; i < count; i++) samples[i] = 255 - (pixels[i] >> 24);
+    CGDataProviderRef provider = CGDataProviderCreateWithCFData(data);
+    CGImageRef image = provider
+        ? CGImageMaskCreate(width, height, 8, 8, width, provider, NULL, false) : NULL;
+    if (provider) CGDataProviderRelease(provider);
+    CFRelease(data);
+    return image;
+}
+
 static inline CGImageRef witty_canvas_rasterize_attributed_text(NSAttributedString *text,
         const CGRect *frame, const CGRect *bounds, uint32_t *pixels, int width, int height, bool flipped) {
     CGContextRef context = witty_canvas_text_context(pixels, width, height, *bounds);
@@ -344,6 +360,15 @@ static inline void witty_canvas_present_oriented_image(CGContextRef context, CGI
         CGContextScaleCTM(context, 1, -1);
     }
     witty_canvas_present_tile(context, image, bounds, 1);
+    CGContextRestoreGState(context);
+}
+
+static inline void witty_canvas_present_text_mask(CGContextRef context, CGImageRef mask,
+        const CGRect *bounds, NSColor *tint, bool flipped) {
+    CGContextSaveGState(context);
+    // Blend the original opaque tint at presentation time to preserve the precision of its RGB.
+    CGContextSetFillColorWithColor(context, tint.CGColor);
+    witty_canvas_present_oriented_image(context, mask, bounds, flipped);
     CGContextRestoreGState(context);
 }
 #endif
