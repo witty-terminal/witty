@@ -95,6 +95,8 @@ python3 build_support/reference_probes/render_parity/run_macos_split.py \
   .witty-build/artifacts/witty /Applications/Ghostty.app/Contents/MacOS/ghostty
 ```
 
+The `focus-block` and `focus-bar-translucent` fixtures show both cursors over styled cells. They simulate AppKit key-window changes, select the left pane while the window is inactive, and check the hollow cursor, pane shading, and restored cursor. Pass `--fixture focus-block --fixture focus-bar-translucent` to run just these cases.
+
 The foreground scrollbar probe drags the AppKit scrollbar to the middle, the top, and back to the bottom. It compares the thumb and terminal text together in dark, light, and translucent windows, with zero pixel tolerance.
 
 ```sh

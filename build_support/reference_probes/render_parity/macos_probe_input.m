@@ -1,6 +1,7 @@
 #import <AppKit/AppKit.h>
 #import <Carbon/Carbon.h>
 #import <IOKit/hidsystem/ev_keymap.h>
+#import <objc/runtime.h>
 #include <dlfcn.h>
 #include <math.h>
 #include <stdio.h>
@@ -8,15 +9,19 @@
 #include <string.h>
 #include <unistd.h>
 
-static NSView *terminal_view(NSView *view, BOOL ghostty) {
-    if (!view) return nil;
+static NSView *find_terminal_view(NSView *view, BOOL ghostty, NSView *excluded) {
+    if (!view || view == excluded) return nil;
     if ([NSStringFromClass(view.class) isEqualToString:@"VTTerminalView"]) return view;
     if (ghostty && [NSStringFromClass(view.layer.class) isEqualToString:@"IOSurfaceLayer"]) return view;
     for (NSView *child in view.subviews) {
-        NSView *terminal = terminal_view(child, ghostty);
+        NSView *terminal = find_terminal_view(child, ghostty, excluded);
         if (terminal) return terminal;
     }
     return nil;
+}
+
+static NSView *terminal_view(NSView *view, BOOL ghostty) {
+    return find_terminal_view(view, ghostty, nil);
 }
 
 static void send_key_sequence(NSView *view, NSArray<NSString *> *keys, NSUInteger index, NSString *config_path) {
@@ -276,7 +281,60 @@ static bool click_split_zoom_reset(NSWindow *window) {
     return false;
 }
 
-static void capture_split(NSWindow *window, NSString *prefix, NSString *ready, BOOL ghostty,
+static NSWindow *split_focus_window;
+static BOOL (*original_is_key_window)(id, SEL);
+static BOOL split_focus_key;
+
+static BOOL is_split_focus_key_window(NSWindow *window, SEL selector) {
+    if (window == split_focus_window) return split_focus_key;
+    return original_is_key_window(window, selector);
+}
+
+static void notify_split_window_key_change(NSWindow *window, BOOL key) {
+    NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+    NSNotificationName name = key ? NSWindowDidBecomeKeyNotification : NSWindowDidResignKeyNotification;
+    __block BOOL posted = NO;
+    id observer = [center addObserverForName:name object:window queue:nil usingBlock:^(NSNotification *notice) {
+        posted = YES;
+    }];
+    if (key) [window becomeKeyWindow];
+    else [window resignKeyWindow];
+    [center removeObserver:observer];
+    if (!posted) [center postNotificationName:name object:window];
+}
+
+static void capture_split_focus(NSWindow *window, NSString *prefix, NSView *left, NSView *right, NSUInteger step) {
+    static NSString *const states[] = {@"active-right", @"inactive-right", @"inactive-left", @"restored-left"};
+    if (step == 0) {
+        // Drive key changes inside the probe, including when the desktop is locked.
+        // Keep the window's original class so its Swift observers see the same type.
+        split_focus_window = window;
+        Class cls = object_getClass(window);
+        SEL selector = @selector(isKeyWindow);
+        Method method = class_getInstanceMethod(cls, selector);
+        original_is_key_window = (BOOL (*)(id, SEL))method_getImplementation(method);
+        class_replaceMethod(cls, selector, (IMP)is_split_focus_key_window, method_getTypeEncoding(method));
+    }
+    BOOL key = step == 0 || step == 3;
+    split_focus_key = key;
+    NSView *pane = step < 2 ? right : left;
+    if (![window makeFirstResponder:pane]) {
+        fprintf(stderr, "macOS render probe could not select the pane for %s\n", states[step].UTF8String);
+        exit(EXIT_FAILURE);
+    }
+    if (step != 2) notify_split_window_key_change(window, key);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 500 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        if (window.isKeyWindow != key || window.firstResponder != pane ||
+                !capture_window_frame(window.contentView, prefix, states[step])) {
+            fprintf(stderr, "macOS render probe could not capture split focus state %s\n", states[step].UTF8String);
+            exit(EXIT_FAILURE);
+        }
+        if (step == 3) exit(EXIT_SUCCESS);
+        capture_split_focus(window, prefix, left, right, step + 1);
+    });
+}
+
+static void capture_split(NSWindow *window, NSString *prefix, NSString *ready, BOOL ghostty, BOOL focus_cycle,
                           NSUInteger step, int attempts) {
     static const struct {
         const char *name;
@@ -311,11 +369,20 @@ static void capture_split(NSWindow *window, NSString *prefix, NSString *ready, B
             exit(EXIT_FAILURE);
         }
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-            capture_split(window, prefix, ready, ghostty, step, attempts - 1);
+            capture_split(window, prefix, ready, ghostty, focus_cycle, step, attempts - 1);
         });
         return;
     }
-    if (!capture_window_frame(content, prefix, [NSString stringWithUTF8String:stages[step].name])) {
+    if (focus_cycle && step == 1) {
+        NSView *left_view = find_terminal_view(content, ghostty, view);
+        if (!left_view) {
+            fprintf(stderr, "macOS render probe could not find the other pane\n");
+            exit(EXIT_FAILURE);
+        }
+        capture_split_focus(window, prefix, left_view, view, 0);
+        return;
+    }
+    if (!focus_cycle && !capture_window_frame(content, prefix, [NSString stringWithUTF8String:stages[step].name])) {
         fprintf(stderr, "macOS render probe could not capture split state %s\n", stages[step].name);
         exit(EXIT_FAILURE);
     }
@@ -329,7 +396,7 @@ static void capture_split(NSWindow *window, NSString *prefix, NSString *ready, B
         send_key_sequence(view, @[[NSString stringWithUTF8String:stages[step].next_key]], 0, nil);
     }
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 700 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-        capture_split(window, prefix, ready, ghostty, step + 1, 30);
+        capture_split(window, prefix, ready, ghostty, focus_cycle, step + 1, 30);
     });
 }
 
@@ -381,6 +448,7 @@ __attribute__((constructor)) static void install_probe_input(void) {
     const char *split = getenv("WITTY_VIEWPORT_SPLIT_CAPTURE");
     const char *scrollbar = getenv("WITTY_VIEWPORT_SCROLLBAR_CAPTURE");
     const bool ghostty = getenv("WITTY_VIEWPORT_HOVER_GHOSTTY") != NULL;
+    const bool split_focus = getenv("WITTY_VIEWPORT_SPLIT_FOCUS") != NULL;
     const bool has_keys = sequence && *sequence;
     const bool has_drag = drag && *drag;
     const bool has_resize = size && *size;
@@ -405,7 +473,7 @@ __attribute__((constructor)) static void install_probe_input(void) {
                 [view.window makeKeyAndOrderFront:nil];
                 [NSApp activateIgnoringOtherApps:YES];
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (has_split ? 450 : 400) * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-                    if (has_split) capture_split(view.window, prefix, ready_path, ghostty, 0, 30);
+                    if (has_split) capture_split(view.window, prefix, ready_path, ghostty, split_focus, 0, 30);
                     else if (has_scrollbar) {
                         NSScrollView *scroll = view.enclosingScrollView;
                         [scroll flashScrollers];

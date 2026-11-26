@@ -16,6 +16,7 @@ from run_macos import OPTIONS, build_probe_input
 
 
 STATES = ("initial", "right", "left", "nested", "zoomed", "unzoomed", "closed")
+FOCUS_STATES = ("active-right", "inactive-right", "inactive-left", "restored-left")
 SPLIT_OPTIONS = (
     "--window-decoration=none",
     "--macos-titlebar-style=transparent",
@@ -32,13 +33,18 @@ SPLIT_OPTIONS = (
 )
 TITLEBAR_RESET_FIXTURE = "light-titlebar-reset"
 LIGHT_OPTIONS = ("--background=e3ece5", "--foreground=262535", "--window-theme=light")
+CUSTOM_OPTIONS = ("--unfocused-split-fill=81315a", "--unfocused-split-opacity=0.56", "--split-divider-color=47637c")
+TRANSLUCENT_OPTIONS = ("--background=29415a", "--foreground=f4e3dd", "--background-opacity=0.7", "--window-colorspace=srgb",
+                       "--unfocused-split-fill=9b3561", "--split-divider-color=886753")
+FOCUS_CURSORS = {"focus-block": 2, "focus-bar-translucent": 6}
 FIXTURES = {
     "default": (),
-    "custom": ("--unfocused-split-fill=81315a", "--unfocused-split-opacity=0.56", "--split-divider-color=47637c"),
-    "translucent": ("--background=29415a", "--foreground=f4e3dd", "--background-opacity=0.7", "--window-colorspace=srgb",
-                    "--unfocused-split-fill=9b3561", "--split-divider-color=886753"),
+    "custom": CUSTOM_OPTIONS,
+    "translucent": TRANSLUCENT_OPTIONS,
     "light": LIGHT_OPTIONS,
     TITLEBAR_RESET_FIXTURE: (*LIGHT_OPTIONS, "--window-decoration=auto", "--macos-titlebar-style=tabs"),
+    "focus-block": CUSTOM_OPTIONS,
+    "focus-bar-translucent": TRANSLUCENT_OPTIONS,
 }
 # The alternate screen keeps login output out of the zoomed and unzoomed frames.
 PANE_SCRIPT = r"""work=$1
@@ -49,13 +55,17 @@ done
 [ "$pane" -le 3 ] || exit 1
 stty -echo -icanon
 printf '\033[?1049h\033[2J\033[H\033[?25l\033[2;2Hpane %s\033[4;2H\033[38;2;156;211;251mANSI color\033[0m\033[6;2H\033[48;2;71;99;124m        \033[0m\033[7;2Hbox ┌─┐ 界' "$pane"
+if [ -n "$2" ]; then
+    printf '\033[9;7H\033[48;2;71;99;124mstyled cell\033[0m\033[9;11H\033[%s q\033[?25h' "$2"
+fi
 : > "$work/pane$pane.ready"
 exec /bin/sleep 30
 """
 
 
-def capture(binary, app, helper, prefix, options, click_reset=False):
-    paths = {state: prefix.with_name(f"{prefix.name}-{state}.png") for state in STATES}
+def capture(binary, app, helper, prefix, options, *, click_reset=False, cursor_style=None):
+    states = STATES if cursor_style is None else FOCUS_STATES
+    paths = {state: prefix.with_name(f"{prefix.name}-{state}.png") for state in states}
     for path in paths.values():
         path.unlink(missing_ok=True)
     log_path = prefix.with_suffix(".log")
@@ -72,13 +82,18 @@ def capture(binary, app, helper, prefix, options, click_reset=False):
         env.pop("GHOSTTY_RESOURCES_DIR", None)
         env.pop("WITTY_VIEWPORT_HOVER_GHOSTTY", None)
         env.pop("WITTY_VIEWPORT_SPLIT_CLICK_RESET", None)
+        env.pop("WITTY_VIEWPORT_SPLIT_FOCUS", None)
         extra = ()
         if app == "ghostty":
             env["WITTY_VIEWPORT_HOVER_GHOSTTY"] = "1"
             extra = ("--auto-update=off", "--drag-handle=never")
         elif click_reset:
             env["WITTY_VIEWPORT_SPLIT_CLICK_RESET"] = "1"
-        command = shlex.join(("/bin/sh", str(script), directory))
+        command_args = ["/bin/sh", str(script), directory]
+        if cursor_style is not None:
+            env["WITTY_VIEWPORT_SPLIT_FOCUS"] = "1"
+            command_args.append(str(cursor_style))
+        command = shlex.join(command_args)
         args = (*OPTIONS, *SPLIT_OPTIONS, *extra, *options, f"--command={command}")
         with log_path.open("wb") as log:
             result = subprocess.run([binary, *args], cwd=prefix.parent, env=env, stdout=log,
@@ -92,7 +107,7 @@ def capture(binary, app, helper, prefix, options, click_reset=False):
     return frames
 
 
-def run(witty, ghostty, output):
+def run(witty, ghostty, output, fixtures):
     helper = build_probe_input(output)
     write_versions(output, witty, ghostty)
     report = output / "live-split-parity.tsv"
@@ -101,11 +116,13 @@ def run(witty, ghostty, output):
         writer = csv.writer(stream, delimiter="\t")
         writer.writerow(("fixture", "state", "witty_size", "ghostty_size",
                          "different_pixels", "maximum_channel_error", "status"))
-        for fixture, options in FIXTURES.items():
-            captures = {app: capture(binary, app, helper, output / f"{fixture}-{app}", options,
-                                     click_reset=fixture == TITLEBAR_RESET_FIXTURE)
-                        for app, binary in (("ghostty", ghostty), ("witty", witty))}
-            for state in STATES:
+        for fixture in fixtures:
+            captures = {
+                app: capture(binary, app, helper, output / f"{fixture}-{app}", FIXTURES[fixture],
+                             click_reset=fixture == TITLEBAR_RESET_FIXTURE, cursor_style=FOCUS_CURSORS.get(fixture))
+                for app, binary in (("ghostty", ghostty), ("witty", witty))
+            }
+            for state in captures["witty"]:
                 actual, expected = captures["witty"][state], captures["ghostty"][state]
                 count, error = compare_rgba(actual, expected)
                 writer.writerow((fixture, state, f"{actual.width}x{actual.height}", f"{expected.width}x{expected.height}",
@@ -120,6 +137,7 @@ def main():
     parser.add_argument("witty", type=Path, help="path to the standalone Witty executable")
     parser.add_argument("ghostty", type=Path, help="path to the Ghostty app executable")
     parser.add_argument("--output", type=Path, help="directory for screenshots, logs, and the report")
+    parser.add_argument("--fixture", action="append", choices=FIXTURES, help="run specific fixtures instead of the full suite")
     args = parser.parse_args()
     if sys.platform != "darwin":
         parser.error("run on macOS")
@@ -127,7 +145,7 @@ def main():
         if not binary.is_file() or not os.access(binary, os.X_OK):
             parser.error(f"expected an executable file at {binary}")
     try:
-        return run(args.witty.resolve(), args.ghostty.resolve(), output_directory(args.output))
+        return run(args.witty.resolve(), args.ghostty.resolve(), output_directory(args.output), args.fixture or FIXTURES)
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         print(f"Live split comparison failed: {error}", file=sys.stderr)
         return 1
