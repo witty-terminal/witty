@@ -85,6 +85,8 @@ The `grapheme-sequences` fixture places emoji presentation selectors and combini
 
 The `terminal-colors` fixtures compare live OSC changes to the palette, foreground, background, and cursor after the text is already on screen. They also check that resetting the overrides restores the initial frame and compare the overrides with reverse video and a translucent background.
 
+The `alternate-screen` fixtures capture the primary screen, scrolling between a fixed header and footer on the alternate screen, returning to the primary screen, and reentering a cleared alternate screen. The return frame checks the restored cursor, text attributes, and pending wrap. The `vim-return` fixture opens and quits the system Vim, then checks that the shell displays the same restored frame.
+
 The Kitty fixtures also check z-order across cell backgrounds and glyphs, cropped and offset placement, image replacement, and Unicode placeholders. The layering case runs with opaque and translucent backgrounds.
 
 The wallpaper fixtures stretch and tile an alpha PNG behind styled text and colored cells. The shader fixtures run a tint pass followed by a channel swap with default and linear-corrected blending. `shader-wallpaper` runs that chain over the translucent tiled wallpaper.

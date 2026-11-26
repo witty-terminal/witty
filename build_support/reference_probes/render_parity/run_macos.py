@@ -93,10 +93,12 @@ printf '\033[?25l'
 exec /usr/bin/env -i TERM=xterm-256color LC_ALL=en_US.UTF-8 LESSHISTFILE=- LESSSECURE=1 \
     /usr/bin/less -N -PsPager "$@"
 '''
-GRID_FRAME = WAIT_FOR_PTY_GRID + r'''
+GRID_FRAME_START = WAIT_FOR_PTY_GRID + r'''
 /bin/stty -icanon -echo -opost || exit 1
 /bin/cat "$1.bin" || exit 1
 shift 2
+'''
+GRID_FRAME = GRID_FRAME_START + r'''
 for frame in "$@"; do
     # Let the previous frame render before sending the next update.
     /bin/sleep 0.18
@@ -104,11 +106,38 @@ for frame in "$@"; do
 done
 exec /bin/sleep 20
 '''
+VIM_RETURN = GRID_FRAME_START + r'''
+/bin/sleep 0.18
+"$@" -c 'redraw!' -c 'sleep 180m' -c 'qa!' || exit 1
+printf 'ready'
+exec /bin/sleep 20
+'''
 ZSH = r'''stty -echo
 printf '\033[2J\033[H\033[1;32malex\033[0m files %%\r\n'
 whence -v printf
 exec /bin/sleep 20
 '''
+
+
+def alternate_screen_frames():
+    rows = "".join(
+        f"\x1b[38;2;{120 + line * 10};154;227m {line:02d}  café 日本語\x1b[0m\r\n"
+        for line in range(1, 9)
+    )
+    return {
+        "alternate-screen-primary": CLEAR_FRAME + (
+            "\x1b[48;2;53;73;104m Shell before full-screen program\x1b[K\x1b[0m"
+            "\x1b[3;1H\x1b[38;2;120;208;166;48;2;34;61;53m$ echo "
+            f"\x1b[{WINDOW_COLUMNS}G>\x1b[2 q\x1b[?25h"
+        ).encode(),
+        "alternate-screen": (
+            "\x1b[?1049h\x1b[0m\x1b[H\x1b[48;2;45;68;94m Full-screen header\x1b[K\x1b[0m"
+            "\x1b[8;1H\x1b[48;2;82;53;78m [q] Return to shell\x1b[K\x1b[0m"
+            "\x1b[2;6r\x1b[2;1H" + rows + "\x1b[r\x1b[8;38H\x1b[38;2;247;165;128m"
+        ).encode(),
+        "alternate-screen-return": b"\x1b[?1049lready",
+        "alternate-screen-reenter": b"\x1b[?1049h\x1b[0m\x1b[HSecond full-screen session",
+    }
 
 
 def prepare_fixtures(work):
@@ -131,6 +160,7 @@ def prepare_fixtures(work):
         "".join(f"Section {section:02d}   Terminal pager fixture\n" for section in range(1, 31))
     )
     (work / "pager.sh").write_text(LESS)
+    (work / "vim-return.sh").write_text(VIM_RETURN)
     write_pager_fixture(work / "pager-search.txt")
     for name, payload in (("text", TEXT), ("ansi", ANSI), ("unicode", UNICODE)):
         (work / f"{name}.bin").write_bytes(("\x1b[2J\x1b[H" + payload).encode("utf-8"))
@@ -146,6 +176,8 @@ def prepare_fixtures(work):
         (work / f"terminal-colors-{name}.bin").write_bytes(overrides)
     (work / "terminal-colors-reset.bin").write_bytes(TERMINAL_COLOR_RESET)
     (work / "terminal-colors-reverse.bin").write_bytes(overrides + b"\x1b[?5h")
+    for name, payload in alternate_screen_frames().items():
+        (work / f"{name}.bin").write_bytes(payload)
 
     width, height = 32, 24
     pixels = bytes(
@@ -171,18 +203,22 @@ def terminal_command(script):
 def fixture_args(work):
     kitty = ("-e", "/bin/sh", "-c", "/bin/cat kitty.bin; exec /bin/sleep 20")
     kitty_commands = {name: terminal_command(f"/bin/cat {name}.bin") for name in KITTY_FIXTURES}
-    vim = (
-        "-e", "/usr/bin/vim", "-Nu", "NONE", "-n", "-i", "NONE",
+    vim_command = (
+        "/usr/bin/vim", "-Nu", "NONE", "-n", "-i", "NONE",
         "--cmd", "set shortmess+=F",
         "-c", "set number laststatus=2 noshowmode noruler",
         "-c", "syntax on", "files/terminal.py",
     )
+    vim = ("-e", *vim_command)
     cursor = terminal_command(CURSOR)
     pager = ("-e", "/bin/sh", "pager.sh")
     grid_frame = ("-e", "/bin/sh", "grid-frame.sh")
     grid_size = f"{WINDOW_ROWS} {WINDOW_COLUMNS}"
     terminal_colors = (f"--palette=1={bytes(TERMINAL_COLOR_PALETTE).hex()}",
                        *grid_frame, "terminal-colors", grid_size)
+    primary_screen = (*grid_frame, "alternate-screen-primary", grid_size)
+    alternate_screen = (*primary_screen, "alternate-screen")
+    restored_screen = (*alternate_screen, "alternate-screen-return")
     text = terminal_command("/bin/cat text.bin")
     ansi = terminal_command("/bin/cat ansi.bin")
     ansi_without_cursor = terminal_command(r'/bin/cat ansi.bin; printf "\033[?25l"')
@@ -218,6 +254,10 @@ def fixture_args(work):
             "--background-opacity=0.5", "--background-opacity-cells=true",
             *terminal_colors, "terminal-colors-cursor",
         ),
+        "alternate-screen-primary": primary_screen,
+        "alternate-screen": alternate_screen,
+        "alternate-screen-return": restored_screen,
+        "alternate-screen-reenter": (*restored_screen, "alternate-screen-reenter"),
         "kitty": kitty,
         "kitty-translucent": (*TRANSLUCENT_WINDOW, *kitty),
         **kitty_commands,
@@ -228,6 +268,7 @@ def fixture_args(work):
         "shader-chain-linear": (*shader, linear_blending, *ansi_without_cursor),
         "shader-wallpaper": (*repeated_wallpaper, *shader, linear_blending, *ansi_without_cursor),
         "vim": vim,
+        "vim-return": ("-e", "/bin/sh", "vim-return.sh", "alternate-screen-primary", grid_size, *vim_command),
         "vim-default": (*DEFAULT_WINDOW, *vim),
         # Recreate the reference's saved content size with explicit geometry.
         "vim-saved": (
