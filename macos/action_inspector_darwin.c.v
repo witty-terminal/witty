@@ -98,9 +98,14 @@ pub fn (mut surface NativeActionSurface) control_inspector(mode int) {
  C.witty_canvas_place_overlay(surface.scroll.container, surface.scroll.inspector_divider, nil_obj())
  msg_void(surface.scroll.inspector_divider, 'release')
  surface.scroll.layout()
- dispatch_main(inspector_focus_main,voidptr(state))
+ C.witty_macos_dispatch_main_weak(view, voidptr(inspector_focus_main))
 }
-fn inspector_focus_main(context voidptr) { state := unsafe{&NativeInspectorView(context)}; if state.valid() { msg_bool(state.surface.view,'resignFirstResponder'); msg_bool1(view_window(voidptr(state.view)),'makeFirstResponder:',state.view) } }
+fn inspector_focus_main(view voidptr) {
+ state := inspector_state(ObjId(view)) or { return }
+ if !state.valid() { return }
+ msg_bool(state.surface.view, 'resignFirstResponder')
+ msg_bool1(view_window(view), 'makeFirstResponder:', view)
+}
 fn (mut surface NativeActionSurface) hide_inspector() {
  if surface.inspector == unsafe{nil} { return }
  mut state := surface.inspector

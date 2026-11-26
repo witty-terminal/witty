@@ -22,7 +22,7 @@ fn create_quick_surface(view voidptr) bool {
 		if pending.tree.root.leaves().len > 0 {
 			controller := attach_restored_controller(view,pending,true)
 			runtime.pending_quick=none
-			if controller.focused != unsafe { nil } { macos.dispatch_after(0.2,focus_controller_view,controller.focused.view) }
+			if controller.focused != unsafe { nil } { macos.dispatch_after(0.2, focus_controller_surface, voidptr(controller.focused)) }
 			return true
 		}
 		runtime.pending_quick=none

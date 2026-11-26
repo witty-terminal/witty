@@ -70,4 +70,14 @@ fn test_native_inspector_metal_view_size_key_and_ime_consumers() {
  msg_void1(msg_id(get_class('NSRunLoop'),'currentRunLoop'),'runUntilDate:',msg_id_f64(get_class('NSDate'),'dateWithTimeIntervalSinceNow:',0.03))
  assert msg_id(view_window(view),'firstResponder') == view
  assert g_inspector_test_destroyed == 1
+
+ // Closing before the queued focus runs must leave the terminal focused.
+ surface.control_inspector(1)
+ assert surface.inspector != unsafe{nil}
+ surface.control_inspector(2)
+ gc_collect()
+ msg_void1(msg_id(get_class('NSRunLoop'),'currentRunLoop'),'runUntilDate:',msg_id_f64(get_class('NSDate'),'dateWithTimeIntervalSinceNow:',0.03))
+ assert surface.inspector == unsafe{nil}
+ assert msg_id(view_window(view),'firstResponder') == view
+ assert g_inspector_test_destroyed == 2
 }

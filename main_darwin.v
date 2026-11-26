@@ -188,26 +188,32 @@ fn new_controller_with_options(source ?&TermState,options apprt.SurfaceOptions,t
 		else if config.fullscreen {
 			mode:=match config.macos_non_native_fullscreen { .false_ { macos.NativeFullscreenMode.native } .true_ { .non_native } .visible_menu { .visible_menu } .padded_notch { .padded_notch } }
 			if mode==.native { macos.toggle_fullscreen_mode(state.view,mode) }
-			else { macos.dispatch_main(show_configured_new_fullscreen,voidptr(&NewControllerShowTask{controller:state.controller,mode:mode})) }
+			else { queue_new_controller_show(NewControllerShowTask{controller: state.controller, mode: mode}, show_configured_new_fullscreen) }
 		}
 	}
-	macos.dispatch_main(show_new_controller,voidptr(&NewControllerShowTask{controller:state.controller,tab:is_tab}))
+	queue_new_controller_show(NewControllerShowTask{controller: state.controller, tab: is_tab}, show_new_controller)
 	register_new_controller_undo(state, source, is_tab, options)
 	return true
 }
 
-@[heap]
 struct NewControllerShowTask {
 	controller &TerminalController
 	tab bool
 	mode macos.NativeFullscreenMode
 }
+fn queue_new_controller_show(task NewControllerShowTask, callback fn (voidptr)) {
+	// The controller is rooted by the runtime, but this presentation task is not.
+	context := unsafe { memdup_uncollectable(&task, int($sizeof(NewControllerShowTask))) }
+	macos.dispatch_main(callback, context)
+}
 fn show_configured_new_fullscreen(context voidptr) {
+	defer { unsafe { free(context) } }
 	task:=unsafe { &NewControllerShowTask(context) }
 	if task.controller.closed { return }
 	macos.toggle_fullscreen_mode(task.controller.host.container,task.mode)
 }
 fn show_new_controller(context voidptr) {
+	defer { unsafe { free(context) } }
 	task:=unsafe { &NewControllerShowTask(context) }
 	if task.controller.closed { return }
 	if standalone_runtime().screenshot.path == '' {

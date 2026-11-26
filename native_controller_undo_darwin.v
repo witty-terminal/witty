@@ -126,7 +126,10 @@ fn controller_tree_focus_main(context voidptr) {
 		if pending == task { tasks.delete(i); break }
 	}
 }
-fn focus_controller_view(view voidptr) { macos.focus_split_view(view) }
+fn focus_controller_surface(context voidptr) {
+	state := unsafe { &TermState(context) }
+	if !state.closed { macos.focus_split_view(state.view) }
+}
 // Close-other/right undo queues the controller, then resolves its window on
 // the next main-queue turn. Runtime.controllers retains the controller; a
 // closed controller has already released its native host and window.
@@ -169,7 +172,7 @@ fn restore_controller_state(snapshot ControllerUndoState) &TerminalController {
 		macos.restore_native_tab(state.view, snapshot.tab_group.object(), snapshot.tab_index)
 		macos.set_native_tab_color(state.view, snapshot.tab_color)
 		if title := snapshot.title_override { macos.set_view_title(state.view, title) }
-		macos.dispatch_main(focus_controller_view, state.view)
+		macos.dispatch_main(focus_controller_surface, voidptr(state))
 	}
 	return controller
 }
@@ -245,18 +248,22 @@ fn perform_controller_undo(context voidptr) {
 		}
 		.new_close {
 			if record.controller.closed { return }
-			if record.new_tab { macos.dispatch_main(undo_new_controller_close,voidptr(record)) }
-			else { undo_new_controller_close(voidptr(record)) }
+			if record.new_tab { macos.dispatch_main(undo_new_tab_close, voidptr(record.controller)) }
+			else { undo_new_controller_close(record.controller, false) }
 			register_controller_undo(&ControllerUndo{kind: .new_redo, source: record.source, new_tab: record.new_tab, name: record.name,base_options:record.base_options}, voidptr(standalone_runtime().app))
 		}
 		.new_redo { new_controller_with_options(record.source,record.base_options,record.new_tab) }
 	}
 }
-fn undo_new_controller_close(context voidptr) {
-	record:=unsafe { &ControllerUndo(context) }
-	if record.controller.closed || record.controller.focused == unsafe { nil } { return }
+fn undo_new_tab_close(context voidptr) {
+	// The undo record is released before this callback. The runtime roots the controller.
+	controller := unsafe { &TerminalController(context) }
+	undo_new_controller_close(controller, true)
+}
+fn undo_new_controller_close(controller &TerminalController, new_tab bool) {
+	if controller.closed || controller.focused == unsafe { nil } { return }
 	macos.native_undo_disable()
-	do_close_controller(record.controller.focused,!record.new_tab,.this)
+	do_close_controller(controller.focused, !new_tab, .this)
 	macos.native_undo_enable()
 }
 fn register_new_controller_undo(state &TermState, source ?&TermState, tab bool,options apprt.SurfaceOptions) { register_controller_undo(&ControllerUndo{kind: .new_close, controller: state.controller, source: source, new_tab: tab, name: if tab { 'New Tab' } else { 'New Window' },base_options:options}, voidptr(state.controller)) }

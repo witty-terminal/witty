@@ -42,6 +42,12 @@ static int witty_tree_focus_calls(void* view) {
 static void witty_tree_focus_clear_calls(void) {
     for (int i = 0; i < witty_tree_focus_count; i++) witty_tree_focus_resigns[i] = 0;
 }
+static void witty_tree_focus_hide_window(void* window) {
+    ((void (*)(id, SEL, id))objc_msgSend)((id)window, sel_registerName("orderOut:"), nil);
+}
+static void* witty_tree_focus_first_responder(void* window) {
+    return ((id (*)(id, SEL))objc_msgSend)((id)window, sel_registerName("firstResponder"));
+}
 static unsigned long witty_tree_focus_retain_count(void* view) {
     return ((unsigned long (*)(id, SEL))objc_msgSend)((id)view, sel_registerName("retainCount"));
 }

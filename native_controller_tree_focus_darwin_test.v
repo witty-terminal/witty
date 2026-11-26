@@ -10,6 +10,8 @@ fn C.witty_tree_focus_reset()
 fn C.witty_tree_focus_track(view voidptr)
 fn C.witty_tree_focus_calls(view voidptr) int
 fn C.witty_tree_focus_clear_calls()
+fn C.witty_tree_focus_hide_window(window voidptr)
+fn C.witty_tree_focus_first_responder(window voidptr) voidptr
 fn C.witty_tree_focus_retain_count(view voidptr) u64
 fn C.witty_tree_focus_neutral_responder(container voidptr, window voidptr)
 fn C.witty_tree_focus_launch()
@@ -58,9 +60,11 @@ fn (fixture TreeFocusFixture) cleanup() {
 	runtime.app = fixture.previous_app
 	runtime.states = fixture.previous_states
 	runtime.controllers = fixture.previous_controllers
-	macos.close_native_window(fixture.window)
-	macos.release_native_object(fixture.window)
-	macos.release_native_object(fixture.controller.host.container)
+	if !fixture.controller.closed {
+		macos.close_native_window(fixture.window)
+		macos.release_native_object(fixture.window)
+		macos.release_native_object(fixture.controller.host.container)
+	}
 	for state in [fixture.first, fixture.second, fixture.third] {
 		if !state.closed { macos.release_native_object(state.view) }
 	}
@@ -139,4 +143,60 @@ fn test_tree_undo_redo_use_captured_tree_and_live_focus() {
 	c.focused = fixture.second
 	assert macos.native_undo()
 	assert controller_tree_focus_instance.tasks.last().to == fixture.third.view
+}
+
+fn test_queued_window_presentation_survives_collection() {
+	fixture := tree_focus_fixture()
+	defer { fixture.cleanup() }
+	C.witty_tree_focus_hide_window(fixture.window)
+	assert !macos.native_window_is_visible(fixture.window)
+	queue_new_controller_show(NewControllerShowTask{controller: fixture.controller}, show_new_controller)
+	gc_collect()
+	C.witty_tree_focus_pump(0.05)
+	assert macos.native_window_is_visible(fixture.window)
+}
+
+fn test_restored_focus_retries_until_the_surface_reaches_its_window() {
+	fixture := tree_focus_fixture()
+	defer { fixture.cleanup() }
+	mut controller := fixture.controller
+	assert macos.view_window(fixture.second.view) == unsafe { nil }
+	queue_restore_native_focus(fixture.second, fixture.window)
+	gc_collect()
+	C.witty_tree_focus_pump(0.02)
+	assert C.witty_tree_focus_first_responder(fixture.window) != fixture.second.view
+	tree := controller.host.tree.inserting(fixture.second.view, fixture.first.view, .right) or { panic(err) }
+	controller.host.replace_tree(tree)
+	fixture.neutral_responder()
+	gc_collect()
+	C.witty_tree_focus_pump(0.1)
+	assert C.witty_tree_focus_first_responder(fixture.window) == fixture.second.view
+}
+
+fn test_queued_fullscreen_ignores_a_closed_restored_surface() {
+	fixture := tree_focus_fixture()
+	defer { fixture.cleanup() }
+	mut state := fixture.first
+	queue_restore_native_fullscreen(state, .visible_menu)
+	state.closed = true
+	gc_collect()
+	C.witty_tree_focus_pump(0.05)
+	state.closed = false
+	assert macos.native_fullscreen_mode(state.view) == .native
+}
+
+fn test_new_tab_undo_closes_after_the_undo_record_is_released() {
+	fixture := tree_focus_fixture()
+	defer { fixture.cleanup() }
+	controller := fixture.controller
+	macos.native_undo_begin()
+	register_controller_undo(&ControllerUndo{kind: .new_close, controller: controller, new_tab: true,
+		name: 'New Tab'}, voidptr(controller))
+	macos.native_undo_end()
+	assert macos.native_undo()
+	assert !controller.closed
+	assert !standalone_runtime().undos.any(it.kind == .new_close)
+	gc_collect()
+	C.witty_tree_focus_pump(0.05)
+	assert controller.closed
 }

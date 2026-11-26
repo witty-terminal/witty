@@ -79,8 +79,10 @@ fn decode_native_controller(value voidptr,quick bool) ?voidptr {
 	controller:=attach_restored_controller(view,saved,false)
 	window:=macos.view_window(controller.host.container)
 	if controller.focused != unsafe { nil } {
-		macos.dispatch_main(restore_native_focus,voidptr(&RestoreNativeFocusTask{view:controller.focused.view,window:window}))
-		if m:=saved.mode { if m!=.native { macos.dispatch_main(restore_native_fullscreen,voidptr(&RestoreNativeFullscreenTask{view:controller.focused.view,mode:m})) } }
+		queue_restore_native_focus(controller.focused, window)
+		if saved_mode := saved.mode {
+			if saved_mode != .native { queue_restore_native_fullscreen(controller.focused, saved_mode) }
+		}
 	}
 	return window
 }
@@ -111,15 +113,44 @@ fn attach_restored_controller(view voidptr,saved NativeRestoredController,quick 
 	macos.release_native_object(view)
 	return controller
 }
-@[heap]
-struct RestoreNativeFocusTask { view voidptr window voidptr attempts int }
-fn restore_native_focus(context voidptr) {
-	task:=unsafe { &RestoreNativeFocusTask(context) }
-	window:=macos.view_window(task.view)
-	if window == unsafe { nil } { if task.attempts<40 { macos.dispatch_after(0.05,restore_native_focus,voidptr(&RestoreNativeFocusTask{view:task.view,window:task.window,attempts:task.attempts+1})) }; return }
-	if window != task.window { return }
-	macos.restore_native_window_focus(task.view)
+struct RestoreNativeFocusTask {
+	state &TermState
+	window voidptr
+mut:
+	attempts int
 }
-@[heap]
-struct RestoreNativeFullscreenTask { view voidptr mode macos.NativeFullscreenMode }
-fn restore_native_fullscreen(context voidptr) { task:=unsafe { &RestoreNativeFullscreenTask(context) }; macos.toggle_fullscreen_mode(task.view,task.mode) }
+fn queue_restore_native_focus(state &TermState, window voidptr) {
+	task := RestoreNativeFocusTask{state: state, window: window}
+	context := unsafe { memdup_uncollectable(&task, int($sizeof(RestoreNativeFocusTask))) }
+	macos.dispatch_main(restore_native_focus, context)
+}
+fn restore_native_focus(context voidptr) {
+	mut task := unsafe { &RestoreNativeFocusTask(context) }
+	if !task.state.closed {
+		window := macos.view_window(task.state.view)
+		if window == unsafe { nil } && task.attempts < 40 {
+			task.attempts++
+			macos.dispatch_after(0.05, restore_native_focus, context)
+			return
+		}
+		if window != unsafe { nil } && window == task.window {
+			macos.restore_native_window_focus(task.state.view)
+		}
+	}
+	unsafe { free(context) }
+}
+
+struct RestoreNativeFullscreenTask {
+	state &TermState
+	mode macos.NativeFullscreenMode
+}
+fn queue_restore_native_fullscreen(state &TermState, mode macos.NativeFullscreenMode) {
+	task := RestoreNativeFullscreenTask{state: state, mode: mode}
+	context := unsafe { memdup_uncollectable(&task, int($sizeof(RestoreNativeFullscreenTask))) }
+	macos.dispatch_main(restore_native_fullscreen, context)
+}
+fn restore_native_fullscreen(context voidptr) {
+	defer { unsafe { free(context) } }
+	task := unsafe { &RestoreNativeFullscreenTask(context) }
+	if !task.state.closed { macos.toggle_fullscreen_mode(task.state.view, task.mode) }
+}
