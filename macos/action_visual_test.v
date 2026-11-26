@@ -326,6 +326,12 @@ fn test_native_hover_banner_capture() {
 	if os.getenv('WITTY_HOVER_BANNER_BIDI') == '1' {
 		names << ['arabic', 'hebrew']
 		urls << ['https://مثال.test/مسار', 'https://host.test/שלום/á']
+	} else if os.getenv('WITTY_HOVER_BANNER_BIDI') == 'color' {
+		names = ['arabic-tail', 'hebrew-middle', 'arabic-adjacent', 'hebrew-adjacent', 'multi',
+			'emoji-head']
+		urls = ['https://مثال.test/مسار/👍🏽', 'https://host.test/שלום/🇯🇵/á',
+			'https://example.org/لغة👍🏽لغة/تجربة', 'https://example.org/שלום🇯🇵עברית/קובץ',
+			'https://host.test/עברית😃🇯🇵שפה/👍🏽/test', 'https://👍🏽.test/قسم/لغة']
 	}
 	for m, appearance in ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
 		msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',
@@ -429,6 +435,24 @@ fn test_hover_banner_middle_truncation_uses_native_bidirectional_layout() {
 	assert !is_nil(hebrew)
 	defer { C.witty_hover_release_line(hebrew) }
 	assert math.abs(width - 10.384765625) < 0.001
+}
+
+fn test_hover_banner_middle_truncation_positions_bidirectional_color_glyphs() {
+	mut width := 0.0
+	retained := C.witty_hover_line(nsstring('https://مثال.test/مسار/👍🏽'), 65, &width)
+	assert !is_nil(retained)
+	defer { C.witty_hover_release_line(retained) }
+	assert math.abs(width - 62.56396484375) < 0.001
+
+	adjacent := C.witty_hover_line(nsstring('https://example.org/שלום🇯🇵עברית/קובץ'), 171, &width)
+	assert !is_nil(adjacent)
+	defer { C.witty_hover_release_line(adjacent) }
+	assert math.abs(width - 170.48681640625) < 0.001
+
+	elided := C.witty_hover_line(nsstring('https://host.test/שלום/🇯🇵/á'), 65, &width)
+	assert !is_nil(elided)
+	defer { C.witty_hover_release_line(elided) }
+	assert math.abs(width - 46.09033203125) < 0.001
 }
 
 fn test_hover_banner_raster_mirroring_and_display_string() {
