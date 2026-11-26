@@ -375,6 +375,11 @@ fn test_hover_banner_middle_truncation_uses_remaining_suffix_width() {
 	assert !is_nil(kerned)
 	defer { C.CFRelease(kerned) }
 	assert math.abs(width - 111.6806640625) < 0.001
+
+	kerned_pair := C.witty_hover_line(url, 129.5, &width)
+	assert !is_nil(kerned_pair)
+	defer { C.CFRelease(kerned_pair) }
+	assert math.abs(width - 129.3017578125) < 0.001
 }
 
 fn test_hover_banner_raster_mirroring_and_display_string() {

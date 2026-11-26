@@ -55,9 +55,9 @@ static inline CTLineRef witty_hover_fill_suffix(NSString *text, NSDictionary *at
         [text substringToIndex:(NSUInteger)prefix_end], [text substringFromIndex:(NSUInteger)start]];
     NSMutableAttributedString *value = [[NSMutableAttributedString alloc] initWithString:display
         attributes:attributes];
-    // The ellipsis is an independent run in the original truncated layout.
+    // Give the ellipsis its own advance and preserve kerning inside the prefix.
     [value addAttribute:NSKernAttributeName value:@0
-        range:NSMakeRange(last_prefix.location, (NSUInteger)prefix_end + 1 - last_prefix.location)];
+        range:NSMakeRange((NSUInteger)prefix_end, 1)];
     CTLineRef expanded = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)value);
     if (expanded) {
         const double adjustment = prefix_width - CTLineGetOffsetForStringIndex(expanded, prefix_end, NULL);
