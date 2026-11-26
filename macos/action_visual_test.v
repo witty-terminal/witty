@@ -352,8 +352,8 @@ fn test_hover_banner_raster_mirroring_and_display_string() {
 	assert hover_display_url('https://example.org/é/東京') == 'https://example.org/é/東京'
 	assert hover_display_url('https://example.org/a\u202eb') == 'https://example.org/a\\u{202E}b'
 	for live in [false, true] {
-		left := hover_canvas_mask(40, 52, 2, true, live)!
-		right := hover_canvas_mask(40, 52, 2, false, live)!
+		left := hover_canvas_mask(40, 52, 2, true, live, 0)!
+		right := hover_canvas_mask(40, 52, 2, false, live, 0)!
 		assert left.pixels[0] >> 24 == 0
 		assert left.pixels[39] >> 24 == 255
 		assert left.pixels[51 * 40] >> 24 == 255
@@ -369,11 +369,22 @@ fn test_hover_banner_raster_mirroring_and_display_string() {
 }
 
 fn test_hover_banner_live_corner_coverage_near_straight_edge() {
-	one := hover_canvas_mask(40, 52, 1, true, true)!
-	two := hover_canvas_mask(40, 52, 2, true, true)!
+	one := hover_canvas_mask(40, 52, 1, true, true, 0)!
+	two := hover_canvas_mask(40, 52, 2, true, true, 0)!
 	// The corner still covers part of the first row where it approaches the straight edge.
 	assert one.pixels[12] >> 24 == 249
 	assert two.pixels[24] >> 24 == 242
+}
+
+fn test_hover_banner_live_corner_follows_backing_pixel_phase() {
+	x_odd := hover_canvas_mask(40, 52, 2, true, true, 1)!
+	y_odd := hover_canvas_mask(40, 52, 2, true, true, 2)!
+	for row in 0 .. 28 {
+		for column in 0 .. 28 {
+			assert x_odd.pixels[row * 40 + column] == y_odd.pixels[column * 40 + row]
+		}
+	}
+	assert x_odd.pixels[12] > y_odd.pixels[12]
 }
 
 fn test_secure_badge_outline_coverage_at_both_scales() {

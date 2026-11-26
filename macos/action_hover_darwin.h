@@ -55,6 +55,16 @@ static inline bool witty_hover_rasterize_circular_corner(uint32_t *pixels, int w
     return true;
 }
 
+static inline int witty_hover_corner_phase(NSView *view, bool round_left) {
+    NSWindow *window = view.window;
+    if (!window) return 0;
+    const NSRect bounds = [window convertRectToBacking:[view convertRect:view.bounds toView:nil]];
+    const NSRect frame = [window convertRectToBacking:[window convertRectFromScreen:window.frame]];
+    const long x = lround(round_left ? CGRectGetMinX(bounds) : CGRectGetMaxX(bounds));
+    const long y = lround(CGRectGetMaxY(frame) - CGRectGetMaxY(bounds));
+    return (x & 1) | ((y & 1) << 1);
+}
+
 static inline void witty_hover_draw_background(CGContextRef target, NSView *view, const CGRect *bounds,
         const CGRect *clip, const uint32_t *pixels, int width, int height) {
     CGImageRef mask = witty_canvas_make_text_mask(pixels, width, height);

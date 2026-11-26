@@ -9,6 +9,7 @@ import strings
 fn C.witty_hover_line(text ObjId, limit f64, width &f64) voidptr
 fn C.witty_hover_draw_line(target voidptr, line voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int, padding f64, baseline f64)
 fn C.witty_hover_rasterize_circular_corner(pixels &u32, width int, height int, radius f64, round_left bool) bool
+fn C.witty_hover_corner_phase(view ObjId, round_left bool) int
 fn C.witty_hover_draw_background(target voidptr, view ObjId, bounds &ObjCRect, clip &ObjCRect, pixels &u32, width int, height int)
 fn C.witty_hover_set_background(view ObjId, bottom ObjId, top ObjId, corner &ObjCRect)
 
@@ -18,8 +19,15 @@ const hover_spacer = 8.0
 const hover_radius = 9.0
 // Unit-radius intercepts and slopes fitted to live corners at several radii.
 // Each knot marks an equally spaced diagonal, measured as the difference between x and y.
-const hover_corner_positions = [0.292983, 0.129539, 0.035918, 0.007138, 0.0]!
-const hover_corner_slopes = [-0.5, -0.345930, -0.146276, -0.025066, -0.006133]!
+const hover_corner_positions = [0.2929178, 0.2039349, 0.1295417, 0.0731713, 0.0359497, 0.0157460,
+	0.0070678, 0.0027824, 0.0]!
+const hover_corner_slopes = [-0.5, -0.4309238, -0.3447405, -0.2445001, -0.1470687, -0.0688628,
+	-0.0275557, -0.0210720, -0.0011837]!
+
+struct HoverCornerDiagonal {
+	intercept f64
+	distance_scale f64 = 1.0
+}
 
 fn (mut surface NativeActionSurface) initialize_hover_banner() {
 	mut cls := get_class('WittyHoverBanner')
@@ -175,19 +183,31 @@ fn (mut surface NativeActionSurface) refresh_hover_appearance() {
 	}
 }
 
-fn hover_corner_intercept(diagonal f64) f64 {
+fn hover_corner_diagonal(diagonal int, radius f64) HoverCornerDiagonal {
 	step := canvas_corner_x[0][0] / (hover_corner_positions.len - 1)
-	interval := diagonal / step
+	interval := diagonal / (radius * step)
 	i := int(interval)
-	if i >= hover_corner_positions.len - 1 { return 0.0 }
+	if i >= hover_corner_positions.len - 1 { return HoverCornerDiagonal{} }
 	t := interval - i
 	s := 1 - t
-	// Cubic Hermite interpolation in the diagonal coordinate.
-	return s * s * ((1 + 2 * t) * hover_corner_positions[i] + t * step * hover_corner_slopes[i])
+	// Interpolate the intercept and its derivative in the diagonal coordinate.
+	position := s * s * ((1 + 2 * t) * hover_corner_positions[i] + t * step * hover_corner_slopes[i])
 		+ t * t * ((1 + 2 * s) * hover_corner_positions[i + 1] - s * step * hover_corner_slopes[i + 1])
+	slope := 6 * t * s * (hover_corner_positions[i + 1] - hover_corner_positions[i]) / step
+		+ s * (1 - 3 * t) * hover_corner_slopes[i] + t * (1 - 3 * s) * hover_corner_slopes[i + 1]
+	// The rasterizer's coverage ramp lies between diagonal and normal distance.
+	return HoverCornerDiagonal{
+		intercept: radius * position
+		distance_scale: (1 + 1 / math.hypot(1 + slope, slope)) / 2
+	}
 }
 
-fn hover_canvas_mask(width int, height int, scale f64, round_left bool, live bool) !canvas.RasterSurface {
+fn hover_corner_distance(x int, y int, diagonals []HoverCornerDiagonal) f64 {
+	diagonal := diagonals[math.abs(x - y)]
+	return (math.min(x, y) + 0.5 - diagonal.intercept) * diagonal.distance_scale
+}
+
+fn hover_canvas_mask(width int, height int, scale f64, round_left bool, live bool, phase int) !canvas.RasterSurface {
 	mut raster := canvas.new_raster_surface(width: width, height: height)!
 	if !live {
 		radius := math.min(hover_radius * scale, math.min(width, height))
@@ -202,16 +222,21 @@ fn hover_canvas_mask(width int, height int, scale f64, round_left bool, live boo
 	extent := canvas_corner_x[0][0]
 	radius := math.min(hover_radius * scale, math.min(width, height) / extent)
 	corner := math.min(math.min(width, height), int(math.ceil(radius * extent)))
-	mut intercepts := []f64{len: corner}
-	// The corner intersects every pixel on a given diagonal at the same
-	// position. Coverage is the part of the pixel diagonal inside the fill.
-	for i in 0 .. corner {
-		intercepts[i] = radius * hover_corner_intercept(i / radius)
+	mut diagonals := []HoverCornerDiagonal{len: corner + 1}
+	for i in 0 .. diagonals.len {
+		diagonals[i] = hover_corner_diagonal(i, radius)
 	}
+	phase_x := phase & 1
+	phase_y := (phase >> 1) & 1
+	// Core Animation derives the coverage ramp from 2×2 groups of backing pixels.
 	for row in 0 .. corner {
+		dy := 1 - 2 * ((row + phase_y) & 1)
 		for column in 0 .. corner {
-			diagonal := math.abs(row - column)
-			coverage := math.clamp(1 + math.min(row, column) - intercepts[diagonal], 0.0, 1.0)
+			dx := 1 - 2 * ((column + phase_x) & 1)
+			distance := hover_corner_distance(column, row, diagonals)
+			horizontal := dx * (hover_corner_distance(column + dx, row, diagonals) - distance)
+			vertical := dy * (hover_corner_distance(column, row + dy, diagonals) - distance)
+			coverage := math.clamp(0.5 + distance / (horizontal + vertical), 0.0, 1.0)
 			x := if round_left { column } else { width - column - 1 }
 			raster.pixels[row * width + x] = u32(math.round(255 * coverage)) << 24
 		}
@@ -245,7 +270,8 @@ fn action_hover_draw_background(self ObjId, _cmd Sel, _rect ObjCRect) {
 	live := C.CGBitmapContextGetBitsPerComponent(context) == 0
 	// The opaque fill layers cover the rest of the live banner.
 	clip := if live { surface.hover_corner(bounds, scale) } else { bounds }
-	raster := hover_canvas_mask(width, height, scale, surface.hover_left, live) or { return }
+	phase := if live { C.witty_hover_corner_phase(self, surface.hover_left) } else { 0 }
+	raster := hover_canvas_mask(width, height, scale, surface.hover_left, live, phase) or { return }
 	C.witty_hover_draw_background(context, self, &bounds, &clip, raster.pixels.data, width, height)
 }
 
