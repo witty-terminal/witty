@@ -15,8 +15,23 @@ fn C.witty_tahoe_test_fallback_count() int
 fn C.witty_tahoe_test_watch_add_accessory(accessory voidptr)
 fn C.witty_tahoe_test_restore_add_accessory()
 fn C.witty_tahoe_test_super_accessory_layout() i64
-fn C.witty_overlay_test_window_fill_matches(layer ObjId, color ObjId) bool
+fn C.witty_overlay_test_solid_layer_matches(layer ObjId, color ObjId) bool
 fn C.object_setClass(object ObjId, cls ObjId) ObjId
+
+fn test_tahoe_tab_glass_finds_swift_private_view_names() {
+	app_init()
+	cls := C.macos_objc_allocate_class_pair(get_class('NSView'),
+		cstr('_TtC9WittyTest24NSSubduedGlassEffectView'), 0)
+	C.macos_objc_register_class_pair(cls)
+	container := msg_id(alloc('NSView'), 'init')
+	glass := msg_id(msg_id(cls, 'alloc'), 'init')
+	defer {
+		msg_void(glass, 'release')
+		msg_void(container, 'release')
+	}
+	msg_void1(container, 'addSubview:', glass)
+	assert tahoe_tab_glass_view(container) == glass
+}
 
 __global g_tahoe_test_right_clicks = 0
 __global g_tahoe_test_tab_userdata = uint(0)
@@ -240,7 +255,7 @@ fn test_tahoe_tab_constraints_observer_reset_event_forwarding_and_appearance() {
 	background := first_descendant(container, 'NSTitlebarBackgroundView')
 	assert is_nil(background) || msg_bool(background, 'isHidden')
 	if C.witty_native_os_at_least(27, 0, 0) {
-		glass := first_descendant(container, 'NSSubduedGlassEffectView')
+		glass := tahoe_tab_glass_view(container)
 		child := msg_id(msg_id(glass, 'subviews'), 'firstObject')
 		if !is_nil(child) {
 			msg_void_f64(child, 'setAlphaValue:', 1)
@@ -250,17 +265,15 @@ fn test_tahoe_tab_constraints_observer_reset_event_forwarding_and_appearance() {
 		}
 	}
 	titlebar_layer := msg_id(first_descendant(container, 'NSTitlebarView'), 'layer')
-	assert msg_id(data.titlebar_fill.layer, 'superlayer') == titlebar_layer
-	assert C.witty_overlay_test_window_fill_matches(data.titlebar_fill.layer, native_color(0x224466, 0.5))
+	assert C.witty_overlay_test_solid_layer_matches(titlebar_layer, native_color(0x224466, 0.5))
 	apply_native_window_config(view, NativeWindowConfig{...config, blur: -1}, false, 0x224466, 0.5, false)
-	assert is_nil(data.titlebar_fill.layer)
+	assert C.witty_overlay_test_solid_layer_matches(titlebar_layer, native_color(0, 0))
 	// A hot reload changes the derived style while the source window class is fixed.
 	apply_native_window_config(view, NativeWindowConfig{...config, titlebar_style: 0, blur: -1}, false, 0xffffff, 0.5, false)
 	assert data.tabs_tahoe
 	assert objc_utf8_string(msg_id(msg_id(window, 'appearance'), 'name')) == 'NSAppearanceNameAqua'
 	assert msg_u64(window, 'titleVisibility') == 1
-	assert msg_id(data.titlebar_fill.layer, 'superlayer') == titlebar_layer
-	assert C.witty_overlay_test_window_fill_matches(data.titlebar_fill.layer, native_color(0xffffff, 0.5))
+	assert C.witty_overlay_test_solid_layer_matches(titlebar_layer, native_color(0xffffff, 0.5))
 	tahoe_test_readd_tab_accessory(window)
 	tahoe_test_drain()
 	apply_native_window_config(view, NativeWindowConfig{...config, blur: -1}, false, 0x224466, 0.5, false)

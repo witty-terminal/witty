@@ -42,7 +42,7 @@ fn tahoe_window_task_main(context voidptr) {
 	defer { release_tahoe_task(mut task) }
 	window := ObjId(task.weak.object())
 	mut data := native_window_data(window) or { return }
-	if !data.tabs_tahoe { return }
+	if !native_uses_tahoe_titlebar(data) { return }
 	match task.kind {
 		.title { data.tahoe_title = objc_utf8_string(msg_id(window, 'title')); refresh_tahoe_title_view(data) }
 		.font {
@@ -56,11 +56,27 @@ fn tahoe_window_task_main(context voidptr) {
 		.appearance { reapply_tahoe_appearance(window) }
 		.tab_background {
 			container := window_font_titlebar_container(window)
-			glass := first_descendant(container, 'NSSubduedGlassEffectView')
+			glass := tahoe_tab_glass_view(container)
 			child := msg_id(msg_id(glass, 'subviews'), 'firstObject')
 			msg_void_f64(child, 'setAlphaValue:', 0.5)
 		}
 	}
+}
+
+fn tahoe_tab_glass_view(view ObjId) ObjId {
+	if is_nil(view) { return nil_obj() }
+	name := objc_utf8_string(msg_id(view, 'className'))
+	// AppKit can expose the Swift-private runtime name for this view.
+	if name == 'NSSubduedGlassEffectView'
+		|| (name.starts_with('_Tt') && name.ends_with('NSSubduedGlassEffectView')) {
+		return view
+	}
+	children := msg_id(view, 'subviews')
+	for i in 0 .. int(msg_u64(children, 'count')) {
+		found := tahoe_tab_glass_view(msg_id_u64(children, 'objectAtIndex:', u64(i)))
+		if !is_nil(found) { return found }
+	}
+	return nil_obj()
 }
 
 fn schedule_tahoe_tab_background(window ObjId) {
@@ -219,18 +235,20 @@ fn create_tahoe_terminal_toolbar(mut data NativeWindowData) ObjId {
 	return toolbar
 }
 
-fn update_tahoe_titlebar(mut data NativeWindowData) {
+fn native_uses_tahoe_titlebar(data &NativeWindowData) bool {
+	return data.tabs_tahoe || data.transparent_tahoe
+}
+
+fn update_tahoe_titlebar(data &NativeWindowData) {
 	// TransparentTitlebarTerminalWindow.syncAppearanceTahoe uses the inherited
 	// titlebar container, including the separate native fullscreen window.
 	container := window_font_titlebar_container(data.window)
 	titlebar := first_descendant(container, 'NSTitlebarView')
 	if !is_nil(titlebar) {
-		color := if data.config.blur < 0 && data.config.titlebar_style in [1, 2] {
-			nil_obj()
-		} else {
-			native_color(data.preferred_background, data.preferred_opacity)
-		}
-		data.titlebar_fill.update(titlebar, color)
+		msg_void_bool(titlebar, 'setWantsLayer:', true)
+		glass := data.config.blur < 0 && data.config.titlebar_style in [1, 2]
+		color := native_window_canvas_color(if glass { nil_obj() } else { data.titlebar_color })
+		C.witty_canvas_set_layer_srgb_fill(msg_id(titlebar, 'layer'), color.r, color.g, color.b, color.a)
 	}
 	msg_void_bool(first_descendant(container, 'NSTitlebarBackgroundView'), 'setHidden:', true)
 }
@@ -248,8 +266,9 @@ fn tahoe_tab_group_changed(self ObjId, _cmd Sel, _key ObjId, _object ObjId, _cha
 }
 
 fn observe_tahoe_tab_group(mut data NativeWindowData) {
-	clear_tahoe_tab_group(mut data)
 	group := msg_id(data.window, 'tabGroup')
+	if group == data.tahoe_group { return }
+	clear_tahoe_tab_group(mut data)
 	if is_nil(group) { return }
 	if is_nil(data.tahoe_group_observer) {
 		mut cls := get_class('VTTahoeTabGroupObserver')
@@ -268,7 +287,7 @@ fn observe_tahoe_tab_group(mut data NativeWindowData) {
 
 fn reapply_tahoe_appearance(window ObjId) {
 	data := native_window_data(window) or { return }
-	if !data.tabs_tahoe || !data.tahoe_last_config { return }
+	if !native_uses_tahoe_titlebar(data) || !data.tahoe_last_config { return }
 	apply_native_window_config(voidptr(msg_id(window, 'contentView')), data.config, false,
 		data.preferred_background, data.preferred_opacity, data.force_opaque)
 }
@@ -277,14 +296,14 @@ fn native_window_main_changed(self ObjId, command Sel) {
 	C.witty_macos_window_super_void0(self, command)
 	mut data := native_window_data(self) or { return }
 	update_native_zoom_views(mut data)
-	if !data.tabs_tahoe { return }
+	if !native_uses_tahoe_titlebar(data) { return }
 	data.tahoe_main = unsafe { cstring_to_vstring(C.sel_getName(command)) } == 'becomeMainWindow'
 	if data.tahoe_main {
-		setup_tahoe_tab_bar(self)
+		if data.tabs_tahoe { setup_tahoe_tab_bar(self) }
 		reapply_tahoe_appearance(self)
 		if msg_u64(msg_id(msg_id(self, 'tabGroup'), 'windows'), 'count') == 2 { queue_tahoe_window(self, .appearance, false, false, 0.05) }
 	}
-	refresh_tahoe_title_view(data)
+	if data.tabs_tahoe { refresh_tahoe_title_view(data) }
 }
 
 fn native_tahoe_send_event(self ObjId, command Sel, event ObjId) {
@@ -320,7 +339,7 @@ fn native_window_new_tab(self ObjId, _cmd Sel, _sender ObjId) {
 }
 
 fn release_tahoe_window(mut data NativeWindowData) {
-	if !data.tabs_tahoe { return }
+	if !data.tabs_tahoe && is_nil(data.tahoe_group_observer) { return }
 	clear_tahoe_frame_observer(mut data)
 	clear_tahoe_tab_group(mut data)
 	msg_void(data.tahoe_group_observer, 'release')

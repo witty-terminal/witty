@@ -30,11 +30,16 @@ mut:
 	new_tab_image_layer ObjId
 	backdrop_overlay ObjId
 	tab_color int
+	tab_shortcut ObjId
+	tab_shortcut_text string
+	tab_shortcut_key bool
+	tab_shortcut_refresh_pending bool
 	surface_zoomed bool
 	zoom_tab_button ObjId
 	zoom_toolbar_button ObjId
 	zoom_accessory ObjId
 	tabs_tahoe bool
+	transparent_tahoe bool
 	tahoe_title_view ObjId
 	tahoe_title_views []ObjId
 	tahoe_title_labels []ObjId
@@ -67,6 +72,7 @@ fn native_window_key_changed(self ObjId,cmd Sel) {
 		}
 		update_native_zoom_views(mut data)
 		if data.config.titlebar_style == 2 { refresh_native_window_title_attributes(self) }
+		queue_native_tab_shortcuts(self)
 	}
 	update_native_titlebar(self)
 }
@@ -118,6 +124,7 @@ fn register_native_window_class() {
 	register_native_zoom_window_methods(cls)
 	register_window_font_methods(cls)
 	register_tahoe_window_methods(cls)
+	add_method(cls, 'nativeTabShortcutFrameChanged:', voidptr(native_tab_shortcut_frame_changed), 'v@:@')
 	for selector in ['becomeKeyWindow','resignKeyWindow'] { add_method(cls,selector,voidptr(native_window_key_changed),'v@:') }
 	add_method(cls, 'addTitlebarAccessoryViewController:', voidptr(native_window_add_accessory), 'v@:@')
 	add_method(cls, 'removeTitlebarAccessoryViewControllerAtIndex:', voidptr(native_window_remove_accessory), 'v@:Q')
@@ -236,7 +243,7 @@ fn push_native_tabs(context voidptr) {
 }
 fn update_native_titlebar(window ObjId) {
 	mut data := native_window_data(window) or { return }
-	if data.tabs_tahoe { update_tahoe_titlebar(mut data); return }
+	if native_uses_tahoe_titlebar(data) { update_tahoe_titlebar(data); return }
 	container := titlebar_container(window)
 	if is_nil(container) { return }
 	mut titlebar_color := data.titlebar_color
@@ -285,7 +292,14 @@ fn update_native_titlebar(window ObjId) {
 pub fn apply_native_window_config(view voidptr, config NativeWindowConfig, initial bool, preferred_background u32, preferred_opacity f64, force_opaque bool) {
 	window := msg_id(view, 'window')
 	if is_nil(window) { return }
-	mut data := native_window_data(window) or { &NativeWindowData{window: window, tabs_tahoe: config.decorations && config.titlebar_style == 2 && C.witty_native_os_at_least(26, 0, 0)} }
+	mut data := native_window_data(window) or {
+		tahoe := config.decorations && C.witty_native_os_at_least(26, 0, 0)
+		&NativeWindowData{
+			window: window
+			tabs_tahoe: tahoe && config.titlebar_style == 2
+			transparent_tahoe: tahoe && config.titlebar_style == 1
+		}
+	}
 	g_native_windows[u64(window)] = data
 	data.config = config
 	data.preferred_background = preferred_background
@@ -327,21 +341,22 @@ pub fn apply_native_window_config(view voidptr, config NativeWindowConfig, initi
 		msg_void_u64(window,'setToolbarStyle:',4)
 	}
 	update_native_zoom_views(mut data)
-	if data.tabs_tahoe {
+	uses_tahoe_titlebar := native_uses_tahoe_titlebar(data)
+	if uses_tahoe_titlebar {
 		data.tahoe_last_config = true
 		observe_tahoe_tab_group(mut data)
 		schedule_tahoe_tab_background(window)
 	}
 	if !msg_bool(window, 'isVisible') {
-		if data.tabs_tahoe {
+		if uses_tahoe_titlebar {
 			msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:', nsstring(if native_color_luminance(preferred_background) > 0.5 { 'NSAppearanceNameAqua' } else { 'NSAppearanceNameDarkAqua' })))
 			msg_void_bool(window, 'setTitlebarAppearsTransparent:', true)
-			msg_void_u64(window, 'setTitleVisibility:', 1)
-			update_tahoe_titlebar(mut data)
+			if data.tabs_tahoe { msg_void_u64(window, 'setTitleVisibility:', 1) }
+			update_tahoe_titlebar(data)
 		}
 		return
 	}
-	appearance_name := if data.tabs_tahoe || config.titlebar_style == 2 { if native_color_luminance(preferred_background) > 0.5 { 'NSAppearanceNameAqua' } else { 'NSAppearanceNameDarkAqua' } } else if config.theme == 0 { if data.light { 'NSAppearanceNameAqua' } else { 'NSAppearanceNameDarkAqua' } } else if config.theme == 2 { 'NSAppearanceNameAqua' } else if config.theme == 3 { 'NSAppearanceNameDarkAqua' } else { '' }
+	appearance_name := if uses_tahoe_titlebar || config.titlebar_style == 2 { if native_color_luminance(preferred_background) > 0.5 { 'NSAppearanceNameAqua' } else { 'NSAppearanceNameDarkAqua' } } else if config.theme == 0 { if data.light { 'NSAppearanceNameAqua' } else { 'NSAppearanceNameDarkAqua' } } else if config.theme == 2 { 'NSAppearanceNameAqua' } else if config.theme == 3 { 'NSAppearanceNameDarkAqua' } else { '' }
 	msg_void1(window, 'setAppearance:', if appearance_name.len > 0 { msg_id1(get_class('NSAppearance'), 'appearanceNamed:', nsstring(appearance_name)) } else { nil_obj() })
 	msg_void_bool(window, 'setHasShadow:', config.shadow)
 	transparent := native_window_transparent(config, msg_u64(window, 'styleMask') & u64(1 << 14) != 0, force_opaque)
@@ -376,11 +391,17 @@ fn register_native_window_delegate_methods(cls ObjId) {
 	register_terminal_cascade_delegate_methods(cls)
 }
 fn native_window_close(self ObjId,_cmd Sel) {
+	tabs := msg_id(msg_id(self, 'tabbedWindows'), 'copy')
+	defer { msg_void(tabs, 'release') }
 	save_native_window_frame(self)
 	terminal_window_will_close(self)
 	msg_void2(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'), 'postNotificationName:object:', nsstring('TerminalWindowWillClose'), self)
 	C.witty_macos_window_super_void0(self, sel('close'))
 	if mut data := native_window_data(self) {
+		if !is_nil(data.tab_shortcut) {
+			C.witty_macos_objc_msg_void3(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'),
+				sel('removeObserver:name:object:'), self, nsstring('NSViewFrameDidChangeNotification'), data.tab_shortcut)
+		}
 		release_tahoe_window(mut data)
 		release_native_zoom_views(data)
 		msg_void(data.titlebar_color, 'release')
@@ -388,6 +409,10 @@ fn native_window_close(self ObjId,_cmd Sel) {
 		data.buttons_fill.clear()
 	}
 	g_native_windows.delete(u64(self))
+	for i in 0 .. int(msg_u64(tabs, 'count')) {
+		tab := msg_id_u64(tabs, 'objectAtIndex:', u64(i))
+		if tab != self { queue_native_tab_shortcuts(tab); break }
+	}
 }
 pub fn restore_last_terminal_window_size(view voidptr, restore_origin bool) {
 	restore_last_window_frame(msg_id(view, 'window'), restore_origin, true)

@@ -682,12 +682,14 @@ fn refresh_tab_labels(anchor_window ObjId) {
 	count := int(msg_u64(tabs, 'count'))
 	if is_nil(tabs) || count == 0 {
 		refresh_one_tab_label(anchor_window, 1, 0)
+		refresh_native_tab_shortcuts(anchor_window)
 		return
 	}
 	for i in 0 .. count {
 		tab := msg_id_u64(tabs, 'objectAtIndex:', u64(i))
 		refresh_one_tab_label(tab, count, i)
 	}
+	refresh_native_tab_shortcuts(anchor_window)
 }
 
 fn configure_window_common(window ObjId, base_title string) {

@@ -71,3 +71,37 @@ fn test_default_content_size_repositions_and_clamps_configured_native_origin() {
 	msg_void(window,'close')
 	msg_void(window,'release')
 }
+
+fn test_native_tab_shortcuts_follow_selection_reorder_and_config_changes() {
+	app_init()
+	previous := g_native_tab_shortcuts
+	defer { set_native_tab_shortcuts(previous) }
+	set_native_tab_shortcuts(['⌘1', '⌃B', '', '', '', '', '', '', '']!)
+	left := create_restorable_window(400, 200, 'Left')
+	right := create_restorable_window(400, 200, 'Right')
+	left_window, right_window := view_window(left), view_window(right)
+	defer {
+		for window in [right_window, left_window] {
+			close_native_window(window)
+			release_native_object(window)
+		}
+		for view in [right, left] { release_native_object(view) }
+	}
+	for view in [left, right] {
+		apply_native_window_config(view, NativeWindowConfig{}, true, 0, 1, false)
+	}
+	attach_native_new_tab(left_window, right, false)
+	focus_native_window(right_window)
+	assert msg_id(native_tab_group(right), 'selectedWindow') == right_window
+	refresh_native_tab_shortcuts(right_window)
+	left_data := native_window_data(left_window) or { panic('left window missing') }
+	right_data := native_window_data(right_window) or { panic('right window missing') }
+	assert objc_utf8_string(msg_id(left_data.tab_shortcut, 'stringValue')) == '⌘1 '
+	assert objc_utf8_string(msg_id(right_data.tab_shortcut, 'stringValue')) == '⌃B '
+	assert move_native_tab(right, -1)
+	assert objc_utf8_string(msg_id(right_data.tab_shortcut, 'stringValue')) == '⌘1 '
+	assert objc_utf8_string(msg_id(left_data.tab_shortcut, 'stringValue')) == '⌃B '
+	set_native_tab_shortcuts(['', '⇧⌘L', '', '', '', '', '', '', '']!)
+	assert objc_utf8_string(msg_id(right_data.tab_shortcut, 'stringValue')) == ' '
+	assert objc_utf8_string(msg_id(left_data.tab_shortcut, 'stringValue')) == '⇧⌘L '
+}

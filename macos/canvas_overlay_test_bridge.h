@@ -93,6 +93,18 @@ static inline bool witty_overlay_test_window_fill_matches(CALayer *layer, NSColo
     return matches;
 }
 
+static inline bool witty_overlay_test_solid_layer_matches(CALayer *layer, NSColor *color) {
+    CGColorRef fill = layer.backgroundColor;
+    if (!fill || layer.contents || CGColorGetNumberOfComponents(fill) != 4) return false;
+    NSColor *srgb = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+    const CGFloat *components = CGColorGetComponents(fill);
+    const double expected[] = {srgb.redComponent, srgb.greenComponent, srgb.blueComponent, srgb.alphaComponent};
+    for (int i = 0; i < 4; ++i) {
+        if (fabs(components[i] - expected[i]) > 1e-7) return false;
+    }
+    return true;
+}
+
 static inline void *witty_overlay_test_png(void *object) {
     NSView *view = (NSView *)object;
     NSRect area = [view bounds];

@@ -34,6 +34,7 @@ fn prepare_native_zoom_views(mut data NativeWindowData) {
 	msg_void_u64(stack,'setAlignment:',10)
 	previous:=msg_id(msg_id(data.window,'tab'),'accessoryView')
 	if !is_nil(previous) { msg_void1(stack,'addArrangedSubview:',previous) }
+	msg_void1(stack, 'addArrangedSubview:', prepare_native_tab_shortcut(mut data))
 	msg_void1(stack,'addArrangedSubview:',data.zoom_tab_button)
 	msg_void1(msg_id(data.window,'tab'),'setAccessoryView:',stack)
 	msg_void(stack,'release')

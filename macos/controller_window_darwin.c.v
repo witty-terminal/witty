@@ -46,6 +46,7 @@ pub fn attach_native_new_tab(parent voidptr,view voidptr,at_end bool) {
 		mut anchor:=ObjId(parent)
 		if at_end { latest:=msg_id(msg_id(parent,'tabGroup'),'windows'); count:=msg_u64(latest,'count'); if count>0 { anchor=msg_id_u64(latest,'objectAtIndex:',count-1) } }
 		msg_void2(anchor,'addTabbedWindow:ordered:',window,ObjId(1))
+		queue_native_tab_shortcuts(window)
 	}
 }
 pub fn native_tab_creation_denied(view voidptr) bool {
