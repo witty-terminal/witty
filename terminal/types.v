@@ -426,7 +426,7 @@ pub fn (self KeyFlags) int() u8 {
 
 pub struct KeyFlagStack {
 pub mut:
-	flags [8]KeyFlags = [8]KeyFlags{init: key_flags_disabled}
+	flags [8]KeyFlags
 	idx   u8
 }
 

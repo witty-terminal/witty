@@ -63,6 +63,11 @@ fn make_test_handler() (&StreamHandler, &TestContext) {
 	return handler, ctx
 }
 
+fn (mut ctx TestContext) assert_no_io_messages() {
+	message := ctx.mailbox.spsc.queue.pop() or { return }
+	assert false, 'unexpected terminal I/O message: ${message.kind()}'
+}
+
 fn test_surface_message_writer_retries_without_renderer_lock_after_full_queue() ! {
 	mut handler, mut ctx := make_test_handler()
 	defer {
@@ -157,7 +162,7 @@ fn test_stream_handler_tmux_viewer_lifecycle_and_commands() ! {
 		notification: tmux.Notification(tmux.NotifBlockEnd{})
 	})
 	handler.dcs_command(mut startup_done)!
-	assert ctx.mailbox.spsc.queue.len() == 0
+	ctx.assert_no_io_messages()
 
 	mut session := terminal.DcsCommand(terminal.DcsCommandTmux{
 		notification: tmux.Notification(tmux.NotifSessionChanged{
@@ -201,7 +206,6 @@ fn test_stream_handler_xtgettcap_omits_unknown_and_formats_boolean() ! {
 		data: '616D;756E6B6E6F776E;636F6C6F7273'.bytes()
 	}
 	handler.dcs_xtgettcap(mut query)
-	assert ctx.mailbox.spsc.queue.len() == 2
 
 	boolean_msg := ctx.mailbox.spsc.queue.pop() or {
 		assert false
@@ -216,6 +220,7 @@ fn test_stream_handler_xtgettcap_omits_unknown_and_formats_boolean() ! {
 	}
 	assert numeric_msg.kind() == .write_stable
 	assert (numeric_msg as MessageWriteStable).data == '\x1bP1+r636F6C6F7273=323536\x1b\\'
+	ctx.assert_no_io_messages()
 }
 
 fn test_stream_handler_xtversion_uses_build_version() ! {
@@ -224,10 +229,10 @@ fn test_stream_handler_xtversion_uses_build_version() ! {
 
 	handler.report_xtversion()!
 
-	assert ctx.mailbox.spsc.queue.len() == 1
 	msg := ctx.mailbox.spsc.queue.pop() or { panic('expected XTVERSION response') }
 	assert msg.kind() == .write_small
 	assert (msg as WriteSmall).slice().bytestr() == '\x1bP>|witty ${build_meta.version_string}\x1b\\'
+	ctx.assert_no_io_messages()
 }
 
 fn test_stream_handler_request_mode_uses_dec_protocol_value() ! {
@@ -544,6 +549,7 @@ fn test_stream_handler_tab_operations() ! {
 fn test_stream_handler_kitty_keyboard() ! {
 	mut handler, mut ctx := make_test_handler()
 	defer { ctx.t.deinit() }
+	assert handler.terminal.screens.active.kitty_keyboard.current() == terminal.key_flags_disabled
 
 	// Push
 	handler.vt(.kitty_keyboard_push, terminal.ActionKittyKeyboardFlags{
@@ -650,33 +656,15 @@ fn test_color_query_response_mirrors_osc_terminator() ! {
 	mut handler, mut ctx := make_test_handler()
 	defer { ctx.t.deinit() }
 	handler.osc_color_report_format = .format_8_bit
+	mut stream := terminal.Stream.init_alloc[StreamHandler](voidptr(1), handler)
+	defer { stream.deinit() }
 
-	handler.vt(.color_operation, terminal.ActionColorOperation{
-		op:         .osc_4
-		requests:   [
-			osc.ColorRequest(osc.ColorRequestQuery{
-				target: osc.ColorTarget(osc.ColorTargetPalette{
-					index: 1
-				})
-			}),
-		]
-		terminator: .bel
-	})!
+	stream.next_slice('\x1b]4;1;?\a'.bytes())!
 	bel := ctx.mailbox.spsc.queue.pop() or { panic('expected BEL-terminated color response') }
 	assert bel.kind() == .write_small
 	assert (bel as WriteSmall).slice().bytestr().ends_with('\a')
 
-	handler.vt(.color_operation, terminal.ActionColorOperation{
-		op:         .osc_4
-		requests:   [
-			osc.ColorRequest(osc.ColorRequestQuery{
-				target: osc.ColorTarget(osc.ColorTargetPalette{
-					index: 1
-				})
-			}),
-		]
-		terminator: .st
-	})!
+	stream.next_slice('\x1b]4;1;?\x1b\\'.bytes())!
 	st := ctx.mailbox.spsc.queue.pop() or { panic('expected ST-terminated color response') }
 	assert st.kind() == .write_small
 	assert (st as WriteSmall).slice().bytestr().ends_with('\x1b\\')
@@ -686,18 +674,13 @@ fn test_color_query_response_preserves_fixed_buffer_limit() ! {
 	mut handler, mut ctx := make_test_handler()
 	defer { ctx.t.deinit() }
 	handler.osc_color_report_format = .format_16_bit
-	mut requests := []osc.ColorRequest{cap: 64}
-	for _ in 0 .. 64 {
-		requests << osc.ColorRequest(osc.ColorRequestQuery{
-			target: osc.ColorTarget(osc.ColorTargetPalette{
-				index: 1
-			})
-		})
-	}
+	mut stream := terminal.Stream.init_alloc[StreamHandler](voidptr(1), handler)
+	defer { stream.deinit() }
+	query := '\x1b]4' + ';1;?'.repeat(64) + '\x1b\\'
 
-	handler.color_operation(.osc_4, requests, .st) or {
+	stream.next_slice(query.bytes()) or {
 		assert err.msg() == 'OutOfMemory'
-		assert ctx.mailbox.spsc.queue.len() == 0
+		ctx.assert_no_io_messages()
 		return
 	}
 	assert false, 'the fixed OSC color response buffer must reject oversized output'
