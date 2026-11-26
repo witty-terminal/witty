@@ -32,13 +32,31 @@ fn window_font_titlebar_container(window ObjId) ObjId {
 	return nil_obj()
 }
 
-fn window_font_title_field(window ObjId) ObjId {
-	return first_descendant(first_descendant(window_font_titlebar_container(window), 'NSTitlebarView'), 'NSTextField')
+fn window_font_title_fields(window ObjId) []ObjId {
+	titlebar := first_descendant(window_font_titlebar_container(window), 'NSTitlebarView')
+	tahoe := if data := native_window_data(window) { native_uses_tahoe_titlebar(data) } else { false }
+	if !tahoe {
+		field := first_descendant(titlebar, 'NSTextField')
+		return if is_nil(field) { []ObjId{} } else { [field] }
+	}
+	children := msg_id(titlebar, 'subviews')
+	mut fields := []ObjId{}
+	// A nested text field can belong to AppKit's tab strip or a toolbar item.
+	for i in 0 .. int(msg_u64(children, 'count')) {
+		child := msg_id_u64(children, 'objectAtIndex:', u64(i))
+		if objc_utf8_string(msg_id(child, 'className')) == 'NSTextField' {
+			fields << child
+		}
+	}
+	return fields
 }
 
 fn window_font_single_line(window ObjId) {
 	tabs := msg_id(window, 'tabbedWindows')
-	msg_void_bool(window_font_title_field(window), 'setUsesSingleLineMode:', msg_u64(tabs, 'count') <= 1)
+	single_line := msg_u64(tabs, 'count') <= 1
+	for field in window_font_title_fields(window) {
+		msg_void_bool(field, 'setUsesSingleLineMode:', single_line)
+	}
 }
 
 fn window_font_attributed_title(window ObjId) ObjId {
@@ -75,7 +93,9 @@ pub fn set_native_window_title_font(view voidptr, family ?string) {
 	font := if name := family { C.witty_macos_msg_id_obj_f64(get_class('NSFont'), sel('fontWithName:size:'), nsstring(name), size) } else { nil_obj() }
 	C.macos_set_associated_object(window, voidptr(&native_title_font_key), font, uint(1))
 	display_font := if is_nil(font) { msg_id_f64(get_class('NSFont'), 'titleBarFontOfSize:', size) } else { font }
-	msg_void1(window_font_title_field(window), 'setFont:', display_font)
+	for field in window_font_title_fields(window) {
+		msg_void1(field, 'setFont:', display_font)
+	}
 	// TitlebarTabsVenturaTerminalWindow.titlebarFont also projects the font to
 	// TerminalToolbar's centered label when that custom toolbar exists.
 	if data := native_window_data(window) {

@@ -13,6 +13,7 @@ fn C.object_setClass(object ObjId, cls ObjId) ObjId
 fn font_fixture_fullscreen(_self ObjId, _cmd Sel) u64 { return u64(1 << 14) }
 fn font_fixture_toolbar_name(_self ObjId, _cmd Sel) ObjId { return nsstring('NSToolbarFullScreenWindow') }
 fn font_fixture_container_name(_self ObjId, _cmd Sel) ObjId { return nsstring('NSTitlebarContainerView') }
+fn font_fixture_titlebar_name(_self ObjId, _cmd Sel) ObjId { return nsstring('NSTitlebarView') }
 __global font_fixture_is_key = false
 fn font_fixture_key_window(_self ObjId, _cmd Sel) bool { return font_fixture_is_key }
 
@@ -72,8 +73,9 @@ fn test_source_window_title_font_and_native_tab_title_updates() {
 	font := window_title_font(window)
 	assert !is_nil(font)
 	assert msg_f64(font, 'pointSize') == msg_f64(get_class('NSFont'), 'systemFontSize')
-	field := window_font_title_field(window)
-	assert !is_nil(field)
+	fields := window_font_title_fields(window)
+	assert fields.len > 0
+	field := fields[0]
 	assert msg_id(field, 'font') == font
 	assert msg_id(data.title_label, 'font') == font
 	assert msg_u64(data.title_label, 'alignment') == C.witty_macos_text_alignment_center()
@@ -134,10 +136,28 @@ fn test_source_window_font_fullscreen_toolbar_parent_filter() {
 	add_method(container_class, 'className', voidptr(font_fixture_container_name), '@@:')
 	C.macos_objc_register_class_pair(container_class)
 	toolbar := msg_id_rect_u64_u64_bool(msg_id(toolbar_class, 'alloc'), 'initWithContentRect:styleMask:backing:defer:', objc_rect(0, 0, 640, 40), 0, ns_backing_store_buffered, false)
+	g_native_windows[u64(target)] = &NativeWindowData{window: target, tabs_tahoe: true}
 	msg_void_bool(toolbar, 'setReleasedWhenClosed:', false)
 	container := msg_id_rect(msg_id(container_class, 'alloc'), 'initWithFrame:', objc_rect(0, 0, 640, 40))
 	msg_void1(msg_id(toolbar, 'contentView'), 'addSubview:', container)
+	titlebar_class := C.macos_objc_allocate_class_pair(get_class('NSView'), cstr('WittyFontTitlebarFixture'), 0)
+	add_method(titlebar_class, 'className', voidptr(font_fixture_titlebar_name), '@@:')
+	C.macos_objc_register_class_pair(titlebar_class)
+	titlebar := new_obj('WittyFontTitlebarFixture')
+	nested_view := new_obj('NSView')
+	nested_field := new_obj('NSTextField')
+	first_field := new_obj('NSTextField')
+	second_field := new_obj('NSTextField')
+	msg_void1(container, 'addSubview:', titlebar)
+	msg_void1(nested_view, 'addSubview:', nested_field)
+	for child in [nested_view, first_field, second_field] {
+		msg_void1(titlebar, 'addSubview:', child)
+	}
+	for view in [titlebar, nested_view, nested_field, first_field, second_field] {
+		msg_void(view, 'release')
+	}
 	defer {
+		g_native_windows.delete(u64(target))
 		C.object_setClass(target, original_class)
 		msg_void1(target, 'removeChildWindow:', toolbar)
 		msg_void1(other, 'removeChildWindow:', toolbar)
@@ -150,6 +170,7 @@ fn test_source_window_font_fullscreen_toolbar_parent_filter() {
 	msg_void2(target, 'addChildWindow:ordered:', toolbar, ObjId(1))
 	C.object_setClass(target, full)
 	assert window_font_titlebar_container(target) == container
+	assert window_font_title_fields(target) == [first_field, second_field]
 	C.object_setClass(target, original_class)
 	msg_void1(target, 'removeChildWindow:', toolbar)
 	msg_void2(other, 'addChildWindow:ordered:', toolbar, ObjId(1))
