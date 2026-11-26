@@ -251,10 +251,9 @@ static inline void witty_canvas_pixel_bounds(CGContextRef context, const CGRect 
     *height = (int)device.size.height;
 }
 
-static inline CGContextRef witty_canvas_bitmap_context(uint32_t *pixels, int width, int height,
-        CGRect bounds) {
-    // Keep color glyphs and the system label's alpha in the Canvas buffer.
-    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3);
+static inline CGContextRef witty_canvas_bitmap_context_in_space(uint32_t *pixels, int width, int height,
+        CGRect bounds, CFStringRef color_space) {
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(color_space);
     if (!space) return NULL;
     CGContextRef context = CGBitmapContextCreate(pixels, width, height, 8, (size_t)width * sizeof(*pixels),
         space, kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst);
@@ -263,6 +262,11 @@ static inline CGContextRef witty_canvas_bitmap_context(uint32_t *pixels, int wid
     CGContextScaleCTM(context, width / bounds.size.width, height / bounds.size.height);
     CGContextTranslateCTM(context, -bounds.origin.x, -bounds.origin.y);
     return context;
+}
+
+static inline CGContextRef witty_canvas_bitmap_context(uint32_t *pixels, int width, int height,
+        CGRect bounds) {
+    return witty_canvas_bitmap_context_in_space(pixels, width, height, bounds, kCGColorSpaceDisplayP3);
 }
 
 static inline bool witty_canvas_rasterize_ellipse(uint32_t *pixels, int width, int height,

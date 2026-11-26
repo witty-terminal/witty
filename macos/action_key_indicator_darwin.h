@@ -39,7 +39,7 @@ static inline void witty_key_indicator_draw_text(CGContextRef target, NSString *
         .bounds = *bounds,
         .clip = *clip,
         .position = CGPointMake(clip->origin.x, baseline),
-        .round_ink_coverage_up = true,
+        .ink_rounding = WittyCanvasRoundInkUp,
     };
     witty_canvas_draw_text_runs(target, line, color, layout, pixels, width, height);
     CFRelease(line);

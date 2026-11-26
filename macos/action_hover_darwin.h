@@ -25,6 +25,16 @@ static inline CTLineRef witty_hover_line(NSString *text, double limit, double *w
     return truncated;
 }
 
+static inline bool witty_hover_line_has_color(CTLineRef line) {
+    CFArrayRef runs = CTLineGetGlyphRuns(line);
+    for (CFIndex i = 0; i < CFArrayGetCount(runs); ++i) {
+        CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runs, i);
+        NSDictionary *attributes = (NSDictionary *)CTRunGetAttributes(run);
+        if (witty_canvas_font_has_color_glyphs((CTFontRef)attributes[(id)kCTFontAttributeName])) return true;
+    }
+    return false;
+}
+
 static inline bool witty_hover_rasterize_circular_corner(uint32_t *pixels, int width, int height,
         double radius, bool round_left) {
     const CGRect bounds = CGRectMake(0, 0, width, height);
@@ -80,12 +90,16 @@ static inline void witty_hover_set_background(NSView *view, CALayer *bottom, CAL
 
 static inline void witty_hover_draw_line(CGContextRef target, CTLineRef line, NSView *view,
         const CGRect *bounds, uint32_t *pixels, int width, int height, double padding, double baseline) {
+    // SwiftUI rounds mixed-color label opacity to nearest and uses an sRGB bitmap in cached views.
+    const bool mixed_color = witty_hover_line_has_color(line);
+    const bool bitmap_target = CGBitmapContextGetBitsPerComponent(target) != 0;
     const WittyCanvasTextLayout layout = {
         .bounds = *bounds,
         .clip = CGRectInset(*bounds, padding, 0),
         .position = CGPointMake(bounds->origin.x + padding, bounds->origin.y + baseline),
         .color_baseline_offset = -0.5,
-        .round_ink_coverage_up = true,
+        .bitmap_color_space = mixed_color && bitmap_target ? kCGColorSpaceSRGB : NULL,
+        .ink_rounding = mixed_color ? WittyCanvasRoundInkNearest : WittyCanvasRoundInkUp,
         .use_bitmap_color_glyphs = true,
     };
     [[view effectiveAppearance] performAsCurrentDrawingAppearance:^{
