@@ -204,6 +204,8 @@ pub mut:
 	style CellStyle
 }
 
+const default_render_cell = RenderCell{}
+
 // Dirty state
 pub enum RenderDirty as u8 {
 	// Not dirty at all. Can skip rendering if prior state was
@@ -391,28 +393,27 @@ pub fn (mut self RenderState) update(mut t Terminal) {
 		row.header.dirty = false
 
 		// Reset our cells if we're rebuilding this row.
-		self.row_data[y].selection = none
-		self.row_data[y].highlights = []
-		self.row_data[y].dirty = true
+		mut rendered := &self.row_data[y]
+		rendered.selection = none
+		rendered.highlights = []
+		rendered.dirty = true
 
 		// Get all our cells in the page.
 		page_cells := p.get_cells(row)
 		assert page_cells.len == int(self.cols)
 
 		// Copy our raw row data
-		self.row_data[y].raw = row.snapshot()
+		rendered.raw = row.snapshot()
 
-		// We always copy our raw cell data. In the case we have no
-		// managed memory, we can skip setting any other fields.
-		//
-		// This is an important optimization. For plain-text screens
-		// this ends up being something around 300% faster based on
-		// the `screen-clone` benchmark.
-		mut cells := []RenderCell{len: int(self.cols)}
-		for x, page_cell in page_cells {
-			cells[x].raw = page_cell
+		// Keep the row's storage across updates at the same width. Replacing
+		// each cell also clears the old grapheme and style data.
+		if rendered.cells.len != page_cells.len {
+			rendered.cells = []RenderCell{len: page_cells.len, init: default_render_cell}
 		}
-		self.row_data[y].cells = cells
+		for x, page_cell in page_cells {
+			rendered.cells[x] = default_render_cell
+			rendered.cells[x].raw = page_cell
+		}
 		if !row.managed_memory() {
 			continue
 		}
@@ -422,7 +423,7 @@ pub fn (mut self RenderState) update(mut t Terminal) {
 			// Append assuming its a single-codepoint, styled cell
 			// (most common by far).
 			if page_cell.style_id > 0 {
-				self.row_data[y].cells[x].style = p.styles.get(page_cell.style_id)
+				rendered.cells[x].style = p.styles.get(page_cell.style_id)
 			}
 
 			// Switch on our content tag to handle less likely cases.
@@ -433,10 +434,10 @@ pub fn (mut self RenderState) update(mut t Terminal) {
 				// If we have a multi-codepoint grapheme, look it up and
 				// set our content type.
 				.codepoint_grapheme {
-					self.row_data[y].cells[x].grapheme = (p.lookup_grapheme(page_cell) or { []u32{} }).clone()
+					rendered.cells[x].grapheme = (p.lookup_grapheme(page_cell) or { []u32{} }).clone()
 				}
 				.bg_color_rgb {
-					self.row_data[y].cells[x].style = CellStyle{
+					rendered.cells[x].style = CellStyle{
 						bg_color: StyleColorRgb{
 							rgb: RGB{
 								r: page_cell.color_rgb_r()
@@ -447,7 +448,7 @@ pub fn (mut self RenderState) update(mut t Terminal) {
 					}
 				}
 				.bg_color_palette {
-					self.row_data[y].cells[x].style = CellStyle{
+					rendered.cells[x].style = CellStyle{
 						bg_color: StyleColorPalette{ index: page_cell.color_palette() }
 					}
 				}

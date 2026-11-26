@@ -248,12 +248,10 @@ $if macos && !renderer_opengl ? {
 			return error('GG Metal draw does not match the pipeline primitive or count range')
 		}
 		uniforms := step.uniforms or { return error('GG Metal draw has no uniforms') }
-		uniform_size := pipeline.kind.uniform_size()
-		data := macos.metal_buffer_contents(uniforms.handle)
-		if data == unsafe { nil } || macos.metal_buffer_length(uniforms.handle) < uniform_size {
+		if uniforms.handle == unsafe { nil }
+			|| macos.metal_buffer_length(uniforms.handle) < pipeline.kind.uniform_size() {
 			return error('GG Metal draw has invalid uniforms')
 		}
-		uniform_range := gfx.Range{ ptr: data, size: uniform_size }
 		mut bindings := gfx.Bindings{}
 		mut cell_backgrounds := voidptr(unsafe { nil })
 		if pipeline.kind in [.cell_background, .cell_text] {
@@ -293,10 +291,8 @@ $if macos && !renderer_opengl ? {
 		}
 		gfx.apply_pipeline(pipeline.pipeline)
 		gfx.apply_bindings(&bindings)
-		if pipeline.kind.has_instance_data() {
-			gfx.apply_uniforms(.vs, 1, &uniform_range)
-		}
-		gfx.apply_uniforms(.fs, 1, &uniform_range)
+		// The renderer owns this buffer for the entire in-flight frame.
+		macos.metal_encoder_set_buffer(encoder, uniforms.handle, 1)
 		if cell_backgrounds != unsafe { nil } {
 			// The shader reads the variable-length grid from Metal buffer two,
 			// outside Sokol's storage buffer slots.

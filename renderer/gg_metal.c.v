@@ -56,6 +56,9 @@ $if macos && !renderer_opengl ? {
 				return false
 			}
 			mut desc := gfx.Desc{
+				// Terminal draws bind their existing frame buffers. Only the
+				// inspector uploads a single projection matrix through Sokol.
+				uniform_buffer_size: 256
 				mtl_use_command_buffer_with_retained_references: true
 			}
 			desc.environment.metal.device = device

@@ -2,6 +2,7 @@ module font
 
 import sprite as spritepkg
 import sprite_types
+import v.embed_file
 
 // Fonts that can be embedded with Ghostty. Note they are only actually
 // embedded in the binary if they are referenced by the code, so fonts
@@ -14,11 +15,11 @@ import sprite_types
 // the same compile-time resource embedding used by Zig's `@embedFile`.
 
 // Default fonts that we prefer for Ghostty.
-pub const embedded_variable = $embed_file('@VMODROOT/font/res/JetBrainsMono-Variable.ttf').to_bytes()
-pub const embedded_variable_italic = $embed_file('@VMODROOT/font/res/JetBrainsMono-VariableItalic.ttf').to_bytes()
+pub const embedded_variable = embedded_font_bytes($embed_file('@VMODROOT/font/res/JetBrainsMono-Variable.ttf'))
+pub const embedded_variable_italic = embedded_font_bytes($embed_file('@VMODROOT/font/res/JetBrainsMono-VariableItalic.ttf'))
 
 // Symbols-only nerd font.
-pub const embedded_symbols_nerd_font = $embed_file('@VMODROOT/font/res/SymbolsNerdFont-Regular.ttf').to_bytes()
+pub const embedded_symbols_nerd_font = embedded_font_bytes($embed_file('@VMODROOT/font/res/SymbolsNerdFont-Regular.ttf'))
 
 // Static jetbrains mono faces, currently unused.
 pub const embedded_regular = $embed_file('@VMODROOT/font/res/JetBrainsMono-Regular.ttf').to_bytes()
@@ -27,8 +28,15 @@ pub const embedded_italic = $embed_file('@VMODROOT/font/res/JetBrainsMono-Italic
 pub const embedded_bold_italic = $embed_file('@VMODROOT/font/res/JetBrainsMono-BoldItalic.ttf').to_bytes()
 
 // Emoji fonts
-pub const embedded_emoji = $embed_file('@VMODROOT/font/res/NotoColorEmoji.ttf').to_bytes()
-pub const embedded_emoji_text = $embed_file('@VMODROOT/font/res/NotoEmoji-Regular.ttf').to_bytes()
+pub const embedded_emoji = embedded_font_bytes($embed_file('@VMODROOT/font/res/NotoColorEmoji.ttf'))
+pub const embedded_emoji_text = embedded_font_bytes($embed_file('@VMODROOT/font/res/NotoEmoji-Regular.ttf'))
+
+// Font faces only read these process-lifetime assets. Use the embedded
+// storage directly so each asset does not also occupy a copy on the heap.
+fn embedded_font_bytes(asset embed_file.EmbedFileData) []u8 {
+	bytes := asset.data()
+	return unsafe { bytes.vbytes(asset.len) }
+}
 
 // Fonts below are ONLY used for testing.
 

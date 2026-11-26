@@ -715,8 +715,7 @@ $if macos || ios {
 	}
 
 	// metal_layer_surface_size returns the drawable dimensions derived from the
-	// layer bounds and its backing scale. CAMetalLayer's drawableSize is updated
-	// from these same values by update_metal_drawable_size.
+	// layer bounds and its backing scale.
 	pub fn metal_layer_surface_size(layer voidptr) (f64, f64) {
 		if is_nil(layer) {
 			return 0, 0

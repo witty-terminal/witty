@@ -615,7 +615,7 @@ fn runtime_action(app &apprt.App, target apprt.Target, action apprt.RuntimeActio
 }
 
 fn main() {
-	source_startup.prepare()
+	source_startup.prepare_app()
 	args := if os.args.len > 1 { os.args[1..] } else { []string{} }
 	screenshot, config_args := parse_screenshot_launch(args) or {
 		eprintln('Witty: ${err.msg()}')

@@ -160,6 +160,27 @@ fn test_render_state_grapheme() {
 	assert c2.raw.wide == .spacer_tail
 }
 
+fn test_render_state_reuses_row_storage_and_clears_old_cell_data() ! {
+	mut t := Terminal.init(Options{cols: 10, rows: 3})!
+	defer { t.deinit() }
+	mut stream := t.vt_stream()
+	defer { stream.deinit() }
+	mut state := RenderState.empty()
+	defer { state.deinit() }
+	stream.next_slice('\x1b[1m👨‍'.bytes())!
+	state.update(mut t)
+	storage := state.row_data[0].cells.data
+	assert state.row_data[0].cells[0].style.flags.bold()
+	assert state.row_data[0].cells[0].grapheme == [u32(0x200D)]
+
+	stream.next_slice('\x1b[0m\x1b[2J\x1b[Hplain'.bytes())!
+	state.update(mut t)
+	assert state.row_data[0].cells.data == storage
+	assert state.row_data[0].cells[0].raw.codepoint() == u32(`p`)
+	assert state.row_data[0].cells[0].style.default()
+	assert state.row_data[0].cells[0].grapheme.len == 0
+}
+
 // ============================================================
 // cursor state in viewport
 // ============================================================

@@ -86,7 +86,6 @@ const ns_tracking_in_visible_rect = u64(0x200)
 const ns_alert_style_warning = u64(2)
 const ns_alert_first_button_return = i64(1000)
 const objc_assoc_copy_nonatomic = uint(3)
-const mtl_pixel_format_bgra8unorm = u64(80)
 
 __global (
 	g_draw_cb              DrawCallback
@@ -141,9 +140,6 @@ fn register_classes() {
 	if is_nil(view_cls) {
 		view_cls = C.macos_objc_allocate_class_pair(get_class('NSView'), cstr('VTTerminalView'), 0)
 		add_ptr_ivar(view_cls, 'vtUserdata')
-		add_ptr_ivar(view_cls, 'metalDevice')
-		add_ptr_ivar(view_cls, 'metalQueue')
-		add_ptr_ivar(view_cls, 'metalLayer')
 		add_method(view_cls, 'isFlipped', voidptr(vt_view_is_flipped), 'B@:')
 		add_method(view_cls, 'acceptsFirstResponder', voidptr(vt_view_accepts_first_responder), 'B@:')
 		add_method(view_cls, 'canBecomeKeyView', voidptr(vt_view_can_become_key_view), 'B@:')
@@ -478,7 +474,7 @@ fn vt_view_frame_did_change(self ObjId, _cmd Sel, _notification ObjId) {
 	if g_app_terminating {
 		return
 	}
-	update_metal_drawable_size(self)
+	sync_terminal_layer_scale(self)
 	if g_resize_cb == unsafe { nil } {
 		return
 	}
@@ -820,29 +816,9 @@ pub fn set_display_callback(cb DisplayCallback) {
 	g_display_cb = cb
 }
 
-fn setup_view_metal(view ObjId) {
-	device := C.MTLCreateSystemDefaultDevice()
-	if is_nil(device) {
-		return
-	}
-	queue := msg_id(device, 'newCommandQueue')
-	layer := new_obj('CAMetalLayer')
-	msg_void1(layer, 'setDevice:', device)
-	msg_void_u64(layer, 'setPixelFormat:', mtl_pixel_format_bgra8unorm)
-	msg_void_bool(layer, 'setFramebufferOnly:', true)
-	screen := msg_id(get_class('NSScreen'), 'mainScreen')
-	scale := msg_f64(screen, 'backingScaleFactor')
-	msg_void_f64(layer, 'setContentsScale:', if scale > 0 { scale } else { 1.0 })
-	C.macos_objc_set_ptr_ivar(view, cstr('metalDevice'), device)
-	C.macos_objc_set_ptr_ivar(view, cstr('metalQueue'), queue)
-	C.macos_objc_set_ptr_ivar(view, cstr('metalLayer'), layer)
-	update_metal_drawable_size(view)
-}
-
 fn create_terminal_view(frame ObjCRect) ObjId {
 	view := msg_id_rect(alloc('VTTerminalView'), 'initWithFrame:', frame)
 	setup_terminal_interfaces(view)
-	setup_view_metal(view)
 	setup_view_notifications(view)
 	setup_view_tracking(view)
 	return view
@@ -862,14 +838,11 @@ pub fn release_offscreen_terminal_view(view voidptr) {
 	}
 }
 
-fn update_metal_drawable_size(view ObjId) {
-	stored_layer := ObjId(C.macos_objc_get_ptr_ivar(view, cstr('metalLayer')))
-	active_layer := msg_id(view, 'layer')
-	if is_nil(stored_layer) && is_nil(active_layer) {
+fn sync_terminal_layer_scale(view ObjId) {
+	layer := msg_id(view, 'layer')
+	if is_nil(layer) {
 		return
 	}
-	bounds := msg_rect(view, 'bounds')
-	layer := if is_nil(active_layer) { stored_layer } else { active_layer }
 	layer_scale := msg_f64(layer, 'contentsScale')
 	mut scale := if is_nil(msg_id(view, 'window')) {
 		layer_scale
@@ -887,13 +860,6 @@ fn update_metal_drawable_size(view ObjId) {
 		msg_void_bool(transaction, 'setDisableActions:', true)
 		msg_void_f64(layer, 'setContentsScale:', scale)
 		msg_void(transaction, 'commit')
-	}
-	// The original view-owned layer is a CAMetalLayer. Once the renderer
-	// installs its IOSurface layer, AppKit sizes and positions that layer with
-	// the view. Its frame origin must follow the surface through scrollback.
-	if !is_nil(stored_layer)
-		&& msg_bool1(stored_layer, 'respondsToSelector:', sel('setDrawableSize:')) {
-		msg_void_size(stored_layer, 'setDrawableSize:', objc_size(bounds.width * scale, bounds.height * scale))
 	}
 }
 
@@ -1436,36 +1402,3 @@ pub fn set_view_title(view voidptr, title string) {
 }
 
 // Metal wrappers.
-pub fn metal_activate_layer(view voidptr) {
-	if is_nil(view) {
-		return
-	}
-	layer := metal_layer(view)
-	if is_nil(layer) {
-		return
-	}
-	msg_void_bool(ObjId(view), 'setWantsLayer:', true)
-	msg_void1(ObjId(view), 'setLayer:', ObjId(layer))
-	update_metal_drawable_size(ObjId(view))
-}
-
-pub fn metal_device(view voidptr) voidptr {
-	if is_nil(view) {
-		return unsafe { nil }
-	}
-	return C.macos_objc_get_ptr_ivar(ObjId(view), cstr('metalDevice'))
-}
-
-pub fn metal_queue(view voidptr) voidptr {
-	if is_nil(view) {
-		return unsafe { nil }
-	}
-	return C.macos_objc_get_ptr_ivar(ObjId(view), cstr('metalQueue'))
-}
-
-pub fn metal_layer(view voidptr) voidptr {
-	if is_nil(view) {
-		return unsafe { nil }
-	}
-	return C.macos_objc_get_ptr_ivar(ObjId(view), cstr('metalLayer'))
-}

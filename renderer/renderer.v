@@ -2209,6 +2209,8 @@ enum CellSelected as u8 {
 	search_selected
 }
 
+const default_cell_style = terminal.CellStyle{}
+
 fn (mut self Renderer) shape_text_run(run font.TextRun) ![]font.ShapeCell {
 	if cached := self.font_shaper_cache.get(run) {
 		return cached
@@ -2231,14 +2233,6 @@ fn (mut self Renderer) rebuild_row(y u16, row &terminal.RenderRow, preedit_range
 		row.cells.len
 	} else {
 		int(self.cells.size.columns)
-	}
-
-	// Build a raw/style view for padding heuristics.
-	mut cells_raw := []terminal.CellData{cap: row.cells.len}
-	mut cells_style := []terminal.CellStyle{cap: row.cells.len}
-	for c in row.cells {
-		cells_raw << c.raw
-		cells_style << c.style
 	}
 
 	// Iterate text runs in order, shaping only when foreground emission needs them.
@@ -2272,11 +2266,11 @@ fn (mut self Renderer) rebuild_row(y u16, row &terminal.RenderRow, preedit_range
 		// Apply heuristics for padding extension.
 		.extend {
 			if y == 0 {
-				self.uniforms.padding_extend.up = !never_extend_bg(row.raw, cells_raw, cells_style,
+				self.uniforms.padding_extend.up = !never_extend_bg(row,
 					state.colors.palette, state.colors.background)
 			} else if u32(y) == self.cells.size.rows - 1 {
-				self.uniforms.padding_extend.down = !never_extend_bg(row.raw, cells_raw,
-					cells_style, state.colors.palette, state.colors.background)
+				self.uniforms.padding_extend.down = !never_extend_bg(row,
+					state.colors.palette, state.colors.background)
 			}
 		}
 	}
@@ -2314,7 +2308,7 @@ fn (mut self Renderer) rebuild_row(y u16, row &terminal.RenderRow, preedit_range
 		}
 
 		wide := cell.wide
-		cell_style := if cell.has_styling() { row.cells[x].style } else { terminal.CellStyle{} }
+		cell_style := if cell.has_styling() { row.cells[x].style } else { default_cell_style }
 
 		// True if this cell is selected. Order below matters for precedence.
 		// x_compare handles spacer tails by comparing against the base cell.
@@ -2428,7 +2422,7 @@ fn (mut self Renderer) rebuild_row(y u16, row &terminal.RenderRow, preedit_range
 						shape_cell := shaped_cells[shaper_cells_i]
 						self.add_glyph(u16(x), y, fg, alpha, shape_cell.glyph_index,
 							run.font_index, shape_cell.x_offset, shape_cell.y_offset,
-							u32(cell.grid_width()), cells_raw, x, cells_len) or {
+							row.cells, cells_len) or {
 							log.warn('error adding glyph to cell, will be invalid x=${x} y=${y}, err=${err}')
 						}
 						shaper_cells_i++
@@ -2619,8 +2613,9 @@ fn (mut self Renderer) add_strikethrough(x u16, y u16, color terminal.RGB, alpha
 }
 
 // Add a glyph to the specified cell.
-fn (mut self Renderer) add_glyph(x u16, y u16, color terminal.RGB, alpha u8, glyph_index u32, font_index font.Index, x_offset i32, y_offset i32, cell_width u32, raw_cells []terminal.CellData, raw_x int, cols int) ! {
-	cp := raw_cells[raw_x].codepoint()
+fn (mut self Renderer) add_glyph(x u16, y u16, color terminal.RGB, alpha u8, glyph_index u32, font_index font.Index, x_offset i32, y_offset i32, cells []terminal.RenderCell, cols int) ! {
+	cell := &cells[x].raw
+	cp := cell.codepoint()
 	constraint := font.get_constraint(cp) or {
 		if is_symbol(cp) {
 			font.Constraint{
@@ -2634,9 +2629,9 @@ fn (mut self Renderer) add_glyph(x u16, y u16, color terminal.RGB, alpha u8, gly
 		grid_metrics:     self.grid_metrics
 		thicken:          self.config.font_thicken
 		thicken_strength: self.config.font_thicken_strength
-		cell_width:       u8(cell_width)
+		cell_width:       u8(cell.grid_width())
 		constraint:       constraint
-		constraint_width: u8(constraint_width(raw_cells, raw_x, cols))
+		constraint_width: constraint_width(cells, int(x), cols)
 	})!
 
 	// If the glyph is 0 width or height, it will be invisible

@@ -11,7 +11,7 @@ fn main() {
 	$if !managed_native ?&& !test {
 		$compile_warn('Run `make` from the repository root to build Witty and its native dependencies.')
 	}
-	source_startup.prepare()
+	source_startup.prepare_app()
 	mut screenshot := ScreenshotLaunch{}
 	mut args := if os.args.len > 1 { os.args[1..] } else { []string{} }
 	// xdg-terminal-exec supplies a command in argv, including its own flags.
