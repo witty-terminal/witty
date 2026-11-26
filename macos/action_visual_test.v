@@ -378,6 +378,22 @@ fn test_hover_banner_middle_truncation_restores_prefix_when_both_ends_fit() {
 	assert hover_banner_width(42, width, 2) == 31.5
 }
 
+fn test_hover_banner_middle_truncation_matches_adjacent_native_layouts() {
+	url := nsstring('https://example.org/long/path/to/an/application/file.html')
+	mut width := 0.0
+	line := C.witty_hover_line(url, 26, &width)
+	assert !is_nil(line)
+	defer { C.CFRelease(line) }
+	assert math.abs(width - 25.81591796875) < 0.001
+	assert hover_banner_width(44, width, 2) == 36
+
+	wider := C.witty_hover_line(url, 27, &width)
+	assert !is_nil(wider)
+	defer { C.CFRelease(wider) }
+	assert math.abs(width - 21.16943359375) < 0.001
+	assert hover_banner_width(45, width, 2) == 31.5
+}
+
 fn test_hover_banner_middle_truncation_uses_remaining_suffix_width() {
 	url := nsstring('https://example.org/path')
 	mut width := 0.0
