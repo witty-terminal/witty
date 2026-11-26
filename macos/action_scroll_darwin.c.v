@@ -152,7 +152,10 @@ fn surface_scroll_resize(self ObjId,_cmd Sel,_size ObjCSize) { if mut state := n
 fn surface_scroll_layout(self ObjId,_cmd Sel) { if mut state := native_surface_scroll(self) { state.layout() } }
 fn surface_scroll_appearance_changed(self ObjId, _cmd Sel) {
 	view_super_void(self, 'WittySurfaceContainer', 'viewDidChangeEffectiveAppearance')
-	if mut state := native_surface_scroll(self) { state.surface.refresh_hover_appearance() }
+	if mut state := native_surface_scroll(self) {
+		state.surface.refresh_hover_appearance()
+		state.surface.refresh_readonly_appearance()
+	}
 }
 fn (mut state NativeSurfaceScroll) layout() {
  bounds := msg_rect(state.container,'bounds')

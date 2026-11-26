@@ -295,6 +295,26 @@ fn test_native_readonly_badge_layout_and_capture() {
 	assert msg_bool(surface.readonly_badge, 'isHidden')
 }
 
+fn test_native_readonly_badge_follows_window_appearance() {
+	app_init()
+	view := create_window(240, 120, 'read-only appearance')
+	window := view_window(view)
+	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{})
+	defer {
+		surface.deinit()
+		close_tab(view)
+	}
+	surface.configure_scroll(true, false)
+	surface.set_readonly(true)
+	for name in ['NSAppearanceNameDarkAqua', 'NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
+		appearance := msg_id1(get_class('NSAppearance'), 'appearanceNamed:', nsstring(name))
+		msg_void1(window, 'setAppearance:', appearance)
+		assert native_appearance_is_dark(msg_id(view, 'effectiveAppearance'))
+		assert native_appearance_is_dark(msg_id(surface.readonly_material, 'effectiveAppearance')) ==
+			(name == 'NSAppearanceNameDarkAqua')
+	}
+}
+
 fn test_native_hover_banner_follows_window_appearance() {
 	app_init()
 	view := create_window(240, 120, 'link preview appearance')

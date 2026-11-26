@@ -46,6 +46,7 @@ fn (mut surface NativeActionSurface) refresh_readonly_badge() {
 	if is_nil(surface.readonly_badge) { return }
 	msg_void_bool(surface.readonly_badge, 'setHidden:', !surface.readonly)
 	if !surface.readonly { return }
+	surface.refresh_readonly_appearance()
 	scale := view_backing_scale(surface.view)
 	// Two 8-point insets, an 18-point SF Symbol and 5 points of spacing.
 	width := math.ceil((surface.readonly_title_width + 39) * scale) / scale
@@ -59,6 +60,16 @@ fn (mut surface NativeActionSurface) refresh_readonly_badge() {
 	if !native_canvas_mask_material(surface.readonly_material, width, readonly_height, mask) { return }
 	surface.readonly_scale = scale
 	msg_void_bool(surface.readonly_ink, 'setNeedsDisplay:', true)
+}
+
+fn (surface &NativeActionSurface) refresh_readonly_appearance() {
+	if !surface.readonly || is_nil(surface.readonly_badge) { return }
+	appearance := msg_id(view_window(surface.view), 'effectiveAppearance')
+	if !is_nil(appearance) && msg_id(surface.readonly_badge, 'appearance') != appearance {
+		// The scroll view can use a different appearance for its scrollbar.
+		msg_void1(surface.readonly_badge, 'setAppearance:', appearance)
+		msg_void_bool(surface.readonly_ink, 'setNeedsDisplay:', true)
+	}
 }
 
 fn readonly_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
