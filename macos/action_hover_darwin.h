@@ -27,7 +27,7 @@ static inline CTLineRef witty_hover_line(NSString *text, double limit, double *w
 
 static inline CGImageRef witty_hover_rasterize_line(CTLineRef line, NSView *view, uint32_t *pixels,
         int width, int height, double padding, double baseline) {
-    CGContextRef context = witty_canvas_text_context(pixels, width, height, NSRectToCGRect(view.bounds));
+    CGContextRef context = witty_canvas_bitmap_context(pixels, width, height, NSRectToCGRect(view.bounds));
     if (!context) return NULL;
     CGContextClipToRect(context, NSRectToCGRect(NSInsetRect(view.bounds, padding, 0)));
     [[view effectiveAppearance] performAsCurrentDrawingAppearance:^{

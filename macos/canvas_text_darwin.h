@@ -26,7 +26,7 @@ static inline void witty_canvas_draw_text_runs(CGContextRef target, CTLineRef li
     CGRect frame = layout.bounds;
     const double flip_axis = CGRectGetMinY(layout.clip) + CGRectGetMaxY(layout.clip);
     if (layout.flipped) frame.origin.y = flip_axis - CGRectGetMaxY(frame);
-    CGContextRef context = witty_canvas_text_context(pixels, width, height, frame);
+    CGContextRef context = witty_canvas_bitmap_context(pixels, width, height, frame);
     if (!context) return;
 
     CFArrayRef runs = CTLineGetGlyphRuns(line);

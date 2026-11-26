@@ -233,15 +233,14 @@ fn draw_indicator_keycap(view ObjId, context voidptr, part KeyIndicatorPart, bad
 	frame := objc_rect(part.x, y, part.width, 19)
 	w := int(math.round(frame.width * scale))
 	h := int(math.round(frame.height * scale))
-	mask := native_canvas_rounded_mask(w, h, 4 * scale, style: .continuous) or { return }
+	mask := native_canvas_continuous_rect(w, h, scale, 4, 0, 1) or { return }
 	shadow := native_canvas_shadow_mask(mask, 0.5 * scale, 0.12) or { return }
 	pad := (shadow.width - mask.width) / (2 * scale)
 	native_canvas_draw_mask(context, view, objc_rect(frame.x - pad, y - pad + 0.5,
 		shadow.width / scale, shadow.height / scale), shadow, 0)
 	fill := C.witty_canvas_resolve_srgb(view, msg_id(get_class('NSColor'), 'controlBackgroundColor'))
 	native_canvas_draw_mask(context, view, frame, mask, fill)
-	stroke := native_canvas_rounded_mask(w, h, 4 * scale, style: .continuous, stroke: 0.5 * scale,
-		opacity: opacity) or { return }
+	stroke := native_canvas_continuous_rect(w, h, scale, 4, 0.5, opacity) or { return }
 	native_canvas_draw_mask(context, view, frame, stroke, primary)
 	draw_indicator_text(context, part.label, true, part.x + 5, part.width - 10, badge)
 }

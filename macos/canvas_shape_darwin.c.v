@@ -3,6 +3,8 @@ module macos
 import gg.canvas
 import math
 
+fn C.witty_canvas_rasterize_continuous_rect(pixels &u32, width int, height int, scale f64, radius f64, stroke f64, opacity f64, x &[3][4]f64, y &[3][4]f64) bool
+
 // Coordinates of the three cubic segments in a unit-radius continuous corner.
 const canvas_corner_y = [[0.0, 0.0, 0.0, 0.0749114]!,
 	[0.0749114, 0.1690600, 0.3728240, 0.6314940]!,
@@ -143,6 +145,15 @@ fn native_canvas_capsule_stroke(width int, height int, stroke f64, opacity f64) 
 			raster.pixels[left] = math.max(raster.pixels[left], pixel)
 			raster.pixels[right] = math.max(raster.pixels[right], pixel)
 		}
+	}
+	return raster
+}
+
+fn native_canvas_continuous_rect(width int, height int, scale f64, radius f64, stroke f64, opacity f64) !canvas.RasterSurface {
+	mut raster := canvas.new_raster_surface(width: width, height: height)!
+	if !C.witty_canvas_rasterize_continuous_rect(raster.pixels.data, width, height, scale,
+		radius, stroke, opacity, &canvas_corner_x, &canvas_corner_y) {
+		return error('Could not rasterize a continuous rounded rectangle')
 	}
 	return raster
 }

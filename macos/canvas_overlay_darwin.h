@@ -251,7 +251,7 @@ static inline void witty_canvas_pixel_bounds(CGContextRef context, const CGRect 
     *height = (int)device.size.height;
 }
 
-static inline CGContextRef witty_canvas_text_context(uint32_t *pixels, int width, int height,
+static inline CGContextRef witty_canvas_bitmap_context(uint32_t *pixels, int width, int height,
         CGRect bounds) {
     // Keep color glyphs and the system label's alpha in the Canvas buffer.
     CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3);
@@ -263,6 +263,56 @@ static inline CGContextRef witty_canvas_text_context(uint32_t *pixels, int width
     CGContextScaleCTM(context, width / bounds.size.width, height / bounds.size.height);
     CGContextTranslateCTM(context, -bounds.origin.x, -bounds.origin.y);
     return context;
+}
+
+static inline bool witty_canvas_rasterize_continuous_rect(uint32_t *pixels, int width, int height,
+        double scale, double radius, double stroke, double opacity, const double (*x)[3][4],
+        const double (*y)[3][4]) {
+    const CGRect bounds = CGRectMake(0, 0, width / scale, height / scale);
+    CGContextRef context = witty_canvas_bitmap_context(pixels, width, height, bounds);
+    if (!context) return false;
+    CGMutablePathRef path = CGPathCreateMutable();
+    if (!path) {
+        CGContextRelease(context);
+        return false;
+    }
+
+    const double inset = stroke / 2;
+    const double right = bounds.size.width - inset;
+    const double top = bounds.size.height - inset;
+    const double extent = (*x)[0][0];
+    radius = fmax(0, fmin(radius - inset, fmin(right - inset, top - inset) / (2 * extent)));
+    // Rotate the unit corner from the right edge through all four corners.
+    const CGAffineTransform corners[] = {
+        {0, -radius, -radius, 0, right, top},
+        {radius, 0, 0, -radius, inset, top},
+        {0, radius, radius, 0, inset, inset},
+        {-radius, 0, 0, radius, right, inset},
+    };
+    CGPathMoveToPoint(path, NULL, right, bounds.size.height / 2);
+    for (int i = 0; i < 4; ++i) {
+        CGPathAddLineToPoint(path, &corners[i], extent, 0);
+        for (int j = 0; j < 3; ++j) {
+            const double *px = (*x)[j];
+            const double *py = (*y)[j];
+            CGPathAddCurveToPoint(path, &corners[i], px[1], py[1], px[2], py[2], px[3], py[3]);
+        }
+    }
+    CGPathCloseSubpath(path);
+
+    CGContextTranslateCTM(context, 0, bounds.size.height);
+    CGContextScaleCTM(context, 1, -1);
+    CGContextAddPath(context, path);
+    CGContextSetAlpha(context, opacity);
+    if (stroke > 0) {
+        CGContextSetLineWidth(context, stroke);
+        CGContextStrokePath(context);
+    } else {
+        CGContextFillPath(context);
+    }
+    CGPathRelease(path);
+    CGContextRelease(context);
+    return true;
 }
 
 static inline CGImageRef witty_canvas_make_text_mask(const uint32_t *pixels, int width, int height) {
@@ -283,7 +333,7 @@ static inline CGImageRef witty_canvas_make_text_mask(const uint32_t *pixels, int
 
 static inline CGImageRef witty_canvas_rasterize_attributed_text(NSAttributedString *text,
         const CGRect *frame, const CGRect *bounds, uint32_t *pixels, int width, int height, bool flipped) {
-    CGContextRef context = witty_canvas_text_context(pixels, width, height, *bounds);
+    CGContextRef context = witty_canvas_bitmap_context(pixels, width, height, *bounds);
     if (!context) return NULL;
     if (flipped) {
         CGContextTranslateCTM(context, 0, 2 * bounds->origin.y + bounds->size.height);

@@ -18,7 +18,7 @@ static inline CGImageRef witty_readonly_rasterize_title(NSString *title, NSColor
     CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)text);
     [text release];
     if (!line) return NULL;
-    CGContextRef context = witty_canvas_text_context(pixels, width, height, *bounds);
+    CGContextRef context = witty_canvas_bitmap_context(pixels, width, height, *bounds);
     if (!context) {
         CFRelease(line);
         return NULL;

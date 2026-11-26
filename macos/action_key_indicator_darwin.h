@@ -17,7 +17,7 @@ static inline double witty_key_indicator_width(NSString *text, bool keycap) {
 
 static inline CGImageRef witty_key_indicator_rasterize_text(NSString *label, bool keycap,
         const CGRect *clip, const CGRect *bounds, uint32_t *pixels, int width, int height) {
-    CGContextRef context = witty_canvas_text_context(pixels, width, height, *bounds);
+    CGContextRef context = witty_canvas_bitmap_context(pixels, width, height, *bounds);
     if (!context) return NULL;
     NSDictionary *attributes = @{
         NSFontAttributeName: witty_key_indicator_font(keycap),
