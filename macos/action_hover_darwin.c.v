@@ -189,7 +189,7 @@ fn (mut surface NativeActionSurface) refresh_hover_visuals() {
 	}
 	scale := view_backing_scale(surface.view)
 	width := hover_banner_width(available, surface.hover_text_width, scale)
-	y := view_height(surface.view) - hover_height
+	y := view_height(surface.view) - surface.child_exit_banner_height() - hover_height
 	x := if surface.hover_left { available - width } else { 0.0 }
 	old_width := view_width(surface.hover_ink)
 	msg_void_rect(surface.hover_label, 'setFrame:', objc_rect(x, y, width, hover_height))

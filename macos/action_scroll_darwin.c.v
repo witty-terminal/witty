@@ -217,6 +217,10 @@ pub fn (mut surface NativeActionSurface) set_scroll_cell_height(height f64) {
  if surface.scroll == unsafe { nil } { return }
  surface.scroll.cell_height = height
  surface.scroll.synchronize()
+ if !is_nil(surface.child_exit_banner) {
+  surface.refresh_child_exit_banner()
+  surface.refresh_hover_visuals()
+ }
 }
 pub fn (mut surface NativeActionSurface) configure_scroll(never bool,light bool) {
  if surface.scroll == unsafe { nil } { return }

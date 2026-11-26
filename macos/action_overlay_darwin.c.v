@@ -136,6 +136,9 @@ mut:
 	readonly_scale      f64
 	readonly_title_width f64
 	health_label        ObjId
+	child_exit_banner   ObjId
+	child_exit_duration string
+	child_exit_error    bool
 	hover_label         ObjId
 	hover_background_layer ObjId
 	hover_ink           ObjId
@@ -318,6 +321,7 @@ fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
 		if !is_nil(state.bell_layer) { state.refresh_bell_visuals() }
 		state.refresh_hover_visuals()
 		msg_void_bool(state.hover_ink, 'setNeedsDisplay:', true)
+		state.refresh_child_exit_banner()
 		state.refresh_readonly_badge()
 		state.refresh_key_visuals()
 		if state.palette != unsafe { nil } { state.palette.layout() }
@@ -335,6 +339,7 @@ fn action_overlay_colors_changed(self ObjId, _cmd Sel, _notification ObjId) {
 		if state.highlighted { state.refresh_highlight() }
 		state.refresh_secure_visuals()
 		state.refresh_hover_appearance()
+		state.refresh_child_exit_banner()
 		msg_void_bool(state.readonly_ink, 'setNeedsDisplay:', true)
 		state.update_key_colors()
 		if state.palette != unsafe { nil } {
@@ -362,6 +367,7 @@ fn (mut state NativeActionSurface) refresh() {
 	state.refresh_readonly_badge()
 	msg_void_bool(state.health_label, 'setHidden:', state.healthy)
 	msg_void_rect(state.health_label, 'setFrame:', objc_rect((width - 486) / 2, (height - 128) / 2, 486, 128))
+	state.refresh_child_exit_banner()
 	state.refresh_hover_visuals()
 	msg_void_bool(state.secure_badge, 'setHidden:', !(g_secure_enabled && state.focused
 		&& state.secure_indication && msg_bool(view_window(state.view), 'isKeyWindow')))

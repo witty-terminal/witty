@@ -316,6 +316,41 @@ fn test_native_hover_banner_follows_window_appearance() {
 	}
 }
 
+fn test_native_child_exit_banner_keeps_the_link_preview_above_it() {
+	app_init()
+	view := create_window(560, 300, 'command exit banner')
+	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{})
+	defer {
+		surface.deinit()
+		close_tab(view)
+	}
+	surface.set_scroll_cell_height(17)
+	surface.mouse_over_link('https://example.org/path')
+	surface.show_child_exit(0, 1000, 250)
+	banner := surface.child_exit_banner
+	frame := msg_rect(banner, 'frame')
+	link := msg_rect(surface.hover_label, 'frame')
+	assert frame.y + frame.height == view_height(view)
+	assert frame.width == view_width(view)
+	assert link.y + link.height == frame.y
+	assert !surface.child_exit_error
+	assert objc_utf8_string(msg_id(banner, 'accessibilityLabel')) == surface.child_exit_message()
+	msg_void1(banner, 'mouseEntered:', nil_obj())
+	assert msg_f64(banner, 'alphaValue') == 0
+	msg_void1(banner, 'mouseExited:', nil_obj())
+	assert msg_f64(banner, 'alphaValue') == 1
+	surface.show_child_exit(7, 1000, 250)
+	assert surface.child_exit_error
+	assert surface.child_exit_duration == ''
+	surface.show_child_exit(0, 150, 250)
+	assert surface.child_exit_error
+	assert surface.child_exit_duration == '150 ms'
+	surface.set_scroll_cell_height(24)
+	assert msg_rect(banner, 'frame').height > frame.height
+	link_after_zoom := msg_rect(surface.hover_label, 'frame')
+	assert link_after_zoom.y + link_after_zoom.height == msg_rect(banner, 'frame').y
+}
+
 fn test_native_hover_banner_capture() {
 	output := os.getenv('WITTY_HOVER_BANNER_OUTPUT')
 	live := os.getenv('WITTY_HOVER_BANNER_LIVE_OUTPUT')

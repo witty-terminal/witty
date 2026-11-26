@@ -79,6 +79,12 @@ fn runtime_native_action(app &apprt.App, target apprt.Target, state ?&TermState,
 	mut overlay := current.actions
 	data := action.data
 	match action.action {
+		.show_child_exited {
+			if data is apprt.ChildExited && data.runtime_ms > 0 && macos.native_view_has_window(current.view) {
+				overlay.show_child_exit(data.exit_code, data.runtime_ms, app.config.abnormal_command_exit_runtime)
+				return true
+			}
+		}
 		.toggle_command_palette {
 			if current.controller != unsafe { nil } && current.controller.host.tree.root.find(current.view) != none {
 				focused := current.controller.focused
