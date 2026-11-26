@@ -14,10 +14,10 @@ python3 build_support/reference_probes/window_tahoe/run.py \
 
 The ten records cover asynchronous title/font publication, empty-title spacing,
 main-window state, the tab placeholder, toolbar identifiers, priority, border
-and compression resistance. V renders `TitleItem` through an AppKit text field
-and a container with the source one-by-one intrinsic size while tabs are shown;
-the original uses SwiftUI `NSHostingView`. This comparison verifies the model
-and toolbar API behavior and does not certify pixel-identical text rendering.
+and compression resistance. Witty renders `TitleItem` with Core Text shaping
+and GG Canvas storage in an AppKit view. The title view uses the source
+one-by-one intrinsic size while tabs are shown. The comparison covers the model
+and toolbar API behavior.
 The native test also exercises independent repeated title-item creation, real
 tab constraints with visible and hidden window buttons, frame notification
 reset, inherited tab-group KVO, transparent/glass titlebar coloring, update-pill

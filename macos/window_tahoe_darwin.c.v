@@ -1,13 +1,19 @@
 @[has_globals]
 module macos
 
+import gg.canvas
+
 // TitlebarTabsTahoeTerminalWindow and the inherited macOS 26 transparent
-// appearance path. AppKit renders the source TitleItem view model in V.
+// appearance path.
 #insert "@VMODROOT/macos/window_tahoe_abi.h"
 fn C.witty_tahoe_observe_frame(view voidptr, context voidptr, callback fn (voidptr)) ObjId
 fn C.witty_tahoe_observe_group(group voidptr, observer voidptr)
 fn C.witty_tahoe_remove_group_observer(group voidptr, observer voidptr)
 fn C.witty_tahoe_event_in_view(view voidptr, event voidptr) bool
+fn C.witty_tahoe_title_size(view ObjId, title ObjId, font ObjId) ObjCSize
+fn C.witty_tahoe_update_title_vibrancy(view ObjId)
+fn C.witty_tahoe_draw_title(view ObjId, context voidptr, title ObjId, font ObjId, main bool, vibrant bool,
+	pixel_bounds &ObjCRect, pixels voidptr, width int, height int)
 
 enum TahoeWindowTaskKind {
 	title
@@ -173,21 +179,64 @@ fn tahoe_title_intrinsic_size(self ObjId, _cmd Sel) ObjCSize {
 	window := ObjId(C.macos_objc_get_ptr_ivar(self, cstr('vtWindow')))
 	data := native_window_data(window) or { return ObjCSize{width: 1, height: 1} }
 	if data.tahoe_has_tab_bar { return ObjCSize{width: 1, height: 1} }
-	for i, view in data.tahoe_title_views {
-		if view == self { return C.witty_macos_text_size(msg_id(data.tahoe_title_labels[i], 'attributedStringValue')) }
+	return C.witty_tahoe_title_size(self, tahoe_title_text(data), data.tahoe_title_font)
+}
+
+fn tahoe_title_text(data &NativeWindowData) ObjId {
+	return nsstring(if data.tahoe_title == '' { ' ' } else { data.tahoe_title })
+}
+
+fn tahoe_draw_title(self ObjId, _cmd Sel, _dirty ObjCRect) {
+	tahoe_draw_title_ink(self, self)
+}
+
+fn tahoe_draw_vibrant_title(self ObjId, _cmd Sel, _dirty ObjCRect) {
+	tahoe_draw_title_ink(self, msg_id(self, 'superview'))
+}
+
+fn tahoe_draw_title_ink(view ObjId, item ObjId) {
+	window := ObjId(C.macos_objc_get_ptr_ivar(item, cstr('vtWindow')))
+	data := native_window_data(window) or { return }
+	if data.tahoe_has_tab_bar || data.tahoe_title == '' { return }
+	vibrant := view != item
+	if vibrant && data.tahoe_main { return }
+	context := native_canvas_overlay_context()
+	if is_nil(context) { return }
+	bounds := msg_rect(view, 'bounds')
+	mut pixel_bounds := ObjCRect{}
+	mut width, mut height := 0, 0
+	C.witty_canvas_pixel_bounds(context, &bounds, &pixel_bounds, &width, &height)
+	mut raster := canvas.new_raster_surface(width: width, height: height) or { return }
+	C.witty_tahoe_draw_title(view, context, tahoe_title_text(data), data.tahoe_title_font,
+		data.tahoe_main, vibrant, &pixel_bounds, raster.pixels.data, width, height)
+}
+
+fn tahoe_refresh_vibrant_title(ink ObjId) {
+	C.witty_tahoe_update_title_vibrancy(ink)
+	msg_void_bool(ink, 'setNeedsDisplay:', true)
+}
+
+fn tahoe_title_environment_changed(self ObjId, command Sel) {
+	name := unsafe { cstring_to_vstring(C.sel_getName(command)) }
+	view_super_void(self, 'VTTahoeTitleItem', name)
+	if name == 'viewDidChangeBackingProperties' {
+		msg_void(self, 'invalidateIntrinsicContentSize')
 	}
-	return ObjCSize{width: 1, height: 1}
+	msg_void_bool(self, 'setNeedsDisplay:', true)
+	tahoe_refresh_vibrant_title(ObjId(C.macos_objc_get_ptr_ivar(self, cstr('vtTitleInk'))))
 }
 
 fn refresh_tahoe_title_view(data &NativeWindowData) {
-	for i, view in data.tahoe_title_views {
-		label := data.tahoe_title_labels[i]
-		msg_void1(label, 'setStringValue:', nsstring(if data.tahoe_title == '' { ' ' } else { data.tahoe_title }))
-		msg_void1(label, 'setFont:', if is_nil(data.tahoe_title_font) { msg_id_f64(get_class('NSFont'), 'systemFontOfSize:', msg_f64(get_class('NSFont'), 'systemFontSize')) } else { data.tahoe_title_font })
-		msg_void1(label, 'setTextColor:', msg_id(get_class('NSColor'), if data.tahoe_main { 'labelColor' } else { 'secondaryLabelColor' }))
-		msg_void_bool(label, 'setHidden:', data.tahoe_has_tab_bar)
+	title := tahoe_title_text(data)
+	for view in data.tahoe_title_views {
+		msg_void1(view, 'setAccessibilityValue:', title)
+		msg_void_bool(view, 'setAccessibilityElement:', !data.tahoe_has_tab_bar)
 		msg_void(view, 'invalidateIntrinsicContentSize')
 		msg_void_bool(view, 'setNeedsLayout:', true)
+		msg_void_bool(view, 'setNeedsDisplay:', true)
+		ink := ObjId(C.macos_objc_get_ptr_ivar(view, cstr('vtTitleInk')))
+		msg_void_bool(ink, 'setHidden:', data.tahoe_main || data.tahoe_has_tab_bar)
+		tahoe_refresh_vibrant_title(ink)
 	}
 }
 
@@ -196,23 +245,28 @@ fn create_tahoe_title_view(mut data NativeWindowData) {
 	if is_nil(title_cls) {
 		title_cls = C.macos_objc_allocate_class_pair(get_class('NSView'), cstr('VTTahoeTitleItem'), 0)
 		C.macos_class_add_ivar(title_cls, cstr('vtWindow'), sizeof(voidptr), 3, cstr('^v'))
+		C.macos_class_add_ivar(title_cls, cstr('vtTitleInk'), sizeof(voidptr), 3, cstr('^v'))
 		add_method(title_cls, 'intrinsicContentSize', voidptr(tahoe_title_intrinsic_size), '{CGSize=dd}@:')
+		add_method(title_cls, 'drawRect:', voidptr(tahoe_draw_title), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
+		add_method(title_cls, 'hitTest:', voidptr(action_passive_hit), '@@:{CGPoint=dd}')
+		for name in ['viewDidChangeBackingProperties', 'viewDidChangeEffectiveAppearance'] {
+			add_method(title_cls, name, voidptr(tahoe_title_environment_changed), 'v@:')
+		}
 		C.macos_objc_register_class_pair(title_cls)
+		ink_class := C.macos_objc_allocate_class_pair(get_class('NSView'), cstr('VTTahoeTitleInk'), 0)
+		add_method(ink_class, 'drawRect:', voidptr(tahoe_draw_vibrant_title), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
+		C.macos_objc_register_class_pair(ink_class)
 	}
 	data.tahoe_title_view = msg_id_rect(alloc('VTTahoeTitleItem'), 'initWithFrame:', objc_rect(0, 0, 100, 22))
 	C.macos_objc_set_ptr_ivar(data.tahoe_title_view, cstr('vtWindow'), voidptr(data.window))
-	data.title_label = msg_id_rect(alloc('NSTextField'), 'initWithFrame:', objc_rect(0, 0, 100, 22))
-	msg_void_bool(data.title_label, 'setEditable:', false)
-	msg_void_bool(data.title_label, 'setBordered:', false)
-	msg_void_bool(data.title_label, 'setDrawsBackground:', false)
-	msg_void_u64(data.title_label, 'setAlignment:', C.witty_macos_text_alignment_center())
-	msg_void_u64(data.title_label, 'setLineBreakMode:', 4)
-	msg_void_bool(data.title_label, 'setUsesSingleLineMode:', true)
-	msg_void_bool(msg_id(data.title_label, 'cell'), 'setTruncatesLastVisibleLine:', true)
-	msg_void_u64(data.title_label, 'setAutoresizingMask:', 18)
-	msg_void1(data.tahoe_title_view, 'addSubview:', data.title_label)
+	ink := msg_id_rect(alloc('VTTahoeTitleInk'), 'initWithFrame:', msg_rect(data.tahoe_title_view, 'bounds'))
+	msg_void_bool(ink, 'setWantsLayer:', true)
+	msg_void_u64(ink, 'setAutoresizingMask:', 18)
+	msg_void1(data.tahoe_title_view, 'addSubview:', ink)
+	C.macos_objc_set_ptr_ivar(data.tahoe_title_view, cstr('vtTitleInk'), voidptr(ink))
+	msg_void(ink, 'release')
+	msg_void1(data.tahoe_title_view, 'setAccessibilityRole:', nsstring('AXStaticText'))
 	data.tahoe_title_views << data.tahoe_title_view
-	data.tahoe_title_labels << data.title_label
 	refresh_tahoe_title_view(data)
 }
 
@@ -344,7 +398,6 @@ fn release_tahoe_window(mut data NativeWindowData) {
 	clear_tahoe_tab_group(mut data)
 	msg_void(data.tahoe_group_observer, 'release')
 	msg_void(data.tahoe_title_font, 'release')
-	for label in data.tahoe_title_labels { msg_void(label, 'release') }
 	for view in data.tahoe_title_views { msg_void(view, 'release') }
 	for key, window in g_toolbar_windows { if window == data.window { g_toolbar_windows.delete(key) } }
 }

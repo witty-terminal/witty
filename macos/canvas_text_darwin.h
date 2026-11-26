@@ -10,6 +10,12 @@ typedef enum {
     WittyCanvasRoundInkUp,
 } WittyCanvasInkRounding;
 
+typedef enum {
+    WittyCanvasAllGlyphs,
+    WittyCanvasColorGlyphs,
+    WittyCanvasMonochromeGlyphs,
+} WittyCanvasGlyphs;
+
 typedef struct {
     CGRect bounds;
     CGRect clip;
@@ -20,6 +26,7 @@ typedef struct {
     bool premultiply_translucent_ink;
     WittyCanvasInkRounding ink_rounding;
     bool fit_color_glyphs_to_backing;
+    WittyCanvasGlyphs glyphs;
 } WittyCanvasTextLayout;
 
 static inline bool witty_canvas_font_has_color_glyphs(CTFontRef font) {
@@ -65,6 +72,8 @@ static inline void witty_canvas_draw_text_runs(CGContextRef target, CTLineRef li
         NSDictionary *attributes = (NSDictionary *)CTRunGetAttributes(run);
         CTFontRef font = (CTFontRef)attributes[(id)kCTFontAttributeName];
         const bool color_glyphs = witty_canvas_font_has_color_glyphs(font);
+        if ((layout.glyphs == WittyCanvasColorGlyphs && !color_glyphs) ||
+            (layout.glyphs == WittyCanvasMonochromeGlyphs && color_glyphs)) continue;
         NSColor *tint = attributes[NSForegroundColorAttributeName] ?: color;
         const double x = layout.position.x;
         const double y = layout.position.y + (color_glyphs ? layout.color_baseline_offset : 0);

@@ -29,11 +29,14 @@ tahoe = (sources / "Features/Terminal/Window Styles/TitlebarTabsTahoeTerminalWin
 with tempfile.TemporaryDirectory(prefix="witty-tahoe-source-") as tmp:
     fixture = pathlib.Path(tmp) / "TahoeSource.swift"
     fixture.write_text("import AppKit\nimport SwiftUI\n"
+        + "enum Ghostty { enum SurfaceView { struct DerivedConfig {} } }\n"
         + "enum FixtureButtons { case hidden, visible }\n"
         + "struct FixtureConfig { var macosWindowButtons = FixtureButtons.visible }\n"
         + "class TransparentTitlebarTerminalWindow: NSWindow {\n"
         + "var titlebarFont: NSFont?\nvar supportsUpdateAccessory: Bool { true }\n"
         + "var derivedConfig = FixtureConfig()\n"
+        + "func syncAppearance(_ surfaceConfig: Ghostty.SurfaceView.DerivedConfig) {}\n"
+        + "func reduceTabBarBackgroundGoldenGate() {}\n"
         + "func isTabBar(_ controller: NSTitlebarAccessoryViewController) -> Bool {\n"
         + "if let identifier = controller.identifier { return identifier.rawValue == \"_ghosttyTabBar\" }\n"
         + "return controller.view.contains(className: \"NSTabBar\") || "
@@ -54,5 +57,8 @@ with tempfile.TemporaryDirectory(prefix="witty-tahoe-source-") as tmp:
     for records in (actual, expected):
         for record in records:
             record.setdefault("font_name", None)
+    assert actual[0]["title"] == actual[0]["display_title"] == "👻 Ghostty"
+    assert expected[0]["title"] == expected[0]["display_title"] == "👻 Witty"
+    actual[0].update(title=expected[0]["title"], display_title=expected[0]["display_title"])
     assert actual == expected, (actual, expected)
     print(f"{len(actual)} unchanged Swift Tahoe title/model/toolbar records matched")

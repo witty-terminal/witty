@@ -155,42 +155,47 @@ fn test_selected_tahoe_toolbar_preserves_source_async_title_font_and_main_model(
 	records << tahoe_test_record('queued-title', data, item)
 	tahoe_test_drain()
 	assert data.tahoe_title == 'changed title'
-	assert objc_utf8_string(msg_id(data.title_label, 'stringValue')) == 'changed title'
-	assert msg_u64(data.title_label, 'alignment') == C.witty_macos_text_alignment_center()
-	first_title_label := msg_id_u64(msg_id(first_title_view, 'subviews'), 'objectAtIndex:', 0)
-	assert objc_utf8_string(msg_id(first_title_label, 'stringValue')) == 'changed title'
+	for title_view in [first_title_view, data.tahoe_title_view] {
+		assert objc_utf8_string(msg_id(title_view, 'accessibilityValue')) == 'changed title'
+		assert objc_utf8_string(msg_id(title_view, 'accessibilityRole')) == 'AXStaticText'
+		assert msg_bool(title_view, 'isAccessibilityElement')
+	}
+	original_width := tahoe_test_size(first_title_view).width
 	records << tahoe_test_record('changed', data, item)
 	set_native_window_title_font(view, 'Menlo')
 	assert is_nil(data.tahoe_title_font)
 	tahoe_test_drain()
 	assert data.tahoe_title_font == window_title_font(window)
-	assert msg_id(data.title_label, 'font') == window_title_font(window)
+	assert tahoe_test_size(first_title_view).width != original_width
+	assert tahoe_test_size(first_title_view).width == tahoe_test_size(data.tahoe_title_view).width
 	records << tahoe_test_record('font', data, item)
 	msg_void(window, 'resignMainWindow')
 	assert !data.tahoe_main
-	assert msg_id(data.title_label, 'textColor') == msg_id(get_class('NSColor'), 'secondaryLabelColor')
+	ink := ObjId(C.macos_objc_get_ptr_ivar(data.tahoe_title_view, cstr('vtTitleInk')))
+	assert !is_nil(ink)
+	assert !msg_bool(ink, 'isHidden')
 	records << tahoe_test_record('inactive', data, item)
 	msg_void(window, 'becomeMainWindow')
 	assert data.tahoe_main
-	assert msg_id(data.title_label, 'textColor') == msg_id(get_class('NSColor'), 'labelColor')
+	assert msg_bool(ink, 'isHidden')
 	msg_void1(window, 'setTitle:', nsstring(''))
 	tahoe_test_drain()
 	assert data.tahoe_title == ''
-	assert objc_utf8_string(msg_id(data.title_label, 'stringValue')) == ' '
+	assert objc_utf8_string(msg_id(data.tahoe_title_view, 'accessibilityValue')) == ' '
 	assert tahoe_test_size(data.tahoe_title_view).width > 0
 	records << tahoe_test_record('empty', data, item)
 	queue_tahoe_window(window, .tab_bar, false, true, 0)
 	assert !data.tahoe_has_tab_bar
 	tahoe_test_drain()
 	assert data.tahoe_has_tab_bar
-	assert msg_bool(data.title_label, 'isHidden')
+	assert !msg_bool(data.tahoe_title_view, 'isAccessibilityElement')
 	size := tahoe_test_size(data.tahoe_title_view)
 	assert size.width == 1 && size.height == 1
 	records << tahoe_test_record('tabs', data, item)
 	queue_tahoe_window(window, .tab_bar, true, false, 0)
 	tahoe_test_drain()
 	assert !data.tahoe_has_tab_bar
-	assert !msg_bool(data.title_label, 'isHidden')
+	assert msg_bool(data.tahoe_title_view, 'isAccessibilityElement')
 	records << tahoe_test_record('removed', data, item)
 	set_native_window_title_font(view, none)
 	tahoe_test_drain()
