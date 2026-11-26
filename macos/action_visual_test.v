@@ -362,6 +362,22 @@ fn test_hover_banner_clips_the_url_when_an_ellipsis_does_not_fit() {
 	assert hover_banner_width(15, 0, 2) == 8.5
 }
 
+fn test_hover_banner_middle_truncation_restores_prefix_when_both_ends_fit() {
+	url := nsstring('https://example.org/long/path/to/an/application/file.html')
+	mut width := 0.0
+	line := C.witty_hover_line(url, 18, &width)
+	assert !is_nil(line)
+	defer { C.CFRelease(line) }
+	assert math.abs(width - 10.384765625) < 0.001
+	assert hover_banner_width(36, width, 2) == 20.5
+
+	both := C.witty_hover_line(url, 24, &width)
+	assert !is_nil(both)
+	defer { C.CFRelease(both) }
+	assert math.abs(width - 21.16943359375) < 0.001
+	assert hover_banner_width(42, width, 2) == 31.5
+}
+
 fn test_hover_banner_middle_truncation_uses_remaining_suffix_width() {
 	url := nsstring('https://example.org/path')
 	mut width := 0.0

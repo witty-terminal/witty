@@ -5,7 +5,7 @@
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 static NSString *const witty_hover_ellipsis_attribute = @"WittyHoverEllipsis";
 
-static inline CTLineRef witty_hover_fill_suffix(NSString *text, NSDictionary *attributes,
+static inline CTLineRef witty_hover_refine_truncation(NSString *text, NSDictionary *attributes,
         CTLineRef line, CTLineRef truncated, CTLineRef token, double limit) {
     // Keep Core Text's ordering for bidirectional runs.
     CFArrayRef runs = CTLineGetGlyphRuns(line);
@@ -33,10 +33,22 @@ static inline CTLineRef witty_hover_fill_suffix(NSString *text, NSDictionary *at
         }
         prefix_end = chars.location + chars.length;
     }
+    double prefix_width = token_origin.x;
+    const bool missing_prefix = prefix_end == 0 && suffix_start < (CFIndex)text.length;
+    if (missing_prefix) {
+        // Keep the first complete character when both ends fit beside the ellipsis.
+        const CFIndex first = (CFIndex)NSMaxRange([text rangeOfComposedCharacterSequenceAtIndex:0]);
+        const double leading = CTLineGetOffsetForStringIndex(line, first, NULL);
+        if (first >= suffix_start || leading <= 0 ||
+            leading + CTLineGetTypographicBounds(truncated, NULL, NULL, NULL) > limit) {
+            return (CTLineRef)CFRetain(token);
+        }
+        prefix_end = first;
+        prefix_width = leading;
+    }
     if (prefix_end <= 0 || suffix_start <= prefix_end || suffix_start >= (CFIndex)text.length) return NULL;
 
     // Preserve the leading part and let whole characters from the URL tail use the remaining width.
-    const double prefix_width = token_origin.x;
     const double suffix_budget = limit - prefix_width - CTLineGetTypographicBounds(token, NULL, NULL, NULL);
     const double line_width = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
     CFIndex start = suffix_start;
@@ -47,7 +59,7 @@ static inline CTLineRef witty_hover_fill_suffix(NSString *text, NSDictionary *at
             line_width - CTLineGetOffsetForStringIndex(line, next, NULL) > suffix_budget) break;
         start = next;
     }
-    if (start == suffix_start) return NULL;
+    if (start == suffix_start && !missing_prefix) return NULL;
 
     const NSRange last_prefix = [text rangeOfComposedCharacterSequenceAtIndex:(NSUInteger)prefix_end - 1];
     if (NSMaxRange(last_prefix) != (NSUInteger)prefix_end) return NULL;
@@ -71,8 +83,9 @@ static inline CTLineRef witty_hover_fill_suffix(NSString *text, NSDictionary *at
     [value release];
     if (expanded && CTLineGetTypographicBounds(expanded, NULL, NULL, NULL) > limit) {
         CFRelease(expanded);
-        return NULL;
+        expanded = NULL;
     }
+    if (!expanded && missing_prefix) return (CTLineRef)CFRetain(token);
     return expanded;
 }
 
@@ -96,10 +109,10 @@ static inline CTLineRef witty_hover_line(NSString *text, double limit, double *w
     [ellipsis release];
     CTLineRef truncated = token ? CTLineCreateTruncatedLine(line, limit, kCTLineTruncationMiddle, token) : NULL;
     if (truncated) {
-        CTLineRef expanded = witty_hover_fill_suffix(text, attributes, line, truncated, token, limit);
-        if (expanded) {
+        CTLineRef refined = witty_hover_refine_truncation(text, attributes, line, truncated, token, limit);
+        if (refined) {
             CFRelease(truncated);
-            truncated = expanded;
+            truncated = refined;
         }
     }
     if (token) CFRelease(token);
