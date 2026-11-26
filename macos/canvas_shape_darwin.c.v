@@ -4,6 +4,7 @@ import gg.canvas
 import math
 
 fn C.witty_canvas_rasterize_continuous_rect(pixels &u32, width int, height int, scale f64, radius f64, stroke f64, opacity f64, x &[3][4]f64, y &[3][4]f64) bool
+fn C.witty_canvas_rasterize_capsule(pixels &u32, width int, height int, scale f64, stroke f64, opacity f64) bool
 
 // Coordinates of the three cubic segments in a unit-radius continuous corner.
 const canvas_corner_y = [[0.0, 0.0, 0.0, 0.0749114]!,
@@ -127,24 +128,11 @@ fn native_canvas_rounded_mask(width int, height int, corner f64, opts NativeCanv
 	return raster
 }
 
-fn native_canvas_capsule_stroke(width int, height int, stroke f64, opacity f64) !canvas.RasterSurface {
-	mut raster := native_canvas_rounded_mask(width, height, height / 2.0,
-		style: .continuous_capsule, stroke: stroke, opacity: opacity)!
-	if width < height || height <= stroke { return raster }
-	// An inset continuous capsule stroke includes straight side segments through
-	// the endcaps. The inset centerline's radius determines where they start.
-	inset := stroke / 2
-	start := inset + (height / 2.0 - inset) * math.sqrt(2) / 3
-	for row in int(math.floor(start)) .. height - int(math.floor(start)) {
-		row_coverage := math.min(f64(row + 1), height - start) - math.max(f64(row), start)
-		for column in 0 .. int(math.ceil(stroke)) {
-			coverage := row_coverage * math.min(1.0, stroke - column)
-			pixel := u32(math.round(255 * opacity * coverage)) << 24
-			left := row * width + column
-			right := row * width + width - 1 - column
-			raster.pixels[left] = math.max(raster.pixels[left], pixel)
-			raster.pixels[right] = math.max(raster.pixels[right], pixel)
-		}
+fn native_canvas_capsule_mask(width int, height int, scale f64, stroke f64, opacity f64) !canvas.RasterSurface {
+	mut raster := canvas.new_raster_surface(width: width, height: height)!
+	if !C.witty_canvas_rasterize_capsule(raster.pixels.data, width, height, scale, stroke,
+		opacity) {
+		return error('Could not rasterize a continuous capsule')
 	}
 	return raster
 }

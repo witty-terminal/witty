@@ -182,14 +182,14 @@ fn test_native_key_indicator_capture() {
 fn test_key_indicator_capsule_stroke_covers_straight_sides() {
 	width := 148
 	height := 56
-	stroke := native_canvas_capsule_stroke(width, height, 2, 1)!
-	assert stroke.pixels[12 * width] == 0
-	assert stroke.pixels[13 * width] > 0 && stroke.pixels[13 * width] < 0xff000000
-	assert stroke.pixels[14 * width] == 0xff000000
-	assert stroke.pixels[14 * width + 1] == 0xff000000
-	assert stroke.pixels[14 * width + 2] == 0
-	assert stroke.pixels[15 * width - 1] == stroke.pixels[14 * width]
-	assert stroke.pixels[(height - 15) * width] == stroke.pixels[14 * width]
+	stroke := native_canvas_capsule_mask(width, height, 2, 1, 1)!
+	assert stroke.pixels[12 * width] >> 24 == 0
+	assert stroke.pixels[13 * width] >> 24 > 0 && stroke.pixels[13 * width] >> 24 < 255
+	assert stroke.pixels[14 * width] >> 24 == 255
+	assert stroke.pixels[14 * width + 1] >> 24 == 255
+	assert stroke.pixels[14 * width + 2] >> 24 == 0
+	assert stroke.pixels[15 * width - 1] >> 24 == 255
+	assert stroke.pixels[(height - 15) * width] >> 24 == 255
 }
 
 fn test_readonly_badge_canvas_stroke_and_silhouette() {

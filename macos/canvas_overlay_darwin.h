@@ -265,6 +265,34 @@ static inline CGContextRef witty_canvas_bitmap_context(uint32_t *pixels, int wid
     return context;
 }
 
+static inline bool witty_canvas_rasterize_capsule(uint32_t *pixels, int width, int height,
+        double scale, double stroke, double opacity) {
+    const CGRect bounds = CGRectMake(0, 0, width / scale, height / scale);
+    CGContextRef context = witty_canvas_bitmap_context(pixels, width, height, bounds);
+    if (!context) return false;
+    CALayer *layer = [[CALayer alloc] init];
+    CGColorRef color = CGColorCreateGenericGray(1, opacity);
+    const bool ready = layer && color;
+    if (ready) {
+        // Snapshot QuartzCore's continuous corners into the Canvas storage.
+        layer.frame = bounds;
+        layer.contentsScale = scale;
+        layer.cornerCurve = kCACornerCurveContinuous;
+        layer.cornerRadius = fmin(bounds.size.width, bounds.size.height) / 2;
+        if (stroke > 0) {
+            layer.borderWidth = stroke;
+            layer.borderColor = color;
+        } else {
+            layer.backgroundColor = color;
+        }
+        [layer renderInContext:context];
+    }
+    if (color) CGColorRelease(color);
+    [layer release];
+    CGContextRelease(context);
+    return ready;
+}
+
 static inline bool witty_canvas_rasterize_continuous_rect(uint32_t *pixels, int width, int height,
         double scale, double radius, double stroke, double opacity, const double (*x)[3][4],
         const double (*y)[3][4]) {
