@@ -30,12 +30,15 @@ SPLIT_OPTIONS = (
     "--keybind=f10=toggle_split_zoom",
     "--keybind=f11=close_surface",
 )
+TITLEBAR_RESET_FIXTURE = "light-titlebar-reset"
+LIGHT_OPTIONS = ("--background=e3ece5", "--foreground=262535", "--window-theme=light")
 FIXTURES = {
     "default": (),
     "custom": ("--unfocused-split-fill=81315a", "--unfocused-split-opacity=0.56", "--split-divider-color=47637c"),
     "translucent": ("--background=29415a", "--foreground=f4e3dd", "--background-opacity=0.7", "--window-colorspace=srgb",
                     "--unfocused-split-fill=9b3561", "--split-divider-color=886753"),
-    "light": ("--background=e3ece5", "--foreground=262535", "--window-theme=light"),
+    "light": LIGHT_OPTIONS,
+    TITLEBAR_RESET_FIXTURE: (*LIGHT_OPTIONS, "--window-decoration=auto", "--macos-titlebar-style=tabs"),
 }
 # The alternate screen keeps login output out of the zoomed and unzoomed frames.
 PANE_SCRIPT = r"""work=$1
@@ -51,7 +54,7 @@ exec /bin/sleep 30
 """
 
 
-def capture(binary, app, helper, prefix, options):
+def capture(binary, app, helper, prefix, options, click_reset=False):
     paths = {state: prefix.with_name(f"{prefix.name}-{state}.png") for state in STATES}
     for path in paths.values():
         path.unlink(missing_ok=True)
@@ -68,10 +71,13 @@ def capture(binary, app, helper, prefix, options):
         }
         env.pop("GHOSTTY_RESOURCES_DIR", None)
         env.pop("WITTY_VIEWPORT_HOVER_GHOSTTY", None)
+        env.pop("WITTY_VIEWPORT_SPLIT_CLICK_RESET", None)
         extra = ()
         if app == "ghostty":
             env["WITTY_VIEWPORT_HOVER_GHOSTTY"] = "1"
             extra = ("--auto-update=off", "--drag-handle=never")
+        elif click_reset:
+            env["WITTY_VIEWPORT_SPLIT_CLICK_RESET"] = "1"
         command = shlex.join(("/bin/sh", str(script), directory))
         args = (*OPTIONS, *SPLIT_OPTIONS, *extra, *options, f"--command={command}")
         with log_path.open("wb") as log:
@@ -96,7 +102,8 @@ def run(witty, ghostty, output):
         writer.writerow(("fixture", "state", "witty_size", "ghostty_size",
                          "different_pixels", "maximum_channel_error", "status"))
         for fixture, options in FIXTURES.items():
-            captures = {app: capture(binary, app, helper, output / f"{fixture}-{app}", options)
+            captures = {app: capture(binary, app, helper, output / f"{fixture}-{app}", options,
+                                     click_reset=fixture == TITLEBAR_RESET_FIXTURE)
                         for app, binary in (("ghostty", ghostty), ("witty", witty))}
             for state in STATES:
                 actual, expected = captures["witty"][state], captures["ghostty"][state]

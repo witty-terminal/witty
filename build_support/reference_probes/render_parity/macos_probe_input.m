@@ -251,6 +251,31 @@ static void wait_for_terminal(NSString *ready, int attempts, BOOL ghostty, void 
         dispatch_get_main_queue(), ^{ wait_for_terminal(ready, attempts - 1, ghostty, dispatch_input); });
 }
 
+static bool click_split_zoom_reset(NSWindow *window) {
+    for (NSTitlebarAccessoryViewController *controller in window.titlebarAccessoryViewControllers) {
+        for (NSView *view in controller.view.subviews) {
+            if (![NSStringFromClass(view.class) isEqualToString:@"VTZoomAccessoryButton"] ||
+                    view.isHiddenOrHasHiddenAncestor) continue;
+
+            NSRect bounds = view.bounds;
+            NSPoint location = [view convertPoint:NSMakePoint(NSMidX(bounds), NSMidY(bounds)) toView:nil];
+            NSView *root = window.contentView;
+            while (root.superview) root = root.superview;
+            if ([root hitTest:location] != view) return false;
+
+            for (int released = 0; released <= 1; ++released) {
+                NSEvent *event = [NSEvent mouseEventWithType:released ? NSEventTypeLeftMouseUp : NSEventTypeLeftMouseDown
+                    location:location modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+                    windowNumber:window.windowNumber context:nil eventNumber:1 clickCount:1
+                    pressure:released ? 0 : 1];
+                [NSApp postEvent:event atStart:NO];
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
 static void capture_split(NSWindow *window, NSString *prefix, NSString *ready, BOOL ghostty,
                           NSUInteger step, int attempts) {
     static const struct {
@@ -295,7 +320,14 @@ static void capture_split(NSWindow *window, NSString *prefix, NSString *ready, B
         exit(EXIT_FAILURE);
     }
     if (!stages[step].next_key) exit(EXIT_SUCCESS);
-    send_key_sequence(view, @[[NSString stringWithUTF8String:stages[step].next_key]], 0, nil);
+    if (!ghostty && getenv("WITTY_VIEWPORT_SPLIT_CLICK_RESET") && strcmp(stages[step].name, "zoomed") == 0) {
+        if (!click_split_zoom_reset(window)) {
+            fprintf(stderr, "macOS render probe could not click the visible split zoom reset button\n");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        send_key_sequence(view, @[[NSString stringWithUTF8String:stages[step].next_key]], 0, nil);
+    }
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 700 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
         capture_split(window, prefix, ready, ghostty, step + 1, 30);
     });
