@@ -35,24 +35,8 @@ static inline void witty_resize_indicator_set_fill(NSView *view) {
 
 static inline void witty_resize_indicator_set_mask(NSView *view, const uint32_t *pixels,
         int width, int height, double scale, bool shadow) {
-    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceExtendedLinearSRGB);
-    CGImageRef image = witty_canvas_alpha_image(pixels, NULL, width, height, space, 0, 0, 0, 1);
-    if (space) CGColorSpaceRelease(space);
-    if (!image) return;
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    CALayer *layer = view.layer;
-    if (shadow) layer.backgroundColor = NSColor.blackColor.CGColor;
-    CALayer *mask = layer.mask ?: [CALayer layer];
-    mask.contentsFormat = kCAContentsFormatRGBA16Float;
-    mask.minificationFilter = kCAFilterNearest;
-    mask.magnificationFilter = kCAFilterNearest;
-    mask.frame = layer.bounds;
-    mask.contents = (id)image;
-    mask.contentsScale = scale;
-    layer.mask = mask;
-    [CATransaction commit];
-    CGImageRelease(image);
+    if (shadow) view.layer.backgroundColor = NSColor.blackColor.CGColor;
+    witty_canvas_set_layer_mask(view.layer, pixels, width, height, scale);
 }
 
 static inline void witty_resize_indicator_draw(CGContextRef target, NSView *view, NSString *text,

@@ -74,8 +74,15 @@ mut:
 	owner               ObjId
 	overlay             ObjId
 	search_bar          ObjId
+	search_shadow       ObjId
+	search_plate        ObjId
+	search_field_plate  ObjId
 	search_field        ObjId
 	search_count        ObjId
+	search_bar_width    f64
+	search_scale        f64
+	search_phases       int
+	search_dragging     bool
 	search_timer        ObjId
 	search_published    bool
 	progress_timer      ObjId
@@ -270,6 +277,7 @@ pub fn (mut state NativeActionSurface) deinit() {
 	if state.closed { return }
 	state.hide_inspector()
 	state.closed = true
+	if state.search_active { state.remove_search_panel() }
 	state.clear_hover_tracking()
 	state.clear_hover_line()
 	if state.palette != unsafe { nil } { state.palette.close() }
@@ -325,6 +333,7 @@ fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
 		msg_void_bool(state.hover_ink, 'setNeedsDisplay:', true)
 		state.refresh_child_exit_banner()
 		state.layout_resize_indicator()
+		state.refresh_search_panel()
 		state.refresh_readonly_badge()
 		state.refresh_key_visuals()
 		if state.palette != unsafe { nil } { state.palette.layout() }
@@ -344,6 +353,7 @@ fn action_overlay_colors_changed(self ObjId, _cmd Sel, _notification ObjId) {
 		state.refresh_hover_appearance()
 		state.refresh_child_exit_banner()
 		state.layout_resize_indicator()
+		state.refresh_search_panel()
 		msg_void_bool(state.readonly_ink, 'setNeedsDisplay:', true)
 		state.update_key_colors()
 		if state.palette != unsafe { nil } {
@@ -358,15 +368,7 @@ fn (mut state NativeActionSurface) refresh() {
 	width := view_width(state.view)
 	height := view_height(state.view)
 	if state.palette != unsafe { nil } { state.palette.layout() }
-	if state.search_active {
-		right := state.search_corner in [.top_right, .bottom_right]
-		bottom := state.search_corner in [.bottom_left, .bottom_right]
-		msg_void_rect(state.search_bar, 'setFrame:', objc_rect(if right { width - 348 } else { 8 }, if bottom {
-			height - 50
-		} else {
-			8
-		}, 340, 42))
-	}
+	state.refresh_search_panel()
 	state.refresh_key_visuals()
 	state.refresh_readonly_badge()
 	msg_void_bool(state.health_label, 'setHidden:', state.healthy)
@@ -392,33 +394,8 @@ pub fn (mut state NativeActionSurface) start_search(needle string) {
 		state.search_total = none
 		state.search_needle = ''
 		state.search_published = false
-		mut cls := get_class('WittySearchBar')
-		if is_nil(cls) {
-			cls = C.macos_objc_allocate_class_pair(get_class('NSView'), cstr('WittySearchBar'), 0)
-			add_ptr_ivar(cls, 'state')
-			add_method(cls, 'isFlipped', voidptr(action_flipped), 'B@:')
-			add_method(cls, 'mouseDown:', voidptr(search_drag_start), 'v@:@')
-			add_method(cls, 'mouseDragged:', voidptr(search_drag_changed), 'v@:@')
-			add_method(cls, 'mouseUp:', voidptr(search_drag_end), 'v@:@')
-			C.macos_objc_register_class_pair(cls)
-		}
-		state.search_bar = msg_id_rect(alloc('WittySearchBar'), 'initWithFrame:', objc_rect(8, 8,
-			340, 42))
-		C.macos_objc_set_ptr_ivar(state.search_bar, cstr('state'), voidptr(&state))
-		msg_void1(state.overlay, 'addSubview:', state.search_bar)
-		state.search_field = msg_id_rect(alloc('NSTextField'), 'initWithFrame:', objc_rect(8, 8,
-			180, 26))
-		msg_void1(state.search_field, 'setPlaceholderString:', nsstring('Search'))
-		msg_void1(state.search_field, 'setDelegate:', state.owner)
-		msg_void1(state.search_bar, 'addSubview:', state.search_field)
-		state.search_count = action_label('', objc_rect(189, 12, 54, 22))
-		msg_void1(state.search_bar, 'addSubview:', state.search_count)
-		for index, selector in ['searchNext:', 'searchPrevious:', 'searchClose:'] {
-			button := action_button(&state, ['⌃', '⌄', '×'][index], selector, objc_rect(244 +
-				index * 29, 8, 26, 26))
-			msg_void1(state.search_bar, 'addSubview:', button)
-			msg_void(button, 'release')
-		}
+		state.initialize_search_panel()
+		state.refresh_search_panel()
 		state.set_search_needle(needle)
 	}
 	msg_void1(state.search_field, 'setStringValue:', nsstring(state.search_needle))
@@ -433,9 +410,7 @@ pub fn (mut state NativeActionSurface) end_search() {
 		msg_void(state.search_timer, 'invalidate')
 		state.search_timer = nil_obj()
 	}
-	msg_void(state.search_bar, 'removeFromSuperview')
-	msg_void(state.search_bar, 'release')
-	state.search_bar = nil_obj()
+	state.remove_search_panel()
 	state.perform('end_search')
 }
 
@@ -477,6 +452,8 @@ pub fn (mut state NativeActionSurface) search_counts(selected ?uint, total ?uint
 		''
 	}
 	msg_void1(state.search_count, 'setStringValue:', nsstring(text))
+	msg_void1(msg_id(state.search_count, 'layer'), 'setContents:', nil_obj())
+	msg_void_bool(state.search_count, 'setNeedsDisplay:', true)
 }
 
 fn action_search_edit(self ObjId, _cmd Sel, _notification ObjId) {
@@ -528,6 +505,7 @@ fn action_search_timer(self ObjId, _cmd Sel, _timer ObjId) {
 
 fn search_drag_start(self ObjId, _cmd Sel, event ObjId) {
 	if mut state := action_owner_state(self) {
+		state.search_dragging = true
 		state.drag_start = msg_point(event, 'locationInWindow')
 		state.drag_origin = msg_rect(self, 'frame')
 	}
@@ -544,6 +522,7 @@ fn search_drag_changed(self ObjId, _cmd Sel, event ObjId) {
 
 fn search_drag_end(self ObjId, _cmd Sel, _event ObjId) {
 	if mut state := action_owner_state(self) {
+		state.search_dragging = false
 		frame := msg_rect(self, 'frame')
 		left := frame.x + frame.width / 2 < view_width(state.view) / 2
 		top := frame.y + frame.height / 2 < view_height(state.view) / 2
@@ -552,15 +531,11 @@ fn search_drag_end(self ObjId, _cmd Sel, _event ObjId) {
 		} else {
 			if top { SearchCorner.top_right } else { SearchCorner.bottom_right }
 		}
-		right := state.search_corner in [.top_right, .bottom_right]
-		bottom := state.search_corner in [.bottom_left, .bottom_right]
+		destination := state.search_panel_frame()
+		state.refresh_search_panel_masks(destination)
 		msg_void(get_class('NSAnimationContext'), 'beginGrouping')
 		msg_void_f64(msg_id(get_class('NSAnimationContext'), 'currentContext'), 'setDuration:', 0.2)
-		msg_void_rect(msg_id(self, 'animator'), 'setFrame:', objc_rect(if right {
-			view_width(state.view) - 348
-		} else {
-			8
-		}, if bottom { view_height(state.view) - 50 } else { 8 }, 340, 42))
+		msg_void_rect(msg_id(self, 'animator'), 'setFrame:', destination)
 		msg_void(get_class('NSAnimationContext'), 'endGrouping')
 	}
 }

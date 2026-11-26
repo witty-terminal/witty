@@ -7,6 +7,8 @@ import math
 
 fn C.witty_canvas_place_overlay(parent voidptr, child voidptr, above voidptr)
 fn C.witty_canvas_backing_phases(view ObjId) int
+fn C.witty_canvas_rect_backing_phases(view ObjId, rect &ObjCRect) int
+fn C.witty_canvas_set_layer_mask(layer ObjId, pixels &u32, width int, height int, scale f64)
 fn C.witty_canvas_resolve_srgb(view ObjId, color ObjId) u32
 fn C.witty_canvas_resolve_srgb_alpha(view ObjId, color ObjId, alpha &f64) u32
 fn C.witty_canvas_set_translucent_fill(layer ObjId, view ObjId, color ObjId, opacity f64)

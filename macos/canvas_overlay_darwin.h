@@ -8,16 +8,21 @@
 #include <math.h>
 #include <stdint.h>
 
-static inline int witty_canvas_backing_phases(NSView *view) {
+static inline int witty_canvas_rect_backing_phases(NSView *view, const CGRect *rect) {
     NSWindow *window = view.window;
     if (!window) return 0;
-    const NSRect bounds = [window convertRectToBacking:[view convertRect:view.bounds toView:nil]];
+    const NSRect bounds = [window convertRectToBacking:[view convertRect:*rect toView:nil]];
     const NSRect frame = [window convertRectToBacking:[window convertRectFromScreen:window.frame]];
     const long left = lround(CGRectGetMinX(bounds));
     const long right = lround(CGRectGetMaxX(bounds));
     const long top = lround(CGRectGetMaxY(frame) - CGRectGetMaxY(bounds));
     const long bottom = lround(CGRectGetMaxY(frame) - CGRectGetMinY(bounds));
     return (left & 1) | ((right & 1) << 1) | ((top & 1) << 2) | ((bottom & 1) << 3);
+}
+
+static inline int witty_canvas_backing_phases(NSView *view) {
+    const NSRect bounds = view.bounds;
+    return witty_canvas_rect_backing_phases(view, &bounds);
 }
 
 static inline void witty_canvas_place_overlay(void *parent, void *child, void *above) {
@@ -214,6 +219,26 @@ static inline CGImageRef witty_canvas_alpha_image(const uint32_t *pixels, const 
     CGImageRef image = witty_canvas_rgba_image(data, width, height, 16, space, true);
     CFRelease(data);
     return image;
+}
+
+static inline void witty_canvas_set_layer_mask(CALayer *layer, const uint32_t *pixels,
+        int width, int height, double scale) {
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceExtendedLinearSRGB);
+    CGImageRef image = witty_canvas_alpha_image(pixels, NULL, width, height, space, 0, 0, 0, 1);
+    if (space) CGColorSpaceRelease(space);
+    if (!image) return;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    CALayer *mask = layer.mask ?: [CALayer layer];
+    mask.contentsFormat = kCAContentsFormatRGBA16Float;
+    mask.minificationFilter = kCAFilterNearest;
+    mask.magnificationFilter = kCAFilterNearest;
+    mask.frame = layer.bounds;
+    mask.contents = (id)image;
+    mask.contentsScale = scale;
+    layer.mask = mask;
+    [CATransaction commit];
+    CGImageRelease(image);
 }
 
 static inline CGImageRef witty_canvas_make_tinted_alpha_image(const uint32_t *pixels,

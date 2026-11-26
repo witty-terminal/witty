@@ -49,9 +49,15 @@ fn test_native_search_editor_and_timer_consumers() {
 	audit_native_actions.clear()
 	surface.start_search('ab')
 	assert surface.search_active
+	assert !msg_bool(surface.search_field, 'isBordered')
+	assert !msg_bool(surface.search_field, 'drawsBackground')
+	assert msg_rect(surface.search_field_plate, 'frame').width == search_field_width
+	assert msg_rect(surface.search_bar, 'frame').height == search_panel_height
 	assert audit_native_actions.len == 0
-	assert msg_f64(msg_id(surface.search_timer, 'fireDate'), 'timeIntervalSinceNow') > 0.2
 	pending := surface.search_timer
+	assert msg_bool(pending, 'isValid')
+	msg_void(pending, 'retain')
+	defer { msg_void(pending, 'release') }
 	surface.start_search('abc')
 	assert !msg_bool(pending, 'isValid')
 	assert audit_native_actions == ['search:abc']
@@ -70,20 +76,39 @@ fn test_native_search_editor_and_timer_consumers() {
 	assert surface.search_needle == 'x'
 	msg_void(surface.search_timer, 'fire')
 	assert audit_native_actions.last() == 'search:x'
-	surface.end_search()
+	surface.search_dragging = true
+	dragged := objc_rect(8, view_height(view) - search_panel_height - 9,
+		surface.search_bar_width, search_panel_height)
+	msg_void_rect(surface.search_bar, 'setFrame:', dragged)
+	search_drag_end(surface.search_bar, sel('mouseUp:'), nil_obj())
+	assert !surface.search_dragging
+	assert surface.search_corner == .bottom_left
+	assert surface.search_panel_frame().x == search_panel_margin
+	controls := msg_id(surface.search_bar, 'subviews')
+	for index, name in ['navigate_search:next', 'navigate_search:previous', 'end_search'] {
+		button := msg_id_u64(controls, 'objectAtIndex:', u64(5 + index))
+		assert objc_utf8_string(msg_id(button, 'className')) == 'WittySearchButton'
+		msg_void1(button, 'performClick:', nil_obj())
+		assert audit_native_actions.last() == name
+	}
 	assert audit_native_actions.last() == 'end_search'
 	assert !surface.search_active
+	assert is_nil(surface.search_field)
 	surface.end_search()
 	assert audit_native_actions.filter(it == 'end_search').len == 1
 	surface.set_progress(1, u8(25))
 	assert msg_f64(msg_id(surface.progress_timer, 'fireDate'), 'timeIntervalSinceNow') > 14
 	first := surface.progress_timer
+	msg_void(first, 'retain')
+	defer { msg_void(first, 'release') }
 	surface.set_progress(2, none)
 	assert !msg_bool(first, 'isValid')
 	msg_void(surface.progress_timer, 'fire')
 	assert !surface.progress_active
 	surface.set_progress(1, u8(25))
 	removed := surface.progress_timer
+	msg_void(removed, 'retain')
+	defer { msg_void(removed, 'release') }
 	surface.set_progress(99, u8(25))
 	assert !msg_bool(removed, 'isValid')
 	assert !surface.progress_active
