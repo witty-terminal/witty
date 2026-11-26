@@ -27,14 +27,18 @@ fn focus_fixture_key_state(_self ObjId, _cmd Sel) bool {
 	return focus_fixture_window_is_key
 }
 
+fn mock_focus_fixture_window_key(window ObjId, class_name string) ObjId {
+	cls := C.macos_objc_allocate_class_pair(msg_id(window, 'class'), cstr(class_name), 0)
+	add_method(cls, 'isKeyWindow', voidptr(focus_fixture_key_state), 'B@:')
+	C.macos_objc_register_class_pair(cls)
+	return C.object_setClass(window, cls)
+}
+
 fn test_terminal_focus_follows_the_key_window_with_its_responder_retained() {
 	app_init()
 	view := create_restorable_window(640, 480, 'key window focus fixture')
 	window := view_window(view)
-	cls := C.macos_objc_allocate_class_pair(native_window_class(), cstr('WittyKeyWindowFocusFixture'), 0)
-	add_method(cls, 'isKeyWindow', voidptr(focus_fixture_key_state), 'B@:')
-	C.macos_objc_register_class_pair(cls)
-	original_class := C.object_setClass(window, cls)
+	original_class := mock_focus_fixture_window_key(window, 'WittyKeyWindowFocusFixture')
 	previous := g_focus_cb
 	defer {
 		g_focus_cb = previous
@@ -55,6 +59,44 @@ fn test_terminal_focus_follows_the_key_window_with_its_responder_retained() {
 		assert msg_id(window, 'firstResponder') == view
 	}
 	assert key_window_terminal_focus == [true, false, true]
+}
+
+fn test_quick_terminal_focus_follows_panel_notifications() {
+	app_init()
+	mut quick := quick_terminal(NativeQuickConfig{autohide: false}, unsafe { nil }, unsafe { nil })
+	window := quick.window
+	view := quick.view
+	center := msg_id(get_class('NSNotificationCenter'), 'defaultCenter')
+	original_class := mock_focus_fixture_window_key(window, 'WittyQuickTerminalFocusFixture')
+	previous := g_focus_cb
+	defer {
+		g_focus_cb = previous
+		view_set_userdata(view, unsafe { nil })
+		msg_void1(center, 'removeObserver:', quick.observer)
+		C.object_setClass(window, original_class)
+		msg_void(window, 'close')
+		release_native_object(quick.observer)
+		release_native_object(window)
+		release_native_object(view)
+		g_quick_terminal = unsafe { nil }
+	}
+	quick.visible = true
+	assert msg_bool1(window, 'makeFirstResponder:', view)
+	key_window_terminal_focus = []bool{}
+	view_set_userdata(view, voidptr(1))
+	set_focus_callback(record_key_window_terminal_focus)
+
+	for focused in [true, false, true] {
+		focus_fixture_window_is_key = focused
+		notice := if focused { 'NSWindowDidBecomeKeyNotification' } else { 'NSWindowDidResignKeyNotification' }
+		msg_void2(center, 'postNotificationName:object:', nsstring(notice), window)
+		focus_fixture_pump(0.03)
+		assert msg_id(window, 'firstResponder') == view
+	}
+	quick.visible = false
+	focus_fixture_window_is_key = false
+	msg_void2(center, 'postNotificationName:object:', nsstring('NSWindowDidResignKeyNotification'), window)
+	assert key_window_terminal_focus == [true, false, true, false]
 }
 
 fn test_source_focus_async_does_not_key_or_activate_other_window() {

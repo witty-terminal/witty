@@ -63,7 +63,9 @@ fn quick_from_observer(observer ObjId) ?&NativeQuickTerminal {
 }
 fn quick_did_resign_key(observer ObjId, _cmd Sel, notification ObjId) {
 	mut q := quick_from_observer(observer) or { return }
-	if msg_id(notification, 'object') != q.window || !q.visible || !is_nil(msg_id(q.window, 'attachedSheet')) { return }
+	if msg_id(notification, 'object') != q.window { return }
+	update_terminal_focus_for_window_key_change(q.window)
+	if !q.visible || !is_nil(msg_id(q.window, 'attachedSheet')) { return }
 	if app_is_active() { msg_void(q.previous_app,'release'); q.previous_app = unsafe { nil } }
 	q.dock_hidden_at_resign = q.hidden_dock
 	q.restore_dock()
@@ -81,7 +83,9 @@ fn quick_move_to_space(context voidptr) {
 }
 fn quick_did_become_key(observer ObjId, _cmd Sel, notification ObjId) {
 	mut q := quick_from_observer(observer) or { return }
-	if msg_id(notification, 'object') == q.window && q.visible && q.dock_hidden_at_resign { q.hide_dock() }
+	if msg_id(notification, 'object') != q.window { return }
+	update_terminal_focus_for_window_key_change(q.window)
+	if q.visible && q.dock_hidden_at_resign { q.hide_dock() }
 }
 fn quick_did_resize(observer ObjId, _cmd Sel, notification ObjId) {
 	mut q := quick_from_observer(observer) or { return }

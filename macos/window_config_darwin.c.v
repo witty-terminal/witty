@@ -70,15 +70,19 @@ fn sync_native_window_terminal_focus(context voidptr) {
 	}
 }
 
+fn update_terminal_focus_for_window_key_change(window ObjId) {
+	// AppKit can change the key window without changing its first responder.
+	if msg_bool(window, 'isKeyWindow') {
+		// Wait for AppKit to finish restoring the first responder.
+		C.witty_macos_dispatch_main_weak(voidptr(window), voidptr(sync_native_window_terminal_focus))
+	} else {
+		sync_native_window_terminal_focus(voidptr(window))
+	}
+}
+
 fn native_window_key_changed(self ObjId,cmd Sel) {
 	C.witty_macos_window_super_void0(self,cmd)
-	// AppKit can change the key window without changing its first responder.
-	if msg_bool(self, 'isKeyWindow') {
-		// Wait for AppKit to finish restoring the first responder.
-		C.witty_macos_dispatch_main_weak(voidptr(self), voidptr(sync_native_window_terminal_focus))
-	} else {
-		sync_native_window_terminal_focus(voidptr(self))
-	}
+	update_terminal_focus_for_window_key_change(self)
 	if mut data:=native_window_data(self) {
 		if !data.tabs_tahoe && msg_bool(self,'isKeyWindow') && msg_u64(msg_id(msg_id(self,'tabGroup'),'windows'),'count')<2 {
 			msg_void_bool(data.backdrop,'setHidden:',true)
