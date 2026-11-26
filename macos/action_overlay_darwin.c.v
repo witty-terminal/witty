@@ -74,7 +74,6 @@ mut:
 	owner               ObjId
 	overlay             ObjId
 	search_bar          ObjId
-	search_shadow       ObjId
 	search_plate        ObjId
 	search_field_plate  ObjId
 	search_field        ObjId

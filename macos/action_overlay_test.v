@@ -56,6 +56,7 @@ fn test_native_search_editor_and_timer_consumers() {
 	assert !msg_bool(surface.search_field, 'drawsBackground')
 	assert msg_rect(surface.search_field_plate, 'frame').width == search_field_width
 	assert msg_rect(surface.search_bar, 'frame').height == search_panel_height
+	assert msg_f64(msg_id(surface.search_bar, 'shadow'), 'shadowBlurRadius') == 4
 	assert audit_native_actions.len == 0
 	pending := surface.search_timer
 	assert msg_bool(pending, 'isValid')
@@ -89,7 +90,7 @@ fn test_native_search_editor_and_timer_consumers() {
 	assert surface.search_panel_frame().x == search_panel_margin
 	controls := msg_id(surface.search_bar, 'subviews')
 	for index, name in ['navigate_search:next', 'navigate_search:previous', 'end_search'] {
-		button := msg_id_u64(controls, 'objectAtIndex:', u64(5 + index))
+		button := msg_id_u64(controls, 'objectAtIndex:', u64(4 + index))
 		assert objc_utf8_string(msg_id(button, 'className')) == 'WittySearchButton'
 		msg_void1(button, 'performClick:', nil_obj())
 		assert audit_native_actions.last() == name

@@ -7,7 +7,8 @@ import math
 
 fn C.witty_search_find_pasteboard() ObjId
 fn C.witty_search_configure_editor(field ObjId)
-fn C.witty_search_panel_colors(bar ObjId, shadow ObjId, plate ObjId, field_plate ObjId)
+fn C.witty_search_configure_shadow(bar ObjId)
+fn C.witty_search_panel_colors(bar ObjId, plate ObjId, field_plate ObjId)
 fn C.witty_search_configure_button(button ObjId, label ObjId)
 fn C.witty_search_reset_cursor(button ObjId)
 fn C.witty_search_symbol_bounds(symbol ObjId, bounds &ObjCRect, frame &ObjCRect) f64
@@ -85,10 +86,10 @@ fn (mut surface NativeActionSurface) initialize_search_panel() {
 	surface.search_bar = bar
 	C.macos_objc_set_ptr_ivar(bar, cstr('state'), voidptr(surface))
 	msg_void_bool(bar, 'setWantsLayer:', true)
+	C.witty_search_configure_shadow(bar)
 	msg_void1(surface.overlay, 'addSubview:', bar)
 	msg_void(bar, 'release')
 
-	surface.search_shadow = search_panel_subview('WittyPassiveOverlay', bar, ObjCRect{})
 	surface.search_plate = search_panel_subview('WittyPassiveOverlay', bar, ObjCRect{})
 	field_frame := objc_rect(8, 8, search_field_width, search_field_height)
 	surface.search_field_plate = search_panel_subview('WittyPassiveOverlay', bar, field_frame)
@@ -142,7 +143,6 @@ fn (mut surface NativeActionSurface) remove_search_panel() {
 	C.macos_objc_set_ptr_ivar(surface.search_bar, cstr('state'), nil_obj())
 	msg_void(surface.search_bar, 'removeFromSuperview')
 	surface.search_bar = nil_obj()
-	surface.search_shadow = nil_obj()
 	surface.search_plate = nil_obj()
 	surface.search_field_plate = nil_obj()
 	surface.search_field = nil_obj()
@@ -162,7 +162,7 @@ fn (mut surface NativeActionSurface) refresh_search_panel() {
 	if !surface.search_active || is_nil(surface.search_bar) { return }
 	bar := surface.search_bar
 	if !surface.search_dragging { msg_void_rect(bar, 'setFrame:', surface.search_panel_frame()) }
-	C.witty_search_panel_colors(bar, surface.search_shadow, surface.search_plate, surface.search_field_plate)
+	C.witty_search_panel_colors(bar, surface.search_plate, surface.search_field_plate)
 	surface.refresh_search_panel_masks(msg_rect(bar, 'frame'))
 }
 
@@ -181,13 +181,6 @@ fn (mut surface NativeActionSurface) refresh_search_panel_masks(frame ObjCRect) 
 	msg_void_rect(surface.search_plate, 'setFrame:', objc_rect(0, 0, surface.search_bar_width, search_panel_height))
 	C.witty_canvas_set_layer_mask(msg_id(surface.search_plate, 'layer'), plate.pixels.data, width, height, scale)
 	C.witty_canvas_set_layer_mask(msg_id(surface.search_field_plate, 'layer'), inner.pixels.data, inner.width, inner.height, scale)
-	if shadow := native_canvas_shadow_mask(plate, 4 * scale, 1.0 / 3) {
-		pad := f64(shadow.width - width) / (2 * scale)
-		msg_void_rect(surface.search_shadow, 'setFrame:', objc_rect(-pad, -pad, shadow.width / scale,
-			shadow.height / scale))
-		C.witty_canvas_set_layer_mask(msg_id(surface.search_shadow, 'layer'), shadow.pixels.data,
-			shadow.width, shadow.height, scale)
-	}
 	surface.search_scale = scale
 	surface.search_phases = mask_phases
 }

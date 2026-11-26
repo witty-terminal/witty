@@ -17,7 +17,17 @@ static inline void witty_search_configure_editor(NSTextField *field) {
     field.cell.scrollable = YES;
 }
 
-static inline void witty_search_panel_colors(NSView *bar, NSView *shadow, NSView *plate, NSView *field) {
+static inline void witty_search_configure_shadow(NSView *bar) {
+    // Apply the shadow to the composited Canvas silhouette at presentation scale.
+    NSShadow *shadow = [[NSShadow alloc] init];
+    shadow.shadowColor = [NSColor colorWithSRGBRed:0 green:0 blue:0 alpha:0.33];
+    shadow.shadowBlurRadius = 4;
+    shadow.shadowOffset = CGSizeZero;
+    bar.shadow = shadow;
+    [shadow release];
+}
+
+static inline void witty_search_panel_colors(NSView *bar, NSView *plate, NSView *field) {
     NSAppearance *appearance = bar.window.effectiveAppearance ?: bar.effectiveAppearance;
     if (![bar.appearance isEqual:appearance]) {
         bar.appearance = appearance;
@@ -26,7 +36,6 @@ static inline void witty_search_panel_colors(NSView *bar, NSView *shadow, NSView
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     [appearance performAsCurrentDrawingAppearance:^{
-        shadow.layer.backgroundColor = NSColor.blackColor.CGColor;
         plate.layer.backgroundColor = NSColor.windowBackgroundColor.CGColor;
         NSColor *ink = NSColor.labelColor;
         field.layer.backgroundColor = [ink colorWithAlphaComponent:ink.alphaComponent * 0.1].CGColor;
