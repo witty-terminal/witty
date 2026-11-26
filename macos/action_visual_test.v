@@ -362,6 +362,21 @@ fn test_hover_banner_clips_the_url_when_an_ellipsis_does_not_fit() {
 	assert hover_banner_width(15, 0, 2) == 8.5
 }
 
+fn test_hover_banner_middle_truncation_uses_remaining_suffix_width() {
+	url := nsstring('https://example.org/path')
+	mut width := 0.0
+	line := C.witty_hover_line(url, 42, &width)
+	assert !is_nil(line)
+	defer { C.CFRelease(line) }
+	assert math.abs(width - 41.919921875) < 0.001
+	assert hover_banner_width(60, width, 2) == 52
+
+	kerned := C.witty_hover_line(url, 112, &width)
+	assert !is_nil(kerned)
+	defer { C.CFRelease(kerned) }
+	assert math.abs(width - 111.6806640625) < 0.001
+}
+
 fn test_hover_banner_raster_mirroring_and_display_string() {
 	assert hover_display_url('https://example.org/é/東京') == 'https://example.org/é/東京'
 	assert hover_display_url('https://example.org/a\u202eb') == 'https://example.org/a\\u{202E}b'
