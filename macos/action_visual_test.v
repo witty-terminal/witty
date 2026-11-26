@@ -2,6 +2,7 @@ module macos
 
 import os
 import math
+import time
 
 #insert "@VMODROOT/macos/canvas_overlay_test_bridge.h"
 
@@ -349,6 +350,48 @@ fn test_native_child_exit_banner_keeps_the_link_preview_above_it() {
 	assert msg_rect(banner, 'frame').height > frame.height
 	link_after_zoom := msg_rect(surface.hover_label, 'frame')
 	assert link_after_zoom.y + link_after_zoom.height == msg_rect(banner, 'frame').y
+}
+
+fn test_native_resize_indicator_tracks_geometry_and_restarts_its_timer() {
+	app_init()
+	view := create_window(560, 300, 'resize indicator')
+	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{})
+	defer {
+		surface.deinit()
+		close_tab(view)
+	}
+	start := u64(time.second)
+	surface.update_resize_indicator_at(ObjCSize{width: 560, height: 300}, 70, 17, start)
+	assert surface.resize_indicator.text == ''
+	surface.update_resize_indicator_at(ObjCSize{width: 570, height: 300}, 71, 17,
+		start + resize_indicator_grace / 2)
+	assert surface.resize_indicator.text == ''
+	surface.update_resize_indicator_at(ObjCSize{width: 590, height: 300}, 73, 17,
+		start + resize_indicator_grace)
+	assert surface.resize_indicator.text == '73 ⨯ 17'
+	first_timer := surface.resize_indicator.timer
+	assert !is_nil(first_timer)
+	msg_void(first_timer, 'retain')
+	defer { msg_void(first_timer, 'release') }
+	surface.update_resize_indicator_grid(72, 17)
+	assert surface.resize_indicator.text == '72 ⨯ 17'
+	assert surface.resize_indicator.timer == first_timer
+	surface.update_resize_indicator_at(ObjCSize{width: 610, height: 315}, 76, 18,
+		start + resize_indicator_grace + 1)
+	assert surface.resize_indicator.text == '76 ⨯ 18'
+	assert surface.resize_indicator.timer != first_timer
+	assert !msg_bool(first_timer, 'isValid')
+	msg_void(surface.resize_indicator.timer, 'fire')
+	assert surface.resize_indicator.text == ''
+	assert is_nil(surface.resize_indicator.timer)
+	surface.resize_indicator.focused_at = start + resize_indicator_grace + 2
+	surface.update_resize_indicator_at(ObjCSize{width: 620, height: 315}, 77, 18,
+		start + resize_indicator_grace + 3)
+	assert surface.resize_indicator.text == ''
+	surface.configure_resize_indicator(.never, .bottom_right, u64(time.second))
+	surface.update_resize_indicator_at(ObjCSize{width: 630, height: 315}, 78, 18,
+		start + 3 * resize_indicator_grace)
+	assert surface.resize_indicator.text == ''
 }
 
 fn test_native_hover_banner_capture() {

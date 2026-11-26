@@ -381,6 +381,8 @@ fn native_action_config(current &TermState, config &configpkg.Config) {
 	mut actions := current.actions
 	actions.bell_border = config.bell_features.border()
 	actions.secure_indication = config.macos_secure_input_indication
+	actions.configure_resize_indicator(config.resize_overlay, config.resize_overlay_position,
+		config.resize_overlay_duration.duration)
 	actions.configure_title(config.macos_titlebar_proxy_icon == .visible)
 	color := config.background
 	actions.visual_background = (u32(color.r) << 16) | (u32(color.g) << 8) | u32(color.b)

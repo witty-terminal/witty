@@ -18,6 +18,48 @@ const canvas_corner_x = [[1.5286650, 1.0884900, 0.8684070, 0.6314940]!,
 const canvas_capsule_y = [canvas_corner_y[0], canvas_corner_y[1],
 	[0.6314940, 0.82, 0.96, 1.0]!]!
 
+// Unit-radius intercepts and slopes fitted to live corners at several radii.
+// Each knot marks an equally spaced diagonal, measured as the difference between x and y.
+const canvas_corner_positions = [0.2929106, 0.2039366, 0.1295453, 0.0731686, 0.0359282, 0.0157617,
+	0.0070775, 0.0027773, 0.0]!
+const canvas_corner_slopes = [-0.5, -0.4313139, -0.3448212, -0.2448693, -0.1468378, -0.0693243,
+	-0.0276623, -0.0198053, -0.0004360]!
+
+struct CanvasCornerDiagonal {
+	intercept f64
+	distance_scale f64 = 1.0
+}
+
+fn canvas_corner_interpolate(left f64, right f64, left_slope f64, right_slope f64, t f64, step f64) f64 {
+	s := 1 - t
+	return s * s * ((1 + 2 * t) * left + t * step * left_slope)
+		+ t * t * ((1 + 2 * s) * right - s * step * right_slope)
+}
+
+fn canvas_corner_diagonal(diagonal int, radius f64) CanvasCornerDiagonal {
+	step := canvas_corner_x[0][0] / (canvas_corner_positions.len - 1)
+	interval := diagonal / (radius * step)
+	i := int(interval)
+	if i >= canvas_corner_positions.len - 1 { return CanvasCornerDiagonal{} }
+	t := interval - i
+	s := 1 - t
+	// Interpolate the intercept and its derivative in the diagonal coordinate.
+	position := canvas_corner_interpolate(canvas_corner_positions[i], canvas_corner_positions[i + 1],
+		canvas_corner_slopes[i], canvas_corner_slopes[i + 1], t, step)
+	slope := 6 * t * s * (canvas_corner_positions[i + 1] - canvas_corner_positions[i]) / step
+		+ s * (1 - 3 * t) * canvas_corner_slopes[i] + t * (1 - 3 * s) * canvas_corner_slopes[i + 1]
+	// The rasterizer's coverage ramp lies between diagonal and normal distance.
+	return CanvasCornerDiagonal{
+		intercept: radius * position
+		distance_scale: 1 + 0.52 * (1 / math.hypot(1 + slope, slope) - 1)
+	}
+}
+
+fn canvas_corner_distance(x int, y int, diagonals []CanvasCornerDiagonal) f64 {
+	diagonal := diagonals[math.abs(x - y)]
+	return (math.min(x, y) + 0.5 - diagonal.intercept) * diagonal.distance_scale
+}
+
 enum NativeCanvasRoundedStyle {
 	circular
 	segmented_circle
@@ -179,6 +221,39 @@ fn native_canvas_continuous_rect(width int, height int, scale f64, radius f64, o
 	if !C.witty_canvas_rasterize_continuous_rect(raster.pixels.data, width, height, scale,
 		radius, opts.stroke, opts.opacity, opts.fill_stroke, &canvas_corner_x, y) {
 		return error('Could not rasterize a continuous rounded rectangle')
+	}
+	return raster
+}
+
+fn native_canvas_grouped_continuous_rect(width int, height int, scale f64, radius f64, phases int) !canvas.RasterSurface {
+	backing_radius := radius * scale
+	size := int(math.ceil(canvas_corner_x[0][0] * backing_radius))
+	if size * 2 > math.min(width, height) {
+		return native_canvas_continuous_rect(width, height, scale, radius)
+	}
+	mut raster := canvas.new_raster_surface(width: width, height: height)!
+	raster.clear(0xff000000)
+	mut diagonals := []CanvasCornerDiagonal{len: size + 1}
+	for d in 0 .. diagonals.len { diagonals[d] = canvas_corner_diagonal(d, backing_radius) }
+	// Neighboring pixels share each pair of derivatives in the compositor's coverage ramp.
+	for corner in 0 .. 4 {
+		right := corner & 1
+		bottom := corner >> 1
+		phase_x := (phases >> right) & 1
+		phase_y := (phases >> (2 + bottom)) & 1
+		for row in 0 .. size {
+			y := if bottom == 1 {height - 1 - row} else {row}
+			dy := 1 - 2 * ((row + phase_y) & 1)
+			for column in 0 .. size {
+				x := if right == 1 {width - 1 - column} else {column}
+				dx := 1 - 2 * ((column + phase_x) & 1)
+				distance := canvas_corner_distance(column, row, diagonals)
+				horizontal := dx * (canvas_corner_distance(column + dx, row, diagonals) - distance)
+				vertical := dy * (canvas_corner_distance(column, row + dy, diagonals) - distance)
+				coverage := math.clamp(0.5 + distance / (horizontal + vertical), 0.0, 1.0)
+				raster.pixels[y * width + x] = u32(math.round(255 * coverage)) << 24
+			}
+		}
 	}
 	return raster
 }

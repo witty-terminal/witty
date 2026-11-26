@@ -8,6 +8,18 @@
 #include <math.h>
 #include <stdint.h>
 
+static inline int witty_canvas_backing_phases(NSView *view) {
+    NSWindow *window = view.window;
+    if (!window) return 0;
+    const NSRect bounds = [window convertRectToBacking:[view convertRect:view.bounds toView:nil]];
+    const NSRect frame = [window convertRectToBacking:[window convertRectFromScreen:window.frame]];
+    const long left = lround(CGRectGetMinX(bounds));
+    const long right = lround(CGRectGetMaxX(bounds));
+    const long top = lround(CGRectGetMaxY(frame) - CGRectGetMaxY(bounds));
+    const long bottom = lround(CGRectGetMaxY(frame) - CGRectGetMinY(bounds));
+    return (left & 1) | ((right & 1) << 1) | ((top & 1) << 2) | ((bottom & 1) << 3);
+}
+
 static inline void witty_canvas_place_overlay(void *parent, void *child, void *above) {
     [(NSView *)parent addSubview:(NSView *)child positioned:NSWindowAbove relativeTo:(NSView *)above];
 }

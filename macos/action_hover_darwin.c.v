@@ -10,7 +10,6 @@ fn C.witty_hover_line(text ObjId, limit f64, width &f64) voidptr
 fn C.witty_hover_release_line(line voidptr)
 fn C.witty_hover_draw_line(target voidptr, line voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int, padding f64, baseline f64)
 fn C.witty_hover_rasterize_circular_corner(pixels &u32, width int, height int, radius f64, round_left bool) bool
-fn C.witty_hover_backing_phases(view ObjId) int
 fn C.witty_hover_draw_background(target voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int)
 fn C.witty_hover_set_background(view ObjId, layer ObjId, center &ObjCRect, coverage &f32, width int, height int, scale f64)
 
@@ -21,12 +20,6 @@ const hover_radius = 9.0
 // SwiftUI corner coverage measured by the macos_hover_corner_masks reference probe.
 const hover_corner_masks_1x = $embed_file('@VMODROOT/build_assets/macos/hover_corner_masks_1x.bin').to_bytes()
 const hover_corner_masks_2x = $embed_file('@VMODROOT/build_assets/macos/hover_corner_masks_2x.bin').to_bytes()
-// Unit-radius intercepts and slopes fitted to live corners at several radii.
-// Each knot marks an equally spaced diagonal, measured as the difference between x and y.
-const hover_corner_positions = [0.2929106, 0.2039366, 0.1295453, 0.0731686, 0.0359282, 0.0157617,
-	0.0070775, 0.0027773, 0.0]!
-const hover_corner_slopes = [-0.5, -0.4313139, -0.3448212, -0.2448693, -0.1468378, -0.0693243,
-	-0.0276623, -0.0198053, -0.0004360]!
 // Narrow shapes compress the horizontal end of the curve. These unit-radius
 // samples describe the change in edge distance per missing backing pixel.
 const hover_corner_width_start = 0.19
@@ -35,13 +28,6 @@ const hover_corner_width_positions = [0.0, 0.0044276, 0.0179309, 0.0302028, 0.01
 const hover_corner_width_slopes = [0.0, 0.0387408, 0.0717346, 0.0260299, -0.0576664, -0.0292069, 0.0]!
 const hover_corner_width_phases = [0.0, 0.0010794, -0.0002302, 0.0137018, -0.0068266, 0.0018925, 0.0]!
 const hover_corner_width_phase_slopes = [0.0, 0.0224255, 0.0000827, 0.1182098, 0.1877699, 0.0644234, 0.0]!
-
-struct HoverCornerDiagonal {
-	intercept f64
-	distance_scale f64 = 1.0
-	width_adjustment f64
-	width_phase_adjustment f64
-}
 
 struct HoverBackgroundMask {
 	coverage []f32
@@ -226,12 +212,6 @@ fn (mut surface NativeActionSurface) refresh_hover_appearance() {
 	}
 }
 
-fn hover_corner_interpolate(left f64, right f64, left_slope f64, right_slope f64, t f64, step f64) f64 {
-	s := 1 - t
-	return s * s * ((1 + 2 * t) * left + t * step * left_slope)
-		+ t * t * ((1 + 2 * s) * right - s * step * right_slope)
-}
-
 fn hover_corner_width_adjustment(diagonal f64) (f64, f64) {
 	if diagonal <= hover_corner_width_start || diagonal >= hover_corner_width_end { return 0, 0 }
 	step := (hover_corner_width_end - hover_corner_width_start) / (hover_corner_width_positions.len - 1)
@@ -239,37 +219,10 @@ fn hover_corner_width_adjustment(diagonal f64) (f64, f64) {
 	i := int(interval)
 	if i >= hover_corner_width_positions.len - 1 { return 0, 0 }
 	t := interval - i
-	return hover_corner_interpolate(hover_corner_width_positions[i], hover_corner_width_positions[i + 1],
+	return canvas_corner_interpolate(hover_corner_width_positions[i], hover_corner_width_positions[i + 1],
 		hover_corner_width_slopes[i], hover_corner_width_slopes[i + 1], t, step),
-		hover_corner_interpolate(hover_corner_width_phases[i], hover_corner_width_phases[i + 1],
+		canvas_corner_interpolate(hover_corner_width_phases[i], hover_corner_width_phases[i + 1],
 			hover_corner_width_phase_slopes[i], hover_corner_width_phase_slopes[i + 1], t, step)
-}
-
-fn hover_corner_diagonal(diagonal int, radius f64, missing_width f64) HoverCornerDiagonal {
-	step := canvas_corner_x[0][0] / (hover_corner_positions.len - 1)
-	interval := diagonal / (radius * step)
-	i := int(interval)
-	if i >= hover_corner_positions.len - 1 { return HoverCornerDiagonal{} }
-	t := interval - i
-	s := 1 - t
-	// Interpolate the intercept and its derivative in the diagonal coordinate.
-	position := hover_corner_interpolate(hover_corner_positions[i], hover_corner_positions[i + 1],
-		hover_corner_slopes[i], hover_corner_slopes[i + 1], t, step)
-	slope := 6 * t * s * (hover_corner_positions[i + 1] - hover_corner_positions[i]) / step
-		+ s * (1 - 3 * t) * hover_corner_slopes[i] + t * (1 - 3 * s) * hover_corner_slopes[i + 1]
-	base_adjustment, phase_adjustment := hover_corner_width_adjustment(diagonal / radius)
-	// The rasterizer's coverage ramp lies between diagonal and normal distance.
-	return HoverCornerDiagonal{
-		intercept: radius * position
-		distance_scale: 1 + 0.52 * (1 / math.hypot(1 + slope, slope) - 1)
-		width_adjustment: missing_width * base_adjustment
-		width_phase_adjustment: missing_width * phase_adjustment / radius
-	}
-}
-
-fn hover_corner_distance(x int, y int, diagonals []HoverCornerDiagonal) f64 {
-	diagonal := diagonals[math.abs(x - y)]
-	return (math.min(x, y) + 0.5 - diagonal.intercept) * diagonal.distance_scale
 }
 
 fn hover_canvas_mask(width int, height int, scale f64, round_left bool) !canvas.RasterSurface {
@@ -329,9 +282,9 @@ fn hover_corner_coverage(width int, height int, scale f64, round_left bool, phas
 	shape_width := math.max(f64(width), 2 * hover_padding * scale)
 	missing_width := math.max(0.0, radius * extent + 0.75 - shape_width)
 	columns := math.min(tile_width, corner)
-	mut diagonals := []HoverCornerDiagonal{len: math.max(columns, rows) + 1}
+	mut diagonals := []CanvasCornerDiagonal{len: math.max(columns, rows) + 1}
 	for i in 0 .. diagonals.len {
-		diagonals[i] = hover_corner_diagonal(i, radius, missing_width)
+		diagonals[i] = canvas_corner_diagonal(i, radius)
 	}
 	phase_x := phase & 1
 	phase_y := (phase >> 1) & 1
@@ -340,14 +293,14 @@ fn hover_corner_coverage(width int, height int, scale f64, round_left bool, phas
 		dy := 1 - 2 * ((row + phase_y) & 1)
 		for column in 0 .. columns {
 			dx := 1 - 2 * ((column + phase_x) & 1)
-			distance := hover_corner_distance(column, row, diagonals)
-			horizontal := dx * (hover_corner_distance(column + dx, row, diagonals) - distance)
-			vertical := dy * (hover_corner_distance(column, row + dy, diagonals) - distance)
+			distance := canvas_corner_distance(column, row, diagonals)
+			horizontal := dx * (canvas_corner_distance(column + dx, row, diagonals) - distance)
+			vertical := dy * (canvas_corner_distance(column, row + dy, diagonals) - distance)
 			x := if round_left { column } else { tile_width - column - 1 }
 			mut adjusted := distance
-			if column > row && missing_width > 0 {
-				diagonal := diagonals[column - row]
-				adjusted += diagonal.width_adjustment + dx * diagonal.width_phase_adjustment
+			if column > row && missing_width > 0 && column - row < radius * extent {
+				base, phase_shift := hover_corner_width_adjustment((column - row) / radius)
+				adjusted += missing_width * base + dx * (missing_width * phase_shift / radius)
 			}
 			coverage[row * tile_width + x] = f32(math.clamp(0.5 + adjusted / (horizontal + vertical), 0.0, 1.0))
 		}
@@ -403,7 +356,7 @@ fn (surface &NativeActionSurface) refresh_hover_background() {
 	width := int(math.round(bounds.width * scale))
 	height := int(math.round(bounds.height * scale))
 	if width <= 0 || height <= 0 { return }
-	phases := C.witty_hover_backing_phases(surface.hover_label)
+	phases := C.witty_canvas_backing_phases(surface.hover_label)
 	mask := hover_background_mask(width, height, scale, surface.hover_left, phases)
 	C.witty_hover_set_background(surface.hover_label, surface.hover_background_layer, &mask.center,
 		mask.coverage.data, mask.width, mask.height, scale)

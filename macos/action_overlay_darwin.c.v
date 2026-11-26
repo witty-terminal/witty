@@ -136,6 +136,7 @@ mut:
 	readonly_scale      f64
 	readonly_title_width f64
 	health_label        ObjId
+	resize_indicator    NativeResizeIndicator
 	child_exit_banner   ObjId
 	child_exit_duration string
 	child_exit_error    bool
@@ -178,6 +179,7 @@ fn action_owner(surface &NativeActionSurface) ObjId {
 		add_method(cls, 'searchPrevious:', voidptr(action_search_previous), 'v@:@')
 		add_method(cls, 'searchClose:', voidptr(action_search_close), 'v@:@')
 		add_method(cls, 'searchTimer:', voidptr(action_search_timer), 'v@:@')
+		add_method(cls, 'resizeIndicatorTimer:', voidptr(action_resize_indicator_timer), 'v@:@')
 		add_method(cls, 'progressTimer:', voidptr(action_progress_timer), 'v@:@')
 		add_method(cls, 'pulseTimer:', voidptr(action_pulse_timer), 'v@:@')
 		add_method(cls, 'readonly:', voidptr(action_readonly_click), 'v@:@')
@@ -273,7 +275,7 @@ pub fn (mut state NativeActionSurface) deinit() {
 	if state.palette != unsafe { nil } { state.palette.close() }
 	state.remove_notifications()
 	for timer in [state.search_timer, state.progress_timer, state.pulse_timer, state.title_timer,
-		state.title_fallback, state.highlight_timer] {
+		state.title_fallback, state.highlight_timer, state.resize_indicator.timer] {
 		if !is_nil(timer) { msg_void(timer, 'invalidate') }
 	}
 	g_secure_scopes.delete(u64(state.view))
@@ -322,6 +324,7 @@ fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
 		state.refresh_hover_visuals()
 		msg_void_bool(state.hover_ink, 'setNeedsDisplay:', true)
 		state.refresh_child_exit_banner()
+		state.layout_resize_indicator()
 		state.refresh_readonly_badge()
 		state.refresh_key_visuals()
 		if state.palette != unsafe { nil } { state.palette.layout() }
@@ -340,6 +343,7 @@ fn action_overlay_colors_changed(self ObjId, _cmd Sel, _notification ObjId) {
 		state.refresh_secure_visuals()
 		state.refresh_hover_appearance()
 		state.refresh_child_exit_banner()
+		state.layout_resize_indicator()
 		msg_void_bool(state.readonly_ink, 'setNeedsDisplay:', true)
 		state.update_key_colors()
 		if state.palette != unsafe { nil } {
@@ -751,6 +755,7 @@ pub fn (mut state NativeActionSurface) mouse_over_link(url string) {
 }
 
 pub fn (mut state NativeActionSurface) focus(focused bool) {
+	if focused && !state.focused { state.note_resize_indicator_focus() }
 	state.focused = focused
 	if state.password_input {
 		g_secure_scopes[u64(state.view)] = focused

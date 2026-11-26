@@ -419,18 +419,6 @@ static inline bool witty_hover_rasterize_circular_corner(uint32_t *pixels, int w
     return true;
 }
 
-static inline int witty_hover_backing_phases(NSView *view) {
-    NSWindow *window = view.window;
-    if (!window) return 0;
-    const NSRect bounds = [window convertRectToBacking:[view convertRect:view.bounds toView:nil]];
-    const NSRect frame = [window convertRectToBacking:[window convertRectFromScreen:window.frame]];
-    const long left = lround(CGRectGetMinX(bounds));
-    const long right = lround(CGRectGetMaxX(bounds));
-    const long top = lround(CGRectGetMaxY(frame) - CGRectGetMaxY(bounds));
-    const long bottom = lround(CGRectGetMaxY(frame) - CGRectGetMinY(bounds));
-    return (left & 1) | ((right & 1) << 1) | ((top & 1) << 2) | ((bottom & 1) << 3);
-}
-
 static inline NSAppearance *witty_hover_appearance(NSView *view) {
     // The scroll view can use a different appearance for its scrollbar.
     return view.window.effectiveAppearance ?: view.effectiveAppearance;

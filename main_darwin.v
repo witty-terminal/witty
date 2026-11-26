@@ -724,7 +724,11 @@ fn on_resize(userdata voidptr, width f64, height f64) {
 	scale := macos.view_backing_scale(state.view)
 	apprt.ghostty_surface_set_content_scale(mut state.surface, scale, scale)
 	apprt.ghostty_surface_set_size(mut state.surface, u32(width * scale), u32(height * scale))
-	if state.actions != unsafe { nil } { state.actions.resize() }
+	if state.actions != unsafe { nil } {
+		state.actions.resize()
+		size := apprt.ghostty_surface_size(state.surface)
+		state.actions.update_resize_indicator(width, height, size.columns, size.rows)
+	}
 }
 
 fn on_display(userdata voidptr, display_id u32) {

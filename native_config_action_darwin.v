@@ -87,6 +87,8 @@ fn native_app_action_config(current &TermState, config &configpkg.Config) {
 	mut actions := current.actions
 	actions.bell_border = config.bell_features.border()
 	actions.secure_indication = config.macos_secure_input_indication
+	actions.configure_resize_indicator(config.resize_overlay, config.resize_overlay_position,
+		config.resize_overlay_duration.duration)
 	// Cache BaseTerminalController's updated policy for a later focus/pwd
 	// publication, without changing the represented URL during notification.
 	actions.proxy_icon = config.macos_titlebar_proxy_icon == .visible
@@ -160,6 +162,10 @@ fn native_cell_size_main(context voidptr) {
 	current.cell_width = f64(task.width) / scale
 	current.cell_height = f64(task.height) / scale
 	current.actions.set_scroll_cell_height(current.cell_height)
+	if current.surface != unsafe { nil } {
+		size := apprt.ghostty_surface_size(current.surface)
+		current.actions.update_resize_indicator_grid(size.columns, size.rows)
+	}
 	if current.controller != unsafe { nil } && current.controller.focused == current {
 		config := native_controller_config(current)
 		macos.set_native_cell_size(current.view, current.cell_width, current.cell_height, config.step_resize)
