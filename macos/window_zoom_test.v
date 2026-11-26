@@ -54,8 +54,13 @@ fn test_native_zoom_projection_has_real_tab_and_titlebar_controls() {
 	assert g_zoom_probe_actions==1
 	set_native_split_zoom(view,true)
 	assert !msg_bool(data.zoom_tab_button,'isHidden')
-	assert !msg_bool(msg_id(data.zoom_accessory,'view'),'isHidden')
-	assert msg_rect(msg_id(data.zoom_accessory,'view'),'frame').width==30
+	accessory := msg_id(data.zoom_accessory, 'view')
+	assert !msg_bool(accessory, 'isHidden')
+	frame := msg_rect(accessory, 'frame')
+	assert frame.width == 30
+	assert frame.height == if C.witty_native_os_at_least(26, 0, 0) { 38.0 } else { 37.0 }
+	button := msg_id_u64(msg_id(accessory, 'subviews'), 'objectAtIndex:', 0)
+	assert msg_rect(button, 'frame').y == 8
 	toolbar:=msg_id(window,'toolbar')
 	item:=native_toolbar_item(toolbar,nil_obj(),toolbar,nsstring('ResetZoom'),true)
 	assert msg_id(item,'view')==data.zoom_toolbar_button
@@ -69,8 +74,9 @@ fn test_native_zoom_projection_has_real_tab_and_titlebar_controls() {
 	set_zoom_accessory_attached(data,true)
 	set_native_split_zoom(view,false)
 	assert msg_bool(data.zoom_tab_button,'isHidden')
-	assert msg_bool(msg_id(data.zoom_accessory,'view'),'isHidden')
-	assert msg_rect(msg_id(data.zoom_accessory,'view'),'frame').width==0
+	assert msg_bool(accessory, 'isHidden')
+	assert msg_rect(accessory, 'frame').width == 0
+	assert msg_rect(accessory, 'frame').height == 0
 	msg_void(window,'close')
 	msg_void(window,'release')
 }

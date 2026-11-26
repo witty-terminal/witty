@@ -8,6 +8,7 @@ fn C.witty_native_os_at_least(major i64,minor i64,patch i64) bool
 fn C.witty_zoom_canvas_template(bytes &u8, count usize, draw fn (ObjId, &ObjCRect) bool) ObjId
 
 const reset_zoom_pdf = $embed_file('@VMODROOT/build_assets/macos/Assets.xcassets/ResetZoom.imageset/ResetZoom.pdf').to_bytes()
+const zoom_accessory_spacing = 8.0
 __global g_reset_zoom_template ObjId
 
 fn draw_reset_zoom_template(source ObjId, glyph &ObjCRect) bool {
@@ -113,11 +114,14 @@ fn update_native_zoom_views(mut data NativeWindowData) {
 	view:=msg_id(data.zoom_accessory,'view')
 	toolbar:=msg_id(data.window,'toolbar')
 	padding:=if C.witty_native_os_at_least(26,0,0) { if !is_nil(toolbar) { 10.0 } else { 5.0 } } else { if !is_nil(toolbar) { 9.0 } else { 4.0 } }
-	msg_void_rect(view,'setFrame:',objc_rect(0,0,if data.surface_zoomed { 30.0 } else { 0.0 },if data.surface_zoomed { 20.0+padding } else { 0.0 }))
+	width := if data.surface_zoomed { 30.0 } else { 0.0 }
+	// Match the titlebar stack's spacing between the button and the spacer below it.
+	height := if data.surface_zoomed { 20.0 + padding + zoom_accessory_spacing } else { 0.0 }
+	msg_void_rect(view, 'setFrame:', objc_rect(0, 0, width, height))
 	msg_void_bool(view,'setHidden:',!data.surface_zoomed)
 	if msg_u64(msg_id(view,'subviews'),'count')>0 {
 		button:=msg_id_u64(msg_id(view,'subviews'),'objectAtIndex:',0)
-		msg_void_rect(button,'setFrame:',objc_rect(0,0,20,20))
+		msg_void_rect(button, 'setFrame:', objc_rect(0, zoom_accessory_spacing, 20, 20))
 		msg_void1(button,'setContentTintColor:',msg_id(get_class('NSColor'),if msg_bool(data.window,'isMainWindow') { 'controlAccentColor' } else { 'secondaryLabelColor' }))
 	}
 	set_zoom_accessory_attached(data,msg_u64(msg_id(msg_id(data.window,'tabGroup'),'windows'),'count')<=1)
