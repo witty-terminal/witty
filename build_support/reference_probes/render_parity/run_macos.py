@@ -189,7 +189,7 @@ def fixture_args(work):
             "--window-width=75", "--window-height=20", "--window-padding-x=2,3",
             "--window-padding-y=2,7", *vim,
         ),
-        "pager": pager,
+        "pager": (*pager, "open", pager_grid),
         "pager-default": (*DEFAULT_WINDOW, *pager),
         "pager-search": (*pager, "search", pager_grid),
         "pager-search-next": (*pager, "next", pager_grid),
