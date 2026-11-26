@@ -285,11 +285,11 @@ fn hover_mask_word(data []u8, offset int) int {
 	return int(data[offset]) | (int(data[offset + 1]) << 8)
 }
 
-fn hover_apply_corner_mask(mut coverage []f32, width int, rows int, scale int, round_left bool, phase int) {
+fn hover_apply_corner_mask(mut coverage []f32, tile_width int, banner_width int, rows int, scale int, round_left bool, phase int) {
 	data := if scale == 1 { hover_corner_masks_1x } else { hover_corner_masks_2x }
 	min_width := int(2 * hover_padding) * scale
-	max_width := if scale == 1 { 15 } else { 29 }
-	mask_width := math.min(math.max(width, min_width), max_width)
+	max_width := if scale == 1 { 15 } else { 34 }
+	mask_width := math.min(math.max(banner_width, min_width), max_width)
 	// The 2× atlas stores trailing corners, then their independently sampled leading corners.
 	direction_offset := if scale == 2 && round_left { max_width - min_width + 1 } else { 0 }
 	index := (direction_offset + mask_width - min_width) * 4 + phase
@@ -300,9 +300,9 @@ fn hover_apply_corner_mask(mut coverage []f32, width int, rows int, scale int, r
 		first := int(data[offset])
 		count := int(data[offset + 1])
 		offset += 2
-		for column in 0 .. math.min(width, first + count) {
-			x := if round_left { column } else { width - column - 1 }
-			coverage[row * width + x] = if column < first {
+		for column in 0 .. math.min(tile_width, first + count) {
+			x := if round_left { column } else { tile_width - column - 1 }
+			coverage[row * tile_width + x] = if column < first {
 				f32(0)
 			} else {
 				f32(hover_mask_word(data, offset + 2 * (column - first))) / 65535
@@ -313,20 +313,21 @@ fn hover_apply_corner_mask(mut coverage []f32, width int, rows int, scale int, r
 }
 
 fn hover_corner_coverage(width int, height int, scale f64, round_left bool, phase int) []f32 {
-	mut coverage := []f32{len: width * height, init: 1.0}
 	extent := canvas_corner_x[0][0]
 	radius := hover_radius * scale
 	corner := int(math.ceil(radius * extent))
+	tile_width := math.min(width, corner + 2)
+	mut coverage := []f32{len: tile_width * height, init: 1.0}
 	rows := math.min(height, corner)
 	if scale == 1 || scale == 2 {
-		hover_apply_corner_mask(mut coverage, width, rows, int(scale), round_left, phase)
+		hover_apply_corner_mask(mut coverage, tile_width, width, rows, int(scale), round_left, phase)
 		return coverage
 	}
 	// The banner clips below the horizontal padding width. Include the
 	// subpixel ramp when finding where the curve merges with the top edge.
 	shape_width := math.max(f64(width), 2 * hover_padding * scale)
 	missing_width := math.max(0.0, radius * extent + 0.75 - shape_width)
-	columns := math.min(width, corner)
+	columns := math.min(tile_width, corner)
 	mut diagonals := []HoverCornerDiagonal{len: math.max(columns, rows) + 1}
 	for i in 0 .. diagonals.len {
 		diagonals[i] = hover_corner_diagonal(i, radius, missing_width)
@@ -341,13 +342,13 @@ fn hover_corner_coverage(width int, height int, scale f64, round_left bool, phas
 			distance := hover_corner_distance(column, row, diagonals)
 			horizontal := dx * (hover_corner_distance(column + dx, row, diagonals) - distance)
 			vertical := dy * (hover_corner_distance(column, row + dy, diagonals) - distance)
-			x := if round_left { column } else { width - column - 1 }
+			x := if round_left { column } else { tile_width - column - 1 }
 			mut adjusted := distance
 			if column > row && missing_width > 0 {
 				diagonal := diagonals[column - row]
 				adjusted += diagonal.width_adjustment + dx * diagonal.width_phase_adjustment
 			}
-			coverage[row * width + x] = f32(math.clamp(0.5 + adjusted / (horizontal + vertical), 0.0, 1.0))
+			coverage[row * tile_width + x] = f32(math.clamp(0.5 + adjusted / (horizontal + vertical), 0.0, 1.0))
 		}
 	}
 	return coverage
@@ -370,7 +371,7 @@ fn hover_background_mask(width int, height int, scale f64, round_left bool, phas
 	top := (phases >> 2) & 1
 	bottom := (phases >> 3) & 1
 	rounded_x := if round_left { left } else { right }
-	mut coverage := hover_corner_coverage(tile_width, tile_height, scale, round_left,
+	mut coverage := hover_corner_coverage(width, tile_height, scale, round_left,
 		rounded_x | (top << 1))
 	square_top := if round_left { tile_width - 1 } else { 0 }
 	square_top_x := if round_left { right } else { left }

@@ -45,9 +45,9 @@ def recover_coverage(samples, opaque_samples, intervals):
 
 
 def read_masks(directory, scale, leading):
-    # Cap the index at the width where the corner meets the straight top edge.
-    min_width, max_width, corner_size = (20, 29, 28) if scale == 2 else (10, 15, 14)
-    captured_widths = 15 if scale == 2 else 8
+    # Keep the backing widths beyond the transition to the straight top edge.
+    min_width, max_width, corner_size = (20, 34, 28) if scale == 2 else (10, 15, 14)
+    captured_widths = max_width - min_width + 1 if scale == 2 else 8
     control_y = ((captured_widths * 4 + 11) // 12) * 60 + 5
     captures = []
     for step in range(len(OPACITIES)):

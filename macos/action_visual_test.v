@@ -492,6 +492,9 @@ fn test_hover_banner_live_corner_coverage_near_straight_edge() {
 	// At 2×, the native leading and trailing curves round differently at this pixel.
 	assert math.round(leading[13] * 65535) == 15656
 	assert math.round(trailing[30 - 1 - 13] * 65535) == 15640
+	// The larger banner samples its width even when the mask tile is smaller.
+	wide := hover_background_mask(320, 53, 2, false, 0)
+	assert math.round(wide.coverage[wide.width - 1 - 13] * 65535) == 15656
 }
 
 fn test_hover_banner_live_corner_compresses_at_the_top_edge() {
