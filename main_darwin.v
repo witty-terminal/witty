@@ -156,7 +156,7 @@ fn create_surface(view voidptr, inherited apprt.SurfaceOptions) ?&TermState {
 	scale := macos.view_backing_scale(view)
 	apprt.ghostty_surface_set_size(mut state.surface, u32(macos.view_width(view) * scale),
 		u32(macos.view_height(view) * scale))
-	apprt.ghostty_surface_set_focus(mut state.surface, true)
+	apprt.ghostty_surface_set_focus(mut state.surface, terminal_window_accepts_keyboard_focus(view))
 	return state
 }
 
@@ -738,11 +738,19 @@ fn on_display(userdata voidptr, display_id u32) {
 	}
 }
 
+fn terminal_window_accepts_keyboard_focus(view voidptr) bool {
+	// Offscreen viewport captures render a focused cursor without a key window.
+	return standalone_runtime().screenshot.path != ''
+		|| macos.native_window_is_key(macos.view_window(view))
+}
+
 fn on_focus(userdata voidptr, focused bool) {
 	mut state := state_from_userdata(userdata) or { return }
 	if !state.closed && state.surface != unsafe { nil } {
-		apprt.ghostty_surface_set_focus(mut state.surface, focused)
-		if state.actions != unsafe { nil } { state.actions.focus(focused) }
+		// AppKit can select a first responder in a background split window.
+		keyboard_focused := focused && terminal_window_accepts_keyboard_focus(state.view)
+		apprt.ghostty_surface_set_focus(mut state.surface, keyboard_focused)
+		if state.actions != unsafe { nil } { state.actions.focus(keyboard_focused) }
 		if focused && state.controller != unsafe { nil } {
 			state.controller.focused = state
 			if mut quick := macos.quick_terminal_for_view(state.view) { quick.view = state.view }

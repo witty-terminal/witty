@@ -193,6 +193,38 @@ fn test_native_config_notification_scopes_preserve_surface_appearance() {
 	assert C.witty_config_scope_background(view) == 0x304752
 }
 
+fn test_native_background_responder_selects_surface_without_keyboard_focus() {
+	macos.app_init()
+	C.witty_config_scope_finish_launching()
+	view := macos.create_restorable_window(260, 160, 'background responder probe')
+	window := macos.view_window(view)
+	original_class := C.witty_config_scope_controlled_key_window(view)
+	mut state := &TermState{
+		view:    view
+		surface: &apprt.Surface{}
+	}
+	state.actions = macos.new_action_surface(view, voidptr(state), macos.ActionCallbacks{})
+	state.controller = &TerminalController{
+		host: macos.create_split_host(view)
+	}
+	defer {
+		C.witty_config_scope_restore_class(view, original_class)
+		state.actions.deinit()
+		macos.close_native_window(window)
+		macos.release_native_object(window)
+		macos.release_native_object(state.controller.host.container)
+		macos.release_native_object(view)
+	}
+	C.witty_config_scope_set_key(false)
+	on_focus(voidptr(state), true)
+	assert state.controller.focused == state
+	assert !state.actions.focused
+
+	C.witty_config_scope_set_key(true)
+	on_focus(voidptr(state), true)
+	assert state.actions.focused
+}
+
 fn test_native_focus_follows_mouse_uses_app_setting_key_window_and_palette_guards() {
 	macos.app_init()
 	C.witty_config_scope_finish_launching()
