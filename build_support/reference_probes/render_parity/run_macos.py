@@ -23,13 +23,14 @@ from applications import (
 from capture import capture_witty, output_directory, write_versions
 from fixtures import CLEAR as CLEAR_FRAME
 from fixtures import (
-    RESIZE_WRAP_COLOR, SHADER_RELOAD_STAGES, TERMINAL_COLOR_PALETTE, TERMINAL_COLOR_RESET, TERMINAL_COLOR_SCREEN,
+    RESIZE_WRAP_COLOR, SHADER_RELOAD_STAGES, TERMINAL_COLOR_CONFIGURED, TERMINAL_COLOR_PALETTE,
+    TERMINAL_COLOR_RESET, TERMINAL_COLOR_SCREEN,
     WALLPAPER_OPTIONS, WALLPAPER_RELOAD_MARKER, WALLPAPER_RELOAD_STAGES,
     colored_line_erase, font_zoom_frame, grapheme_sequences, kitty_animation,
     kitty_chunked_frames, kitty_cursor, kitty_delete_selection, kitty_delete_visible, kitty_history,
     kitty_layers, kitty_layout, kitty_relative, kitty_retransmit, kitty_scroll, kitty_unicode,
     kitty_unicode_pinned, prepare_raster_effects, shader_fixture_options, shader_reload_configs,
-    shader_reload_frame, terminal_color_updates, wallpaper_reload_configs, wide_selection_frame,
+    shader_reload_frame, terminal_color_config, terminal_color_updates, wallpaper_reload_configs, wide_selection_frame,
     wrapped_wide_edits, wrapped_wide_glyphs,
 )
 
@@ -88,6 +89,16 @@ RELOAD_STEPS = {
         ("shader-reload", (*SHADER_RELOAD_STAGES, "-invalid", "-recover")),
     )
     for step, suffix in enumerate(stages)
+}
+TERMINAL_COLOR_RELOAD_CASES = {
+    f"terminal-colors-reload{suffix}{'-translucent' if translucent else ''}": (frame, keys, translucent)
+    for translucent in (False, True)
+    for suffix, frame, keys in (
+        ("-initial", "initial", ()),
+        ("-overrides", "overrides", ()),
+        ("", "overrides", ("f7",)),
+        ("-reset", "overrides", ("f7", "space")),
+    )
 }
 SELECTION_DRAGS = {
     # The emoji spans columns 13 and 14. Begin the drag on the second cell.
@@ -519,6 +530,26 @@ def prepare_shader_reload(work):
                           (*configs, f"custom-shader = {invalid}\n", recovery))
 
 
+def prepare_terminal_color_reload(work):
+    # A second palette entry changes on reload even while the app's OSC overrides remain active.
+    initial = (CLEAR_FRAME + TERMINAL_COLOR_SCREEN
+               + b"\x1b[7;1H\x1b[42m    \x1b[0m Untouched palette entry\x1b[5;5H")
+    (work / "terminal-colors-reload-initial.bin").write_bytes(initial)
+    (work / "terminal-colors-reload-overrides.bin").write_bytes(initial + b"".join(terminal_color_updates().values()))
+    (work / "terminal-colors-reload-reset.bin").write_bytes(TERMINAL_COLOR_RESET)
+    (work / "terminal-colors-reload.sh").write_text(INPUT_FRAME_START + r'''
+if /bin/dd bs=1 count=1 of=/dev/null 2>/dev/null; then
+    /bin/cat terminal-colors-reload-reset.bin || exit 1
+fi
+exec /bin/sleep 20
+''')
+    original = ((228, 229, 233), (22, 24, 32), (255, 238, 170), TERMINAL_COLOR_PALETTE)
+    (work / "terminal-colors-reload.conf.0").write_text(terminal_color_config(original) + "palette = 2=5484ab\n")
+    (work / "terminal-colors-reload.conf.1").write_text(
+        terminal_color_config(TERMINAL_COLOR_CONFIGURED) + "palette = 2=6db4cb\n",
+    )
+
+
 def build_probe_input(output):
     source = Path(__file__).with_name("macos_probe_input.m")
     library = output / "macos-probe-input.dylib"
@@ -559,6 +590,24 @@ def capture_config_reload(witty, options, work, prefix, settle, fixture, step, l
         return
     capture_with_input(witty, args, prefix, settle + step * 0.45, library, "reload.sh", fixture,
                        keys=("f7",) * step, reload_config=config)
+
+
+def capture_terminal_color_reload(witty, options, work, prefix, settle, name, library):
+    frame, keys, translucent = TERMINAL_COLOR_RELOAD_CASES[name]
+    config = work / "terminal-colors-reload.conf"
+    shutil.copyfile(work / "terminal-colors-reload.conf.0", config)
+    colors = ("--foreground=", "--background=", "--cursor-color=")
+    args = (*(option for option in options if not option.startswith(colors)),
+            f"--config-file={config}", "--keybind=f7=reload_config", "--app-notifications=no-config-reload")
+    if translucent:
+        args = (*args, "--background-opacity=0.5", "--background-opacity-cells=true")
+    frame = f"terminal-colors-reload-{frame}"
+    if not keys:
+        capture_witty(witty, (*args, "-e", "/bin/sh", "grid-frame.sh", frame,
+                              f"{WINDOW_ROWS} {WINDOW_COLUMNS}"), prefix, settle)
+        return
+    capture_with_input(witty, args, prefix, settle, library, "terminal-colors-reload.sh", frame,
+                       keys=keys, reload_config=config)
 
 
 def capture_scrollback(witty, options, prefix, settle, name, library):
@@ -683,6 +732,7 @@ def run(witty, output, settle, references, programs):
     font_zoom = any(name in FONT_ZOOM_KEYS for name in references)
     resize = any(name in WINDOW_RESIZES for name in references)
     reload_fixtures = {RELOAD_STEPS[name][0] for name in references if name in RELOAD_STEPS}
+    color_reload = any(name in TERMINAL_COLOR_RELOAD_CASES for name in references)
     if scrollback:
         prepare_scrollback_fixture(work)
     if selection:
@@ -696,7 +746,10 @@ def run(witty, output, settle, references, programs):
         prepare_wallpaper_reload(work)
     if "shader-reload" in reload_fixtures:
         prepare_shader_reload(work)
-    probe_input = build_probe_input(output) if scrollback or selection or font_zoom or resize or reload_fixtures else None
+    if color_reload:
+        prepare_terminal_color_reload(work)
+    live_input = scrollback or selection or font_zoom or resize or reload_fixtures or color_reload
+    probe_input = build_probe_input(output) if live_input else None
     commands = fixture_args(work)
     if "nvim" in programs:
         commands.update(prepare_neovim(work, programs["nvim"]))
@@ -730,6 +783,8 @@ def run(witty, output, settle, references, programs):
             elif name in RELOAD_STEPS:
                 fixture, step = RELOAD_STEPS[name]
                 capture_config_reload(witty, options, work, prefix, settle, fixture, step, probe_input)
+            elif name in TERMINAL_COLOR_RELOAD_CASES:
+                capture_terminal_color_reload(witty, options, work, prefix, settle, name, probe_input)
             else:
                 capture_witty(witty, [*options, *commands[name]], prefix, settle)
             with Image.open(prefix.with_suffix(".png")) as png:
@@ -772,6 +827,7 @@ def main():
     optional_fixtures.update(FONT_ZOOM_KEYS)
     optional_fixtures.update(WINDOW_RESIZES)
     optional_fixtures.update(RELOAD_STEPS)
+    optional_fixtures.update(TERMINAL_COLOR_RELOAD_CASES)
     default_fixtures = [name for name in references if name not in optional_fixtures]
     selected = {name: references[name] for name in args.fixture or default_fixtures}
     programs = {}

@@ -170,6 +170,7 @@ fn test_native_config_notification_scopes_preserve_surface_appearance() {
 	assert runtime.app.config.background == app_change.background
 
 	// A terminal color that arrives after a reload should still reach the window.
+	surface_change.title = 'Reloaded title ${surface_change.background.r}'
 	assert runtime_action(runtime.app, target, apprt.RuntimeAction{
 		action: .config_change
 		data:   apprt.ConfigChange{
@@ -185,7 +186,9 @@ fn test_native_config_notification_scopes_preserve_surface_appearance() {
 			b:    0x52
 		}
 	})
+	gc_collect()
 	C.witty_config_scope_drain_main()
+	assert state.native_config.title == surface_change.title
 	assert state.background_color == ?u32(0x304752)
 	assert C.witty_config_scope_background(view) == 0x304752
 }

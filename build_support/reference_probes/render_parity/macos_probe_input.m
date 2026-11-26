@@ -24,7 +24,8 @@ static void send_key_sequence(NSView *view, NSArray<NSString *> *keys, NSUIntege
         fprintf(stderr, "macOS render probe dispatched input\n");
         return;
     }
-    if (config_path) {
+    NSString *key = keys[index];
+    if (config_path && [key isEqualToString:@"f7"]) {
         NSString *stage = [config_path stringByAppendingFormat:@".%lu", (unsigned long)index + 1];
         NSData *settings = [NSData dataWithContentsOfFile:stage];
         if (![settings writeToFile:config_path atomically:YES]) {
@@ -43,7 +44,6 @@ static void send_key_sequence(NSView *view, NSArray<NSString *> *keys, NSUIntege
         {"f10", NSF10FunctionKey, kVK_F10},
         {"space", ' ', kVK_Space},
     };
-    NSString *key = keys[index];
     for (size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); ++i) {
         if (strcmp(key.UTF8String, inputs[i].name) != 0) continue;
         NSString *characters = [NSString stringWithCharacters:&inputs[i].character length:1];

@@ -21,10 +21,12 @@ from capture import (
 from fixtures import (
     CURSOR_STYLES, FONT_ZOOM_MARKER, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES, RESIZE_WRAP_COLOR,
     SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED, SCROLLBAR_MARKER,
-    SHADER_RELOAD_MARKER, SHADER_RELOAD_STAGES, SPLIT_RIGHT_COLOR, TERMINAL_COLOR_OVERRIDES, TERMINAL_COLOR_PALETTE,
-    TERMINAL_COLOR_RESET, WALLPAPER_OPTIONS, WALLPAPER_RELOAD_MARKER, WALLPAPER_RELOAD_STAGES,
+    SHADER_RELOAD_MARKER, SHADER_RELOAD_STAGES, SPLIT_RIGHT_COLOR, TERMINAL_COLOR_CONFIGURED,
+    TERMINAL_COLOR_OVERRIDES, TERMINAL_COLOR_PALETTE, TERMINAL_COLOR_RESET, WALLPAPER_OPTIONS,
+    WALLPAPER_RELOAD_MARKER, WALLPAPER_RELOAD_STAGES,
     WALLPAPER_RELOAD_TILE, WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE, prepare_raster_effects,
-    shader_fixture_options, shader_reload_configs, terminal_color_updates, wallpaper_reload_configs,
+    shader_fixture_options, shader_reload_configs, terminal_color_config, terminal_color_updates,
+    wallpaper_reload_configs,
 )
 
 
@@ -503,15 +505,10 @@ def capture_terminal_colors(binary, args, helper, output, work, app, settle, sca
     commands.unlink(missing_ok=True)
     pending = commands.with_suffix(".tmp")
 
-    def write_colors(colors):
-        fg, bg, cursor, palette = (bytes(color).hex() for color in colors)
-        config.write_text(f"foreground = {fg}\nbackground = {bg}\ncursor-color = {cursor}\npalette = 1={palette}\n")
-
     original = (FOREGROUND, BACKGROUND, CURSOR_COLOR, TERMINAL_COLOR_PALETTE)
-    configured = ((197, 233, 214), (28, 42, 46), (240, 156, 91), (184, 103, 189))
     palette_override, foreground, background, cursor = (color for _, _, color in TERMINAL_COLOR_OVERRIDES)
     updates = terminal_color_updates()
-    write_colors(original)
+    config.write_text(terminal_color_config(original))
     stages = (
         (None, original),
         (updates["palette"], (FOREGROUND, BACKGROUND, CURSOR_COLOR, palette_override)),
@@ -519,7 +516,7 @@ def capture_terminal_colors(binary, args, helper, output, work, app, settle, sca
         (updates["background"], (foreground, background, CURSOR_COLOR, palette_override)),
         (updates["cursor"], (foreground, background, cursor, palette_override)),
         (TERMINAL_COLOR_RESET, original),
-        (None, configured),
+        (None, TERMINAL_COLOR_CONFIGURED),
     )
     capture_args = [f"--screenshot={output / 'terminal-colors-surface.png'}"] if app == "witty" else []
     env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(len(stages) * (settle + 5) + 5)}
@@ -530,7 +527,7 @@ def capture_terminal_colors(binary, args, helper, output, work, app, settle, sca
                 pending.write_bytes(command)
                 pending.replace(commands)
             if stage == "-reload":
-                write_colors(configured)
+                config.write_text(terminal_color_config(TERMINAL_COLOR_CONFIGURED))
                 subprocess.run(["xdotool", "key", "ctrl+alt+r"], check=True, timeout=5)
 
             def rendered(image):

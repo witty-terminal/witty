@@ -4,7 +4,6 @@ import apprt
 import configpkg
 import macos
 
-@[heap]
 struct NativeConfigChangeTask {
 mut:
 	config configpkg.Config
@@ -24,13 +23,18 @@ fn native_config_change(app &apprt.App, action_target apprt.Target, target ?&Ter
 		host_app.config.deinit()
 		host_app.config = owned.clone()
 	}
-	task := &NativeConfigChangeTask{config: owned, target: target}
-	macos.dispatch_main(native_config_change_main, voidptr(task))
+	task := NativeConfigChangeTask{config: owned, target: target}
+	// libdispatch keeps this context outside V's garbage collector roots.
+	context := unsafe { memdup_uncollectable(&task, int($sizeof(NativeConfigChangeTask))) }
+	macos.dispatch_main(native_config_change_main, context)
 	return true
 }
 fn native_config_change_main(context voidptr) {
 	mut task := unsafe { &NativeConfigChangeTask(context) }
-	defer { task.config.deinit() }
+	defer {
+		task.config.deinit()
+		unsafe { free(context) }
+	}
 	projection := native_window_config(&task.config)
 	if mut current := task.target {
 		if !current.closed {

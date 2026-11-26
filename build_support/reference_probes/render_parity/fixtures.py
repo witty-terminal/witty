@@ -39,6 +39,7 @@ WIDE_EDIT_BEFORE = (153, 61, 77)
 WIDE_EDIT_AFTER = (58, 119, 97)
 SPLIT_RIGHT_COLOR = (77, 154, 209)
 TERMINAL_COLOR_PALETTE = (195, 67, 101)
+TERMINAL_COLOR_CONFIGURED = ((197, 233, 214), (28, 42, 46), (240, 156, 91), (184, 103, 189))
 TERMINAL_COLOR_OVERRIDES = (
     ("palette", "4;1", (109, 196, 134)),
     ("foreground", "10", (249, 155, 128)),
@@ -475,6 +476,11 @@ def terminal_color_updates():
         name: f"\x1b]{command};#{bytes(color).hex()}\x1b\\".encode()
         for name, command, color in TERMINAL_COLOR_OVERRIDES
     }
+
+
+def terminal_color_config(colors):
+    fg, bg, cursor, palette = (bytes(color).hex() for color in colors)
+    return f"foreground = {fg}\nbackground = {bg}\ncursor-color = {cursor}\npalette = 1={palette}\n"
 
 
 def terminal_colors(commands):

@@ -122,7 +122,18 @@ python3 build_support/reference_probes/render_parity/run_macos.py \
   ./Witty.app/Contents/MacOS/witty --fixture nvim-diagnostics --fixture nvim-selection
 ```
 
-The opt-in fixtures for wallpaper reload, shader reload, scrollback, selection, live font zoom, and window resize use the Xcode command-line tools to build an input helper that runs inside a standalone Witty executable. Pass the binary from a build with `-Demit-macos-app=false` and select the fixtures explicitly.
+The opt-in fixtures for color reload, wallpaper reload, shader reload, scrollback, selection, live font zoom, and window resize use the Xcode command-line tools to build an input helper that runs inside a standalone Witty executable. Pass the binary from a build with `-Demit-macos-app=false` and select the fixtures explicitly.
+
+The color reload fixtures compare the original colors, application OSC overrides, configuration reload with overrides still active, and an OSC reset to the new defaults. An untouched palette entry changes during reload to confirm that the new config took effect. The same sequence runs with opaque and 50% opaque terminal backgrounds.
+
+```sh
+python3 build_support/reference_probes/render_parity/run_macos.py \
+  .witty-build/artifacts/witty \
+  --fixture terminal-colors-reload-initial --fixture terminal-colors-reload-overrides \
+  --fixture terminal-colors-reload --fixture terminal-colors-reload-reset \
+  --fixture terminal-colors-reload-initial-translucent --fixture terminal-colors-reload-overrides-translucent \
+  --fixture terminal-colors-reload-translucent --fixture terminal-colors-reload-reset-translucent
+```
 
 The wallpaper reload fixtures keep the same terminal text on screen while loading a PNG, turning on tiling, changing opacity, switching to a progressive JPEG, removing the image, and restoring the original PNG. Each capture replays the preceding reloads in the same terminal.
 
