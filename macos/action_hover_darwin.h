@@ -55,14 +55,16 @@ static inline bool witty_hover_rasterize_circular_corner(uint32_t *pixels, int w
     return true;
 }
 
-static inline int witty_hover_corner_phase(NSView *view, bool round_left) {
+static inline int witty_hover_backing_phases(NSView *view) {
     NSWindow *window = view.window;
     if (!window) return 0;
     const NSRect bounds = [window convertRectToBacking:[view convertRect:view.bounds toView:nil]];
     const NSRect frame = [window convertRectToBacking:[window convertRectFromScreen:window.frame]];
-    const long x = lround(round_left ? CGRectGetMinX(bounds) : CGRectGetMaxX(bounds));
-    const long y = lround(CGRectGetMaxY(frame) - CGRectGetMaxY(bounds));
-    return (x & 1) | ((y & 1) << 1);
+    const long left = lround(CGRectGetMinX(bounds));
+    const long right = lround(CGRectGetMaxX(bounds));
+    const long top = lround(CGRectGetMaxY(frame) - CGRectGetMaxY(bounds));
+    const long bottom = lround(CGRectGetMaxY(frame) - CGRectGetMinY(bounds));
+    return (left & 1) | ((right & 1) << 1) | ((top & 1) << 2) | ((bottom & 1) << 3);
 }
 
 static inline void witty_hover_draw_background(CGContextRef target, NSView *view, const CGRect *bounds,
@@ -80,41 +82,34 @@ static inline void witty_hover_draw_background(CGContextRef target, NSView *view
     CGImageRelease(mask);
 }
 
-static inline void witty_hover_set_background(NSView *view, CALayer *bottom, CALayer *top, CALayer *edge,
-        const CGRect *corner, const float *coverage, int width, int height, double scale) {
-    const CGRect bounds = view.bounds;
+static inline void witty_hover_set_background(NSView *view, CALayer *layer, const CGRect *center,
+        const float *coverage, int width, int height, double scale) {
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    bottom.frame = CGRectMake(bounds.origin.x, bounds.origin.y, bounds.size.width,
-        CGRectGetMinY(*corner) - bounds.origin.y);
-    const bool left = CGRectGetMinX(*corner) == bounds.origin.x;
-    top.frame = CGRectMake(left ? CGRectGetMaxX(*corner) : bounds.origin.x, corner->origin.y,
-        bounds.size.width - corner->size.width, corner->size.height);
-    edge.frame = *corner;
+    layer.frame = view.bounds;
     [[view effectiveAppearance] performAsCurrentDrawingAppearance:^{
-        bottom.backgroundColor = NSColor.windowBackgroundColor.CGColor;
-        top.backgroundColor = bottom.backgroundColor;
-        edge.backgroundColor = bottom.backgroundColor;
+        layer.backgroundColor = NSColor.windowBackgroundColor.CGColor;
     }];
-    // Core Animation applies the 16-bit coverage to the same tint as the opaque fill.
+    // Core Animation applies the 16-bit coverage to the original opaque tint.
     CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceExtendedLinearSRGB);
     CGImageRef image = witty_canvas_alpha_image(NULL, coverage, width, height, space, 0, 0, 0, 1);
     if (space) CGColorSpaceRelease(space);
     if (image) {
-        CALayer *mask = edge.mask;
+        CALayer *mask = layer.mask;
         if (!mask) {
             mask = [CALayer layer];
             mask.contentsFormat = kCAContentsFormatRGBA16Float;
             mask.minificationFilter = kCAFilterNearest;
             mask.magnificationFilter = kCAFilterNearest;
-            edge.mask = mask;
+            layer.mask = mask;
         }
-        mask.frame = edge.bounds;
+        mask.frame = layer.bounds;
         mask.contentsScale = scale;
+        mask.contentsCenter = *center;
         mask.contents = (id)image;
         CGImageRelease(image);
     } else {
-        edge.mask = nil;
+        layer.mask = nil;
     }
     [CATransaction commit];
 }

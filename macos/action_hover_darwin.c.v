@@ -9,9 +9,9 @@ import strings
 fn C.witty_hover_line(text ObjId, limit f64, width &f64) voidptr
 fn C.witty_hover_draw_line(target voidptr, line voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int, padding f64, baseline f64)
 fn C.witty_hover_rasterize_circular_corner(pixels &u32, width int, height int, radius f64, round_left bool) bool
-fn C.witty_hover_corner_phase(view ObjId, round_left bool) int
+fn C.witty_hover_backing_phases(view ObjId) int
 fn C.witty_hover_draw_background(target voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int)
-fn C.witty_hover_set_background(view ObjId, bottom ObjId, top ObjId, edge ObjId, corner &ObjCRect, coverage &f32, width int, height int, scale f64)
+fn C.witty_hover_set_background(view ObjId, layer ObjId, center &ObjCRect, coverage &f32, width int, height int, scale f64)
 
 const hover_padding = 5.0
 const hover_height = 26.0
@@ -27,6 +27,13 @@ const hover_corner_slopes = [-0.5, -0.4313139, -0.3448212, -0.2448693, -0.146837
 struct HoverCornerDiagonal {
 	intercept f64
 	distance_scale f64 = 1.0
+}
+
+struct HoverBackgroundMask {
+	coverage []f32
+	width    int
+	height   int
+	center   ObjCRect
 }
 
 fn (mut surface NativeActionSurface) initialize_hover_banner() {
@@ -55,20 +62,16 @@ fn (mut surface NativeActionSurface) initialize_hover_banner() {
 	msg_void1(surface.overlay, 'addSubview:', view)
 	msg_void(view, 'release')
 
-	for i in 0 .. surface.hover_fill.len {
-		surface.hover_fill[i] = msg_id(get_class('CALayer'), 'layer')
-		msg_void1(msg_id(view, 'layer'), 'addSublayer:', surface.hover_fill[i])
-	}
-	mut corner_class := get_class('WittyHoverCornerLayer')
-	if is_nil(corner_class) {
-		corner_class = C.macos_objc_allocate_class_pair(get_class('CALayer'),
-			cstr('WittyHoverCornerLayer'), 0)
-		add_method(corner_class, 'renderInContext:', voidptr(action_hover_render_corner_in_context),
+	mut background_class := get_class('WittyHoverBackgroundLayer')
+	if is_nil(background_class) {
+		background_class = C.macos_objc_allocate_class_pair(get_class('CALayer'),
+			cstr('WittyHoverBackgroundLayer'), 0)
+		add_method(background_class, 'renderInContext:', voidptr(action_hover_render_background_in_context),
 			'v@:^v')
-		C.macos_objc_register_class_pair(corner_class)
+		C.macos_objc_register_class_pair(background_class)
 	}
-	surface.hover_corner_layer = msg_id(corner_class, 'layer')
-	msg_void1(msg_id(view, 'layer'), 'addSublayer:', surface.hover_corner_layer)
+	surface.hover_background_layer = msg_id(background_class, 'layer')
+	msg_void1(msg_id(view, 'layer'), 'addSublayer:', surface.hover_background_layer)
 
 	// Drawing the glyph image in the background's layer dithers the solid fill.
 	ink := msg_id_rect(msg_id(ink_class, 'alloc'), 'initWithFrame:', objc_rect(0, 0, 0, 0))
@@ -80,8 +83,8 @@ fn (mut surface NativeActionSurface) initialize_hover_banner() {
 	msg_void(ink, 'release')
 }
 
-fn action_hover_render_corner_in_context(_self ObjId, _cmd Sel, _context voidptr) {
-	// The view draws the circular corner when AppKit captures a bitmap.
+fn action_hover_render_background_in_context(_self ObjId, _cmd Sel, _context voidptr) {
+	// The view draws the background when AppKit captures a bitmap.
 }
 
 fn action_hover_entered(self ObjId, _cmd Sel, _event ObjId) {
@@ -257,25 +260,58 @@ fn hover_corner_coverage(width int, height int, scale f64, round_left bool, phas
 	return coverage
 }
 
+fn hover_square_corner_coverage(crossed_edges int) f32 {
+	if crossed_edges == 0 { return 1.0 }
+	// A backing pixel shared by one or two shape edges has a wider coverage ramp.
+	return f32(0.5 + (0.5 - 0.0065) / crossed_edges)
+}
+
+fn hover_background_mask(width int, height int, scale f64, round_left bool, phases int) HoverBackgroundMask {
+	corner := int(math.ceil(hover_radius * canvas_corner_x[0][0] * scale))
+	// Keep the rounded corner and the opposite edge, with one opaque pixel between them.
+	// Core Animation stretches the center row and column to the banner's size.
+	tile_width := math.min(width, corner + 2)
+	tile_height := math.min(height, corner + 2)
+	left := phases & 1
+	right := (phases >> 1) & 1
+	top := (phases >> 2) & 1
+	bottom := (phases >> 3) & 1
+	rounded_x := if round_left { left } else { right }
+	mut coverage := hover_corner_coverage(tile_width, tile_height, scale, round_left,
+		rounded_x | (top << 1))
+	square_top := if round_left { tile_width - 1 } else { 0 }
+	square_top_x := if round_left { right } else { left }
+	bottom_left := (tile_height - 1) * tile_width
+	bottom_right := tile_height * tile_width - 1
+	coverage[square_top] = math.min(coverage[square_top], hover_square_corner_coverage(square_top_x + top))
+	coverage[bottom_left] = math.min(coverage[bottom_left], hover_square_corner_coverage(left + bottom))
+	coverage[bottom_right] = math.min(coverage[bottom_right], hover_square_corner_coverage(right + bottom))
+
+	stretch_x := width > tile_width
+	stretch_y := height > tile_height
+	left_cap := if stretch_x { if round_left { corner } else { 1 } } else { 0 }
+	bottom_cap := if stretch_y { 1 } else { 0 }
+	center_width := if stretch_x { 1 } else { tile_width }
+	center_height := if stretch_y { 1 } else { tile_height }
+	return HoverBackgroundMask{
+		coverage: coverage
+		width: tile_width
+		height: tile_height
+		center: objc_rect(f64(left_cap) / tile_width, f64(bottom_cap) / tile_height,
+			f64(center_width) / tile_width, f64(center_height) / tile_height)
+	}
+}
+
 fn (surface &NativeActionSurface) refresh_hover_background() {
 	bounds := msg_rect(surface.hover_label, 'bounds')
 	scale := view_backing_scale(surface.view)
-	corner := surface.hover_corner(bounds, scale)
-	width := int(math.round(corner.width * scale))
-	height := int(math.round(corner.height * scale))
+	width := int(math.round(bounds.width * scale))
+	height := int(math.round(bounds.height * scale))
 	if width <= 0 || height <= 0 { return }
-	phase := C.witty_hover_corner_phase(surface.hover_label, surface.hover_left)
-	coverage := hover_corner_coverage(width, height, scale, surface.hover_left, phase)
-	C.witty_hover_set_background(surface.hover_label, surface.hover_fill[0], surface.hover_fill[1],
-		surface.hover_corner_layer, &corner, coverage.data, width, height, scale)
-}
-
-fn (surface &NativeActionSurface) hover_corner(bounds ObjCRect, scale f64) ObjCRect {
-	size := math.ceil(hover_radius * canvas_corner_x[0][0] * scale) / scale
-	width := math.min(size, bounds.width)
-	height := math.min(size, bounds.height)
-	x := if surface.hover_left { bounds.x } else { bounds.x + bounds.width - width }
-	return objc_rect(x, bounds.y + bounds.height - height, width, height)
+	phases := C.witty_hover_backing_phases(surface.hover_label)
+	mask := hover_background_mask(width, height, scale, surface.hover_left, phases)
+	C.witty_hover_set_background(surface.hover_label, surface.hover_background_layer, &mask.center,
+		mask.coverage.data, mask.width, mask.height, scale)
 }
 
 fn action_hover_draw_background(self ObjId, _cmd Sel, _rect ObjCRect) {

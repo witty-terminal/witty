@@ -89,7 +89,7 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	assert is_nil(msg_id1(surface.secure_wash, 'animationForKey:', nsstring('secureOpacity')))
 	surface.mouse_over_link('https://example.com/long/path')
 	assert !is_nil(surface.hover_tracking)
-	assert C.witty_overlay_test_has_16bit_coverage(msg_id(surface.hover_corner_layer, 'mask'))
+	assert C.witty_overlay_test_has_16bit_coverage(msg_id(surface.hover_background_layer, 'mask'))
 	assert objc_utf8_string(msg_id(surface.hover_label, 'accessibilityValue')) == 'https://example.com/long/path'
 	tracking := surface.hover_tracking
 	assert msg_rect(surface.hover_label, 'frame').x == 0
@@ -386,6 +386,22 @@ fn test_hover_banner_live_corner_follows_backing_pixel_phase() {
 		}
 	}
 	assert x_odd[12] > y_odd[12]
+}
+
+fn test_hover_banner_live_square_corners_follow_backing_pixel_phase() {
+	mask := hover_background_mask(317, 53, 2, false, 10)
+	assert mask.width == 30 && mask.height == 30
+	assert mask.center == objc_rect(1.0 / 30, 1.0 / 30, 1.0 / 30, 1.0 / 30)
+	bottom := (mask.height - 1) * mask.width
+	assert mask.coverage[0] == 1
+	assert mask.coverage[bottom + 1] == 1
+	assert math.round(mask.coverage[bottom] * 255) == 253
+	assert math.round(mask.coverage[mask.coverage.len - 1] * 255) == 190
+
+	narrow := hover_background_mask(28, 24, 2, true, 4 | 8)
+	assert narrow.width == 28 && narrow.height == 24
+	assert narrow.center == objc_rect(0, 0, 1, 1)
+	assert math.round(narrow.coverage[narrow.width - 1] * 255) == 253
 }
 
 fn test_secure_badge_outline_coverage_at_both_scales() {
