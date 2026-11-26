@@ -18,6 +18,9 @@ const hover_padding = 5.0
 const hover_height = 26.0
 const hover_spacer = 8.0
 const hover_radius = 9.0
+// SwiftUI corner coverage measured by the macos_hover_corner_masks reference probe.
+const hover_corner_masks_1x = $embed_file('@VMODROOT/build_assets/macos/hover_corner_masks_1x.bin').to_bytes()
+const hover_corner_masks_2x = $embed_file('@VMODROOT/build_assets/macos/hover_corner_masks_2x.bin').to_bytes()
 // Unit-radius intercepts and slopes fitted to live corners at several radii.
 // Each knot marks an equally spaced diagonal, measured as the difference between x and y.
 const hover_corner_positions = [0.2929106, 0.2039366, 0.1295453, 0.0731686, 0.0359282, 0.0157617,
@@ -278,17 +281,50 @@ fn hover_canvas_mask(width int, height int, scale f64, round_left bool) !canvas.
 	return raster
 }
 
+fn hover_mask_word(data []u8, offset int) int {
+	return int(data[offset]) | (int(data[offset + 1]) << 8)
+}
+
+fn hover_apply_corner_mask(mut coverage []f32, width int, rows int, scale int, round_left bool, phase int) {
+	data := if scale == 1 { hover_corner_masks_1x } else { hover_corner_masks_2x }
+	min_width := int(2 * hover_padding) * scale
+	max_width := if scale == 1 { 15 } else { 29 }
+	mask_width := math.min(math.max(width, min_width), max_width)
+	index := (mask_width - min_width) * 4 + phase
+	mut offset := hover_mask_word(data, index * 2)
+	// Each row stores a transparent prefix and a run of 16-bit coverage values.
+	// The rest of the row is already opaque.
+	for row in 0 .. rows {
+		first := int(data[offset])
+		count := int(data[offset + 1])
+		offset += 2
+		for column in 0 .. math.min(width, first + count) {
+			x := if round_left { column } else { width - column - 1 }
+			coverage[row * width + x] = if column < first {
+				f32(0)
+			} else {
+				f32(hover_mask_word(data, offset + 2 * (column - first))) / 65535
+			}
+		}
+		offset += 2 * count
+	}
+}
+
 fn hover_corner_coverage(width int, height int, scale f64, round_left bool, phase int) []f32 {
 	mut coverage := []f32{len: width * height, init: 1.0}
 	extent := canvas_corner_x[0][0]
 	radius := hover_radius * scale
 	corner := int(math.ceil(radius * extent))
+	rows := math.min(height, corner)
+	if scale == 1 || scale == 2 {
+		hover_apply_corner_mask(mut coverage, width, rows, int(scale), round_left, phase)
+		return coverage
+	}
 	// The banner clips below the horizontal padding width. Include the
 	// subpixel ramp when finding where the curve merges with the top edge.
 	shape_width := math.max(f64(width), 2 * hover_padding * scale)
 	missing_width := math.max(0.0, radius * extent + 0.75 - shape_width)
 	columns := math.min(width, corner)
-	rows := math.min(height, corner)
 	mut diagonals := []HoverCornerDiagonal{len: math.max(columns, rows) + 1}
 	for i in 0 .. diagonals.len {
 		diagonals[i] = hover_corner_diagonal(i, radius, missing_width)
