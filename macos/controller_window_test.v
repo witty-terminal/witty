@@ -1,5 +1,8 @@
 module macos
 
+#insert "@VMODROOT/macos/canvas_overlay_test_bridge.h"
+fn C.witty_overlay_test_png(view ObjId) ObjId
+
 fn test_native_window_inherited_overrides_use_defining_class_super() {
 	app_init()
 	register_native_window_class()
@@ -98,6 +101,23 @@ fn test_native_tab_shortcuts_follow_selection_reorder_and_config_changes() {
 	right_data := native_window_data(right_window) or { panic('right window missing') }
 	assert objc_utf8_string(msg_id(left_data.tab_shortcut, 'stringValue')) == '⌘1 '
 	assert objc_utf8_string(msg_id(right_data.tab_shortcut, 'stringValue')) == '⌃B '
+	accessory := msg_id(msg_id(right_window, 'tab'), 'accessoryView')
+	indicator := right_data.tab_color_indicator
+	assert msg_id_u64(msg_id(accessory, 'arrangedSubviews'), 'objectAtIndex:', 0) == indicator
+	bounds := msg_rect(indicator, 'bounds')
+	assert bounds.width == tab_color_indicator_size
+	assert bounds.height == tab_color_indicator_size
+	blank := C.witty_overlay_test_png(indicator)
+	assert !is_nil(blank)
+	set_native_tab_color(right, 4)
+	assert native_tab_color(right) == 4
+	assert native_tab_color(left) == 0
+	colored := C.witty_overlay_test_png(indicator)
+	assert !is_nil(colored)
+	assert !msg_bool1(colored, 'isEqualToData:', blank)
+	set_native_tab_color(right, 0)
+	assert msg_bool1(C.witty_overlay_test_png(indicator), 'isEqualToData:', blank)
+	assert !msg_bool(indicator, 'isHidden')
 	assert move_native_tab(right, -1)
 	assert objc_utf8_string(msg_id(right_data.tab_shortcut, 'stringValue')) == '⌘1 '
 	assert objc_utf8_string(msg_id(left_data.tab_shortcut, 'stringValue')) == '⌃B '

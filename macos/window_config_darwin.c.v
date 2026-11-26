@@ -30,6 +30,7 @@ mut:
 	new_tab_image_layer ObjId
 	backdrop_overlay ObjId
 	tab_color int
+	tab_color_indicator ObjId
 	tab_shortcut ObjId
 	tab_shortcut_text string
 	tab_shortcut_key bool
@@ -57,8 +58,6 @@ mut:
 }
 __global ( g_native_windows map[u64]&NativeWindowData )
 fn native_window_data(window ObjId) ?&NativeWindowData { return g_native_windows[u64(window)] or { none } }
-pub fn native_tab_color(view voidptr) int { if data := native_window_data(msg_id(view,'window')) { return data.tab_color }; return 0 }
-pub fn set_native_tab_color(view voidptr, color int) { if mut data := native_window_data(msg_id(view,'window')) { data.tab_color = color; msg_void(data.window,'invalidateRestorableState') } }
 fn native_window_can_become_key(_self ObjId, _cmd Sel) bool { return true }
 fn native_window_update(self ObjId, cmd Sel) { C.witty_macos_window_super_void0(self, cmd); update_native_titlebar(self) }
 fn native_window_key_changed(self ObjId,cmd Sel) {

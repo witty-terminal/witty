@@ -166,28 +166,6 @@ pub fn abbreviated_pwd(pwd string) string {
 	return objc_utf8_string(msg_id(nsstring(pwd), 'stringByAbbreviatingWithTildeInPath'))
 }
 
-pub fn native_tab_display_color(view voidptr) ?voidptr {
-	selector := match native_tab_color(view) {
-		1 { 'systemBlueColor' }
-		2 { 'systemPurpleColor' }
-		3 { 'systemPinkColor' }
-		4 { 'systemRedColor' }
-		5 { 'systemOrangeColor' }
-		6 { 'systemYellowColor' }
-		7 { 'systemGreenColor' }
-		8 {
-			if msg_bool1(get_class('NSColor'), 'respondsToSelector:', sel('systemMintColor')) {
-				'systemMintColor'
-			} else {
-				'systemTealColor'
-			}
-		}
-		9 { 'systemGrayColor' }
-		else { return none }
-	}
-	return msg_id(get_class('NSColor'), selector)
-}
-
 pub fn (mut surface NativeActionSurface) configure_title(proxy_icon bool) {
 	surface.proxy_icon = proxy_icon
 	if surface.focused {
