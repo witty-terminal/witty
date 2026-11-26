@@ -79,6 +79,15 @@ python3 build_support/reference_probes/render_parity/run_macos.py \
 
 The probe runs Witty's screenshot command offscreen and compares the dimensions and SHA-256 of the decoded RGBA pixels. It saves screenshots, logs, the executable hash, and a comparison report under `.witty-build/render-parity/`. It accepts the same `--output`, `--fixture`, and `--settle-seconds` options.
 
+The foreground link-preview probe runs in a macOS desktop session with the Xcode command-line tools and Pillow. Pass a standalone Witty build and the executable from the Ghostty app bundle.
+
+```sh
+python3 build_support/reference_probes/render_parity/run_macos_hover.py \
+  .witty-build/artifacts/witty /Applications/Ghostty.app/Contents/MacOS/ghostty
+```
+
+The probe Command-hovers over a plain URL and an OSC 8 link in light and dark windows. It captures both the terminal underline and the preview, switches the window appearance while the preview is open, then moves the pointer away. The report includes the exact number of differing pixels and the largest channel difference per frame. The default tolerance is zero. Pass `--maximum-channel-error 1` to allow one level of color rounding while keeping the exact counts in the report.
+
 The terminal text fixtures cover ligatures, ANSI colors and decorations, box drawing, Powerline separators, combining accents, wide characters, and emoji. The translucent cases check how styled cells and glyphs blend over a partially transparent background with unequal padding.
 
 The `grapheme-sequences` fixture places emoji presentation selectors and combining accents at the right edge with clustering enabled and disabled. The `colored-line-erase` fixture checks the backgrounds after erasing to either edge and across a full row. The `wide-edit-before` and `wide-edit` fixtures capture wrapped double-width glyphs before and after erasing a glyph and deleting from its trailing cell. The fixtures wait for the configured PTY grid before writing text at the margin.

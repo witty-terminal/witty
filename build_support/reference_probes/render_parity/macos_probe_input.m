@@ -1,16 +1,19 @@
 #import <AppKit/AppKit.h>
 #import <Carbon/Carbon.h>
+#import <IOKit/hidsystem/ev_keymap.h>
+#include <dlfcn.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-static NSView *terminal_view(NSView *view) {
+static NSView *terminal_view(NSView *view, BOOL ghostty) {
     if (!view) return nil;
     if ([NSStringFromClass(view.class) isEqualToString:@"VTTerminalView"]) return view;
+    if (ghostty && [NSStringFromClass(view.layer.class) isEqualToString:@"IOSurfaceLayer"]) return view;
     for (NSView *child in view.subviews) {
-        NSView *terminal = terminal_view(child);
+        NSView *terminal = terminal_view(child, ghostty);
         if (terminal) return terminal;
     }
     return nil;
@@ -53,6 +56,12 @@ static void send_key_sequence(NSView *view, NSArray<NSString *> *keys, NSUIntege
     exit(EXIT_FAILURE);
 }
 
+static NSPoint terminal_point(NSView *view, double x, double y) {
+    const NSRect bounds = view.bounds;
+    return NSMakePoint(NSMinX(bounds) + x * NSWidth(bounds),
+        NSMinY(bounds) + (view.isFlipped ? y : 1 - y) * NSHeight(bounds));
+}
+
 static void send_mouse_drag(NSView *view, const char *drag, NSEventModifierFlags modifiers) {
     double coords[4];
     char trailing;
@@ -67,11 +76,8 @@ static void send_mouse_drag(NSView *view, const char *drag, NSEventModifierFlags
         }
     }
 
-    const NSRect bounds = view.bounds;
-    NSPoint start = NSMakePoint(NSMinX(bounds) + coords[0] * NSWidth(bounds),
-        NSMinY(bounds) + (view.isFlipped ? coords[1] : 1 - coords[1]) * NSHeight(bounds));
-    NSPoint end = NSMakePoint(NSMinX(bounds) + coords[2] * NSWidth(bounds),
-        NSMinY(bounds) + (view.isFlipped ? coords[3] : 1 - coords[3]) * NSHeight(bounds));
+    const NSPoint start = terminal_point(view, coords[0], coords[1]);
+    const NSPoint end = terminal_point(view, coords[2], coords[3]);
     const NSEventType events[] = {
         NSEventTypeMouseMoved, NSEventTypeLeftMouseDown, NSEventTypeLeftMouseDragged, NSEventTypeLeftMouseUp,
     };
@@ -105,10 +111,76 @@ static void resize_window(NSView *view, const char *size) {
     fprintf(stderr, "macOS render probe dispatched input\n");
 }
 
-static void wait_for_terminal(const char *ready, int attempts, void (^dispatch_input)(NSView *)) {
+static bool capture_hover_frame(NSView *view, NSString *prefix, NSString *state) {
+    // Use the window server image so the preview and terminal appear together.
+    typedef CGImageRef (*WindowImage)(CGRect, CGWindowListOption, CGWindowID, CGWindowImageOption);
+    WindowImage snapshot = (WindowImage)dlsym(RTLD_DEFAULT, "CGWindowListCreateImage");
+    NSWindow *window = view.window;
+    CGImageRef shot = snapshot ? snapshot(CGRectNull, kCGWindowListOptionIncludingWindow,
+        (CGWindowID)window.windowNumber, kCGWindowImageBoundsIgnoreFraming | kCGWindowImageBestResolution) : NULL;
+    if (!shot) return false;
+
+    NSRect screen = [window convertRectToScreen:[view convertRect:view.bounds toView:nil]];
+    double scale = window.backingScaleFactor;
+    CGRect crop = CGRectMake(lround((NSMinX(screen) - NSMinX(window.frame)) * scale),
+        lround((NSMaxY(window.frame) - NSMaxY(screen)) * scale),
+        lround(NSWidth(screen) * scale), lround(NSHeight(screen) * scale));
+    CGImageRef image = CGImageCreateWithImageInRect(shot, crop);
+    CGImageRelease(shot);
+    if (!image) return false;
+    NSBitmapImageRep *pixels = [[NSBitmapImageRep alloc] initWithCGImage:image];
+    CGImageRelease(image);
+    NSString *path = [NSString stringWithFormat:@"%@-%@.png", prefix, state];
+    return [[pixels representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:path atomically:YES];
+}
+
+static void move_pointer(NSView *view, double x, double y, NSEventModifierFlags modifiers) {
+    NSPoint point = [view convertPoint:terminal_point(view, x, y) toView:nil];
+    NSEvent *event = [NSEvent mouseEventWithType:NSEventTypeMouseMoved location:point
+        modifierFlags:modifiers timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:view.window.windowNumber
+        context:nil eventNumber:0 clickCount:0 pressure:0];
+    [view mouseMoved:event];
+}
+
+static void send_command_flag(NSView *view, bool pressed) {
+    CGEventRef cg = CGEventCreateKeyboardEvent(NULL, kVK_Command, pressed);
+    if (!cg) exit(EXIT_FAILURE);
+    CGEventSetType(cg, kCGEventFlagsChanged);
+    CGEventSetFlags(cg, pressed ? kCGEventFlagMaskCommand | NX_DEVICELCMDKEYMASK : 0);
+    [view flagsChanged:[NSEvent eventWithCGEvent:cg]];
+    CFRelease(cg);
+}
+
+static void capture_hover(NSView *view, NSString *prefix, NSUInteger step) {
+    NSArray<NSString *> *states = @[@"idle", @"hover", @"rethemed", @"cleared"];
+    if (!capture_hover_frame(view, prefix, states[step])) {
+        fprintf(stderr, "macOS render probe could not capture the foreground terminal window\n");
+        exit(EXIT_FAILURE);
+    }
+    if (step == 0) {
+        // The fixture prints the link on the second row, beginning at the second column.
+        move_pointer(view, .065, .10, 0);
+        send_command_flag(view, true);
+        move_pointer(view, .067, .10, NSEventModifierFlagCommand);
+    } else if (step == 1) {
+        NSString *appearance = [view.window.effectiveAppearance bestMatchFromAppearancesWithNames:
+            @[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
+        view.window.appearance = [NSAppearance appearanceNamed:
+            [appearance isEqualToString:NSAppearanceNameAqua] ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
+    } else if (step == 2) {
+        send_command_flag(view, false);
+        move_pointer(view, .5, .65, 0);
+    } else {
+        exit(EXIT_SUCCESS);
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 450 * NSEC_PER_MSEC),
+        dispatch_get_main_queue(), ^{ capture_hover(view, prefix, step + 1); });
+}
+
+static void wait_for_terminal(const char *ready, int attempts, BOOL ghostty, void (^dispatch_input)(NSView *)) {
     if (access(ready, F_OK) == 0) {
         for (NSWindow *window in NSApplication.sharedApplication.windows) {
-            NSView *view = terminal_view(window.contentView);
+            NSView *view = terminal_view(window.contentView, ghostty);
             if (!view) continue;
             // The PTY may still be draining the bytes written before the marker.
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 160 * NSEC_PER_MSEC),
@@ -121,7 +193,7 @@ static void wait_for_terminal(const char *ready, int attempts, void (^dispatch_i
         exit(EXIT_FAILURE);
     }
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC),
-        dispatch_get_main_queue(), ^{ wait_for_terminal(ready, attempts - 1, dispatch_input); });
+        dispatch_get_main_queue(), ^{ wait_for_terminal(ready, attempts - 1, ghostty, dispatch_input); });
 }
 
 __attribute__((constructor)) static void install_probe_input(void) {
@@ -130,19 +202,42 @@ __attribute__((constructor)) static void install_probe_input(void) {
     const char *option = getenv("WITTY_VIEWPORT_DRAG_OPTION");
     const char *size = getenv("WITTY_VIEWPORT_RESIZE");
     const char *ready = getenv("WITTY_VIEWPORT_READY");
+    const char *hover = getenv("WITTY_VIEWPORT_HOVER_CAPTURE");
+    const bool ghostty = getenv("WITTY_VIEWPORT_HOVER_GHOSTTY") != NULL;
     const bool has_keys = sequence && *sequence;
     const bool has_drag = drag && *drag;
     const bool has_resize = size && *size;
-    if (!ready || has_keys + has_drag + has_resize != 1) return;
+    const bool has_hover = hover && *hover;
+    if (!ready || has_keys + has_drag + has_resize + has_hover != 1) return;
+    if (has_hover) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 160 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+            // A standalone Witty binary may never receive a LaunchServices activation.
+            if (!ghostty && NSApp.windows.count == 0) {
+                id<NSApplicationDelegate> delegate = NSApp.delegate;
+                if ([delegate respondsToSelector:@selector(applicationDidBecomeActive:)]) {
+                    [delegate applicationDidBecomeActive:[NSNotification
+                        notificationWithName:NSApplicationDidBecomeActiveNotification object:NSApp]];
+                }
+            }
+            NSString *prefix = [NSString stringWithUTF8String:hover];
+            wait_for_terminal(ready, 80, ghostty, ^(NSView *view) {
+                [view.window makeKeyAndOrderFront:nil];
+                [NSApp activateIgnoringOtherApps:YES];
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 400 * NSEC_PER_MSEC),
+                    dispatch_get_main_queue(), ^{ capture_hover(view, prefix, 0); });
+            });
+        });
+        return;
+    }
     dispatch_async(dispatch_get_main_queue(), ^{
         if (has_resize) {
-            wait_for_terminal(ready, 50, ^(NSView *view) { resize_window(view, size); });
+            wait_for_terminal(ready, 50, NO, ^(NSView *view) { resize_window(view, size); });
         } else if (has_drag) {
             const NSEventModifierFlags modifiers = option && *option ? NSEventModifierFlagOption : 0;
-            wait_for_terminal(ready, 50, ^(NSView *view) { send_mouse_drag(view, drag, modifiers); });
+            wait_for_terminal(ready, 50, NO, ^(NSView *view) { send_mouse_drag(view, drag, modifiers); });
         } else {
             NSArray<NSString *> *keys = [[NSString stringWithUTF8String:sequence] componentsSeparatedByString:@","];
-            wait_for_terminal(ready, 50, ^(NSView *view) { send_key_sequence(view, keys, 0); });
+            wait_for_terminal(ready, 50, NO, ^(NSView *view) { send_key_sequence(view, keys, 0); });
         }
     });
 }
