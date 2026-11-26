@@ -26,7 +26,9 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	surface.set_key_table(0, 'first')
 	surface.set_key_sequence(true, '⌘K')
 	assert surface.key_dots.len == 3
-	assert !is_nil(msg_id(surface.key_material, 'maskImage'))
+	material := msg_id(surface.key_material, 'layer')
+	assert msg_bool(material, 'masksToBounds')
+	assert msg_f64(material, 'cornerRadius') == 15.5
 	assert !is_nil(msg_id(surface.key_shadow, 'contents'))
 	surface.apply_key_phase(0)
 	for i, dot in surface.key_dots {

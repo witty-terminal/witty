@@ -8,6 +8,7 @@ import math
 fn C.witty_key_indicator_width(text ObjId, keycap bool) f64
 fn C.witty_key_indicator_rasterize_text(text ObjId, keycap bool, clip &ObjCRect, bounds &ObjCRect, pixels &u32, width int, height int) voidptr
 fn C.witty_key_indicator_symbol(chevron bool, x f64, height f64, frame &ObjCRect) ObjId
+fn C.witty_key_indicator_clip_material(view ObjId, radius f64)
 
 enum KeyIndicatorPartKind {
 	keyboard
@@ -59,6 +60,7 @@ fn (mut surface NativeActionSurface) initialize_key_indicator() {
 	msg_void_f64(surface.key_shadow, 'setZPosition:', -1)
 	msg_void1(root, 'addSublayer:', surface.key_shadow)
 	surface.key_material = native_canvas_material_view(frame)
+	msg_void_bool(surface.key_material, 'setWantsLayer:', true)
 	surface.key_ink = msg_id_rect(msg_id(ink_class, 'alloc'), 'initWithFrame:', frame)
 	C.macos_objc_set_ptr_ivar(surface.key_ink, cstr('state'), voidptr(surface))
 	msg_void_bool(surface.key_ink, 'setWantsLayer:', true)
@@ -145,9 +147,9 @@ fn (mut surface NativeActionSurface) refresh_key_visuals() {
 }
 
 fn (mut surface NativeActionSurface) update_key_backdrop(width f64, height f64, scale f64) {
+	C.witty_key_indicator_clip_material(surface.key_material, math.min(width, height) / 2)
 	mask := native_canvas_capsule_mask(int(math.round(width * scale)), int(math.round(height * scale)),
 		scale, 0, 1) or { return }
-	if !native_canvas_mask_material(surface.key_material, width, height, mask) { return }
 	shadow := native_canvas_quartz_shadow(mask, 8 * scale, 0.2) or { return }
 	image := C.witty_canvas_make_alpha_image(shadow.pixels.data, shadow.width, shadow.height, 0,
 		surface.key_ink)
@@ -261,7 +263,8 @@ fn draw_indicator_text(context voidptr, text string, keycap bool, x f64, width f
 
 fn draw_indicator_divider(view ObjId, context voidptr, x f64, badge_height f64) {
 	color := C.witty_canvas_resolve_srgb(view, msg_id(get_class('NSColor'), 'separatorColor'))
-	tile := native_canvas_fill_tile(color, target: view, opacity: 0.1)
+	// SwiftUI's divider truncates its 10% opacity to an 8-bit alpha of 25.
+	tile := native_canvas_fill_tile(color, target: view, opacity: 25.0 / 255)
 	if is_nil(tile) { return }
 	frame := objc_rect(x, (badge_height - 14) / 2, 1, 14)
 	C.witty_canvas_present_tile(context, tile, &frame, 1)

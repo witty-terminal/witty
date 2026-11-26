@@ -3,6 +3,14 @@
 #include "canvas_overlay_darwin.h"
 
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
+static inline void witty_key_indicator_clip_material(NSView *view, double radius) {
+    CALayer *layer = view.layer;
+    // Clip the backdrop in its own layer so coverage is applied when it composites.
+    layer.cornerCurve = kCACornerCurveContinuous;
+    layer.cornerRadius = radius;
+    layer.masksToBounds = YES;
+}
+
 static inline NSFont *witty_key_indicator_font(bool keycap) {
     double size = keycap ? 12 : 13;
     NSFont *system = [NSFont systemFontOfSize:size weight:NSFontWeightMedium];
