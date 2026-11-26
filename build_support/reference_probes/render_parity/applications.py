@@ -73,15 +73,19 @@ def prepare_neovim(work, executable):
     }
 
 
+def write_pager_fixture(path):
+    lines = []
+    for i in range(1, 38):
+        marker = LESS_MARKERS.get(i, (62, 66, 86))
+        color = ";".join(map(str, marker))
+        label = "Search for needle" if i in (15, 29) else "Terminal pager line"
+        lines.append(f"\x1b[48;2;{color}m  {i:02}  \x1b[0m  {label}\n")
+    path.write_text("".join(lines))
+
+
 def prepare_applications(work, fixtures):
     if "less" in fixtures:
-        lines = []
-        for i in range(1, 38):
-            marker = LESS_MARKERS.get(i, (62, 66, 86))
-            color = ";".join(map(str, marker))
-            label = "Search for needle" if i in (15, 29) else "Terminal pager line"
-            lines.append(f"\x1b[48;2;{color}m  {i:02}  \x1b[0m  {label}\n")
-        (work / "pager.txt").write_text("".join(lines))
+        write_pager_fixture(work / "pager.txt")
     if "tmux" in fixtures:
         (work / "tmux.conf").write_text(
             "set -g default-shell /bin/sh\n"

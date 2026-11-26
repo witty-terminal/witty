@@ -87,6 +87,8 @@ The wallpaper fixtures stretch and tile an alpha PNG behind styled text and colo
 
 The `text-balanced` fixture checks equal vertical padding in a viewport with room left after laying out the grid. The `vim-saved` fixture uses explicit grid dimensions and padding to reproduce the viewport from a restored Ghostty window.
 
+The `pager-search` and `pager-search-next` fixtures use the system `less` (version 668 for the reference). They run a search and a repeat search through the pager's startup commands, checking the inverted matches, ANSI backgrounds, line numbers, and end-of-file rows. The pager waits for the configured PTY grid before running the search.
+
 The optional `tmux` and `tmux-switch-pane` fixtures compare pane borders, the status line, and the active-pane highlight. The second case selects the left pane when the client attaches. The references use tmux 3.8. With `tmux` on `PATH`, run both cases with the same Witty executable.
 
 ```sh

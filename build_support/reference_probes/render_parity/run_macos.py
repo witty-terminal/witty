@@ -15,6 +15,7 @@ from PIL import Image
 
 from applications import (
     NEOVIM_FIXTURES, TMUX_ACTIVE, prepare_applications, prepare_neovim, tmux_fixture_command,
+    write_pager_fixture,
 )
 from capture import capture_witty, output_directory, write_versions
 from fixtures import CLEAR as CLEAR_FRAME
@@ -70,13 +71,23 @@ KITTY_FIXTURES = {
 LESS = r'''while :; do
     size=$(/bin/stty size) || exit 1
     case "$size" in
-        "0 "*|*" 0") /bin/sleep 0.01 ;;
-        *) break ;;
+        "0 "*|*" 0") ;;
+        *)
+            if [ -z "$2" ] || [ "$size" = "$2" ]; then
+                break
+            fi
+            ;;
     esac
+    /bin/sleep 0.01
 done
+case "$1" in
+    search) set -- -R '+/needle' pager-search.txt ;;
+    next) set -- -R "$(printf '+/needle\nn')" pager-search.txt ;;
+    *) set -- pager.txt ;;
+esac
 printf '\033[?25l'
 exec /usr/bin/env -i TERM=xterm-256color LC_ALL=en_US.UTF-8 LESSHISTFILE=- LESSSECURE=1 \
-    /usr/bin/less -N -PsPager pager.txt
+    /usr/bin/less -N -PsPager "$@"
 '''
 ZSH = r'''stty -echo
 printf '\033[2J\033[H\033[1;32malex\033[0m files %%\r\n'
@@ -104,6 +115,8 @@ def prepare_fixtures(work):
     (work / "pager.txt").write_text(
         "".join(f"Section {section:02d}   Terminal pager fixture\n" for section in range(1, 31))
     )
+    (work / "pager.sh").write_text(LESS)
+    write_pager_fixture(work / "pager-search.txt")
     for name, payload in (("text", TEXT), ("ansi", ANSI), ("unicode", UNICODE)):
         (work / f"{name}.bin").write_bytes(("\x1b[2J\x1b[H" + payload).encode("utf-8"))
 
@@ -138,7 +151,8 @@ def fixture_args(work):
         "-c", "syntax on", "files/terminal.py",
     )
     cursor = terminal_command(CURSOR)
-    pager = ("-e", "/bin/sh", "-c", LESS)
+    pager = ("-e", "/bin/sh", "pager.sh")
+    pager_grid = f"{WINDOW_ROWS} {WINDOW_COLUMNS}"
     text = terminal_command("/bin/cat text.bin")
     ansi = terminal_command("/bin/cat ansi.bin")
     ansi_without_cursor = terminal_command(r'/bin/cat ansi.bin; printf "\033[?25l"')
@@ -177,6 +191,8 @@ def fixture_args(work):
         ),
         "pager": pager,
         "pager-default": (*DEFAULT_WINDOW, *pager),
+        "pager-search": (*pager, "search", pager_grid),
+        "pager-search-next": (*pager, "next", pager_grid),
         "cursor": cursor,
         "cursor-srgb": ("--window-colorspace=srgb", "--alpha-blending=linear-corrected", *cursor),
         "ls": terminal_command(f"{CLEAR_AND_HIDE_CURSOR}; /bin/ls -G -C files"),
