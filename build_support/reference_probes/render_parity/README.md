@@ -81,6 +81,8 @@ The probe runs Witty's screenshot command offscreen and compares the dimensions 
 
 The terminal text fixtures cover ligatures, ANSI colors and decorations, box drawing, Powerline separators, combining accents, wide characters, and emoji. The translucent cases check how styled cells and glyphs blend over a partially transparent background with unequal padding.
 
+The wallpaper fixtures stretch and tile an alpha PNG behind styled text and colored cells. The shader fixtures run a tint pass followed by a channel swap with default and linear-corrected blending. `shader-wallpaper` runs that chain over the translucent tiled wallpaper.
+
 The `text-balanced` fixture checks equal vertical padding in a viewport with room left after laying out the grid. The `vim-saved` fixture uses explicit grid dimensions and padding to reproduce the viewport from a restored Ghostty window.
 
 The [reference table](ghostty-1.4.0-macos.tsv) uses captures from Ghostty's own terminal IOSurface at 2× on Apple Silicon running macOS 27.2. It covers the cursor, sRGB blending, translucent Kitty graphics, Vim and `less` at explicit and default window sizes, colored `ls`, Git diff, and zsh. The `less` fixtures wait for the PTY grid before capturing the numbered lines and status prompt. The original Ghostty 1.4.0 executable had SHA-256 `4b30ac9b049cdf9eb75b6d8c7764856c2b882de97c688dce8a1b80916b55271b`. [Ghostty download](https://ghostty.org/download)

@@ -12,6 +12,7 @@ import sys
 from PIL import Image
 
 from capture import capture_witty, output_directory, write_versions
+from fixtures import WALLPAPER_OPTIONS, prepare_raster_effects, shader_fixture_options
 
 
 REFERENCE = Path(__file__).with_name("ghostty-1.4.0-macos.tsv")
@@ -100,6 +101,7 @@ def prepare_fixtures(work):
         f"\x1b_Ga=T,f=32,s={width},v={height},q=2;"
     )
     (work / "kitty.bin").write_bytes(header.encode() + base64.b64encode(pixels) + b"\x1b\\")
+    prepare_raster_effects(work)
 
 
 def terminal_command(script):
@@ -118,7 +120,14 @@ def fixture_args(work):
     pager = ("-e", "/bin/sh", "-c", LESS)
     text = terminal_command("/bin/cat text.bin")
     ansi = terminal_command("/bin/cat ansi.bin")
+    ansi_without_cursor = terminal_command(r'/bin/cat ansi.bin; printf "\033[?25l"')
     unicode = terminal_command("/bin/cat unicode.bin")
+    wallpaper = f"--background-image={work / 'wallpaper.png'}"
+    repeated_wallpaper = (
+        wallpaper, *WALLPAPER_OPTIONS["wallpaper-repeat"], "--background-opacity=0.72",
+    )
+    shader = shader_fixture_options(work)
+    linear_blending = "--alpha-blending=linear-corrected"
     return {
         "blank": terminal_command(CLEAR),
         "text": text,
@@ -131,6 +140,11 @@ def fixture_args(work):
         "unicode-translucent": (*TRANSLUCENT_WINDOW, *unicode),
         "kitty": kitty,
         "kitty-translucent": (*TRANSLUCENT_WINDOW, *kitty),
+        "wallpaper-stretch": (wallpaper, *WALLPAPER_OPTIONS["wallpaper-stretch"], *ansi_without_cursor),
+        "wallpaper-repeat": (*repeated_wallpaper, *ansi_without_cursor),
+        "shader-chain": (*shader, *ansi_without_cursor),
+        "shader-chain-linear": (*shader, linear_blending, *ansi_without_cursor),
+        "shader-wallpaper": (*repeated_wallpaper, *shader, linear_blending, *ansi_without_cursor),
         "vim": vim,
         "vim-default": (*DEFAULT_WINDOW, *vim),
         # Recreate the reference's saved content size with explicit geometry.

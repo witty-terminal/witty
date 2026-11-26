@@ -21,7 +21,8 @@ from capture import (
 from fixtures import (
     CURSOR_STYLES, FONT_ZOOM_MARKER, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES, RESIZE_WRAP_COLOR,
     SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED, SCROLLBAR_MARKER,
-    SHADER_RELOAD_MARKER, SPLIT_RIGHT_COLOR, WALLPAPER_RELOAD_MARKER, WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE,
+    SHADER_RELOAD_MARKER, SPLIT_RIGHT_COLOR, WALLPAPER_OPTIONS, WALLPAPER_RELOAD_MARKER,
+    WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE, prepare_raster_effects, shader_fixture_options,
 )
 
 
@@ -74,15 +75,6 @@ COMMAND_PALETTE_FIXTURES = (
 WINDOW_CHROME_FIXTURES = ("gtk-chrome-tabs", "gtk-chrome-native")
 TITLE_DIALOG_ACTIONS = {"terminal-title": "prompt_surface_title", "tab-title": "prompt_tab_title"}
 TERMINAL_DIALOG_FIXTURES = (*TITLE_DIALOG_ACTIONS, "close-confirmation")
-WALLPAPER_OPTIONS = {
-    "wallpaper-stretch": ("--background-image-fit=stretch",),
-    "wallpaper-repeat": (
-        "--background-image-fit=none",
-        "--background-image-position=bottom-right",
-        "--background-image-repeat=true",
-        "--background-image-opacity=0.65",
-    ),
-}
 FIXTURES = (
     "ansi", "decorations", "unicode", "grapheme-sequences", "font-zoom", "wide-wrap", "colored-line-erase",
     *INTERACTIVE_FIXTURES, *SCROLLBAR_FIXTURES, *SPLIT_SEARCH_FIXTURES, "split-close", *BELL_FIXTURES, *PROGRESS_FIXTURES,
@@ -138,24 +130,7 @@ def prepare_fixtures(path):
         "def read(path: Path) -> bytes:\n"
         "    return path.read_bytes()\n"
     )
-    (path / "tint.glsl").write_text(
-        "void mainImage(out vec4 fragColor, in vec2 fragCoord) {\n"
-        "    vec4 color = texture(iChannel0, fragCoord / iResolution.xy);\n"
-        "    fragColor = vec4(color.rgb * vec3(0.7, 0.9, 1.0), color.a);\n"
-        "}\n"
-    )
-    (path / "flip-rb.glsl").write_text(
-        "void mainImage(out vec4 fragColor, in vec2 fragCoord) {\n"
-        "    fragColor = texture(iChannel0, fragCoord / iResolution.xy).bgra;\n"
-        "}\n"
-    )
-    wallpaper = Image.new("RGBA", (61, 39))
-    wallpaper.putdata([
-        (20 + x * 3, 30 + y * 4, 200 - x * 2, 70 + (x * 7 + y * 5) % 186)
-        for y in range(wallpaper.height)
-        for x in range(wallpaper.width)
-    ])
-    wallpaper.save(path / "wallpaper.png")
+    prepare_raster_effects(path)
 
 
 def fixture_args(name, work):
@@ -321,13 +296,7 @@ def fixture_args(name, work):
             css = work / f"{name}-config" / "palette.css"
             options.append(f"--gtk-custom-css={css}")
     if name == "shader":
-        options.extend(
-            (
-                f"--custom-shader={work / 'tint.glsl'}",
-                f"--custom-shader={work / 'flip-rb.glsl'}",
-                "--custom-shader-animation=false",
-            )
-        )
+        options.extend(shader_fixture_options(work))
     if name == "shader-reload":
         options.append("--custom-shader-animation=false")
     if name == "vim":

@@ -13,6 +13,15 @@ GRID_ROWS, GRID_COLUMNS = 12, 60
 FONT_ZOOM_MARKER = (37, 147, 112)
 WALLPAPER_RELOAD_MARKER = (55, 89, 143)
 SHADER_RELOAD_MARKER = (56, 128, 211)
+WALLPAPER_OPTIONS = {
+    "wallpaper-stretch": ("--background-image-fit=stretch",),
+    "wallpaper-repeat": (
+        "--background-image-fit=none",
+        "--background-image-position=bottom-right",
+        "--background-image-repeat=true",
+        "--background-image-opacity=0.65",
+    ),
+}
 SCROLLBAR_MARKER = (30, 78, 120)
 CURSOR_STYLES = {"cursor-block": 2, "cursor-bar": 6, "cursor-underline": 4}
 KITTY_SCROLL_FIXTURES = ("kitty-scroll-up", "kitty-scroll-down")
@@ -26,6 +35,37 @@ RESIZE_WRAP_COLOR = (129, 68, 93)
 WIDE_EDIT_BEFORE = (153, 61, 77)
 WIDE_EDIT_AFTER = (58, 119, 97)
 SPLIT_RIGHT_COLOR = (77, 154, 209)
+
+
+def prepare_raster_effects(work):
+    from PIL import Image
+
+    (work / "tint.glsl").write_text(
+        "void mainImage(out vec4 fragColor, in vec2 fragCoord) {\n"
+        "    vec4 color = texture(iChannel0, fragCoord / iResolution.xy);\n"
+        "    fragColor = vec4(color.rgb * vec3(0.7, 0.9, 1.0), color.a);\n"
+        "}\n"
+    )
+    (work / "flip-rb.glsl").write_text(
+        "void mainImage(out vec4 fragColor, in vec2 fragCoord) {\n"
+        "    fragColor = texture(iChannel0, fragCoord / iResolution.xy).bgra;\n"
+        "}\n"
+    )
+    wallpaper = Image.new("RGBA", (61, 39))
+    wallpaper.putdata([
+        (20 + x * 3, 30 + y * 4, 200 - x * 2, 70 + (x * 7 + y * 5) % 186)
+        for y in range(wallpaper.height)
+        for x in range(wallpaper.width)
+    ])
+    wallpaper.save(work / "wallpaper.png")
+
+
+def shader_fixture_options(work):
+    return (
+        f"--custom-shader={work / 'tint.glsl'}",
+        f"--custom-shader={work / 'flip-rb.glsl'}",
+        "--custom-shader-animation=false",
+    )
 
 
 def kitty_image():
