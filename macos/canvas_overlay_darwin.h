@@ -29,13 +29,6 @@ static inline void witty_canvas_place_overlay(void *parent, void *child, void *a
     [(NSView *)parent addSubview:(NSView *)child positioned:NSWindowAbove relativeTo:(NSView *)above];
 }
 
-static inline void witty_canvas_set_material_mask(NSVisualEffectView *view, CGImageRef mask,
-        double width, double height) {
-    NSImage *image = [[NSImage alloc] initWithCGImage:mask size:NSMakeSize(width, height)];
-    view.maskImage = image;
-    [image release];
-}
-
 static inline void witty_canvas_set_image(NSImageView *view, CGImageRef pixels) {
     NSImage *image = [[NSImage alloc] initWithCGImage:pixels size:NSZeroSize];
     view.image = image;

@@ -1,11 +1,15 @@
 module macos
 
+import gg.canvas
 import math
 
 #insert "@VMODROOT/macos/action_readonly_darwin.h"
 
 fn C.witty_readonly_title_width(title ObjId) f64
 fn C.witty_readonly_rasterize_title(title ObjId, tint ObjId, bounds &ObjCRect, pixels &u32, width int, height int) voidptr
+fn C.witty_readonly_configure_layers(material ObjId, ink ObjId, corner f64, border f64)
+fn C.witty_readonly_outline(ink ObjId) ObjId
+fn C.witty_readonly_update_outline(ink ObjId)
 
 const readonly_title = 'Read-only'
 const readonly_height = 23.0
@@ -39,6 +43,8 @@ fn (mut surface NativeActionSurface) initialize_readonly_badge() {
 		msg_void1(surface.readonly_badge, 'addSubview:', part)
 		msg_void(part, 'release')
 	}
+	C.witty_readonly_configure_layers(surface.readonly_material, surface.readonly_ink,
+		readonly_corner, readonly_border_width)
 	surface.readonly_title_width = C.witty_readonly_title_width(nsstring(readonly_title))
 }
 
@@ -53,11 +59,6 @@ fn (mut surface NativeActionSurface) refresh_readonly_badge() {
 	x := math.max(0, view_width(surface.view) - readonly_margin - width)
 	msg_void_rect(surface.readonly_badge, 'setFrame:', objc_rect(x, readonly_margin, width, readonly_height))
 	if surface.readonly_scale == scale { return }
-	pixel_width := int(math.round(width * scale))
-	pixel_height := int(math.round(readonly_height * scale))
-	mask := native_canvas_rounded_mask(pixel_width, pixel_height, readonly_corner * scale,
-		style: .continuous) or { return }
-	if !native_canvas_mask_material(surface.readonly_material, width, readonly_height, mask) { return }
 	surface.readonly_scale = scale
 	msg_void_bool(surface.readonly_ink, 'setNeedsDisplay:', true)
 }
@@ -75,19 +76,27 @@ fn (surface &NativeActionSurface) refresh_readonly_appearance() {
 fn readonly_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 	context := native_canvas_overlay_context()
 	if is_nil(context) { return }
+	C.witty_readonly_update_outline(self)
 	bounds := msg_rect(self, 'bounds')
 	scale := view_backing_scale(voidptr(self))
 	w := int(math.round(bounds.width * scale))
 	h := int(math.round(bounds.height * scale))
-	mut raster := native_canvas_rounded_mask(w, h, readonly_corner * scale, style: .continuous,
-		stroke: readonly_border_width * scale, opacity: 0.6) or { return }
-	color := C.witty_canvas_resolve_srgb(self, msg_id(get_class('NSColor'), 'systemOrangeColor'))
-	native_canvas_draw_mask(context, self, bounds, raster, color)
+	bitmap := C.CGBitmapContextGetBitsPerComponent(context) > 0
+	mut raster := if bitmap {
+		native_canvas_rounded_mask(w, h, readonly_corner * scale, style: .continuous,
+			stroke: readonly_border_width * scale, opacity: 0.6) or { return }
+	} else {
+		canvas.new_raster_surface(width: w, height: h) or { return }
+	}
+	if bitmap {
+		color := C.witty_canvas_resolve_srgb(self, msg_id(get_class('NSColor'), 'systemOrangeColor'))
+		native_canvas_draw_mask(context, self, bounds, raster, color)
+		raster.clear(0)
+	}
 	tint := C.witty_macos_color_rgba(0.8, 0.592, 0.4, 1)
 	symbol := C.witty_canvas_system_symbol(nsstring('eye.fill'), 12, 0)
 	native_canvas_draw_symbol(context, self, symbol, objc_rect(8, (bounds.height - 12) / 2, 18, 12),
 		tint)
-	raster.clear(0)
 	image := C.witty_readonly_rasterize_title(nsstring(readonly_title), tint, &bounds,
 		raster.pixels.data, w, h)
 	if is_nil(image) { return }

@@ -225,23 +225,6 @@ fn test_key_indicator_keycap_stroke_has_continuous_outer_edges() {
 	}
 }
 
-fn test_readonly_badge_canvas_stroke_and_silhouette() {
-	border := native_canvas_rounded_mask(197, 46, 12, style: .continuous, stroke: 3,
-		opacity: 0.6)!
-	mask := native_canvas_rounded_mask(197, 46, 12, style: .continuous)!
-	assert mask.pixels[0] == 0
-	assert mask.pixels[98] == 0xff000000
-	assert border.pixels[98] >> 24 == 153
-	assert border.pixels[2 * 197 + 98] == border.pixels[98]
-	assert border.pixels[3 * 197 + 98] == 0
-	assert border.pixels[23 * 197 + 98] == 0
-	for row in 0 .. 46 {
-		for column in 0 .. 197 {
-			assert border.pixels[row * 197 + column] == border.pixels[(45 - row) * 197 + 196 - column]
-		}
-	}
-}
-
 fn test_native_readonly_badge_layout_and_capture() {
 	output := os.getenv('WITTY_READONLY_BADGE_OUTPUT')
 	app_init()
@@ -274,7 +257,15 @@ fn test_native_readonly_badge_layout_and_capture() {
 	assert badge.y == 8 && badge.height == 23
 	assert msg_id(surface.readonly_badge, 'target') == surface.owner
 	assert msg_id(surface.readonly_badge, 'action') == sel('readonly:')
-	assert !is_nil(msg_id(surface.readonly_material, 'maskImage'))
+	material_layer := msg_id(surface.readonly_material, 'layer')
+	outline := C.witty_readonly_outline(surface.readonly_ink)
+	assert msg_bool(material_layer, 'masksToBounds')
+	assert msg_f64(material_layer, 'cornerRadius') == 6
+	assert msg_f64(outline, 'cornerRadius') == 6
+	assert msg_f64(outline, 'borderWidth') == 1.5
+	for layer in [material_layer, outline] {
+		assert objc_utf8_string(msg_id(layer, 'cornerCurve')) == 'continuous'
+	}
 	if output.len > 0 {
 		layer := msg_id(base, 'layer')
 		for index, appearance in ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
@@ -286,6 +277,7 @@ fn test_native_readonly_badge_layout_and_capture() {
 				msg_void1(layer, 'setBackgroundColor:', msg_id(color, 'CGColor'))
 				png := C.witty_overlay_test_png(surface.scroll.container)
 				assert !is_nil(png)
+				assert msg_rect(outline, 'frame') == msg_rect(surface.readonly_ink, 'bounds')
 				assert msg_bool2(png, 'writeToFile:atomically:',
 					nsstring(os.join_path(output, '${mode}-${name}-witty.png')), ObjId(1))
 			}

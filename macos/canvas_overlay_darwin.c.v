@@ -20,7 +20,6 @@ fn C.witty_canvas_make_gradient_mask(coverage &f32, width int, height int, color
 fn C.witty_canvas_make_color_image(pixels &u32, width int, height int) voidptr
 fn C.witty_canvas_make_native_color_mask(pixels &u32, width int, height int, view ObjId, color ObjId) voidptr
 fn C.witty_canvas_present_tile(target voidptr, image voidptr, positions voidptr, count int)
-fn C.witty_canvas_set_material_mask(view ObjId, image voidptr, width f64, height f64)
 fn C.witty_canvas_system_symbol(name ObjId, size f64, weight f64) ObjId
 fn C.witty_canvas_pixel_bounds(context voidptr, frame &ObjCRect, bounds &ObjCRect, width &int, height &int)
 fn C.witty_canvas_rasterize_attributed_text(text ObjId, frame &ObjCRect, bounds &ObjCRect, pixels &u32, width int, height int, flipped bool) voidptr
@@ -44,15 +43,6 @@ fn native_canvas_material_view(frame ObjCRect) ObjId {
 	msg_void_u64(view, 'setState:', 1)
 	msg_void_bool(view, 'setAccessibilityElement:', false)
 	return view
-}
-
-fn native_canvas_mask_material(view ObjId, width f64, height f64, mask canvas.RasterSurface) bool {
-	image := C.witty_canvas_make_alpha_image(mask.pixels.data, mask.width, mask.height, 0xffffff,
-		nil_obj())
-	if is_nil(image) { return false }
-	C.witty_canvas_set_material_mask(view, image, width, height)
-	C.CFRelease(image)
-	return true
 }
 
 fn native_canvas_draw_mask(context voidptr, view ObjId, frame ObjCRect, mask canvas.RasterSurface, color u32) {
