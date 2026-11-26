@@ -70,11 +70,19 @@ fn (mut surface NativeActionSurface) initialize_key_indicator() {
 		msg_void1(button, 'addSubview:', view)
 		msg_void(view, 'release')
 	}
-	ink_layer := msg_id(surface.key_ink, 'layer')
+	mut dot_class := get_class('WittyKeyIndicatorDot')
+	if is_nil(dot_class) {
+		dot_class = C.macos_objc_allocate_class_pair(get_class('NSView'), cstr('WittyKeyIndicatorDot'), 0)
+		add_method(dot_class, 'drawRect:', voidptr(key_indicator_dot_draw), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
+		add_method(dot_class, 'hitTest:', voidptr(action_passive_hit), '@@:{CGPoint=dd}')
+		C.macos_objc_register_class_pair(dot_class)
+	}
 	for i in 0 .. 3 {
-		dot := msg_id(get_class('CALayer'), 'layer')
+		dot := msg_id_rect(msg_id(dot_class, 'alloc'), 'initWithFrame:', objc_rect(0, 0, 4, 4))
 		msg_void_bool(dot, 'setHidden:', true)
-		msg_void1(ink_layer, 'addSublayer:', dot)
+		msg_void_bool(dot, 'setWantsLayer:', true)
+		msg_void1(surface.key_ink, 'addSubview:', dot)
+		msg_void(dot, 'release')
 		surface.key_dots[i] = dot
 	}
 }
@@ -169,17 +177,26 @@ fn (mut surface NativeActionSurface) update_key_backdrop(width f64, height f64, 
 
 fn (surface &NativeActionSurface) update_key_colors() {
 	msg_void_bool(surface.key_ink, 'setNeedsDisplay:', true)
-	if surface.key_sequence.len == 0 || is_nil(surface.key_ink) { return }
-	scale := view_backing_scale(surface.view)
-	size := int(math.round(4 * scale))
+	for dot in surface.key_dots { msg_void_bool(dot, 'setNeedsDisplay:', true) }
+}
+
+fn key_indicator_dot_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
+	context := native_canvas_overlay_context()
+	if is_nil(context) { return }
+	bounds := msg_rect(self, 'bounds')
+	mut pixel_bounds := ObjCRect{}
+	mut width, mut height := 0, 0
+	C.witty_canvas_pixel_bounds(context, &bounds, &pixel_bounds, &width, &height)
 	mut opacity := 0.0
-	color := C.witty_canvas_resolve_srgb_alpha(surface.key_ink,
+	color := C.witty_canvas_resolve_srgb_alpha(self,
 		msg_id(get_class('NSColor'), 'secondaryLabelColor'), &opacity)
-	disk := native_canvas_ellipse_mask(size, size, opacity) or { return }
-	image := C.witty_canvas_make_alpha_image(disk.pixels.data, size, size, color, surface.key_ink)
-	if is_nil(image) { return }
-	for dot in surface.key_dots { msg_void1(dot, 'setContents:', ObjId(image)) }
-	C.CFRelease(image)
+	// SwiftUI's live renderer and its bitmap snapshots use different edge coverage.
+	disk := if width == height && C.CGBitmapContextGetBitsPerComponent(context) == 0 {
+		native_canvas_circle_coverage(width, opacity) or { return }
+	} else {
+		native_canvas_ellipse_mask(width, height, opacity) or { return }
+	}
+	native_canvas_draw_mask(context, self, pixel_bounds, disk, color)
 }
 
 fn (surface &NativeActionSurface) animate_key_dots() {
@@ -191,7 +208,7 @@ fn (surface &NativeActionSurface) animate_key_dots() {
 fn (surface &NativeActionSurface) apply_key_phase(phase f64) {
 	for i, dot in surface.key_dots {
 		opacity := 0.3 + 0.7 * ((math.sin((phase + f64(i) / 3) * math.pi * 2) + 1) / 2)
-		C.witty_macos_msg_void_f32(dot, sel('setOpacity:'), f32(opacity))
+		C.witty_macos_msg_void_f32(msg_id(dot, 'layer'), sel('setOpacity:'), f32(opacity))
 	}
 }
 
@@ -248,7 +265,8 @@ fn draw_indicator_keycap(view ObjId, context voidptr, part KeyIndicatorPart, bad
 		shadow.width / scale, shadow.height / scale), shadow, 0)
 	fill := C.witty_canvas_resolve_srgb(view, msg_id(get_class('NSColor'), 'controlBackgroundColor'))
 	native_canvas_draw_mask(context, view, frame, mask, fill)
-	stroke := native_canvas_continuous_rect(w, h, scale, 4, stroke: 0.5, opacity: opacity) or { return }
+	stroke := native_canvas_continuous_rect(w, h, scale, 4, stroke: 0.5, opacity: opacity,
+		fill_stroke: C.CGBitmapContextGetBitsPerComponent(context) == 0) or { return }
 	native_canvas_draw_mask(context, view, frame, stroke, primary)
 	draw_indicator_text(context, part.label, true, part.x + 5, part.width - 10, badge)
 }

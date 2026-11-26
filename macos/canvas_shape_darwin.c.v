@@ -3,7 +3,7 @@ module macos
 import gg.canvas
 import math
 
-fn C.witty_canvas_rasterize_continuous_rect(pixels &u32, width int, height int, scale f64, radius f64, stroke f64, opacity f64, x &[3][4]f64, y &[3][4]f64) bool
+fn C.witty_canvas_rasterize_continuous_rect(pixels &u32, width int, height int, scale f64, radius f64, stroke f64, opacity f64, fill_stroke bool, x &[3][4]f64, y &[3][4]f64) bool
 fn C.witty_canvas_rasterize_capsule(pixels &u32, width int, height int, scale f64, stroke f64, opacity f64) bool
 fn C.witty_canvas_rasterize_ellipse(pixels &u32, width int, height int, opacity f64) bool
 fn C.witty_canvas_rasterize_shadow(mask &u32, mask_width int, mask_height int, pixels &u32, width int, height int, radius f64, opacity f64) bool
@@ -149,18 +149,35 @@ fn native_canvas_ellipse_mask(width int, height int, opacity f64) !canvas.Raster
 	return raster
 }
 
+fn native_canvas_circle_coverage(size int, opacity f64) !canvas.RasterSurface {
+	mut raster := canvas.new_raster_surface(width: size, height: size)!
+	radius := size / 2.0
+	for row in 0 .. size {
+		y := math.abs(row + 0.5 - radius)
+		for column in 0 .. size {
+			x := math.abs(column + 0.5 - radius)
+			// Scale the implicit circle by its change over one screen pixel.
+			pixel_width := math.max(1.0, 2 * (x + y))
+			coverage := math.clamp(0.5 + (radius * radius - x * x - y * y) / pixel_width, 0.0, 1.0)
+			raster.pixels[row * size + column] = u32(math.round(255 * opacity * coverage)) << 24
+		}
+	}
+	return raster
+}
+
 @[params]
 struct CanvasContinuousShapeOptions {
-	stroke  f64
-	opacity f64 = 1
-	capsule bool
+	stroke      f64
+	opacity     f64 = 1
+	capsule     bool
+	fill_stroke bool
 }
 
 fn native_canvas_continuous_rect(width int, height int, scale f64, radius f64, opts CanvasContinuousShapeOptions) !canvas.RasterSurface {
 	mut raster := canvas.new_raster_surface(width: width, height: height)!
 	y := if opts.capsule { &canvas_capsule_y } else { &canvas_corner_y }
 	if !C.witty_canvas_rasterize_continuous_rect(raster.pixels.data, width, height, scale,
-		radius, opts.stroke, opts.opacity, &canvas_corner_x, y) {
+		radius, opts.stroke, opts.opacity, opts.fill_stroke, &canvas_corner_x, y) {
 		return error('Could not rasterize a continuous rounded rectangle')
 	}
 	return raster

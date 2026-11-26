@@ -32,10 +32,11 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 	assert !is_nil(msg_id(surface.key_shadow, 'contents'))
 	surface.apply_key_phase(0)
 	for i, dot in surface.key_dots {
-		assert !is_nil(msg_id(dot, 'contents'))
+		layer := msg_id(dot, 'layer')
+		assert !is_nil(layer)
 		assert !msg_bool(dot, 'isHidden')
 		expected := 0.3 + 0.7 * ((math.sin(f64(i) * math.pi * 2 / 3) + 1) / 2)
-		assert math.abs(f64(C.witty_overlay_test_opacity(dot)) - expected) < 0.001
+		assert math.abs(f64(C.witty_overlay_test_opacity(layer)) - expected) < 0.001
 	}
 	assert surface.key_width > 0
 	assert !is_nil(surface.pulse_timer)
@@ -203,6 +204,18 @@ fn test_key_indicator_capsule_stroke_covers_straight_sides() {
 	assert stroke.pixels[14 * width + 2] >> 24 == 0
 	assert stroke.pixels[15 * width - 1] >> 24 == 255
 	assert stroke.pixels[(height - 15) * width] >> 24 == 255
+}
+
+fn test_key_indicator_keycap_stroke_has_continuous_outer_edges() {
+	width := 60
+	stroke := native_canvas_continuous_rect(width, 38, 2, 4, stroke: 0.5, fill_stroke: true)!
+	for cross in [11, width - 12] {
+		assert stroke.pixels[cross] >> 24 >= 250
+		assert stroke.pixels[width + cross] >> 24 <= 5
+	}
+	for column in [0, width - 1] {
+		assert stroke.pixels[11 * width + column] >> 24 >= 250
+	}
 }
 
 fn test_readonly_badge_canvas_stroke_and_silhouette() {

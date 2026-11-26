@@ -329,19 +329,8 @@ static inline bool witty_canvas_rasterize_shadow(uint32_t *mask, int mask_width,
     return ready;
 }
 
-static inline bool witty_canvas_rasterize_continuous_rect(uint32_t *pixels, int width, int height,
-        double scale, double radius, double stroke, double opacity, const double (*x)[3][4],
-        const double (*y)[3][4]) {
-    const CGRect bounds = CGRectMake(0, 0, width / scale, height / scale);
-    CGContextRef context = witty_canvas_bitmap_context(pixels, width, height, bounds);
-    if (!context) return false;
-    CGMutablePathRef path = CGPathCreateMutable();
-    if (!path) {
-        CGContextRelease(context);
-        return false;
-    }
-
-    const double inset = stroke / 2;
+static inline void witty_canvas_add_continuous_rect(CGMutablePathRef path, CGRect bounds,
+        double radius, double inset, const double (*x)[3][4], const double (*y)[3][4]) {
     const double right = bounds.size.width - inset;
     const double top = bounds.size.height - inset;
     const double extent_x = (*x)[0][0];
@@ -374,16 +363,37 @@ static inline bool witty_canvas_rasterize_continuous_rect(uint32_t *pixels, int 
         }
     }
     CGPathCloseSubpath(path);
+}
+
+static inline bool witty_canvas_rasterize_continuous_rect(uint32_t *pixels, int width, int height,
+        double scale, double radius, double stroke, double opacity, bool fill_stroke,
+        const double (*x)[3][4], const double (*y)[3][4]) {
+    const CGRect bounds = CGRectMake(0, 0, width / scale, height / scale);
+    CGContextRef context = witty_canvas_bitmap_context(pixels, width, height, bounds);
+    if (!context) return false;
+    CGMutablePathRef path = CGPathCreateMutable();
+    if (!path) {
+        CGContextRelease(context);
+        return false;
+    }
 
     CGContextTranslateCTM(context, 0, bounds.size.height);
     CGContextScaleCTM(context, 1, -1);
-    CGContextAddPath(context, path);
     CGContextSetAlpha(context, opacity);
-    if (stroke > 0) {
+    if (stroke > 0 && !fill_stroke) {
+        witty_canvas_add_continuous_rect(path, bounds, radius, stroke / 2, x, y);
+        CGContextAddPath(context, path);
         CGContextSetLineWidth(context, stroke);
         CGContextStrokePath(context);
     } else {
-        CGContextFillPath(context);
+        // Fill the ring directly to avoid Quartz's stroke tessellation gaps where the corners
+        // meet the straight edges.
+        witty_canvas_add_continuous_rect(path, bounds, radius, 0, x, y);
+        if (stroke > 0 && 2 * stroke < fmin(bounds.size.width, bounds.size.height)) {
+            witty_canvas_add_continuous_rect(path, bounds, radius, stroke, x, y);
+        }
+        CGContextAddPath(context, path);
+        CGContextEOFillPath(context);
     }
     CGPathRelease(path);
     CGContextRelease(context);
