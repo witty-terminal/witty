@@ -5,6 +5,27 @@
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 static NSString *const witty_hover_ellipsis_attribute = @"WittyHoverEllipsis";
 
+typedef struct {
+    CTLineRef core_text;
+    NSTextLineFragment *fragment;
+} WittyHoverLine;
+
+static inline void witty_hover_release_line(WittyHoverLine *line) {
+    if (line->core_text) CFRelease(line->core_text);
+    [line->fragment release];
+    free(line);
+}
+
+static inline bool witty_hover_line_has_color(CTLineRef line) {
+    CFArrayRef runs = CTLineGetGlyphRuns(line);
+    for (CFIndex i = 0; i < CFArrayGetCount(runs); ++i) {
+        CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runs, i);
+        NSDictionary *attributes = (NSDictionary *)CTRunGetAttributes(run);
+        if (witty_canvas_font_has_color_glyphs((CTFontRef)attributes[(id)kCTFontAttributeName])) return true;
+    }
+    return false;
+}
+
 static inline bool witty_hover_line_is_left_to_right(CTLineRef line) {
     CFArrayRef runs = CTLineGetGlyphRuns(line);
     for (CFIndex i = 0; i < CFArrayGetCount(runs); ++i) {
@@ -100,39 +121,34 @@ static inline CTLineRef witty_hover_line_from_fragment(NSString *text, NSDiction
     return single_cluster_cut;
 }
 
-static inline CTLineRef witty_hover_layout_truncation(NSString *text, NSDictionary *attributes,
-        CTLineRef token, double limit, double *width) {
-    if (@available(macOS 12.0, *)) {
-        if (CTLineGetTypographicBounds(token, NULL, NULL, NULL) > limit) return NULL;
-        @autoreleasepool {
-            NSMutableParagraphStyle *style = [[[NSMutableParagraphStyle alloc] init] autorelease];
-            style.lineBreakMode = NSLineBreakByTruncatingMiddle;
-            style.allowsDefaultTighteningForTruncation = NO;
-            NSMutableDictionary *layout_attributes = [[attributes mutableCopy] autorelease];
-            layout_attributes[NSParagraphStyleAttributeName] = style;
-            NSTextContentStorage *content = [[[NSTextContentStorage alloc] init] autorelease];
-            content.attributedString = [[[NSAttributedString alloc] initWithString:text
-                attributes:layout_attributes] autorelease];
-            NSTextLayoutManager *layout = [[[NSTextLayoutManager alloc] init] autorelease];
-            [content addTextLayoutManager:layout];
-            NSTextContainer *container = [[[NSTextContainer alloc] initWithSize:NSMakeSize(limit, CGFLOAT_MAX)] autorelease];
-            container.maximumNumberOfLines = 1;
-            container.lineFragmentPadding = 0;
-            container.lineBreakMode = NSLineBreakByTruncatingMiddle;
-            layout.textContainer = container;
-            NSTextRange *range = layout.documentRange;
-            [layout ensureLayoutForRange:range];
-            __block CTLineRef line = NULL;
-            [layout enumerateTextLayoutFragmentsFromLocation:range.location
-                options:NSTextLayoutFragmentEnumerationOptionsEnsuresLayout usingBlock:^BOOL(NSTextLayoutFragment *fragment) {
-                    line = witty_hover_line_from_fragment(text, attributes, fragment.textLineFragments.firstObject, token,
-                        limit, width);
-                    return NO;
-                }];
-            return line;
-        }
+API_AVAILABLE(macos(12.0))
+static inline NSTextLineFragment *witty_hover_layout_fragment(NSString *text, NSDictionary *attributes, double limit) {
+    @autoreleasepool {
+        NSMutableParagraphStyle *style = [[[NSMutableParagraphStyle alloc] init] autorelease];
+        style.lineBreakMode = NSLineBreakByTruncatingMiddle;
+        style.allowsDefaultTighteningForTruncation = NO;
+        NSMutableDictionary *layout_attributes = [[attributes mutableCopy] autorelease];
+        layout_attributes[NSParagraphStyleAttributeName] = style;
+        NSTextContentStorage *content = [[[NSTextContentStorage alloc] init] autorelease];
+        content.attributedString = [[[NSAttributedString alloc] initWithString:text
+            attributes:layout_attributes] autorelease];
+        NSTextLayoutManager *layout = [[[NSTextLayoutManager alloc] init] autorelease];
+        [content addTextLayoutManager:layout];
+        NSTextContainer *container = [[[NSTextContainer alloc] initWithSize:NSMakeSize(limit, CGFLOAT_MAX)] autorelease];
+        container.maximumNumberOfLines = 1;
+        container.lineFragmentPadding = 0;
+        container.lineBreakMode = NSLineBreakByTruncatingMiddle;
+        layout.textContainer = container;
+        NSTextRange *range = layout.documentRange;
+        [layout ensureLayoutForRange:range];
+        __block NSTextLineFragment *line = nil;
+        [layout enumerateTextLayoutFragmentsFromLocation:range.location
+            options:NSTextLayoutFragmentEnumerationOptionsEnsuresLayout usingBlock:^BOOL(NSTextLayoutFragment *fragment) {
+                line = [fragment.textLineFragments.firstObject retain];
+                return NO;
+            }];
+        return line;
     }
-    return NULL;
 }
 
 static inline CTLineRef witty_hover_refine_truncation(NSString *text, NSDictionary *attributes,
@@ -193,7 +209,7 @@ static inline CTLineRef witty_hover_refine_truncation(NSString *text, NSDictiona
     return expanded;
 }
 
-static inline CTLineRef witty_hover_line(NSString *text, double limit, double *width) {
+static inline WittyHoverLine *witty_hover_line(NSString *text, double limit, double *width) {
     NSDictionary *attributes = @{
         NSFontAttributeName: [NSFont systemFontOfSize:13],
         (__bridge NSString *)kCTForegroundColorFromContextAttributeName: @YES,
@@ -202,8 +218,14 @@ static inline CTLineRef witty_hover_line(NSString *text, double limit, double *w
     CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)value);
     [value release];
     if (!line) return NULL;
+    WittyHoverLine *result = calloc(1, sizeof(*result));
+    if (!result) {
+        CFRelease(line);
+        return NULL;
+    }
+    result->core_text = line;
     *width = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
-    if (*width <= limit) return line;
+    if (*width <= limit) return result;
 
     NSMutableDictionary *token_attributes = [attributes mutableCopy];
     token_attributes[witty_hover_ellipsis_attribute] = @YES;
@@ -213,13 +235,26 @@ static inline CTLineRef witty_hover_line(NSString *text, double limit, double *w
     [ellipsis release];
     CTLineRef truncated = NULL;
     if (token) {
-        // Preserve Core Text's ordering for bidirectional runs.
         const bool left_to_right = witty_hover_line_is_left_to_right(line);
-        if (left_to_right) truncated = witty_hover_layout_truncation(text, attributes, token, limit, width);
-        if (truncated) {
-            CFRelease(line);
-            CFRelease(token);
-            return truncated;
+        if (@available(macOS 12.0, *)) {
+            // A laid-out bidirectional line preserves joining and ellipsis placement.
+            const bool can_draw_fragment = !left_to_right && !witty_hover_line_has_color(line);
+            if ((left_to_right || can_draw_fragment) && CTLineGetTypographicBounds(token, NULL, NULL, NULL) <= limit) {
+                NSTextLineFragment *fragment = witty_hover_layout_fragment(text, attributes, limit);
+                if (left_to_right) {
+                    truncated = witty_hover_line_from_fragment(text, attributes, fragment, token, limit, width);
+                } else if (fragment && fragment.typographicBounds.size.width > 0 && fragment.typographicBounds.size.width <= limit) {
+                    *width = fragment.typographicBounds.size.width;
+                    result->fragment = [fragment retain];
+                }
+                [fragment release];
+                if (truncated || result->fragment) {
+                    CFRelease(line);
+                    CFRelease(token);
+                    result->core_text = truncated;
+                    return result;
+                }
+            }
         }
         truncated = CTLineCreateTruncatedLine(line, limit, kCTLineTruncationMiddle, token);
         if (truncated && left_to_right) {
@@ -234,21 +269,12 @@ static inline CTLineRef witty_hover_line(NSString *text, double limit, double *w
     if (!truncated) {
         // Use the offered width and clip the original line when the ellipsis cannot fit.
         *width = limit;
-        return line;
+        return result;
     }
     CFRelease(line);
     *width = CTLineGetTypographicBounds(truncated, NULL, NULL, NULL);
-    return truncated;
-}
-
-static inline bool witty_hover_line_has_color(CTLineRef line) {
-    CFArrayRef runs = CTLineGetGlyphRuns(line);
-    for (CFIndex i = 0; i < CFArrayGetCount(runs); ++i) {
-        CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runs, i);
-        NSDictionary *attributes = (NSDictionary *)CTRunGetAttributes(run);
-        if (witty_canvas_font_has_color_glyphs((CTFontRef)attributes[(id)kCTFontAttributeName])) return true;
-    }
-    return false;
+    result->core_text = truncated;
+    return result;
 }
 
 static inline bool witty_hover_rasterize_circular_corner(uint32_t *pixels, int width, int height,
@@ -330,10 +356,46 @@ static inline void witty_hover_set_background(NSView *view, CALayer *layer, cons
     [CATransaction commit];
 }
 
-static inline void witty_hover_draw_line(CGContextRef target, CTLineRef line, NSView *view,
+API_AVAILABLE(macos(12.0))
+static inline void witty_hover_draw_fragment(CGContextRef target, NSTextLineFragment *fragment, NSColor *tint,
+        WittyCanvasTextLayout layout, uint32_t *pixels, int width, int height) {
+    CGContextRef context = witty_canvas_bitmap_context(pixels, width, height, layout.bounds);
+    if (!context) return;
+    NSColor *paint = [tint colorWithAlphaComponent:1];
+    const CGPoint origin = fragment.glyphOrigin;
+    CGContextClipToRect(context, layout.clip);
+    CGContextSetFillColorWithColor(context, paint.CGColor);
+    CGContextTranslateCTM(context, layout.position.x - origin.x, layout.position.y + origin.y);
+    CGContextScaleCTM(context, 1, -1);
+    [fragment drawAtPoint:CGPointZero inContext:context];
+
+    const double opacity = CGColorGetAlpha(tint.CGColor);
+    if (opacity < 1) witty_canvas_round_text_coverage(pixels, (size_t)width * height, opacity, WittyCanvasRoundInkUp);
+    if (CGBitmapContextGetBitsPerComponent(target) && opacity < 1) {
+        CGImageRef image = CGBitmapContextCreateImage(context);
+        if (image) {
+            witty_canvas_present_oriented_image(target, image, &layout.bounds, false);
+            CGImageRelease(image);
+        }
+    } else {
+        CGImageRef mask = witty_canvas_make_text_mask(pixels, width, height);
+        if (mask) {
+            CGContextSaveGState(target);
+            CGContextSetInterpolationQuality(target, kCGInterpolationNone);
+            CGContextClipToMask(target, layout.bounds, mask);
+            CGContextSetFillColorWithColor(target, paint.CGColor);
+            CGContextFillRect(target, layout.bounds);
+            CGContextRestoreGState(target);
+            CGImageRelease(mask);
+        }
+    }
+    CGContextRelease(context);
+}
+
+static inline void witty_hover_draw_line(CGContextRef target, WittyHoverLine *line, NSView *view,
         const CGRect *bounds, uint32_t *pixels, int width, int height, double padding, double baseline) {
     // Cached mixed-color previews use an sRGB bitmap. Live previews apply label opacity in the compositor.
-    const bool mixed_color = witty_hover_line_has_color(line);
+    const bool mixed_color = line->core_text && witty_hover_line_has_color(line->core_text);
     const bool bitmap_target = CGBitmapContextGetBitsPerComponent(target) != 0;
     const WittyCanvasTextLayout layout = {
         .bounds = *bounds,
@@ -346,7 +408,13 @@ static inline void witty_hover_draw_line(CGContextRef target, CTLineRef line, NS
         .fit_color_glyphs_to_backing = true,
     };
     [[view effectiveAppearance] performAsCurrentDrawingAppearance:^{
-        witty_canvas_draw_text_runs(target, line, [NSColor labelColor], layout, pixels, width, height);
+        if (@available(macOS 12.0, *)) {
+            if (line->fragment) {
+                witty_hover_draw_fragment(target, line->fragment, NSColor.labelColor, layout, pixels, width, height);
+                return;
+            }
+        }
+        witty_canvas_draw_text_runs(target, line->core_text, NSColor.labelColor, layout, pixels, width, height);
     }];
 }
 #endif

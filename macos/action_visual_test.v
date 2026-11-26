@@ -319,10 +319,14 @@ fn test_native_hover_banner_capture() {
 	msg_void(base, 'release')
 	surface.scroll.layout()
 
-	names := ['short', 'long', 'unicode', 'file', 'emoji', 'emoji-sequences']
-	urls := ['https://example.org/path', 'https://example.org/long/path/to/an/application/file.html',
+	mut names := ['short', 'long', 'unicode', 'file', 'emoji', 'emoji-sequences']
+	mut urls := ['https://example.org/path', 'https://example.org/long/path/to/an/application/file.html',
 		'https://example.org/é/東京', 'file:///private/tmp/../tmp/', 'https://x.test/🚀/😃',
 		'https://x.test/👍🏽/🇯🇵']
+	if os.getenv('WITTY_HOVER_BANNER_BIDI') == '1' {
+		names << ['arabic', 'hebrew']
+		urls << ['https://مثال.test/مسار', 'https://host.test/שלום/á']
+	}
 	for m, appearance in ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
 		msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',
 			nsstring(appearance)))
@@ -356,7 +360,7 @@ fn test_hover_banner_clips_the_url_when_an_ellipsis_does_not_fit() {
 	mut width := 0.0
 	line := C.witty_hover_line(url, 4, &width)
 	assert !is_nil(line)
-	defer { C.CFRelease(line) }
+	defer { C.witty_hover_release_line(line) }
 	assert width == 4
 	assert hover_banner_width(22, width, 2) == 14
 	assert hover_banner_width(15, 0, 2) == 8.5
@@ -367,13 +371,13 @@ fn test_hover_banner_middle_truncation_restores_prefix_when_both_ends_fit() {
 	mut width := 0.0
 	line := C.witty_hover_line(url, 18, &width)
 	assert !is_nil(line)
-	defer { C.CFRelease(line) }
+	defer { C.witty_hover_release_line(line) }
 	assert math.abs(width - 10.384765625) < 0.001
 	assert hover_banner_width(36, width, 2) == 20.5
 
 	both := C.witty_hover_line(url, 24, &width)
 	assert !is_nil(both)
-	defer { C.CFRelease(both) }
+	defer { C.witty_hover_release_line(both) }
 	assert math.abs(width - 21.16943359375) < 0.001
 	assert hover_banner_width(42, width, 2) == 31.5
 }
@@ -383,13 +387,13 @@ fn test_hover_banner_middle_truncation_matches_adjacent_native_layouts() {
 	mut width := 0.0
 	line := C.witty_hover_line(url, 26, &width)
 	assert !is_nil(line)
-	defer { C.CFRelease(line) }
+	defer { C.witty_hover_release_line(line) }
 	assert math.abs(width - 25.81591796875) < 0.001
 	assert hover_banner_width(44, width, 2) == 36
 
 	wider := C.witty_hover_line(url, 27, &width)
 	assert !is_nil(wider)
-	defer { C.CFRelease(wider) }
+	defer { C.witty_hover_release_line(wider) }
 	assert math.abs(width - 21.16943359375) < 0.001
 	assert hover_banner_width(45, width, 2) == 31.5
 }
@@ -399,19 +403,32 @@ fn test_hover_banner_middle_truncation_uses_remaining_suffix_width() {
 	mut width := 0.0
 	line := C.witty_hover_line(url, 42, &width)
 	assert !is_nil(line)
-	defer { C.CFRelease(line) }
+	defer { C.witty_hover_release_line(line) }
 	assert math.abs(width - 41.919921875) < 0.001
 	assert hover_banner_width(60, width, 2) == 52
 
 	kerned := C.witty_hover_line(url, 112, &width)
 	assert !is_nil(kerned)
-	defer { C.CFRelease(kerned) }
+	defer { C.witty_hover_release_line(kerned) }
 	assert math.abs(width - 111.6806640625) < 0.001
 
 	kerned_pair := C.witty_hover_line(url, 129.5, &width)
 	assert !is_nil(kerned_pair)
-	defer { C.CFRelease(kerned_pair) }
+	defer { C.witty_hover_release_line(kerned_pair) }
 	assert math.abs(width - 129.3017578125) < 0.001
+}
+
+fn test_hover_banner_middle_truncation_uses_native_bidirectional_layout() {
+	mut width := 0.0
+	arabic := C.witty_hover_line(nsstring('https://مثال.test/مسار'), 35, &width)
+	assert !is_nil(arabic)
+	defer { C.witty_hover_release_line(arabic) }
+	assert math.abs(width - 26.20947265625) < 0.001
+
+	hebrew := C.witty_hover_line(nsstring('https://host.test/שלום/á'), 26, &width)
+	assert !is_nil(hebrew)
+	defer { C.witty_hover_release_line(hebrew) }
+	assert math.abs(width - 10.384765625) < 0.001
 }
 
 fn test_hover_banner_raster_mirroring_and_display_string() {

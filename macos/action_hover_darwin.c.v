@@ -7,6 +7,7 @@ import strings
 #insert "@VMODROOT/macos/action_hover_darwin.h"
 
 fn C.witty_hover_line(text ObjId, limit f64, width &f64) voidptr
+fn C.witty_hover_release_line(line voidptr)
 fn C.witty_hover_draw_line(target voidptr, line voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int, padding f64, baseline f64)
 fn C.witty_hover_rasterize_circular_corner(pixels &u32, width int, height int, radius f64, round_left bool) bool
 fn C.witty_hover_backing_phases(view ObjId) int
@@ -128,7 +129,7 @@ fn hover_display_url(raw string) string {
 
 fn (mut surface NativeActionSurface) clear_hover_line() {
 	if surface.hover_line != unsafe { nil } {
-		C.CFRelease(surface.hover_line)
+		C.witty_hover_release_line(surface.hover_line)
 		surface.hover_line = unsafe { nil }
 	}
 	surface.hover_text_limit = -1
