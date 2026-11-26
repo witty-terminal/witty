@@ -9,29 +9,53 @@ import strings
 fn C.witty_hover_line(text ObjId, limit f64, width &f64) voidptr
 fn C.witty_hover_draw_line(target voidptr, line voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int, padding f64, baseline f64)
 fn C.witty_hover_rasterize_circular_corner(pixels &u32, width int, height int, radius f64, round_left bool) bool
-fn C.witty_hover_draw_background(target voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int)
+fn C.witty_hover_draw_background(target voidptr, view ObjId, bounds &ObjCRect, clip &ObjCRect, pixels &u32, width int, height int)
+fn C.witty_hover_set_background(view ObjId, bottom ObjId, top ObjId, corner &ObjCRect)
 
 const hover_padding = 5.0
 const hover_height = 26.0
 const hover_spacer = 8.0
 const hover_radius = 9.0
 
-fn new_hover_banner(surface &NativeActionSurface) ObjId {
+fn (mut surface NativeActionSurface) initialize_hover_banner() {
 	mut cls := get_class('WittyHoverBanner')
 	if is_nil(cls) {
 		cls = C.macos_objc_allocate_class_pair(get_class('NSView'), cstr('WittyHoverBanner'), 0)
 		add_ptr_ivar(cls, 'state')
-		add_method(cls, 'drawRect:', voidptr(action_hover_draw), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
+		add_method(cls, 'drawRect:', voidptr(action_hover_draw_background), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
 		add_method(cls, 'hitTest:', voidptr(action_passive_hit), '@@:{CGPoint=dd}')
 		C.macos_objc_register_class_pair(cls)
 	}
+	mut ink_class := get_class('WittyHoverBannerText')
+	if is_nil(ink_class) {
+		ink_class = C.macos_objc_allocate_class_pair(get_class('NSView'), cstr('WittyHoverBannerText'), 0)
+		add_method(ink_class, 'drawRect:', voidptr(action_hover_draw_text), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
+		add_method(ink_class, 'hitTest:', voidptr(action_passive_hit), '@@:{CGPoint=dd}')
+		C.macos_objc_register_class_pair(ink_class)
+	}
 	view := msg_id_rect(msg_id(cls, 'alloc'), 'initWithFrame:', objc_rect(0, 0, 0, 0))
+	surface.hover_label = view
 	C.macos_objc_set_ptr_ivar(view, cstr('state'), voidptr(surface))
 	msg_void_bool(view, 'setHidden:', true)
 	msg_void_bool(view, 'setWantsLayer:', true)
 	msg_void_bool(view, 'setAccessibilityElement:', true)
 	msg_void1(view, 'setAccessibilityRole:', nsstring('AXStaticText'))
-	return view
+	msg_void1(surface.overlay, 'addSubview:', view)
+	msg_void(view, 'release')
+
+	for i in 0 .. surface.hover_fill.len {
+		surface.hover_fill[i] = msg_id(get_class('CALayer'), 'layer')
+		msg_void1(msg_id(view, 'layer'), 'addSublayer:', surface.hover_fill[i])
+	}
+
+	// Drawing the glyph image in the background's layer dithers the solid fill.
+	ink := msg_id_rect(msg_id(ink_class, 'alloc'), 'initWithFrame:', objc_rect(0, 0, 0, 0))
+	surface.hover_ink = ink
+	msg_void_bool(ink, 'setWantsLayer:', true)
+	msg_void_bool(ink, 'setAccessibilityElement:', false)
+	msg_void_u64(ink, 'setAutoresizingMask:', 18)
+	msg_void1(view, 'addSubview:', ink)
+	msg_void(ink, 'release')
 }
 
 fn action_hover_entered(self ObjId, _cmd Sel, _event ObjId) {
@@ -101,7 +125,8 @@ fn (mut surface NativeActionSurface) refresh_hover_visuals() {
 	}
 
 	limit := math.max(0, available - 2 * hover_padding - hover_spacer)
-	if limit != surface.hover_text_limit {
+	rebuild_line := limit != surface.hover_text_limit
+	if rebuild_line {
 		surface.clear_hover_line()
 		mut text_width := 0.0
 		surface.hover_line = C.witty_hover_line(nsstring(surface.hover_display), limit, &text_width)
@@ -114,7 +139,12 @@ fn (mut surface NativeActionSurface) refresh_hover_visuals() {
 	x := if surface.hover_left { available - width } else { 0.0 }
 	msg_void_rect(surface.hover_label, 'setFrame:', objc_rect(x, y, width, hover_height))
 	msg_void_bool(surface.hover_label, 'setHidden:', false)
+	surface.refresh_hover_background()
 	msg_void_bool(surface.hover_label, 'setNeedsDisplay:', true)
+	// Moving an existing preview can reuse its glyph layer.
+	if rebuild_line {
+		msg_void_bool(surface.hover_ink, 'setNeedsDisplay:', true)
+	}
 
 	tracking := objc_rect(0, y, width, hover_height)
 	if !is_nil(surface.hover_tracking) && surface.hover_tracking_rect == tracking {
@@ -130,7 +160,9 @@ fn (mut surface NativeActionSurface) refresh_hover_visuals() {
 
 fn (mut surface NativeActionSurface) refresh_hover_appearance() {
 	if !is_nil(surface.hover_label) && surface.hover_url.len > 0 {
+		surface.refresh_hover_background()
 		msg_void_bool(surface.hover_label, 'setNeedsDisplay:', true)
+		msg_void_bool(surface.hover_ink, 'setNeedsDisplay:', true)
 	}
 }
 
@@ -174,7 +206,22 @@ fn hover_canvas_mask(width int, height int, scale f64, round_left bool, live boo
 	return raster
 }
 
-fn action_hover_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
+fn (surface &NativeActionSurface) refresh_hover_background() {
+	bounds := msg_rect(surface.hover_label, 'bounds')
+	corner := surface.hover_corner(bounds, view_backing_scale(surface.view))
+	C.witty_hover_set_background(surface.hover_label, surface.hover_fill[0], surface.hover_fill[1],
+		&corner)
+}
+
+fn (surface &NativeActionSurface) hover_corner(bounds ObjCRect, scale f64) ObjCRect {
+	size := math.ceil(hover_radius * canvas_corner_x[0][0] * scale) / scale
+	width := math.min(size, bounds.width)
+	height := math.min(size, bounds.height)
+	x := if surface.hover_left { bounds.x } else { bounds.x + bounds.width - width }
+	return objc_rect(x, bounds.y + bounds.height - height, width, height)
+}
+
+fn action_hover_draw_background(self ObjId, _cmd Sel, _rect ObjCRect) {
 	surface := action_owner_state(self) or { return }
 	context := native_canvas_overlay_context()
 	if is_nil(context) { return }
@@ -183,11 +230,22 @@ fn action_hover_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 	width := int(math.round(bounds.width * scale))
 	height := int(math.round(bounds.height * scale))
 	live := C.CGBitmapContextGetBitsPerComponent(context) == 0
-	mut raster := hover_canvas_mask(width, height, scale, surface.hover_left, live) or { return }
-	C.witty_hover_draw_background(context, self, &bounds, raster.pixels.data, width, height)
-	if surface.hover_line != unsafe { nil } && bounds.width > 2 * hover_padding {
-		raster.clear(0)
-		C.witty_hover_draw_line(context, surface.hover_line, self, &bounds, raster.pixels.data,
-			width, height, hover_padding, 8)
-	}
+	// The opaque fill layers cover the rest of the live banner.
+	clip := if live { surface.hover_corner(bounds, scale) } else { bounds }
+	raster := hover_canvas_mask(width, height, scale, surface.hover_left, live) or { return }
+	C.witty_hover_draw_background(context, self, &bounds, &clip, raster.pixels.data, width, height)
+}
+
+fn action_hover_draw_text(self ObjId, _cmd Sel, _rect ObjCRect) {
+	surface := action_owner_state(msg_id(self, 'superview')) or { return }
+	context := native_canvas_overlay_context()
+	if is_nil(context) || surface.hover_line == unsafe { nil } { return }
+	bounds := msg_rect(self, 'bounds')
+	if bounds.width <= 2 * hover_padding { return }
+	scale := view_backing_scale(surface.view)
+	width := int(math.round(bounds.width * scale))
+	height := int(math.round(bounds.height * scale))
+	raster := canvas.new_raster_surface(width: width, height: height) or { return }
+	C.witty_hover_draw_line(context, surface.hover_line, self, &bounds, raster.pixels.data,
+		width, height, hover_padding, 8)
 }

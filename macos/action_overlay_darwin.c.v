@@ -137,6 +137,8 @@ mut:
 	readonly_title_width f64
 	health_label        ObjId
 	hover_label         ObjId
+	hover_fill          [2]ObjId
+	hover_ink           ObjId
 	hover_url           string
 	hover_display       string
 	hover_line          voidptr
@@ -249,9 +251,7 @@ pub fn new_action_surface(view voidptr, userdata voidptr, callbacks ActionCallba
 	state.health_label = new_health_overlay()
 	msg_void1(state.overlay, 'addSubview:', state.health_label)
 	state.initialize_secure_visuals()
-	state.hover_label = new_hover_banner(state)
-	msg_void1(state.overlay, 'addSubview:', state.hover_label)
-	msg_void(state.hover_label, 'release')
+	state.initialize_hover_banner()
 	state.initialize_visuals()
 	state.initialize_highlight()
 	state.scroll = new_surface_scroll(state)
@@ -317,6 +317,7 @@ fn action_overlay_backing_changed(self ObjId, _cmd Sel) {
 		state.refresh_secure_visuals()
 		if !is_nil(state.bell_layer) { state.refresh_bell_visuals() }
 		state.refresh_hover_visuals()
+		msg_void_bool(state.hover_ink, 'setNeedsDisplay:', true)
 		state.refresh_readonly_badge()
 		state.refresh_key_visuals()
 		if state.palette != unsafe { nil } { state.palette.layout() }

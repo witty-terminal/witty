@@ -46,10 +46,11 @@ static inline bool witty_hover_rasterize_circular_corner(uint32_t *pixels, int w
 }
 
 static inline void witty_hover_draw_background(CGContextRef target, NSView *view, const CGRect *bounds,
-        const uint32_t *pixels, int width, int height) {
+        const CGRect *clip, const uint32_t *pixels, int width, int height) {
     CGImageRef mask = witty_canvas_make_text_mask(pixels, width, height);
     if (!mask) return;
     CGContextSaveGState(target);
+    CGContextClipToRect(target, *clip);
     CGContextSetInterpolationQuality(target, kCGInterpolationNone);
     CGContextClipToMask(target, *bounds, mask);
     [[view effectiveAppearance] performAsCurrentDrawingAppearance:^{
@@ -58,6 +59,23 @@ static inline void witty_hover_draw_background(CGContextRef target, NSView *view
     CGContextFillRect(target, *bounds);
     CGContextRestoreGState(target);
     CGImageRelease(mask);
+}
+
+static inline void witty_hover_set_background(NSView *view, CALayer *bottom, CALayer *top,
+        const CGRect *corner) {
+    const CGRect bounds = view.bounds;
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    bottom.frame = CGRectMake(bounds.origin.x, bounds.origin.y, bounds.size.width,
+        CGRectGetMinY(*corner) - bounds.origin.y);
+    const bool left = CGRectGetMinX(*corner) == bounds.origin.x;
+    top.frame = CGRectMake(left ? CGRectGetMaxX(*corner) : bounds.origin.x, corner->origin.y,
+        bounds.size.width - corner->size.width, corner->size.height);
+    [[view effectiveAppearance] performAsCurrentDrawingAppearance:^{
+        bottom.backgroundColor = NSColor.windowBackgroundColor.CGColor;
+        top.backgroundColor = bottom.backgroundColor;
+    }];
+    [CATransaction commit];
 }
 
 static inline void witty_hover_draw_line(CGContextRef target, CTLineRef line, NSView *view,

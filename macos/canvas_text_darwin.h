@@ -71,7 +71,9 @@ static inline void witty_canvas_draw_text_runs(CGContextRef target, CTLineRef li
 
         const double opacity = CGColorGetAlpha(tint.CGColor);
         const bool round_coverage = layout.round_ink_coverage_up && !color_glyphs && opacity < 1;
-        const bool rgba = color_glyphs || round_coverage || (layout.premultiply_translucent_ink && opacity < 1);
+        const bool rounded_mask = round_coverage && CGBitmapContextGetBitsPerComponent(target) == 0;
+        const bool rgba = color_glyphs || (round_coverage && !rounded_mask) ||
+            (layout.premultiply_translucent_ink && opacity < 1);
         NSColor *paint = rgba && !round_coverage ? tint : [tint colorWithAlphaComponent:1];
         CGContextSaveGState(context);
         CGContextClipToRect(context, layout.clip);
@@ -97,7 +99,7 @@ static inline void witty_canvas_draw_text_runs(CGContextRef target, CTLineRef li
                 }
                 CGContextSetInterpolationQuality(target, kCGInterpolationNone);
                 CGContextClipToMask(target, layout.bounds, image);
-                CGContextSetFillColorWithColor(target, tint.CGColor);
+                CGContextSetFillColorWithColor(target, (rounded_mask ? paint : tint).CGColor);
                 CGContextFillRect(target, layout.bounds);
                 CGContextRestoreGState(target);
             }
