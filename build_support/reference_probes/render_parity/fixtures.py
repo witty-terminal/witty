@@ -317,30 +317,34 @@ def kitty_delete_visible(rows=GRID_ROWS):
     return commands
 
 
-def kitty_chunked():
-    commands = bytearray(b"Kitty chunked uploads")
-    commands += kitty_solid(3, 4, 801, (240, 73, 70))
-    commands += b"\x1b[3;12H\x1b_Ga=p,i=801,p=2,c=2,r=1,C=1,q=2;\x1b\\"
-    commands += b"\x1b[6;4H\x1b_Ga=T,f=24,i=802,s=1,v=2,c=2,r=2,C=1,m=1,q=2;"
-    commands += base64.b64encode(bytes((247, 201, 80))) + b"\x1b\\"
+def kitty_chunked_frames(work):
+    initial = (
+        b"Kitty chunked uploads" + kitty_solid(3, 4, 801, (240, 73, 70))
+        + b"\x1b[3;12H\x1b_Ga=p,i=801,p=2,c=2,r=1,C=1,q=2;\x1b\\"
+    )
+    pending = bytearray(b"\x1b[6;4H\x1b_Ga=T,f=24,i=802,s=1,v=2,c=2,r=2,C=1,m=1,q=2;")
+    pending += base64.b64encode(bytes((247, 201, 80))) + b"\x1b\\"
     # Any delete aborts an unfinished upload, even when the delete selects another ID.
-    commands += b"\x1b_Ga=d,d=i,i=899,q=2;\x1b\\"
-    commands += b"\x1b_Gm=0,q=2;" + base64.b64encode(bytes((192, 92, 241))) + b"\x1b\\"
-    commands += kitty_solid(6, 14, 804, (78, 229, 119))
+    pending += b"\x1b_Ga=d,d=i,i=899,q=2;\x1b\\"
+    pending += b"\x1b_Gm=0,q=2;" + base64.b64encode(bytes((192, 92, 241))) + b"\x1b\\"
+    pending += kitty_solid(6, 14, 804, (78, 229, 119))
 
     # A file transmission starts independently of an unfinished direct upload.
-    commands += b"\x1b[8;4H\x1b_Ga=T,f=24,i=803,s=1,v=2,c=2,r=2,C=1,m=1,q=2;"
-    commands += base64.b64encode(bytes((247, 201, 80))) + b"\x1b\\"
-    path = os.path.abspath("kitty-chunk-rgb")
-    with open(path, "wb") as image_file:
-        image_file.write(bytes((91, 137, 242)))
-    commands += b"\x1b[8;14H\x1b_Ga=T,t=f,f=24,i=805,s=1,v=1,c=2,r=1,C=1,q=2;"
-    commands += base64.b64encode(os.fsencode(path)) + b"\x1b\\"
+    pending += b"\x1b[8;4H\x1b_Ga=T,f=24,i=803,s=1,v=2,c=2,r=2,C=1,m=1,q=2;"
+    pending += base64.b64encode(bytes((247, 201, 80))) + b"\x1b\\"
+    path = work / "kitty-chunk-rgb"
+    path.write_bytes(bytes((91, 137, 242)))
+    pending += b"\x1b[8;14H\x1b_Ga=T,t=f,f=24,i=805,s=1,v=1,c=2,r=1,C=1,q=2;"
+    pending += base64.b64encode(os.fsencode(path)) + b"\x1b\\"
 
     # Capture between chunks, after the existing placements of 801 have disappeared.
-    commands += b"\x1b_Ga=t,f=24,i=801,s=1,v=2,m=1,q=2;"
-    commands += base64.b64encode(bytes((42, 199, 229))) + b"\x1b\\"
-    return commands
+    pending += b"\x1b_Ga=t,f=24,i=801,s=1,v=2,m=1,q=2;"
+    pending += base64.b64encode(bytes((42, 199, 229))) + b"\x1b\\"
+    complete = (
+        b"\x1b_Gm=0,q=2;" + base64.b64encode(bytes((245, 190, 20))) + b"\x1b\\"
+        + b"\x1b[10;4H\x1b_Ga=p,i=801,p=1,c=2,r=2,C=1,q=2;\x1b\\"
+    )
+    return initial, pending, complete
 
 
 def kitty_animation():
@@ -648,7 +652,8 @@ def main():
     elif fixture == "kitty-delete-visible":
         sys.stdout.buffer.write(kitty_delete_visible())
     elif fixture == "kitty-chunked":
-        sys.stdout.buffer.write(kitty_chunked())
+        initial, pending, _ = kitty_chunked_frames(Path.cwd())
+        sys.stdout.buffer.write(initial + pending)
     elif fixture == "kitty-animation":
         sys.stdout.buffer.write(kitty_animation())
     elif fixture == "terminal-sprites":

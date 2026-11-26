@@ -98,6 +98,8 @@ The `alternate-screen` fixtures capture the primary screen, scrolling between a 
 
 The Kitty fixtures also check z-order across cell backgrounds and glyphs, cropped and offset placement, image replacement, relative placement, and pinned Unicode placeholders. The layering case runs with opaque and translucent backgrounds. The scrolling and deletion fixtures check placements at scroll margins, cursor movement after placement, clearing images from history, and deleting selected or visible images. The animation fixture checks editing and composing frames and the final frame after one timed loop. These fixtures wait for the configured PTY grid before sending image commands.
 
+The chunked upload fixtures capture existing placements, their removal during a replacement upload, and the completed image. The sequence also aborts an unfinished upload and sends an independent image from a file. The PNG fixtures replace an image under the same ID, then check that the old placement clears and the updated PNG renders over styled cells and the terminal background. The replacement runs with opaque and 50% opaque backgrounds, including translucent Display P3 and sRGB.
+
 The wallpaper fixtures stretch and tile an alpha PNG behind styled text and colored cells. The shader fixtures run a tint pass followed by a channel swap with default and linear-corrected blending. `shader-wallpaper` runs that chain over the translucent tiled wallpaper.
 
 The `text-balanced` fixture checks equal vertical padding in a viewport with room left after laying out the grid. The `vim-saved` fixture uses explicit grid dimensions and padding to reproduce the viewport from a restored Ghostty window.

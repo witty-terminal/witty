@@ -25,10 +25,10 @@ from fixtures import CLEAR as CLEAR_FRAME
 from fixtures import (
     RESIZE_WRAP_COLOR, TERMINAL_COLOR_PALETTE, TERMINAL_COLOR_RESET, TERMINAL_COLOR_SCREEN,
     WALLPAPER_OPTIONS, colored_line_erase, font_zoom_frame, grapheme_sequences, kitty_animation,
-    kitty_cursor, kitty_delete_selection, kitty_delete_visible, kitty_history, kitty_layers, kitty_layout,
-    kitty_relative, kitty_retransmit, kitty_scroll, kitty_unicode, kitty_unicode_pinned,
-    prepare_raster_effects, shader_fixture_options, terminal_color_updates, wide_selection_frame,
-    wrapped_wide_edits, wrapped_wide_glyphs,
+    kitty_chunked_frames, kitty_cursor, kitty_delete_selection, kitty_delete_visible, kitty_history,
+    kitty_layers, kitty_layout, kitty_relative, kitty_retransmit, kitty_scroll, kitty_unicode,
+    kitty_unicode_pinned, prepare_raster_effects, shader_fixture_options, terminal_color_updates,
+    wide_selection_frame, wrapped_wide_edits, wrapped_wide_glyphs,
 )
 
 
@@ -251,6 +251,35 @@ def prepare_resize_fixtures(work):
     (work / "resize.sh").write_text(RESIZE_FRAME)
 
 
+def kitty_file_frames(work):
+    first = work / "kitty-first.png"
+    replacement = work / "kitty-replacement.png"
+    for path, colors in ((first, ((245, 142, 96, 255), (138, 83, 208, 120))),
+                         (replacement, ((65, 208, 154, 255), (69, 108, 216, 104)))):
+        picture = Image.new("RGBA", (4, 4))
+        picture.putdata([colors[(x + y) % 2] for y in range(picture.height) for x in range(picture.width)])
+        picture.save(path)
+
+    def transfer(path, action, layout=""):
+        header = f"\x1b_Ga={action},t=f,f=100,i=811,q=2{layout};"
+        return header.encode() + base64.b64encode(os.fsencode(path)) + b"\x1b\\"
+
+    # The first placement overlaps styled cells, and both use the same image ID.
+    initial = (
+        b"Kitty PNG reload\x1b[3;4H\x1b[48;2;60;74;94m        \x1b[0m\x1b[3;4H"
+        + transfer(first, "T", ",c=8,r=2,C=1,p=1")
+        + b"\x1b[6;21H\x1b_Ga=p,i=811,p=2,c=8,r=2,C=1,q=2;\x1b\\"
+    )
+    # Replacing the image clears its placements. Place the new pixels on the
+    # styled cells again and in a new location, leaving the old second slot empty.
+    updated = (
+        transfer(replacement, "t")
+        + b"\x1b[3;4H\x1b_Ga=p,i=811,p=1,c=8,r=2,C=1,q=2;\x1b\\"
+        + b"\x1b[9;12H\x1b_Ga=p,i=811,p=2,c=8,r=2,C=1,q=2;\x1b\\"
+    )
+    return initial, updated
+
+
 def prepare_fixtures(work):
     work.mkdir()
     files = work / "files"
@@ -305,6 +334,13 @@ def prepare_fixtures(work):
     (work / "kitty.bin").write_bytes(header.encode() + base64.b64encode(pixels) + b"\x1b\\")
     for name, payload in (KITTY_FIXTURES | KITTY_GRID_FIXTURES).items():
         (work / f"{name}.bin").write_bytes(CLEAR_FRAME + payload())
+    initial, pending, complete = kitty_chunked_frames(work)
+    (work / "kitty-chunked-initial.bin").write_bytes(CLEAR_FRAME + initial)
+    (work / "kitty-chunked.bin").write_bytes(pending)
+    (work / "kitty-chunked-complete.bin").write_bytes(complete)
+    initial, replacement = kitty_file_frames(work)
+    (work / "kitty-file.bin").write_bytes(CLEAR_FRAME + initial)
+    (work / "kitty-file-replace.bin").write_bytes(replacement)
     prepare_raster_effects(work)
 
 
@@ -326,6 +362,10 @@ def fixture_args(work):
     pager = ("-e", "/bin/sh", "pager.sh")
     grid_frame = ("-e", "/bin/sh", "grid-frame.sh")
     grid_size = f"{WINDOW_ROWS} {WINDOW_COLUMNS}"
+    kitty_chunked = (*grid_frame, "kitty-chunked-initial", grid_size)
+    kitty_pending = (*kitty_chunked, "kitty-chunked")
+    kitty_file = (*grid_frame, "kitty-file", grid_size)
+    kitty_file_replace = (*kitty_file, "kitty-file-replace")
     terminal_colors = (f"--palette=1={bytes(TERMINAL_COLOR_PALETTE).hex()}",
                        *grid_frame, "terminal-colors", grid_size)
     primary_screen = (*grid_frame, "alternate-screen-primary", grid_size)
@@ -376,6 +416,15 @@ def fixture_args(work):
         **kitty_commands,
         **{name: (*grid_frame, name, grid_size) for name in KITTY_GRID_FIXTURES},
         "kitty-layers-translucent": (*TRANSLUCENT_WINDOW, *kitty_commands["kitty-layers"]),
+        "kitty-chunked-initial": kitty_chunked,
+        "kitty-chunked": kitty_pending,
+        "kitty-chunked-complete": (*kitty_pending, "kitty-chunked-complete"),
+        "kitty-file": kitty_file,
+        "kitty-file-replace": kitty_file_replace,
+        "kitty-file-translucent": ("--background-opacity=0.5", *kitty_file_replace),
+        "kitty-file-translucent-srgb": (
+            "--background-opacity=0.5", "--window-colorspace=srgb", *kitty_file_replace,
+        ),
         "wallpaper-stretch": (wallpaper, *WALLPAPER_OPTIONS["wallpaper-stretch"], *ansi_without_cursor),
         "wallpaper-repeat": (*repeated_wallpaper, *ansi_without_cursor),
         "shader-chain": (*shader, *ansi_without_cursor),
