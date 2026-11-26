@@ -20,9 +20,10 @@ from applications import (
 from capture import capture_witty, output_directory, write_versions
 from fixtures import CLEAR as CLEAR_FRAME
 from fixtures import (
+    TERMINAL_COLOR_PALETTE, TERMINAL_COLOR_RESET, TERMINAL_COLOR_SCREEN,
     WALLPAPER_OPTIONS, colored_line_erase, grapheme_sequences, kitty_layers, kitty_layout,
     kitty_retransmit, kitty_unicode, prepare_raster_effects, shader_fixture_options,
-    wrapped_wide_edits, wrapped_wide_glyphs,
+    terminal_color_updates, wrapped_wide_edits, wrapped_wide_glyphs,
 )
 
 
@@ -95,11 +96,12 @@ exec /usr/bin/env -i TERM=xterm-256color LC_ALL=en_US.UTF-8 LESSHISTFILE=- LESSS
 GRID_FRAME = WAIT_FOR_PTY_GRID + r'''
 /bin/stty -icanon -echo -opost || exit 1
 /bin/cat "$1.bin" || exit 1
-if [ -n "$3" ]; then
-    # Leave the wrapped text visible before sending the edits.
+shift 2
+for frame in "$@"; do
+    # Let the previous frame render before sending the next update.
     /bin/sleep 0.18
-    /bin/cat "$3.bin" || exit 1
-fi
+    /bin/cat "$frame.bin" || exit 1
+done
 exec /bin/sleep 20
 '''
 ZSH = r'''stty -echo
@@ -137,6 +139,13 @@ def prepare_fixtures(work):
     (work / "colored-line-erase.bin").write_bytes(CLEAR_FRAME + colored_line_erase(WINDOW_ROWS))
     (work / "wide-edit-before.bin").write_bytes(CLEAR_FRAME + wrapped_wide_glyphs(WINDOW_COLUMNS))
     (work / "wide-edit.bin").write_bytes(wrapped_wide_edits())
+    (work / "terminal-colors.bin").write_bytes(CLEAR_FRAME + TERMINAL_COLOR_SCREEN)
+    overrides = b""
+    for name, update in terminal_color_updates().items():
+        overrides += update
+        (work / f"terminal-colors-{name}.bin").write_bytes(overrides)
+    (work / "terminal-colors-reset.bin").write_bytes(TERMINAL_COLOR_RESET)
+    (work / "terminal-colors-reverse.bin").write_bytes(overrides + b"\x1b[?5h")
 
     width, height = 32, 24
     pixels = bytes(
@@ -172,6 +181,8 @@ def fixture_args(work):
     pager = ("-e", "/bin/sh", "pager.sh")
     grid_frame = ("-e", "/bin/sh", "grid-frame.sh")
     grid_size = f"{WINDOW_ROWS} {WINDOW_COLUMNS}"
+    terminal_colors = (f"--palette=1={bytes(TERMINAL_COLOR_PALETTE).hex()}",
+                       *grid_frame, "terminal-colors", grid_size)
     text = terminal_command("/bin/cat text.bin")
     ansi = terminal_command("/bin/cat ansi.bin")
     ansi_without_cursor = terminal_command(r'/bin/cat ansi.bin; printf "\033[?25l"')
@@ -196,6 +207,17 @@ def fixture_args(work):
         "colored-line-erase": (*grid_frame, "colored-line-erase", grid_size),
         "wide-edit-before": (*grid_frame, "wide-edit-before", grid_size),
         "wide-edit": (*grid_frame, "wide-edit-before", grid_size, "wide-edit"),
+        "terminal-colors": terminal_colors,
+        "terminal-colors-palette": (*terminal_colors, "terminal-colors-palette"),
+        "terminal-colors-foreground": (*terminal_colors, "terminal-colors-foreground"),
+        "terminal-colors-background": (*terminal_colors, "terminal-colors-background"),
+        "terminal-colors-cursor": (*terminal_colors, "terminal-colors-cursor"),
+        "terminal-colors-reset": (*terminal_colors, "terminal-colors-cursor", "terminal-colors-reset"),
+        "terminal-colors-reverse": (*terminal_colors, "terminal-colors-reverse"),
+        "terminal-colors-translucent": (
+            "--background-opacity=0.5", "--background-opacity-cells=true",
+            *terminal_colors, "terminal-colors-cursor",
+        ),
         "kitty": kitty,
         "kitty-translucent": (*TRANSLUCENT_WINDOW, *kitty),
         **kitty_commands,

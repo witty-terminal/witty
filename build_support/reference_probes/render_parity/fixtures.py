@@ -35,6 +35,20 @@ RESIZE_WRAP_COLOR = (129, 68, 93)
 WIDE_EDIT_BEFORE = (153, 61, 77)
 WIDE_EDIT_AFTER = (58, 119, 97)
 SPLIT_RIGHT_COLOR = (77, 154, 209)
+TERMINAL_COLOR_PALETTE = (195, 67, 101)
+TERMINAL_COLOR_OVERRIDES = (
+    ("palette", "4;1", (109, 196, 134)),
+    ("foreground", "10", (249, 155, 128)),
+    ("background", "11", (56, 32, 49)),
+    ("cursor", "12", (125, 167, 252)),
+)
+TERMINAL_COLOR_RESET = b"\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\\x1b]104;1\x1b\\"
+TERMINAL_COLOR_SCREEN = (
+    b"\x1b[7m    \x1b[0m Default foreground\r\n"
+    b"\x1b[41m    \x1b[0m ANSI palette entry\r\n"
+    b"\x1b[2mFaint text\x1b[0m  \x1b[1;31mBold red\x1b[0m"
+    b"\x1b[5;5H\x1b[2 q\x1b[?25h"
+)
 
 
 def prepare_raster_effects(work):
@@ -409,16 +423,17 @@ def wait_for_initial_grid():
     wait_for_terminal_size(lambda size: size == (GRID_COLUMNS, GRID_ROWS), f"a {GRID_COLUMNS}×{GRID_ROWS} PTY")
 
 
+def terminal_color_updates():
+    return {
+        name: f"\x1b]{command};#{bytes(color).hex()}\x1b\\".encode()
+        for name, command, color in TERMINAL_COLOR_OVERRIDES
+    }
+
+
 def terminal_colors(commands):
     wait_for_initial_grid()
     output = sys.stdout.buffer
-    screen = (
-        b"\x1b[7m    \x1b[0m Default foreground\r\n"
-        b"\x1b[41m    \x1b[0m ANSI palette entry\r\n"
-        b"\x1b[2mFaint text\x1b[0m  \x1b[1;31mBold red\x1b[0m"
-        b"\x1b[5;5H\x1b[2 q\x1b[?25h"
-    )
-    output.write(screen)
+    output.write(TERMINAL_COLOR_SCREEN)
     output.flush()
     while True:
         try:
@@ -430,7 +445,7 @@ def terminal_colors(commands):
         output.write(update)
         if update.startswith(b"\x1b]10;"):
             # Repaint as a full-screen application would after setting its foreground.
-            output.write(CLEAR + screen)
+            output.write(CLEAR + TERMINAL_COLOR_SCREEN)
         output.flush()
 
 
