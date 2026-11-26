@@ -204,6 +204,21 @@ fn test_native_palette_panel_capture() {
 			palette.rebuild()
 			msg_void_rect(palette.container, 'setFrame:', objc_rect(90, 80, 500, 249))
 			capture_palette_live(window, base, live, mode)
+			palette.options = [
+				NativeCommandOption{
+					title:    'Open Café 👩🏽‍💻'
+					subtitle: 'Switch to the Café workspace'
+					symbols:  ['⌘', 'D']
+					badge:    '1.4.0'
+				},
+			]
+			msg_void1(palette.field, 'setStringValue:', nsstring('cafe\u0301'))
+			palette_edit(palette.owner, nil_obj(), nil_obj())
+			assert palette.filtered.len == 1
+			assert palette.selected == ?uint(uint(0))
+			height := msg_rect(palette.container, 'bounds').height
+			msg_void_rect(palette.container, 'setFrame:', objc_rect(90, 80, 500, height))
+			capture_palette_window_png(window, live, '${mode}-query')
 		}
 		surface.toggle_command_palette([]NativeCommandOption{})
 	}
@@ -221,15 +236,19 @@ fn capture_palette_live(window ObjId, base ObjId, output string, mode string) {
 				msg_void(stripe, 'release')
 			}
 		}
-		png := C.witty_overlay_test_window_png(window)
-		assert !is_nil(png), 'Could not capture the compositor output of the palette fixture window'
-		assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(output,
-			'${mode}-${name}-witty.png')), ObjId(1))
+		capture_palette_window_png(window, output, '${mode}-${name}')
 	}
 	children := msg_id(base, 'subviews')
 	for i := int(msg_u64(children, 'count')) - 1; i >= 0; i-- {
 		msg_void(msg_id_u64(children, 'objectAtIndex:', u64(i)), 'removeFromSuperview')
 	}
+}
+
+fn capture_palette_window_png(window ObjId, output string, name string) {
+	png := C.witty_overlay_test_window_png(window)
+	assert !is_nil(png), 'Could not capture the compositor output of the palette fixture window'
+	assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(output, '${name}-witty.png')),
+		ObjId(1))
 }
 
 fn test_native_palette_row_capture() {

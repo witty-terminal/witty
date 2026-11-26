@@ -63,8 +63,9 @@ static inline void witty_palette_draw_canvas_text(CGContextRef target, NSString 
         visible.length = newline.location;
         text = [[text substringToIndex:newline.location] stringByAppendingString:@"…"];
     }
+    NSString *from_context = (__bridge NSString *)kCTForegroundColorFromContextAttributeName;
     NSDictionary *attrs = @{NSFontAttributeName:witty_palette_row_font(size, medium),
-        NSForegroundColorAttributeName:color};
+        NSForegroundColorAttributeName:color, from_context:@YES};
     CTLineRef line;
     if (matches.count > 0) {
         NSMutableAttributedString *attributed = [[NSMutableAttributedString alloc] initWithString:text attributes:attrs];
@@ -107,24 +108,35 @@ static inline void witty_palette_draw_canvas_text(CGContextRef target, NSString 
         CTFontRef font = (CTFontRef)attributes[(id)kCTFontAttributeName];
         // SwiftUI positions the color emoji fallback half a point lower.
         bool colorGlyphs = font && (CTFontGetSymbolicTraits(font) & kCTFontColorGlyphsTrait);
-        NSColor *tint = attributes[NSForegroundColorAttributeName];
-        bool mask = !colorGlyphs && tint && CGColorGetAlpha(tint.CGColor) == 1;
+        NSColor *tint = attributes[NSForegroundColorAttributeName] ?: color;
+        NSColor *paint = colorGlyphs ? tint : [tint colorWithAlphaComponent:1];
 
         CGContextSaveGState(context);
         CGContextClipToRect(context, *clip);
+        CGContextSetFillColorWithColor(context, paint.CGColor);
         CGContextSetTextMatrix(context, CGAffineTransformIdentity);
         CGContextSetTextPosition(context, clip->origin.x,
             clip->size.height - baseline - (colorGlyphs ? 0.5 : 0));
         CTRunDraw(run, context, CFRangeMake(0, 0));
         CGContextRestoreGState(context);
 
-        // Present opaque system colors at their original precision. Bitmap
-        // emoji and translucent colors keep their premultiplied RGBA pixels.
-        CGImageRef image = mask ? witty_canvas_make_text_mask(pixels, width, height)
-            : CGBitmapContextCreateImage(context);
+        CGImageRef image = colorGlyphs ? CGBitmapContextCreateImage(context)
+            : witty_canvas_make_text_mask(pixels, width, height);
         if (image) {
-            if (mask) witty_canvas_present_text_mask(target, image, bounds, tint, true);
-            else witty_canvas_present_oriented_image(target, image, bounds, true);
+            if (colorGlyphs) {
+                witty_canvas_present_oriented_image(target, image, bounds, true);
+            } else {
+                // Fill through the coverage clip so AppKit applies the
+                // original tint and alpha directly in the destination.
+                CGContextSaveGState(target);
+                CGContextTranslateCTM(target, 0, 2 * bounds->origin.y + bounds->size.height);
+                CGContextScaleCTM(target, 1, -1);
+                CGContextSetInterpolationQuality(target, kCGInterpolationNone);
+                CGContextClipToMask(target, *bounds, image);
+                CGContextSetFillColorWithColor(target, tint.CGColor);
+                CGContextFillRect(target, *bounds);
+                CGContextRestoreGState(target);
+            }
             CGImageRelease(image);
         }
         CGContextClearRect(context, frame);
