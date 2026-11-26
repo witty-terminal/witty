@@ -5,6 +5,7 @@ import math
 
 fn C.witty_canvas_rasterize_continuous_rect(pixels &u32, width int, height int, scale f64, radius f64, stroke f64, opacity f64, x &[3][4]f64, y &[3][4]f64) bool
 fn C.witty_canvas_rasterize_capsule(pixels &u32, width int, height int, scale f64, stroke f64, opacity f64) bool
+fn C.witty_canvas_rasterize_shadow(mask &u32, mask_width int, mask_height int, pixels &u32, width int, height int, radius f64, opacity f64) bool
 
 // Coordinates of the three cubic segments in a unit-radius continuous corner.
 const canvas_corner_y = [[0.0, 0.0, 0.0, 0.0749114]!,
@@ -146,13 +147,21 @@ fn native_canvas_continuous_rect(width int, height int, scale f64, radius f64, s
 	return raster
 }
 
-@[params]
-struct CanvasBlurOptions {
-	cutoff f64 = 3
+fn native_canvas_quartz_shadow(mask canvas.RasterSurface, radius f64, opacity f64) !canvas.RasterSurface {
+	// Quartz's Gaussian shadow extends to twice the radius in backing pixels.
+	padding := int(math.ceil(2 * radius))
+	width := mask.width + 2 * padding
+	height := mask.height + 2 * padding
+	mut raster := canvas.new_raster_surface(width: width, height: height)!
+	if !C.witty_canvas_rasterize_shadow(mask.pixels.data, mask.width, mask.height, raster.pixels.data,
+		width, height, radius, opacity) {
+		return error('Could not rasterize a shadow')
+	}
+	return raster
 }
 
-fn canvas_blur_kernel(sigma f64, opts CanvasBlurOptions) []f64 {
-	radius := int(math.ceil(opts.cutoff * sigma))
+fn canvas_blur_kernel(sigma f64) []f64 {
+	radius := int(math.ceil(3 * sigma))
 	mut kernel := []f64{cap: 2 * radius + 1}
 	mut total := 0.0
 	for offset in -radius .. radius + 1 {
@@ -164,8 +173,8 @@ fn canvas_blur_kernel(sigma f64, opts CanvasBlurOptions) []f64 {
 	return kernel
 }
 
-fn native_canvas_shadow_mask(mask canvas.RasterSurface, sigma f64, opacity f64, opts CanvasBlurOptions) !canvas.RasterSurface {
-	kernel := canvas_blur_kernel(sigma, opts)
+fn native_canvas_shadow_mask(mask canvas.RasterSurface, sigma f64, opacity f64) !canvas.RasterSurface {
+	kernel := canvas_blur_kernel(sigma)
 	pad := kernel.len / 2
 	width := mask.width + 2 * pad
 	height := mask.height + 2 * pad

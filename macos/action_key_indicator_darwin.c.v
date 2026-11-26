@@ -148,8 +148,7 @@ fn (mut surface NativeActionSurface) update_key_backdrop(width f64, height f64, 
 	mask := native_canvas_capsule_mask(int(math.round(width * scale)), int(math.round(height * scale)),
 		scale, 0, 1) or { return }
 	if !native_canvas_mask_material(surface.key_material, width, height, mask) { return }
-	// SwiftUI's Gaussian shadow extends to twice its blur radius.
-	shadow := native_canvas_shadow_mask(mask, 8 * scale, 0.2, cutoff: 2) or { return }
+	shadow := native_canvas_quartz_shadow(mask, 8 * scale, 0.2) or { return }
 	image := C.witty_canvas_make_alpha_image(shadow.pixels.data, shadow.width, shadow.height, 0,
 		surface.key_ink)
 	if is_nil(image) { return }
@@ -234,7 +233,7 @@ fn draw_indicator_keycap(view ObjId, context voidptr, part KeyIndicatorPart, bad
 	w := int(math.round(frame.width * scale))
 	h := int(math.round(frame.height * scale))
 	mask := native_canvas_continuous_rect(w, h, scale, 4, 0, 1) or { return }
-	shadow := native_canvas_shadow_mask(mask, 0.5 * scale, 0.12, cutoff: 2) or { return }
+	shadow := native_canvas_quartz_shadow(mask, 0.5 * scale, 0.12) or { return }
 	pad := (shadow.width - mask.width) / (2 * scale)
 	native_canvas_draw_mask(context, view, objc_rect(frame.x - pad, y - pad + 0.5,
 		shadow.width / scale, shadow.height / scale), shadow, 0)

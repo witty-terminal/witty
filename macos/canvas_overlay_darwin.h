@@ -293,6 +293,31 @@ static inline bool witty_canvas_rasterize_capsule(uint32_t *pixels, int width, i
     return ready;
 }
 
+static inline bool witty_canvas_rasterize_shadow(uint32_t *mask, int mask_width, int mask_height,
+        uint32_t *pixels, int width, int height, double radius, double opacity) {
+    const CGRect mask_bounds = CGRectMake(0, 0, mask_width, mask_height);
+    CGContextRef source = witty_canvas_bitmap_context(mask, mask_width, mask_height, mask_bounds);
+    if (!source) return false;
+    CGImageRef silhouette = CGBitmapContextCreateImage(source);
+    CGContextRelease(source);
+    if (!silhouette) return false;
+
+    CGContextRef context = witty_canvas_bitmap_context(pixels, width, height, CGRectMake(0, 0, width, height));
+    CGColorRef color = CGColorCreateGenericGray(0, opacity);
+    const bool ready = context && color;
+    if (ready) {
+        // Move the silhouette outside the bitmap and offset its shadow back into it.
+        const double x = (width - mask_width) / 2.0 - width;
+        const double y = (height - mask_height) / 2.0;
+        CGContextSetShadowWithColor(context, CGSizeMake(width, 0), 2 * radius, color);
+        CGContextDrawImage(context, CGRectOffset(mask_bounds, x, y), silhouette);
+    }
+    if (color) CGColorRelease(color);
+    if (context) CGContextRelease(context);
+    CGImageRelease(silhouette);
+    return ready;
+}
+
 static inline bool witty_canvas_rasterize_continuous_rect(uint32_t *pixels, int width, int height,
         double scale, double radius, double stroke, double opacity, const double (*x)[3][4],
         const double (*y)[3][4]) {
