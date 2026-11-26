@@ -14,6 +14,7 @@ fn C.witty_search_reset_cursor(button ObjId)
 fn C.witty_search_symbol_bounds(symbol ObjId, bounds &ObjCRect, frame &ObjCRect) f64
 fn C.witty_search_draw_count(context voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int)
 fn C.witty_search_fill_button(context voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int, pressed bool)
+fn C.witty_search_present_symbol(view ObjId, bounds &ObjCRect, pixels &u32, width int, height int, active bool)
 
 const search_panel_margin = 8.0
 const search_panel_height = 44.0
@@ -209,10 +210,18 @@ fn search_draw_button(view ObjId, _cmd Sel, _rect ObjCRect) {
 		C.witty_search_fill_button(context, view, &bounds, mask.pixels.data, mask.width, mask.height, pressed)
 	}
 	symbol := msg_id(view, 'image')
+	if is_nil(symbol) { return }
 	mut glyph := ObjCRect{}
 	C.witty_search_symbol_bounds(symbol, &bounds, &glyph)
-	color := msg_id(get_class('NSColor'), if hovered || pressed { 'labelColor' } else { 'secondaryLabelColor' })
-	native_canvas_draw_symbol(context, view, symbol, glyph, color)
+	mut pixel_bounds := ObjCRect{}
+	mut width, mut height := 0, 0
+	C.witty_canvas_pixel_bounds(context, &glyph, &pixel_bounds, &width, &height)
+	mask := canvas.new_raster_surface(width: width, height: height) or { return }
+	if C.witty_canvas_symbol_mask(symbol, &glyph, &pixel_bounds, mask.pixels.data, width, height,
+		msg_bool(view, 'isFlipped')) {
+		C.witty_search_present_symbol(view, &pixel_bounds, mask.pixels.data, width, height,
+			hovered || pressed)
+	}
 }
 
 fn search_button_entered(view ObjId, _cmd Sel, _event ObjId) {

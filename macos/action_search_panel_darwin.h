@@ -67,6 +67,38 @@ static inline double witty_search_symbol_bounds(NSImage *symbol, const CGRect *b
     return alignment.size.width;
 }
 
+static inline void witty_search_present_symbol(NSView *view, const CGRect *bounds,
+        const uint32_t *pixels, int width, int height, bool active) {
+    CALayer *host = view.layer;
+    if (!host) return;
+    CALayer *ink = nil;
+    for (CALayer *layer in host.sublayers) {
+        if ([layer.name isEqualToString:@"WittySearchSymbol"]) {
+            ink = layer;
+            break;
+        }
+    }
+
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    if (!ink) {
+        ink = [CALayer layer];
+        ink.name = @"WittySearchSymbol";
+        [host addSublayer:ink];
+    }
+    CGRect frame = *bounds;
+    if (view.isFlipped != host.geometryFlipped) {
+        frame.origin.y = CGRectGetMinY(view.bounds) + CGRectGetMaxY(view.bounds) - CGRectGetMaxY(frame);
+    }
+    ink.frame = frame;
+    witty_canvas_set_layer_mask(ink, pixels, width, height, width / bounds->size.width);
+    // Resolve the original tint on the compositor layer so the glyph blends once.
+    [view.effectiveAppearance performAsCurrentDrawingAppearance:^{
+        ink.backgroundColor = (active ? NSColor.labelColor : NSColor.secondaryLabelColor).CGColor;
+    }];
+    [CATransaction commit];
+}
+
 static inline void witty_search_draw_count(CGContextRef target, NSTextField *view, const CGRect *bounds,
         uint32_t *pixels, int width, int height) {
     if (!view.stringValue.length) return;
