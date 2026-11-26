@@ -122,7 +122,7 @@ python3 build_support/reference_probes/render_parity/run_macos.py \
   ./Witty.app/Contents/MacOS/witty --fixture nvim-diagnostics --fixture nvim-selection
 ```
 
-The opt-in wallpaper reload, scrollback, selection, live font zoom, and window resize fixtures use the Xcode command-line tools to build an input helper that runs inside a standalone Witty executable. Pass the binary from a build with `-Demit-macos-app=false` and select the fixtures explicitly.
+The opt-in fixtures for wallpaper reload, shader reload, scrollback, selection, live font zoom, and window resize use the Xcode command-line tools to build an input helper that runs inside a standalone Witty executable. Pass the binary from a build with `-Demit-macos-app=false` and select the fixtures explicitly.
 
 The wallpaper reload fixtures keep the same terminal text on screen while loading a PNG, turning on tiling, changing opacity, switching to a progressive JPEG, removing the image, and restoring the original PNG. Each capture replays the preceding reloads in the same terminal.
 
@@ -132,6 +132,16 @@ python3 build_support/reference_probes/render_parity/run_macos.py \
   --fixture wallpaper-reload --fixture wallpaper-reload-load --fixture wallpaper-reload-repeat \
   --fixture wallpaper-reload-fade --fixture wallpaper-reload-replace \
   --fixture wallpaper-reload-remove --fixture wallpaper-reload-restore
+```
+
+The shader reload fixtures compare existing text and its background as shaders are enabled, chained, reordered, replaced, removed, and restored. They check that a compile error restores the unshaded frame and that a subsequent reload applies a valid shader in the same terminal.
+
+```sh
+python3 build_support/reference_probes/render_parity/run_macos.py \
+  .witty-build/artifacts/witty \
+  --fixture shader-reload --fixture shader-reload-enable --fixture shader-reload-chain \
+  --fixture shader-reload-reorder --fixture shader-reload-replace --fixture shader-reload-remove \
+  --fixture shader-reload-restore --fixture shader-reload-invalid --fixture shader-reload-recover
 ```
 
 The scrollback fixtures cover Page Up, palette changes while scrolled, following new output, and finding visible and older matches. The search fixtures check the selected highlight and wrapping in both directions.

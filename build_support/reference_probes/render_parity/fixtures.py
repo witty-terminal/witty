@@ -15,6 +15,7 @@ WALLPAPER_RELOAD_MARKER = (55, 89, 143)
 WALLPAPER_RELOAD_TILE = (114, 69, 180)
 WALLPAPER_RELOAD_STAGES = ("", "-load", "-repeat", "-fade", "-replace", "-remove", "-restore")
 SHADER_RELOAD_MARKER = (56, 128, 211)
+SHADER_RELOAD_STAGES = ("", "-enable", "-chain", "-reorder", "-replace", "-remove", "-restore")
 WALLPAPER_OPTIONS = {
     "wallpaper-stretch": ("--background-image-fit=stretch",),
     "wallpaper-repeat": (
@@ -81,6 +82,28 @@ def shader_fixture_options(work):
         f"--custom-shader={work / 'tint.glsl'}",
         f"--custom-shader={work / 'flip-rb.glsl'}",
         "--custom-shader-animation=false",
+    )
+
+
+def shader_reload_frame():
+    color = ";".join(map(str, SHADER_RELOAD_MARKER))
+    return (
+        f"\x1b[48;2;{color}m    \x1b[0m Shader reload\r\n"
+        "\x1b[38;2;235;174;114mTerminal text across multiple passes\x1b[0m\r\n"
+    ).encode()
+
+
+def shader_reload_configs(work):
+    flip = work / "flip-rb.glsl"
+    rotate = work / "rotate-rgb.glsl"
+    rotate.write_text(
+        "void mainImage(out vec4 fragColor, in vec2 fragCoord) {\n"
+        "    fragColor = texture(iChannel0, fragCoord / iResolution.xy).gbra;\n"
+        "}\n"
+    )
+    return tuple(
+        "".join(f"custom-shader = {path}\n" for path in paths)
+        for paths in ((), (flip,), (flip, rotate), (rotate, flip), (rotate,), (), (flip,))
     )
 
 
@@ -696,11 +719,7 @@ def main():
         )
     elif fixture == "shader-reload":
         wait_for_initial_grid()
-        color = ";".join(map(str, SHADER_RELOAD_MARKER))
-        sys.stdout.buffer.write(
-            (f"\x1b[48;2;{color}m    \x1b[0m Shader reload\r\n"
-             "\x1b[38;2;235;174;114mTerminal text across multiple passes\x1b[0m\r\n").encode()
-        )
+        sys.stdout.buffer.write(shader_reload_frame())
     elif fixture == "terminal-colors":
         terminal_colors(Path(sys.argv[2]))
         return

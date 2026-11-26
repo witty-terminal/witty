@@ -21,10 +21,10 @@ from capture import (
 from fixtures import (
     CURSOR_STYLES, FONT_ZOOM_MARKER, GRID_COLUMNS, GRID_ROWS, KITTY_SCROLL_FIXTURES, RESIZE_FIXTURES, RESIZE_WRAP_COLOR,
     SCROLLBACK_FIXTURES, SCROLLBACK_LAST_COLOR, SCROLLBACK_RECOLORED, SCROLLBAR_MARKER,
-    SHADER_RELOAD_MARKER, SPLIT_RIGHT_COLOR, TERMINAL_COLOR_OVERRIDES, TERMINAL_COLOR_PALETTE,
+    SHADER_RELOAD_MARKER, SHADER_RELOAD_STAGES, SPLIT_RIGHT_COLOR, TERMINAL_COLOR_OVERRIDES, TERMINAL_COLOR_PALETTE,
     TERMINAL_COLOR_RESET, WALLPAPER_OPTIONS, WALLPAPER_RELOAD_MARKER, WALLPAPER_RELOAD_STAGES,
     WALLPAPER_RELOAD_TILE, WIDE_EDIT_AFTER, WIDE_EDIT_BEFORE, prepare_raster_effects,
-    shader_fixture_options, terminal_color_updates, wallpaper_reload_configs,
+    shader_fixture_options, shader_reload_configs, terminal_color_updates, wallpaper_reload_configs,
 )
 
 
@@ -47,7 +47,6 @@ PROGRESS_THEME_FILL = (33, 128, 205)
 FONT_ZOOM_ACTIONS = (
     ("", None, 0), ("-larger", "1", 1), ("-restored", "2", 0), ("-smaller", "2", -1), ("-reset", "3", 0),
 )
-SHADER_RELOAD_STAGES = ("", "-enable", "-chain", "-reorder", "-replace", "-remove", "-restore")
 TERMINAL_COLOR_STAGES = ("", "-palette", "-foreground", "-background", "-cursor", "-reset", "-reload")
 SCROLLBAR_FIXTURES = ("scrollbar", "scrollbar-themed")
 SCROLLBAR_STAGES = ("", "-drag", "-top")
@@ -428,33 +427,19 @@ def capture_wallpaper_reload(binary, args, helper, output, work, app, settle, sc
 def capture_shader_reload(binary, args, helper, output, work, app, settle, scale):
     config = work / "shader-reload.conf"
     config.write_text("")
-    flip = work / "flip-rb.glsl"
-    rotate = work / "rotate-rgb.glsl"
-    rotate.write_text(
-        "void mainImage(out vec4 fragColor, in vec2 fragCoord) {\n"
-        "    fragColor = texture(iChannel0, fragCoord / iResolution.xy).gbra;\n"
-        "}\n"
-    )
+    configs = shader_reload_configs(work)
     r, g, b = SHADER_RELOAD_MARKER
-    stages = (
-        ((), (r, g, b)),
-        ((flip,), (b, g, r)),
-        ((flip, rotate), (g, r, b)),
-        ((rotate, flip), (r, b, g)),
-        ((rotate,), (g, b, r)),
-        ((), (r, g, b)),
-        ((flip,), (b, g, r)),
-    )
+    colors = ((r, g, b), (b, g, r), (g, r, b), (r, b, g), (g, b, r), (r, g, b), (b, g, r))
     point = ((PADDING + 1) * scale, (PADDING + 1) * scale)
     # Capture the live window while screenshot mode suppresses the debug banner.
     capture_args = [f"--screenshot={output / 'shader-reload-terminal.png'}"] if app == "witty" else []
-    delay = len(stages) * (settle + 5) + 5
+    delay = len(configs) * (settle + 5) + 5
     env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(delay)}
     with open_window([binary, *capture_args, *args], output / f"shader-reload-{app}.log", env=env) as (_, window):
         subprocess.run(["xdotool", "windowfocus", "--sync", window], check=True, timeout=5)
-        for stage, (paths, color) in zip(SHADER_RELOAD_STAGES, stages, strict=True):
+        for stage, settings, color in zip(SHADER_RELOAD_STAGES, configs, colors, strict=True):
             if stage:
-                config.write_text("".join(f"custom-shader = {path}\n" for path in paths))
+                config.write_text(settings)
                 subprocess.run(["xdotool", "key", "ctrl+alt+r"], check=True, timeout=5)
             capture_application_frame(helper, window, output / f"shader-reload{stage}-{app}.png", settle,
                                       lambda image: image.getpixel(point) == color)
