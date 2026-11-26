@@ -79,13 +79,20 @@ typedef struct {
     CGRect bounds;
 } WittyCanvasColorGlyph;
 
+static inline double witty_canvas_color_glyph_x(double image_x, double anchor, double scale) {
+    // An RTL glyph uses its own origin as the anchor, reflecting its fractional x offset.
+    return floor((image_x + anchor) * scale + 0.5) / scale - anchor;
+}
+
 // Present the font's bitmap in AppKit's display list. Some views need the
 // smallest strike that covers the backing-pixel dimensions of the glyph.
 static inline bool witty_canvas_draw_color_glyph_range(CGContextRef context, CTRunRef run, CTFontRef font,
-        CFRange glyph_range, bool fit_to_backing, double x_offset) {
+        CFRange glyph_range, bool fit_to_backing, double x_offset, bool mirror_phase) {
     // Extra transforms change Core Text's subpixel placement in the display list.
     const CGAffineTransform transform = CGContextGetCTM(context);
-    if (fabs(transform.a) != 1 || fabs(transform.d) != 1 || transform.b != 0 || transform.c != 0) return false;
+    const bool bitmap = CGBitmapContextGetBitsPerComponent(context) != 0;
+    if (transform.b != 0 || transform.c != 0 ||
+        (!bitmap && (fabs(transform.a) != 1 || fabs(transform.d) != 1))) return false;
     if (!CGAffineTransformIsIdentity(CTRunGetTextMatrix(run))) return false;
     CFDataRef table = CTFontCopyTable(font, kCTFontTableSbix, kCTFontTableOptionNoOptions);
     if (!table) return false;
@@ -112,8 +119,13 @@ static inline bool witty_canvas_draw_color_glyph_range(CGContextRef context, CTR
             CTRunGetGlyphs(run, range, &glyph);
             glyphs[i].image = strike ? witty_sbix_png(strike, length, font_glyphs, glyph) : NULL;
             complete = glyphs[i].image != NULL;
-            // Core Text snaps each glyph relative to the run's text origin.
-            glyphs[i].bounds = CGRectMake(origin.x + floor((bounds.origin.x + x_offset - origin.x) * sx + 0.5) / sx,
+            double anchor = 0;
+            if (mirror_phase) {
+                CGPoint position;
+                CTRunGetPositions(run, range, &position);
+                anchor = position.x + x_offset;
+            }
+            glyphs[i].bounds = CGRectMake(origin.x + witty_canvas_color_glyph_x(bounds.origin.x + x_offset - origin.x, anchor, sx),
                 origin.y + floor((bounds.origin.y - origin.y) * sy + 0.5) / sy,
                 round(bounds.size.width * sx) / sx, round(bounds.size.height * sy) / sy);
         }
@@ -131,9 +143,9 @@ static inline bool witty_canvas_draw_color_glyph_range(CGContextRef context, CTR
 }
 
 static inline bool witty_canvas_draw_color_glyphs(CGContextRef context, CTRunRef run, CTFontRef font,
-        bool fit_to_backing) {
+        bool fit_to_backing, bool mirror_phase) {
     return witty_canvas_draw_color_glyph_range(context, run, font, CFRangeMake(0, CTRunGetGlyphCount(run)),
-        fit_to_backing, 0);
+        fit_to_backing, 0, mirror_phase);
 }
 
 #endif

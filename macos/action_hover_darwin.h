@@ -9,6 +9,7 @@ typedef struct {
     CTRunRef run;
     CFIndex index;
     double x_offset;
+    bool right_to_left;
 } WittyHoverColorGlyph;
 
 typedef struct {
@@ -180,7 +181,7 @@ static inline NSTextLineFragment *witty_hover_layout_fragment(NSString *text, NS
 
 API_AVAILABLE(macos(12.0))
 static inline bool witty_hover_fragment_color_origin(NSTextLineFragment *fragment, NSRange cluster,
-        double advance, double token_width, double *origin) {
+        double advance, double token_width, double *origin, bool *right_to_left) {
     const double caret = [fragment locationForCharacterAtIndex:(NSInteger)cluster.location].x;
     const double end = fragment.typographicBounds.size.width;
     const double step = advance / 4;
@@ -197,7 +198,8 @@ static inline bool witty_hover_fragment_color_origin(NSTextLineFragment *fragmen
         const double first = [fragment fractionOfDistanceThroughGlyphForPoint:left];
         const double second = [fragment fractionOfDistanceThroughGlyphForPoint:right];
         if (fabs(fabs(second - first) - 0.25) > 0.0001) continue;
-        *origin = x - advance * (second > first ? first : 1 - first);
+        *right_to_left = second < first;
+        *origin = x - advance * (*right_to_left ? 1 - first : first);
         return true;
     }
     return false;
@@ -231,10 +233,13 @@ static inline void witty_hover_set_fragment_colors(WittyHoverLine *result, NSTex
             CTRunGetAdvances(run, glyph, &advance);
             if (advance.width <= token_width) goto unsupported;
             double origin;
-            if (!witty_hover_fragment_color_origin(fragment, cluster, advance.width, token_width, &origin)) continue;
+            bool right_to_left;
+            if (!witty_hover_fragment_color_origin(fragment, cluster, advance.width, token_width, &origin,
+                &right_to_left)) continue;
             CGPoint source_origin;
             CTRunGetPositions(run, glyph, &source_origin);
-            glyphs[count++] = (WittyHoverColorGlyph){run, j, origin - fragment.glyphOrigin.x - source_origin.x};
+            glyphs[count++] = (WittyHoverColorGlyph){run, j, origin - fragment.glyphOrigin.x - source_origin.x,
+                right_to_left};
             [hidden addIndexesInRange:cluster];
         }
     }
@@ -527,7 +532,7 @@ static inline void witty_hover_draw_fragment_colors(CGContextRef target, WittyHo
             CGContextSetTextMatrix(target, CGAffineTransformIdentity);
             CGContextSetTextPosition(target, x, y);
             const bool drawn = witty_canvas_draw_color_glyph_range(target, glyph.run, font, range,
-                layout.fit_color_glyphs_to_backing, glyph.x_offset);
+                layout.fit_color_glyphs_to_backing, glyph.x_offset, glyph.right_to_left);
             CGContextRestoreGState(target);
             if (drawn) continue;
         }
@@ -541,15 +546,23 @@ static inline void witty_hover_draw_fragment_colors(CGContextRef target, WittyHo
         CGContextClearRect(context, layout.bounds);
         CGContextSaveGState(context);
         CGContextClipToRect(context, layout.clip);
-        CGPoint position;
-        CGGlyph code;
-        CTRunGetPositions(glyph.run, range, &position);
-        CTRunGetGlyphs(glyph.run, range, &code);
-        // The bitmap renderer snaps the glyph and the run origin independently.
-        // Give it the placed glyph position so truncation doesn't add another snap.
-        position.x += x + glyph.x_offset;
-        position.y += y;
-        CTFontDrawGlyphs(font, &code, &position, 1, context);
+        bool drawn = false;
+        if (glyph.right_to_left) {
+            CGContextSetTextPosition(context, x, y);
+            drawn = witty_canvas_draw_color_glyph_range(context, glyph.run, font, range,
+                layout.fit_color_glyphs_to_backing, glyph.x_offset, true);
+        }
+        if (!drawn) {
+            CGContextSetTextPosition(context, 0, 0);
+            CGPoint position;
+            CGGlyph code;
+            CTRunGetPositions(glyph.run, range, &position);
+            CTRunGetGlyphs(glyph.run, range, &code);
+            // Pass the placed glyph position to avoid a second snap at the run origin.
+            position.x += x + glyph.x_offset;
+            position.y += y;
+            CTFontDrawGlyphs(font, &code, &position, 1, context);
+        }
         CGContextRestoreGState(context);
         CGImageRef image = CGBitmapContextCreateImage(context);
         if (image) {

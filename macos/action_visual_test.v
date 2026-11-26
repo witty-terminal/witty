@@ -14,6 +14,7 @@ fn C.witty_overlay_test_png(view ObjId) ObjId
 fn C.witty_overlay_test_window_png(window ObjId) ObjId
 fn C.witty_overlay_test_current_window_png(window ObjId) ObjId
 fn C.CACurrentMediaTime() f64
+fn C.witty_canvas_color_glyph_x(image_x f64, anchor f64, scale f64) f64
 
 fn test_source_native_visual_layers_and_cursor_consumers() {
 	app_init()
@@ -453,6 +454,14 @@ fn test_hover_banner_middle_truncation_positions_bidirectional_color_glyphs() {
 	assert !is_nil(elided)
 	defer { C.witty_hover_release_line(elided) }
 	assert math.abs(width - 46.09033203125) < 0.001
+}
+
+fn test_hover_banner_color_glyph_position_reflects_rtl_backing_phase() {
+	// AppKit places this glyph on opposite sides of the usual snap at these widths.
+	expected := [135.8408203125, 165.689453125]
+	for i, origin in [134.6591796875, 164.810546875] {
+		assert math.abs(C.witty_canvas_color_glyph_x(origin + 0.9425, origin, 2) - expected[i]) < 0.0001
+	}
 }
 
 fn test_hover_banner_raster_mirroring_and_display_string() {

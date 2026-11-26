@@ -68,6 +68,8 @@ static inline void witty_canvas_draw_text_runs(CGContextRef target, CTLineRef li
         NSColor *tint = attributes[NSForegroundColorAttributeName] ?: color;
         const double x = layout.position.x;
         const double y = layout.position.y + (color_glyphs ? layout.color_baseline_offset : 0);
+        const bool mirror_color_phase = color_glyphs && layout.fit_color_glyphs_to_backing &&
+            (CTRunGetStatus(run) & kCTRunStatusRightToLeft) != 0;
         if (color_glyphs && CGBitmapContextGetBitsPerComponent(target) == 0) {
             CGContextSaveGState(target);
             CGContextClipToRect(target, layout.clip);
@@ -77,7 +79,8 @@ static inline void witty_canvas_draw_text_runs(CGContextRef target, CTLineRef li
             }
             CGContextSetTextMatrix(target, CGAffineTransformIdentity);
             CGContextSetTextPosition(target, x, y);
-            const bool drawn = witty_canvas_draw_color_glyphs(target, run, font, layout.fit_color_glyphs_to_backing);
+            const bool drawn = witty_canvas_draw_color_glyphs(target, run, font,
+                layout.fit_color_glyphs_to_backing, mirror_color_phase);
             CGContextRestoreGState(target);
             if (drawn) continue;
         }
@@ -93,7 +96,10 @@ static inline void witty_canvas_draw_text_runs(CGContextRef target, CTLineRef li
         CGContextSetFillColorWithColor(context, paint.CGColor);
         CGContextSetTextMatrix(context, CGAffineTransformIdentity);
         CGContextSetTextPosition(context, x, y);
-        CTRunDraw(run, context, CFRangeMake(0, 0));
+        if (!mirror_color_phase || !witty_canvas_draw_color_glyphs(context, run, font,
+                layout.fit_color_glyphs_to_backing, true)) {
+            CTRunDraw(run, context, CFRangeMake(0, 0));
+        }
         CGContextRestoreGState(context);
         if (round_coverage) witty_canvas_round_text_coverage(pixels, (size_t)width * height, opacity,
             layout.ink_rounding);
