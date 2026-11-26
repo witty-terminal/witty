@@ -4,7 +4,7 @@ import gg.canvas
 
 #include <gtk/gtk.h>
 
-fn C.gdk_memory_texture_new(int, int, int, GBytes, usize) voidptr
+fn C.gdk_memory_texture_new(int, int, int, GBytes, uint) voidptr
 
 fn gtk_canvas_texture(surface canvas.RasterSurface) voidptr {
 	stride := uint(surface.width) * sizeof(u32)

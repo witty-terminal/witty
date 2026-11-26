@@ -167,7 +167,7 @@ void main() {
 			for _, image in images { gfx.destroy_image(image) }
 		}
 		for draw in draws {
-			name := u32(usize(draw.texture))
+			name := u32(uint(draw.texture))
 			if name in images { continue }
 			size := C.witty_gg_inspector_gl_texture_get(name)
 			if size.width <= 0 || size.height <= 0 { return error('unsupported inspector texture') }
@@ -189,7 +189,7 @@ void main() {
 			gfx.apply_pipeline(gpu.pipeline)
 			gfx.apply_uniforms(.vs, 0, &gfx.Range{ ptr: &projection[0], size: 64 })
 			for draw in draws {
-				gpu.buffers.draw(draw, images[u32(usize(draw.texture))], gpu.sampler, false)
+				gpu.buffers.draw(draw, images[u32(uint(draw.texture))], gpu.sampler, false)
 			}
 		}
 	}

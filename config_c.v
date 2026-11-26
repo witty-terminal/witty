@@ -38,7 +38,7 @@ pub fn ghostty_config_new() ?&configpkg.Config {
 }
 
 // ghostty_config_free releases a configuration returned by new or clone.
-pub fn ghostty_config_free(mut config &configpkg.Config) {
+pub fn ghostty_config_free(mut config configpkg.Config) {
 	if isnil(config) {
 		return
 	}
@@ -136,7 +136,7 @@ pub fn ghostty_config_diagnostics_count(config &configpkg.Config) u32 {
 	return u32(config.diagnostics.len)
 }
 
-pub fn ghostty_config_get_diagnostic(mut config &configpkg.Config, idx u32) ConfigDiagnostic {
+pub fn ghostty_config_get_diagnostic(mut config configpkg.Config, idx u32) ConfigDiagnostic {
 	if isnil(config) || idx >= u32(config.diagnostics.len) {
 		return ConfigDiagnostic{}
 	}

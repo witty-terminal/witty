@@ -430,10 +430,10 @@ fn bridge_surface_snapshot(ptr voidptr) apprt.CoreSurfaceSnapshot {
 	}
 }
 
-fn bridge_surface_key(ptr voidptr, event &input.KeyEvent, effect &apprt.InputEffect) ! {
+fn bridge_surface_key(ptr voidptr, event &input.KeyEvent, effect &u8) ! {
 	mut self := unsafe { &EmbeddedSurfaceCore(ptr) }
 	value := self.surface.key_callback(*event)!
-	unsafe { *effect = value }
+	unsafe { *effect = u8(value) }
 }
 
 fn bridge_surface_refresh(ptr voidptr) ! {
