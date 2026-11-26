@@ -7,7 +7,7 @@ import strings
 #insert "@VMODROOT/macos/action_hover_darwin.h"
 
 fn C.witty_hover_line(text ObjId, limit f64, width &f64) voidptr
-fn C.witty_hover_draw_line(line voidptr, context voidptr, view ObjId, x f64, y f64)
+fn C.witty_hover_rasterize_line(line voidptr, view ObjId, pixels &u32, width int, height int, padding f64, baseline f64) voidptr
 
 const hover_padding = 5.0
 const hover_height = 26.0
@@ -164,14 +164,20 @@ fn action_hover_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 	scale := view_backing_scale(surface.view)
 	width := int(math.round(bounds.width * scale))
 	height := int(math.round(bounds.height * scale))
-	mask := hover_canvas_mask(width, height, scale, surface.hover_left) or { return }
+	mut raster := hover_canvas_mask(width, height, scale, surface.hover_left) or { return }
 	color := C.witty_canvas_resolve_srgb(self, msg_id(get_class('NSColor'), 'windowBackgroundColor'))
-	image := C.witty_canvas_make_alpha_image(mask.pixels.data, width, height, color, self)
+	image := C.witty_canvas_make_alpha_image(raster.pixels.data, width, height, color, self)
 	if !is_nil(image) {
 		C.witty_canvas_present_tile(context, image, &bounds, 1)
 		C.CFRelease(image)
 	}
 	if surface.hover_line != unsafe { nil } && bounds.width > 2 * hover_padding {
-		C.witty_hover_draw_line(surface.hover_line, context, self, hover_padding, 8)
+		raster.clear(0)
+		label := C.witty_hover_rasterize_line(surface.hover_line, self, raster.pixels.data, width,
+			height, hover_padding, 8)
+		if !is_nil(label) {
+			C.witty_canvas_present_tile(context, label, &bounds, 1)
+			C.CFRelease(label)
+		}
 	}
 }
