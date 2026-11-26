@@ -80,8 +80,6 @@ mut:
 	search_count        ObjId
 	search_pasteboard   ObjId
 	search_bar_width    f64
-	search_scale        f64
-	search_phases       int
 	search_dragging     bool
 	search_timer        ObjId
 	search_published    bool
@@ -547,7 +545,6 @@ fn search_drag_end(self ObjId, _cmd Sel, _event ObjId) {
 			if top { SearchCorner.top_right } else { SearchCorner.bottom_right }
 		}
 		destination := state.search_panel_frame()
-		state.refresh_search_panel_masks(destination)
 		msg_void(get_class('NSAnimationContext'), 'beginGrouping')
 		msg_void_f64(msg_id(get_class('NSAnimationContext'), 'currentContext'), 'setDuration:', 0.2)
 		msg_void_rect(msg_id(self, 'animator'), 'setFrame:', destination)

@@ -1,7 +1,6 @@
 module macos
 
 import gg.canvas
-import math
 
 #insert "@VMODROOT/macos/action_search_panel_darwin.h"
 
@@ -119,7 +118,8 @@ fn (mut surface NativeActionSurface) initialize_search_panel() {
 		x += width
 	}
 	surface.search_bar_width = x + search_panel_margin
-	surface.search_scale = 0
+	msg_void_rect(surface.search_plate, 'setFrame:', objc_rect(0, 0, surface.search_bar_width,
+		search_panel_height))
 	C.witty_macos_observe(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'), bar,
 		sel('searchApplicationActivated:'), nsstring('NSApplicationDidBecomeActiveNotification'), shared_app())
 }
@@ -164,26 +164,6 @@ fn (mut surface NativeActionSurface) refresh_search_panel() {
 	bar := surface.search_bar
 	if !surface.search_dragging { msg_void_rect(bar, 'setFrame:', surface.search_panel_frame()) }
 	C.witty_search_panel_colors(bar, surface.search_plate, surface.search_field_plate)
-	surface.refresh_search_panel_masks(msg_rect(bar, 'frame'))
-}
-
-fn (mut surface NativeActionSurface) refresh_search_panel_masks(frame ObjCRect) {
-	scale := view_backing_scale(surface.view)
-	phases := C.witty_canvas_rect_backing_phases(surface.overlay, &frame)
-	field := objc_rect(frame.x + 8, frame.y + 8, search_field_width, search_field_height)
-	field_phases := C.witty_canvas_rect_backing_phases(surface.overlay, &field)
-	mask_phases := phases | (field_phases << 4)
-	if scale == surface.search_scale && mask_phases == surface.search_phases { return }
-	width := int(math.round(surface.search_bar_width * scale))
-	height := int(math.round(search_panel_height * scale))
-	plate := native_canvas_grouped_continuous_rect(width, height, scale, 8, phases) or { return }
-	inner := native_canvas_grouped_continuous_rect(int(math.round(search_field_width * scale)),
-		int(math.round(search_field_height * scale)), scale, 6, field_phases) or { return }
-	msg_void_rect(surface.search_plate, 'setFrame:', objc_rect(0, 0, surface.search_bar_width, search_panel_height))
-	C.witty_canvas_set_layer_mask(msg_id(surface.search_plate, 'layer'), plate.pixels.data, width, height, scale)
-	C.witty_canvas_set_layer_mask(msg_id(surface.search_field_plate, 'layer'), inner.pixels.data, inner.width, inner.height, scale)
-	surface.search_scale = scale
-	surface.search_phases = mask_phases
 }
 
 fn search_draw_count(view ObjId, _cmd Sel, _rect ObjCRect) {

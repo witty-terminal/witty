@@ -35,6 +35,10 @@ static inline void witty_search_panel_colors(NSView *bar, NSView *plate, NSView 
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
+    plate.layer.cornerCurve = kCACornerCurveContinuous;
+    plate.layer.cornerRadius = 8;
+    field.layer.cornerCurve = kCACornerCurveContinuous;
+    field.layer.cornerRadius = 6;
     [appearance performAsCurrentDrawingAppearance:^{
         plate.layer.backgroundColor = NSColor.windowBackgroundColor.CGColor;
         NSColor *ink = NSColor.labelColor;

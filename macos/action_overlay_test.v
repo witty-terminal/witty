@@ -56,6 +56,8 @@ fn test_native_search_editor_and_timer_consumers() {
 	assert !msg_bool(surface.search_field, 'drawsBackground')
 	assert msg_rect(surface.search_field_plate, 'frame').width == search_field_width
 	assert msg_rect(surface.search_bar, 'frame').height == search_panel_height
+	assert msg_f64(msg_id(surface.search_plate, 'layer'), 'cornerRadius') == 8
+	assert msg_f64(msg_id(surface.search_field_plate, 'layer'), 'cornerRadius') == 6
 	assert msg_f64(msg_id(surface.search_bar, 'shadow'), 'shadowBlurRadius') == 4
 	assert audit_native_actions.len == 0
 	pending := surface.search_timer
