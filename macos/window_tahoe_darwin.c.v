@@ -10,6 +10,7 @@ fn C.witty_tahoe_observe_frame(view voidptr, context voidptr, callback fn (voidp
 fn C.witty_tahoe_observe_group(group voidptr, observer voidptr)
 fn C.witty_tahoe_remove_group_observer(group voidptr, observer voidptr)
 fn C.witty_tahoe_event_in_view(view voidptr, event voidptr) bool
+fn C.witty_tahoe_hide_titlebar_separator(decoration ObjId)
 fn C.witty_tahoe_title_size(view ObjId, title ObjId, font ObjId) ObjCSize
 fn C.witty_tahoe_update_title_vibrancy(view ObjId)
 fn C.witty_tahoe_draw_title(view ObjId, context voidptr, title ObjId, font ObjId, main bool, vibrant bool,
@@ -310,6 +311,10 @@ fn update_tahoe_titlebar(data &NativeWindowData) {
 		C.witty_canvas_set_layer_srgb_fill(msg_id(titlebar, 'layer'), color.r, color.g, color.b, color.a)
 	}
 	msg_void_bool(first_descendant(container, 'NSTitlebarBackgroundView'), 'setHidden:', true)
+	if data.transparent_tahoe {
+		// AppKit draws this line in the decoration layer, outside its scroll-edge separator.
+		C.witty_tahoe_hide_titlebar_separator(first_descendant(container, '_NSTitlebarDecorationView'))
+	}
 }
 
 fn clear_tahoe_tab_group(mut data NativeWindowData) {

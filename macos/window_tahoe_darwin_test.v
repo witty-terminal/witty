@@ -33,6 +33,29 @@ fn test_tahoe_tab_glass_finds_swift_private_view_names() {
 	assert tahoe_tab_glass_view(container) == glass
 }
 
+fn test_tahoe_titlebar_hides_only_the_decoration_separator() {
+	app_init()
+	view := new_obj('NSView')
+	defer { msg_void(view, 'release') }
+	msg_void_bool(view, 'setWantsLayer:', true)
+	decoration := new_obj('CALayer')
+	separator := new_obj('CALayer')
+	scroll_edge := new_obj('CALayer')
+	defer {
+		for layer in [decoration, separator, scroll_edge] {
+			msg_void(layer, 'release')
+		}
+	}
+	msg_void1(separator, 'setName:', nsstring('CUIWindowSeparatorBarLayer'))
+	msg_void1(scroll_edge, 'setName:', nsstring('Separator'))
+	msg_void1(msg_id(view, 'layer'), 'addSublayer:', decoration)
+	msg_void1(decoration, 'addSublayer:', separator)
+	msg_void1(decoration, 'addSublayer:', scroll_edge)
+	C.witty_tahoe_hide_titlebar_separator(view)
+	assert msg_bool(separator, 'isHidden')
+	assert !msg_bool(scroll_edge, 'isHidden')
+}
+
 __global g_tahoe_test_right_clicks = 0
 __global g_tahoe_test_tab_userdata = uint(0)
 

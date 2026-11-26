@@ -4,6 +4,26 @@
 
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 #include "canvas_text_darwin.h"
+#include <QuartzCore/QuartzCore.h>
+
+static inline void witty_tahoe_hide_titlebar_separator_layer(CALayer* layer) {
+    if ([layer.name isEqualToString:@"CUIWindowSeparatorBarLayer"]) {
+        if (!layer.hidden) {
+            [CATransaction begin];
+            [CATransaction setDisableActions:YES];
+            layer.hidden = YES;
+            [CATransaction commit];
+        }
+        return;
+    }
+    for (CALayer* child in layer.sublayers) {
+        witty_tahoe_hide_titlebar_separator_layer(child);
+    }
+}
+
+static inline void witty_tahoe_hide_titlebar_separator(void* decoration) {
+    witty_tahoe_hide_titlebar_separator_layer([(NSView*)decoration layer]);
+}
 
 static inline NSFont* witty_tahoe_title_font(void* font) {
     return (NSFont*)font ?: [NSFont systemFontOfSize:NSFont.systemFontSize];
