@@ -12,7 +12,11 @@ import sys
 from PIL import Image
 
 from capture import capture_witty, output_directory, write_versions
-from fixtures import WALLPAPER_OPTIONS, prepare_raster_effects, shader_fixture_options
+from fixtures import CLEAR as CLEAR_FRAME
+from fixtures import (
+    WALLPAPER_OPTIONS, kitty_layers, kitty_layout, kitty_retransmit, kitty_unicode,
+    prepare_raster_effects, shader_fixture_options,
+)
 
 
 REFERENCE = Path(__file__).with_name("ghostty-1.4.0-macos.tsv")
@@ -49,6 +53,12 @@ UNICODE = (
     "└─────┴─────┘ ╰────╯ \ue0b0 \ue0b2\r\n"
     "café cafe\u0301 漢字 😀 🚀 ❤️ 👩‍💻\r\n"
 )
+KITTY_FIXTURES = {
+    "kitty-layers": kitty_layers,
+    "kitty-layout": kitty_layout,
+    "kitty-retransmit": kitty_retransmit,
+    "kitty-unicode": kitty_unicode,
+}
 LESS = r'''while :; do
     size=$(/bin/stty size) || exit 1
     case "$size" in
@@ -101,6 +111,8 @@ def prepare_fixtures(work):
         f"\x1b_Ga=T,f=32,s={width},v={height},q=2;"
     )
     (work / "kitty.bin").write_bytes(header.encode() + base64.b64encode(pixels) + b"\x1b\\")
+    for name, payload in KITTY_FIXTURES.items():
+        (work / f"{name}.bin").write_bytes(CLEAR_FRAME + payload())
     prepare_raster_effects(work)
 
 
@@ -110,6 +122,7 @@ def terminal_command(script):
 
 def fixture_args(work):
     kitty = ("-e", "/bin/sh", "-c", "/bin/cat kitty.bin; exec /bin/sleep 20")
+    kitty_commands = {name: terminal_command(f"/bin/cat {name}.bin") for name in KITTY_FIXTURES}
     vim = (
         "-e", "/usr/bin/vim", "-Nu", "NONE", "-n", "-i", "NONE",
         "--cmd", "set shortmess+=F",
@@ -140,6 +153,8 @@ def fixture_args(work):
         "unicode-translucent": (*TRANSLUCENT_WINDOW, *unicode),
         "kitty": kitty,
         "kitty-translucent": (*TRANSLUCENT_WINDOW, *kitty),
+        **kitty_commands,
+        "kitty-layers-translucent": (*TRANSLUCENT_WINDOW, *kitty_commands["kitty-layers"]),
         "wallpaper-stretch": (wallpaper, *WALLPAPER_OPTIONS["wallpaper-stretch"], *ansi_without_cursor),
         "wallpaper-repeat": (*repeated_wallpaper, *ansi_without_cursor),
         "shader-chain": (*shader, *ansi_without_cursor),
