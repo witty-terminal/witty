@@ -265,6 +265,17 @@ static inline CGContextRef witty_canvas_bitmap_context(uint32_t *pixels, int wid
     return context;
 }
 
+static inline bool witty_canvas_rasterize_ellipse(uint32_t *pixels, int width, int height,
+        double opacity) {
+    const CGRect bounds = CGRectMake(0, 0, width, height);
+    CGContextRef context = witty_canvas_bitmap_context(pixels, width, height, bounds);
+    if (!context) return false;
+    CGContextSetGrayFillColor(context, 1, opacity);
+    CGContextFillEllipseInRect(context, bounds);
+    CGContextRelease(context);
+    return true;
+}
+
 static inline bool witty_canvas_rasterize_capsule(uint32_t *pixels, int width, int height,
         double scale, double stroke, double opacity) {
     const CGRect bounds = CGRectMake(0, 0, width / scale, height / scale);
@@ -333,22 +344,33 @@ static inline bool witty_canvas_rasterize_continuous_rect(uint32_t *pixels, int 
     const double inset = stroke / 2;
     const double right = bounds.size.width - inset;
     const double top = bounds.size.height - inset;
-    const double extent = (*x)[0][0];
-    radius = fmax(0, fmin(radius - inset, fmin(right - inset, top - inset) / (2 * extent)));
-    // Rotate the unit corner from the right edge through all four corners.
+    const double extent_x = (*x)[0][0];
+    const double extent_y = (*y)[2][3];
+    radius = fmax(0, fmin(radius - inset, fmin((right - inset) / (2 * extent_x),
+        (top - inset) / (2 * extent_y))));
+    // Reflect the curve without exchanging the two axes of a capsule endcap.
     const CGAffineTransform corners[] = {
-        {0, -radius, -radius, 0, right, top},
+        {-radius, 0, 0, -radius, right, top},
         {radius, 0, 0, -radius, inset, top},
-        {0, radius, radius, 0, inset, inset},
+        {radius, 0, 0, radius, inset, inset},
         {-radius, 0, 0, radius, right, inset},
     };
     CGPathMoveToPoint(path, NULL, right, bounds.size.height / 2);
     for (int i = 0; i < 4; ++i) {
-        CGPathAddLineToPoint(path, &corners[i], extent, 0);
-        for (int j = 0; j < 3; ++j) {
-            const double *px = (*x)[j];
-            const double *py = (*y)[j];
-            CGPathAddCurveToPoint(path, &corners[i], px[1], py[1], px[2], py[2], px[3], py[3]);
+        if (i % 2 == 0) {
+            CGPathAddLineToPoint(path, &corners[i], 0, extent_y);
+            for (int j = 2; j >= 0; --j) {
+                const double *px = (*x)[j];
+                const double *py = (*y)[j];
+                CGPathAddCurveToPoint(path, &corners[i], px[2], py[2], px[1], py[1], px[0], py[0]);
+            }
+        } else {
+            CGPathAddLineToPoint(path, &corners[i], extent_x, 0);
+            for (int j = 0; j < 3; ++j) {
+                const double *px = (*x)[j];
+                const double *py = (*y)[j];
+                CGPathAddCurveToPoint(path, &corners[i], px[1], py[1], px[2], py[2], px[3], py[3]);
+            }
         }
     }
     CGPathCloseSubpath(path);

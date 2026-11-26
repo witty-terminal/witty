@@ -5,6 +5,7 @@ import math
 
 fn C.witty_canvas_rasterize_continuous_rect(pixels &u32, width int, height int, scale f64, radius f64, stroke f64, opacity f64, x &[3][4]f64, y &[3][4]f64) bool
 fn C.witty_canvas_rasterize_capsule(pixels &u32, width int, height int, scale f64, stroke f64, opacity f64) bool
+fn C.witty_canvas_rasterize_ellipse(pixels &u32, width int, height int, opacity f64) bool
 fn C.witty_canvas_rasterize_shadow(mask &u32, mask_width int, mask_height int, pixels &u32, width int, height int, radius f64, opacity f64) bool
 
 // Coordinates of the three cubic segments in a unit-radius continuous corner.
@@ -14,6 +15,8 @@ const canvas_corner_y = [[0.0, 0.0, 0.0, 0.0749114]!,
 const canvas_corner_x = [[1.5286650, 1.0884900, 0.8684070, 0.6314940]!,
 	[0.6314940, 0.3728240, 0.1690600, 0.0749114]!,
 	[0.0749114, 0.0, 0.0, 0.0]!]!
+const canvas_capsule_y = [canvas_corner_y[0], canvas_corner_y[1],
+	[0.6314940, 0.82, 0.96, 1.0]!]!
 
 enum NativeCanvasRoundedStyle {
 	circular
@@ -138,10 +141,26 @@ fn native_canvas_capsule_mask(width int, height int, scale f64, stroke f64, opac
 	return raster
 }
 
-fn native_canvas_continuous_rect(width int, height int, scale f64, radius f64, stroke f64, opacity f64) !canvas.RasterSurface {
+fn native_canvas_ellipse_mask(width int, height int, opacity f64) !canvas.RasterSurface {
 	mut raster := canvas.new_raster_surface(width: width, height: height)!
+	if !C.witty_canvas_rasterize_ellipse(raster.pixels.data, width, height, opacity) {
+		return error('Could not rasterize an ellipse')
+	}
+	return raster
+}
+
+@[params]
+struct CanvasContinuousShapeOptions {
+	stroke  f64
+	opacity f64 = 1
+	capsule bool
+}
+
+fn native_canvas_continuous_rect(width int, height int, scale f64, radius f64, opts CanvasContinuousShapeOptions) !canvas.RasterSurface {
+	mut raster := canvas.new_raster_surface(width: width, height: height)!
+	y := if opts.capsule { &canvas_capsule_y } else { &canvas_corner_y }
 	if !C.witty_canvas_rasterize_continuous_rect(raster.pixels.data, width, height, scale,
-		radius, stroke, opacity, &canvas_corner_x, &canvas_corner_y) {
+		radius, opts.stroke, opts.opacity, &canvas_corner_x, y) {
 		return error('Could not rasterize a continuous rounded rectangle')
 	}
 	return raster

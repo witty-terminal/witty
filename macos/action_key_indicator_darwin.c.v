@@ -9,6 +9,7 @@ fn C.witty_key_indicator_width(text ObjId, keycap bool) f64
 fn C.witty_key_indicator_draw_text(context voidptr, text ObjId, keycap bool, clip &ObjCRect, bounds &ObjCRect, pixels &u32, width int, height int)
 fn C.witty_key_indicator_symbol(chevron bool, x f64, height f64, frame &ObjCRect) ObjId
 fn C.witty_key_indicator_clip_material(view ObjId, radius f64)
+fn C.CGBitmapContextGetBitsPerComponent(context voidptr) usize
 
 enum KeyIndicatorPartKind {
 	keyboard
@@ -156,7 +157,7 @@ fn (mut surface NativeActionSurface) update_key_backdrop(width f64, height f64, 
 	if is_nil(image) { return }
 	pad := (shadow.width - mask.width) / (2 * scale)
 	root := msg_id(surface.key_badge, 'layer')
-	offset := if msg_bool(root, 'isGeometryFlipped') { 2.0 } else { -2.0 }
+	offset := if msg_bool(root, 'isGeometryFlipped') { -2.0 } else { 2.0 }
 	msg_void_rect(surface.key_shadow, 'setFrame:', objc_rect(-pad, -pad + offset,
 		shadow.width / scale, shadow.height / scale))
 	msg_void1(surface.key_shadow, 'setContents:', ObjId(image))
@@ -174,7 +175,7 @@ fn (surface &NativeActionSurface) update_key_colors() {
 	mut opacity := 0.0
 	color := C.witty_canvas_resolve_srgb_alpha(surface.key_ink,
 		msg_id(get_class('NSColor'), 'secondaryLabelColor'), &opacity)
-	disk := native_canvas_rounded_mask(size, size, size / 2.0, opacity: opacity) or { return }
+	disk := native_canvas_ellipse_mask(size, size, opacity) or { return }
 	image := C.witty_canvas_make_alpha_image(disk.pixels.data, size, size, color, surface.key_ink)
 	if is_nil(image) { return }
 	for dot in surface.key_dots { msg_void1(dot, 'setContents:', ObjId(image)) }
@@ -204,7 +205,13 @@ fn key_indicator_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 	h := int(math.round(bounds.height * scale))
 	mut opacity := 0.0
 	primary := C.witty_canvas_resolve_srgb_alpha(self, msg_id(get_class('NSColor'), 'labelColor'), &opacity)
-	stroke := native_canvas_capsule_mask(w, h, scale, 1, 0.15 * opacity) or { return }
+	// The live SwiftUI outline follows the vector path at the ends of the capsule.
+	stroke := if bounds.width >= bounds.height && C.CGBitmapContextGetBitsPerComponent(context) == 0 {
+		native_canvas_continuous_rect(w, h, scale, bounds.height / 2,
+			stroke: 1, opacity: 0.15 * opacity, capsule: true) or { return }
+	} else {
+		native_canvas_capsule_mask(w, h, scale, 1, 0.15 * opacity) or { return }
+	}
 	native_canvas_draw_mask(context, self, bounds, stroke, primary)
 	for part in surface.key_parts {
 		if part.x >= bounds.width { break }
@@ -234,14 +241,14 @@ fn draw_indicator_keycap(view ObjId, context voidptr, part KeyIndicatorPart, bad
 	frame := objc_rect(part.x, y, part.width, 19)
 	w := int(math.round(frame.width * scale))
 	h := int(math.round(frame.height * scale))
-	mask := native_canvas_continuous_rect(w, h, scale, 4, 0, 1) or { return }
+	mask := native_canvas_continuous_rect(w, h, scale, 4) or { return }
 	shadow := native_canvas_quartz_shadow(mask, 0.5 * scale, 0.12) or { return }
 	pad := (shadow.width - mask.width) / (2 * scale)
-	native_canvas_draw_mask(context, view, objc_rect(frame.x - pad, y - pad + 0.5,
+	native_canvas_draw_mask(context, view, objc_rect(frame.x - pad, y - pad - 0.5,
 		shadow.width / scale, shadow.height / scale), shadow, 0)
 	fill := C.witty_canvas_resolve_srgb(view, msg_id(get_class('NSColor'), 'controlBackgroundColor'))
 	native_canvas_draw_mask(context, view, frame, mask, fill)
-	stroke := native_canvas_continuous_rect(w, h, scale, 4, 0.5, opacity) or { return }
+	stroke := native_canvas_continuous_rect(w, h, scale, 4, stroke: 0.5, opacity: opacity) or { return }
 	native_canvas_draw_mask(context, view, frame, stroke, primary)
 	draw_indicator_text(context, part.label, true, part.x + 5, part.width - 10, badge)
 }

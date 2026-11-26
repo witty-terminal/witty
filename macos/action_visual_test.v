@@ -132,12 +132,15 @@ fn test_source_native_visual_layers_and_cursor_consumers() {
 }
 
 fn test_native_key_indicator_capture() {
-	output := os.getenv_opt('WITTY_KEY_INDICATOR_OUTPUT') or { return }
+	output := os.getenv('WITTY_KEY_INDICATOR_OUTPUT')
+	live := os.getenv('WITTY_KEY_INDICATOR_LIVE_OUTPUT')
+	if output.len == 0 && live.len == 0 { return }
 	app_init()
 	frame := objc_rect(0, 0, 260, 96)
 	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
 		frame, 0, ns_backing_store_buffered, false)
 	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void_bool(window, 'setHasShadow:', false)
 	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
 	view := create_offscreen_terminal_view(260, 96)
 	msg_void1(window, 'setContentView:', view)
@@ -169,14 +172,22 @@ fn test_native_key_indicator_capture() {
 			surface.set_key_sequence(false, '')
 			for table in tables[index] { surface.set_key_table(0, table) }
 			for key in keys[index] { surface.set_key_sequence(true, key) }
+			if !is_nil(surface.pulse_timer) { msg_void(surface.pulse_timer, 'invalidate') }
 			surface.apply_key_phase(0)
 			badge := msg_rect(surface.key_badge, 'frame')
 			assert badge.height == if keys[index].len > 0 { 31.0 } else { 28.0 }
 			assert badge.y + badge.height == frame.height - 8
-			png := C.witty_overlay_test_png(surface.scroll.container)
-			assert !is_nil(png)
-			path := os.join_path(output, '${mode}-${name}-witty.png')
-			assert msg_bool2(png, 'writeToFile:atomically:', nsstring(path), ObjId(1))
+			filename := '${mode}-${name}-witty.png'
+			if output.len > 0 {
+				png := C.witty_overlay_test_png(surface.scroll.container)
+				assert !is_nil(png)
+				assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(output, filename)), ObjId(1))
+			}
+			if live.len > 0 {
+				png := C.witty_overlay_test_window_png(window)
+				assert !is_nil(png)
+				assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(live, filename)), ObjId(1))
+			}
 		}
 	}
 }
