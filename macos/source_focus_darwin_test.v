@@ -1,7 +1,11 @@
 @[has_globals]
 module macos
 
+fn C.object_setClass(object ObjId, cls ObjId) ObjId
+
 __global focus_fixture_resigns = 0
+__global key_window_terminal_focus = []bool{}
+__global focus_fixture_window_is_key = false
 
 fn focus_fixture_resign(_self ObjId, _cmd Sel) bool {
 	focus_fixture_resigns++
@@ -11,6 +15,46 @@ fn focus_fixture_resign(_self ObjId, _cmd Sel) bool {
 fn focus_fixture_pump(seconds f64) {
 	msg_void1(msg_id(get_class('NSRunLoop'), 'currentRunLoop'), 'runUntilDate:',
 		msg_id_f64(get_class('NSDate'), 'dateWithTimeIntervalSinceNow:', seconds))
+}
+
+fn record_key_window_terminal_focus(userdata voidptr, focused bool) {
+	if userdata == voidptr(1) {
+		key_window_terminal_focus << focused
+	}
+}
+
+fn focus_fixture_key_state(_self ObjId, _cmd Sel) bool {
+	return focus_fixture_window_is_key
+}
+
+fn test_terminal_focus_follows_the_key_window_with_its_responder_retained() {
+	app_init()
+	view := create_restorable_window(640, 480, 'key window focus fixture')
+	window := view_window(view)
+	cls := C.macos_objc_allocate_class_pair(native_window_class(), cstr('WittyKeyWindowFocusFixture'), 0)
+	add_method(cls, 'isKeyWindow', voidptr(focus_fixture_key_state), 'B@:')
+	C.macos_objc_register_class_pair(cls)
+	original_class := C.object_setClass(window, cls)
+	previous := g_focus_cb
+	defer {
+		g_focus_cb = previous
+		view_set_userdata(view, unsafe { nil })
+		C.object_setClass(window, original_class)
+		close_tab(view)
+		release_native_object(window)
+		release_native_object(view)
+	}
+	key_window_terminal_focus = []bool{}
+	view_set_userdata(view, voidptr(1))
+	set_focus_callback(record_key_window_terminal_focus)
+
+	assert msg_id(window, 'firstResponder') == view
+	for focused in [true, false, true] {
+		focus_fixture_window_is_key = focused
+		sync_native_window_terminal_focus(window)
+		assert msg_id(window, 'firstResponder') == view
+	}
+	assert key_window_terminal_focus == [true, false, true]
 }
 
 fn test_source_focus_async_does_not_key_or_activate_other_window() {
