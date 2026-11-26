@@ -12,6 +12,7 @@ fn C.witty_update_test_value() int
 fn C.witty_update_test_reset()
 fn C.witty_update_test_object() ObjId
 fn C.witty_overlay_test_png(view ObjId) ObjId
+fn C.witty_overlay_test_window_png(window ObjId) ObjId
 
 fn test_update_badge_ring_progress_and_canvas_coverage() {
 	assert UpdateState{kind: .downloading}.ring_progress() == none
@@ -87,12 +88,15 @@ fn test_native_update_badge_ring_capture() {
 }
 
 fn test_native_update_pill_capture() {
-	output := os.getenv_opt('WITTY_UPDATE_PILL_OUTPUT') or { return }
+	output := os.getenv('WITTY_UPDATE_PILL_OUTPUT')
+	live := os.getenv('WITTY_UPDATE_PILL_LIVE_OUTPUT')
+	if output.len == 0 && live.len == 0 { return }
 	app_init()
 	frame := objc_rect(0, 0, 290, 64)
 	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
 		frame, 0, ns_backing_store_buffered, false)
 	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void_bool(window, 'setHasShadow:', false)
 	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
 	view := msg_id_rect(alloc('NSView'), 'initWithFrame:', frame)
 	msg_void_bool(view, 'setWantsLayer:', true)
@@ -114,7 +118,7 @@ fn test_native_update_pill_capture() {
 	}
 
 	names := ['permission', 'checking', 'available', 'not-found', 'error', 'download',
-		'download-unknown', 'extract', 'install', 'unicode-error']
+		'download-unknown', 'extract', 'install', 'unicode-error', 'mixed-error']
 	states := [
 		UpdateState{kind: .permission_request},
 		UpdateState{kind: .checking},
@@ -126,6 +130,7 @@ fn test_native_update_pill_capture() {
 		UpdateState{kind: .extracting, extraction_progress: 0.75},
 		UpdateState{kind: .installing},
 		UpdateState{kind: .error, error_description: 'Cannot open café 👩‍💻'},
+		UpdateState{kind: .error, error_description: 'Café 👩🏽‍💻🇯🇵 مرحبا 🚀\nTry again'},
 	]
 	scale := view_backing_scale(voidptr(view))
 	assert states[5].pill_width(scale) == states[6].pill_width(scale)
@@ -140,10 +145,17 @@ fn test_native_update_pill_capture() {
 				width, update_pill_height))
 			msg_void_bool(pill, 'setNeedsDisplay:', true)
 			msg_void_bool(badge, 'setNeedsDisplay:', true)
-			png := C.witty_overlay_test_png(view)
-			assert !is_nil(png)
-			assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(output,
-				'${mode}-${names[j]}-witty.png')), ObjId(1))
+			name := '${mode}-${names[j]}-witty.png'
+			if output.len > 0 {
+				png := C.witty_overlay_test_png(view)
+				assert !is_nil(png)
+				assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(output, name)), ObjId(1))
+			}
+			if live.len > 0 {
+				png := C.witty_overlay_test_window_png(window)
+				assert !is_nil(png)
+				assert msg_bool2(png, 'writeToFile:atomically:', nsstring(os.join_path(live, name)), ObjId(1))
+			}
 		}
 	}
 }

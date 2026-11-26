@@ -4,8 +4,7 @@
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 #include <AppKit/AppKit.h>
 #include <CoreText/CoreText.h>
-#include "canvas_color_glyph_darwin.h"
-#include "canvas_overlay_darwin.h"
+#include "canvas_text_darwin.h"
 
 static inline NSFont *witty_palette_row_font(double size, bool medium) {
     return [NSFont systemFontOfSize:size weight:(medium ? NSFontWeightMedium : NSFontWeightRegular)];
@@ -13,13 +12,6 @@ static inline NSFont *witty_palette_row_font(double size, bool medium) {
 
 static inline double witty_palette_row_text_width(NSString *text, double size, bool medium) {
     return [text sizeWithAttributes:@{NSFontAttributeName: witty_palette_row_font(size, medium)}].width;
-}
-
-static inline CTLineRef witty_palette_row_line(NSString *text, NSDictionary *attributes) {
-    NSAttributedString *value = [[NSAttributedString alloc] initWithString:text attributes:attributes];
-    CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)value);
-    [value release];
-    return line;
 }
 
 static inline NSArray<NSValue *> *witty_palette_match_ranges(NSString *text, NSString *query) {
@@ -81,11 +73,11 @@ static inline void witty_palette_draw_canvas_text(CGContextRef target, NSString 
         line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)attributed);
         [attributed release];
     } else {
-        line = witty_palette_row_line(text, attrs);
+        line = witty_canvas_text_line(text, attrs);
     }
     if (!line) return;
     if (CTLineGetTypographicBounds(line, NULL, NULL, NULL) > clip->size.width) {
-        CTLineRef token = witty_palette_row_line(@"…", attrs);
+        CTLineRef token = witty_canvas_text_line(@"…", attrs);
         CTLineRef truncated = token
             ? CTLineCreateTruncatedLine(line, clip->size.width, kCTLineTruncationEnd, token) : NULL;
         if (token) CFRelease(token);
@@ -93,68 +85,16 @@ static inline void witty_palette_draw_canvas_text(CGContextRef target, NSString 
         line = truncated;
         if (!line) return;
     }
-    // The button and empty-message views use flipped coordinates. In the
-    // y-up raster, the line baseline is measured from the bottom of the view.
-    CGRect frame = *bounds;
-    frame.origin.y = clip->size.height - CGRectGetMaxY(frame);
-    CGContextRef context = witty_canvas_text_context(pixels, width, height, frame);
-    if (!context) {
-        CFRelease(line);
-        return;
-    }
-    CFArrayRef runs = CTLineGetGlyphRuns(line);
-    for (CFIndex i = 0; i < CFArrayGetCount(runs); ++i) {
-        CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runs, i);
-        NSDictionary *attributes = (NSDictionary *)CTRunGetAttributes(run);
-        CTFontRef font = (CTFontRef)attributes[(id)kCTFontAttributeName];
-        // SwiftUI positions the color emoji fallback half a point lower.
-        bool colorGlyphs = font && (CTFontGetSymbolicTraits(font) & kCTFontColorGlyphsTrait);
-        NSColor *tint = attributes[NSForegroundColorAttributeName] ?: color;
-        const double y = clip->size.height - baseline - (colorGlyphs ? 0.5 : 0);
-        if (colorGlyphs && CGBitmapContextGetBitsPerComponent(target) == 0) {
-            CGContextSaveGState(target);
-            CGContextClipToRect(target, *clip);
-            CGContextTranslateCTM(target, 0, clip->size.height);
-            CGContextScaleCTM(target, 1, -1);
-            CGContextSetTextMatrix(target, CGAffineTransformIdentity);
-            CGContextSetTextPosition(target, clip->origin.x, y);
-            const bool drawn = witty_canvas_draw_color_glyphs(target, run, font);
-            CGContextRestoreGState(target);
-            if (drawn) continue;
-        }
-        NSColor *paint = colorGlyphs ? tint : [tint colorWithAlphaComponent:1];
-
-        CGContextSaveGState(context);
-        CGContextClipToRect(context, *clip);
-        CGContextSetFillColorWithColor(context, paint.CGColor);
-        CGContextSetTextMatrix(context, CGAffineTransformIdentity);
-        CGContextSetTextPosition(context, clip->origin.x, y);
-        CTRunDraw(run, context, CFRangeMake(0, 0));
-        CGContextRestoreGState(context);
-
-        CGImageRef image = colorGlyphs ? CGBitmapContextCreateImage(context)
-            : witty_canvas_make_text_mask(pixels, width, height);
-        if (image) {
-            if (colorGlyphs) {
-                witty_canvas_present_oriented_image(target, image, bounds, true);
-            } else {
-                // Fill through the coverage clip so AppKit applies the
-                // original tint and alpha directly in the destination.
-                CGContextSaveGState(target);
-                CGContextTranslateCTM(target, 0, 2 * bounds->origin.y + bounds->size.height);
-                CGContextScaleCTM(target, 1, -1);
-                CGContextSetInterpolationQuality(target, kCGInterpolationNone);
-                CGContextClipToMask(target, *bounds, image);
-                CGContextSetFillColorWithColor(target, tint.CGColor);
-                CGContextFillRect(target, *bounds);
-                CGContextRestoreGState(target);
-            }
-            CGImageRelease(image);
-        }
-        CGContextClearRect(context, frame);
-    }
+    // SwiftUI positions the palette's color emoji fallback half a point lower.
+    const WittyCanvasTextLayout layout = {
+        .bounds = *bounds,
+        .clip = *clip,
+        .position = CGPointMake(clip->origin.x, clip->size.height - baseline),
+        .color_baseline_offset = -0.5,
+        .flipped = true,
+    };
+    witty_canvas_draw_text_runs(target, line, color, layout, pixels, width, height);
     CFRelease(line);
-    CGContextRelease(context);
 }
 
 static inline NSImage *witty_palette_row_symbol(NSString *name, double x, double height,

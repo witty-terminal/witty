@@ -3,8 +3,8 @@
 #include <Block.h>
 #include <CoreText/CoreText.h>
 #include <math.h>
-#include "canvas_overlay_darwin.h"
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
+#include "canvas_text_darwin.h"
 extern id objc_initWeak(id*,id);
 extern id objc_loadWeakRetained(id*);
 extern void objc_destroyWeak(id*);
@@ -37,23 +37,6 @@ extern const CGFloat NSFontWeightMedium;
 extern const CGFloat NSFontWeightSemibold;
 static inline void *witty_update_font(void) { return ((id (*)(id,SEL,double,double))objc_msgSend)((id)objc_getClass("NSFont"),sel_registerName("systemFontOfSize:weight:"),11,NSFontWeightMedium); }
 static inline void *witty_update_title_font(void) { return ((id (*)(id,SEL,double,double))objc_msgSend)((id)objc_getClass("NSFont"),sel_registerName("systemFontOfSize:weight:"),13,NSFontWeightSemibold); }
-static inline CTLineRef witty_update_line(NSString *text, NSDictionary *attributes) {
-    NSAttributedString *value = [[NSAttributedString alloc] initWithString:text attributes:attributes];
-    CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)value);
-    [value release];
-    return line;
-}
-
-static inline bool witty_update_line_has_color_glyphs(CTLineRef line) {
-    CFArrayRef runs = CTLineGetGlyphRuns(line);
-    for (CFIndex i = 0; i < CFArrayGetCount(runs); i++) {
-        CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runs, i);
-        CTFontRef font = CFDictionaryGetValue(CTRunGetAttributes(run), kCTFontAttributeName);
-        if (font && (CTFontGetSymbolicTraits(font) & kCTFontColorGlyphsTrait)) return true;
-    }
-    return false;
-}
-
 static inline void witty_update_draw_pill_text(CGContextRef target, NSString *text, NSColor *color,
         double origin, double baseline, double width, double scale, const CGRect *bounds,
         uint32_t *pixels, int pixel_width, int pixel_height, bool flipped) {
@@ -65,12 +48,13 @@ static inline void witty_update_draw_pill_text(CGContextRef target, NSString *te
     NSDictionary *attributes = @{
         NSFontAttributeName: (NSFont *)witty_update_font(),
         NSForegroundColorAttributeName: color,
+        (__bridge NSString *)kCTForegroundColorFromContextAttributeName: @YES,
     };
-    CTLineRef line = witty_update_line(text, attributes);
+    CTLineRef line = witty_canvas_text_line(text, attributes);
     if (!line) return;
     double advance = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
     if (advance > width + 0.0001) {
-        CTLineRef token = witty_update_line(@"…", attributes);
+        CTLineRef token = witty_canvas_text_line(@"…", attributes);
         CTLineRef truncated = token ? CTLineCreateTruncatedLine(line, width, kCTLineTruncationEnd, token) : NULL;
         if (token) CFRelease(token);
         CFRelease(line);
@@ -80,38 +64,15 @@ static inline void witty_update_draw_pill_text(CGContextRef target, NSString *te
     }
     double laidOutWidth = ceil(advance * scale) / scale;
     double x = round((origin + (width - laidOutWidth) / 2) * scale) / scale;
-    // A tint mask represents a single color. Core Text keeps the original colors of bitmap glyphs.
-    const bool color_glyphs = witty_update_line_has_color_glyphs(line);
-    CGContextRef context = color_glyphs ? target
-        : witty_canvas_text_context(pixels, pixel_width, pixel_height, *bounds);
-    if (!context) {
-        CFRelease(line);
-        return;
-    }
-    CGContextSaveGState(context);
-    if (color_glyphs && flipped) {
-        CGContextTranslateCTM(context, 0, bounds->size.height);
-        CGContextScaleCTM(context, 1, -1);
-    }
-    CGContextClipToRect(context, CGRectMake(origin, 0, width, bounds->size.height));
-    CGContextSetTextMatrix(context, CGAffineTransformIdentity);
-    CGContextSetTextPosition(context, x, baseline);
-    CTLineDraw(line, context);
-    CGContextRestoreGState(context);
+    const WittyCanvasTextLayout layout = {
+        .bounds = *bounds,
+        .clip = CGRectMake(origin, 0, width, bounds->size.height),
+        .position = CGPointMake(x, baseline),
+        .flipped = flipped,
+        .premultiply_translucent_ink = true,
+    };
+    witty_canvas_draw_text_runs(target, line, color, layout, pixels, pixel_width, pixel_height);
     CFRelease(line);
-    if (color_glyphs) return;
-    const bool opaque = CGColorGetAlpha(color.CGColor) == 1;
-    CGImageRef image = opaque
-        ? witty_canvas_make_text_mask(CGBitmapContextGetData(context), pixel_width, pixel_height)
-        : CGBitmapContextCreateImage(context);
-    CGContextRelease(context);
-    if (!image) return;
-    if (opaque) {
-        witty_canvas_present_text_mask(target, image, bounds, color, flipped);
-    } else {
-        witty_canvas_present_oriented_image(target, image, bounds, flipped);
-    }
-    CGImageRelease(image);
 }
 
 static inline NSImage *witty_update_pill_symbol(NSString *name, double width, double height,
