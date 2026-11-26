@@ -243,12 +243,26 @@ static inline NSImage *witty_canvas_system_symbol(NSString *name, double size, d
         [NSImageSymbolConfiguration configurationPreferringMonochrome]]];
 }
 
-static inline void witty_canvas_symbol_bounds(CGContextRef context, const CGRect *glyph,
+static inline void witty_canvas_pixel_bounds(CGContextRef context, const CGRect *frame,
         CGRect *bounds, int *width, int *height) {
-    CGRect device = CGRectIntegral(CGContextConvertRectToDeviceSpace(context, *glyph));
+    CGRect device = CGRectIntegral(CGContextConvertRectToDeviceSpace(context, *frame));
     *bounds = CGContextConvertRectToUserSpace(context, device);
     *width = (int)device.size.width;
     *height = (int)device.size.height;
+}
+
+static inline CGContextRef witty_canvas_text_context(uint32_t *pixels, int width, int height,
+        CGRect bounds) {
+    // Keep color glyphs and the system label's alpha in the Canvas buffer.
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3);
+    if (!space) return NULL;
+    CGContextRef context = CGBitmapContextCreate(pixels, width, height, 8, (size_t)width * sizeof(*pixels),
+        space, kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst);
+    CGColorSpaceRelease(space);
+    if (!context) return NULL;
+    CGContextScaleCTM(context, width / bounds.size.width, height / bounds.size.height);
+    CGContextTranslateCTM(context, -bounds.origin.x, -bounds.origin.y);
+    return context;
 }
 
 static inline bool witty_canvas_symbol_mask(NSImage *symbol, const CGRect *glyph, const CGRect *bounds,

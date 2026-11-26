@@ -1,11 +1,12 @@
 module macos
 
+import gg.canvas
 import math
 
 #insert "@VMODROOT/macos/action_key_indicator_darwin.h"
 
 fn C.witty_key_indicator_width(text ObjId, keycap bool) f64
-fn C.witty_key_indicator_draw_text(context voidptr, text ObjId, keycap bool, x f64, width f64, height f64)
+fn C.witty_key_indicator_rasterize_text(text ObjId, keycap bool, clip &ObjCRect, bounds &ObjCRect, pixels &u32, width int, height int) voidptr
 fn C.witty_key_indicator_symbol(chevron bool, x f64, height f64, frame &ObjCRect) ObjId
 
 enum KeyIndicatorPartKind {
@@ -216,11 +217,10 @@ fn key_indicator_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 				native_canvas_draw_symbol(context, self, symbol, frame, tint)
 			}
 			.table {
-				C.witty_key_indicator_draw_text(context, nsstring(part.label), false, part.x,
-					part.width, bounds.height)
+				draw_indicator_text(context, part.label, false, part.x, part.width, bounds)
 			}
 			.keycap {
-				draw_indicator_keycap(self, context, part, bounds.height, scale, primary, 0.15 * opacity)
+				draw_indicator_keycap(self, context, part, bounds, scale, primary, 0.15 * opacity)
 			}
 			.divider {
 				draw_indicator_divider(self, context, part.x, bounds.height)
@@ -229,8 +229,8 @@ fn key_indicator_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 	}
 }
 
-fn draw_indicator_keycap(view ObjId, context voidptr, part KeyIndicatorPart, badge_height f64, scale f64, primary u32, opacity f64) {
-	y := (badge_height - 19) / 2
+fn draw_indicator_keycap(view ObjId, context voidptr, part KeyIndicatorPart, badge ObjCRect, scale f64, primary u32, opacity f64) {
+	y := (badge.height - 19) / 2
 	frame := objc_rect(part.x, y, part.width, 19)
 	w := int(math.round(frame.width * scale))
 	h := int(math.round(frame.height * scale))
@@ -244,8 +244,22 @@ fn draw_indicator_keycap(view ObjId, context voidptr, part KeyIndicatorPart, bad
 	stroke := native_canvas_rounded_mask(w, h, 4 * scale, style: .continuous, stroke: 0.5 * scale,
 		opacity: opacity) or { return }
 	native_canvas_draw_mask(context, view, frame, stroke, primary)
-	C.witty_key_indicator_draw_text(context, nsstring(part.label), true, part.x + 5,
-		part.width - 10, badge_height)
+	draw_indicator_text(context, part.label, true, part.x + 5, part.width - 10, badge)
+}
+
+fn draw_indicator_text(context voidptr, text string, keycap bool, x f64, width f64, badge ObjCRect) {
+	visible := math.min(width, badge.width - x)
+	if visible <= 0 { return }
+	clip := objc_rect(x, 0, visible, badge.height)
+	mut bounds := ObjCRect{}
+	mut w, mut h := 0, 0
+	C.witty_canvas_pixel_bounds(context, &clip, &bounds, &w, &h)
+	mut raster := canvas.new_raster_surface(width: w, height: h) or { return }
+	image := C.witty_key_indicator_rasterize_text(nsstring(text), keycap, &clip, &bounds,
+		raster.pixels.data, w, h)
+	if is_nil(image) { return }
+	C.witty_canvas_present_tile(context, image, &bounds, 1)
+	C.CFRelease(image)
 }
 
 fn draw_indicator_divider(view ObjId, context voidptr, x f64, badge_height f64) {

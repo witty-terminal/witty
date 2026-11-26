@@ -15,8 +15,10 @@ static inline double witty_key_indicator_width(NSString *text, bool keycap) {
     return [text sizeWithAttributes:@{NSFontAttributeName: witty_key_indicator_font(keycap)}].width;
 }
 
-static inline void witty_key_indicator_draw_text(CGContextRef context, NSString *label, bool keycap,
-        double x, double width, double height) {
+static inline CGImageRef witty_key_indicator_rasterize_text(NSString *label, bool keycap,
+        const CGRect *clip, const CGRect *bounds, uint32_t *pixels, int width, int height) {
+    CGContextRef context = witty_canvas_text_context(pixels, width, height, *bounds);
+    if (!context) return NULL;
     NSDictionary *attributes = @{
         NSFontAttributeName: witty_key_indicator_font(keycap),
         NSForegroundColorAttributeName: [NSColor labelColor],
@@ -24,14 +26,17 @@ static inline void witty_key_indicator_draw_text(CGContextRef context, NSString 
     NSAttributedString *value = [[NSAttributedString alloc] initWithString:label attributes:attributes];
     CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)value);
     [value release];
-    if (!line) return;
-    CGContextSaveGState(context);
-    CGContextClipToRect(context, CGRectMake(x, 0, width, height));
-    CGContextSetTextMatrix(context, CGAffineTransformIdentity);
-    CGContextSetTextPosition(context, x, (height - (keycap ? 15 : 16)) / 2 + 3);
-    CTLineDraw(line, context);
-    CGContextRestoreGState(context);
-    CFRelease(line);
+    CGImageRef image = NULL;
+    if (line) {
+        CGContextClipToRect(context, *clip);
+        CGContextSetTextMatrix(context, CGAffineTransformIdentity);
+        CGContextSetTextPosition(context, clip->origin.x, (clip->size.height - (keycap ? 15 : 16)) / 2 + 3);
+        CTLineDraw(line, context);
+        CFRelease(line);
+        image = CGBitmapContextCreateImage(context);
+    }
+    CGContextRelease(context);
+    return image;
 }
 
 static inline NSImage *witty_key_indicator_symbol(bool chevron, double x, double height,

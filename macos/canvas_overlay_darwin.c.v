@@ -18,7 +18,7 @@ fn C.witty_canvas_make_native_color_mask(pixels &u32, width int, height int, vie
 fn C.witty_canvas_present_tile(target voidptr, image voidptr, positions voidptr, count int)
 fn C.witty_canvas_set_material_mask(view ObjId, image voidptr, width f64, height f64)
 fn C.witty_canvas_system_symbol(name ObjId, size f64, weight f64) ObjId
-fn C.witty_canvas_symbol_bounds(context voidptr, glyph &ObjCRect, bounds &ObjCRect, width &int, height &int)
+fn C.witty_canvas_pixel_bounds(context voidptr, frame &ObjCRect, bounds &ObjCRect, width &int, height &int)
 fn C.witty_canvas_symbol_mask(symbol ObjId, glyph &ObjCRect, bounds &ObjCRect, pixels &u32, width int, height int, flipped bool) bool
 fn C.witty_canvas_present_symbol(context voidptr, image voidptr, bounds &ObjCRect, flipped bool)
 
@@ -59,7 +59,7 @@ fn native_canvas_draw_symbol(context voidptr, view ObjId, symbol ObjId, glyph Ob
 	if is_nil(symbol) { return }
 	mut bounds := ObjCRect{}
 	mut width, mut height := 0, 0
-	C.witty_canvas_symbol_bounds(context, &glyph, &bounds, &width, &height)
+	C.witty_canvas_pixel_bounds(context, &glyph, &bounds, &width, &height)
 	mut mask := canvas.new_raster_surface(width: width, height: height) or { return }
 	flipped := msg_bool(view, 'isFlipped')
 	if !C.witty_canvas_symbol_mask(symbol, &glyph, &bounds, mask.pixels.data, width, height, flipped) { return }
