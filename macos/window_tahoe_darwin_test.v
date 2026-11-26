@@ -127,7 +127,7 @@ fn test_selected_tahoe_toolbar_preserves_source_async_title_font_and_main_model(
 	assert objc_utf8_string(msg_id(toolbar, 'identifier')) == 'TerminalToolbar'
 	assert msg_u64(window, 'toolbarStyle') == 4
 	assert msg_u64(window, 'titleVisibility') == 1
-	assert msg_bool(window, 'titlebarAppearsTransparent')
+	assert !msg_bool(window, 'titlebarAppearsTransparent')
 	allowed := native_toolbar_allowed(toolbar, sel('toolbarAllowedItemIdentifiers:'), toolbar)
 	defaults := native_toolbar_defaults(toolbar, sel('toolbarDefaultItemIdentifiers:'), toolbar)
 	assert objc_utf8_string(msg_id_u64(allowed, 'objectAtIndex:', 0)) == 'Title'

@@ -119,6 +119,43 @@ fn test_source_window_title_font_and_native_tab_title_updates() {
 	msg_void(probe, 'release')
 }
 
+fn test_transparent_tahoe_title_uses_native_vibrancy_and_refits_custom_fonts() {
+	if !C.witty_native_os_at_least(26, 0, 0) { return }
+	app_init()
+	view := create_restorable_window(480, 320, 'Tab 1 — shelled out')
+	window := msg_id(view, 'window')
+	defer {
+		close_native_window(window)
+		release_native_object(window)
+		release_native_object(view)
+	}
+	config := NativeWindowConfig{titlebar_style: 1, opacity: 0.7}
+	msg_void_bool(window, 'setTitlebarAppearsTransparent:', true)
+	apply_native_window_config(view, config, true, 0x29415a, 0.7, false)
+	assert !msg_bool(window, 'titlebarAppearsTransparent')
+	set_native_window_title_font(view, none)
+	fields := window_font_title_fields(window)
+	assert fields.len == 1
+	field := fields[0]
+	original := msg_rect(field, 'frame')
+	assert !msg_bool(field, 'usesSingleLineMode')
+
+	set_native_window_title_font(view, 'Menlo')
+	data := native_window_data(window) or { panic('missing transparent window') }
+	assert data.transparent_title_font_fields == fields
+	assert msg_id(field, 'font') == window_title_font(window)
+	fitted := msg_rect(field, 'frame')
+	assert fitted.width > original.width
+	assert fitted.height > original.height
+	msg_void_rect(field, 'setFrame:', original)
+	assert msg_rect(field, 'frame') == fitted
+
+	set_native_window_title_font(view, none)
+	assert data.transparent_title_font_fields.len == 0
+	msg_void_rect(field, 'setFrame:', original)
+	assert msg_rect(field, 'frame') == original
+}
+
 fn test_source_window_font_fullscreen_toolbar_parent_filter() {
 	app_init()
 	target_view := create_window(640, 480, 'target')

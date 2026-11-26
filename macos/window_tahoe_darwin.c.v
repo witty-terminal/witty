@@ -293,6 +293,11 @@ fn native_uses_tahoe_titlebar(data &NativeWindowData) bool {
 	return data.tabs_tahoe || data.transparent_tahoe
 }
 
+fn native_titlebar_appears_transparent(data &NativeWindowData) bool {
+	// Tahoe's native title uses AppKit vibrancy over the custom background.
+	return data.config.titlebar_style == 1 && !native_uses_tahoe_titlebar(data)
+}
+
 fn update_tahoe_titlebar(data &NativeWindowData) {
 	// TransparentTitlebarTerminalWindow.syncAppearanceTahoe uses the inherited
 	// titlebar container, including the separate native fullscreen window.

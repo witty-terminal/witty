@@ -45,6 +45,7 @@ mut:
 	tahoe_title_views []ObjId
 	tahoe_title string = '👻 Witty'
 	tahoe_title_font ObjId
+	transparent_title_font_fields []ObjId
 	tahoe_has_tab_bar bool
 	tahoe_main bool = true
 	tahoe_frame_observer ObjId
@@ -241,7 +242,11 @@ fn push_native_tabs(context voidptr) {
 }
 fn update_native_titlebar(window ObjId) {
 	mut data := native_window_data(window) or { return }
-	if native_uses_tahoe_titlebar(data) { update_tahoe_titlebar(data); return }
+	if native_uses_tahoe_titlebar(data) {
+		update_tahoe_titlebar(data)
+		sync_transparent_title_font_fields(mut data)
+		return
+	}
 	container := titlebar_container(window)
 	if is_nil(container) { return }
 	mut titlebar_color := data.titlebar_color
@@ -348,7 +353,7 @@ pub fn apply_native_window_config(view voidptr, config NativeWindowConfig, initi
 	if !msg_bool(window, 'isVisible') {
 		if uses_tahoe_titlebar {
 			msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:', nsstring(if native_color_luminance(preferred_background) > 0.5 { 'NSAppearanceNameAqua' } else { 'NSAppearanceNameDarkAqua' })))
-			msg_void_bool(window, 'setTitlebarAppearsTransparent:', true)
+			msg_void_bool(window, 'setTitlebarAppearsTransparent:', native_titlebar_appears_transparent(data))
 			if data.tabs_tahoe { msg_void_u64(window, 'setTitleVisibility:', 1) }
 			update_tahoe_titlebar(data)
 		}
@@ -361,7 +366,7 @@ pub fn apply_native_window_config(view voidptr, config NativeWindowConfig, initi
 	msg_void_bool(window, 'setOpaque:', !transparent)
 	msg_void1(window, 'setBackgroundColor:', if transparent { native_color(0xffffff, 0.001) } else { native_color(preferred_background, 1) })
 	if transparent && config.blur >= 0 { C.witty_macos_set_window_background_blur(window, int(config.blur)) }
-	msg_void_bool(window, 'setTitlebarAppearsTransparent:', config.titlebar_style == 1 || data.tabs_tahoe)
+	msg_void_bool(window, 'setTitlebarAppearsTransparent:', native_titlebar_appears_transparent(data))
 	msg_void_u64(window, 'setTitleVisibility:', u64(if data.tabs_tahoe || config.titlebar_style in [2, 3] { 1 } else { 0 }))
 	reapply_hidden_native_window_style(window)
 	update_native_titlebar(window)
@@ -396,6 +401,7 @@ fn native_window_close(self ObjId,_cmd Sel) {
 	msg_void2(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'), 'postNotificationName:object:', nsstring('TerminalWindowWillClose'), self)
 	C.witty_macos_window_super_void0(self, sel('close'))
 	if mut data := native_window_data(self) {
+		clear_transparent_title_font_fields(mut data)
 		if !is_nil(data.tab_shortcut) {
 			C.witty_macos_objc_msg_void3(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'),
 				sel('removeObserver:name:object:'), self, nsstring('NSViewFrameDidChangeNotification'), data.tab_shortcut)

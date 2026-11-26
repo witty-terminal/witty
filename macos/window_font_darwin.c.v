@@ -3,6 +3,7 @@ module macos
 
 #insert "@VMODROOT/macos/window_font_abi.h"
 fn C.witty_window_font_super_set_title(window ObjId, title ObjId)
+fn C.witty_window_font_fit_title_field(field ObjId)
 
 __global native_title_font_key = u8(0)
 
@@ -53,10 +54,53 @@ fn window_font_title_fields(window ObjId) []ObjId {
 
 fn window_font_single_line(window ObjId) {
 	tabs := msg_id(window, 'tabbedWindows')
-	single_line := msg_u64(tabs, 'count') <= 1
+	tahoe := if data := native_window_data(window) { native_uses_tahoe_titlebar(data) } else { false }
+	single_line := !tahoe && msg_u64(tabs, 'count') <= 1
 	for field in window_font_title_fields(window) {
 		msg_void_bool(field, 'setUsesSingleLineMode:', single_line)
 	}
+}
+
+fn clear_transparent_title_font_fields(mut data NativeWindowData) {
+	center := msg_id(get_class('NSNotificationCenter'), 'defaultCenter')
+	for field in data.transparent_title_font_fields {
+		C.witty_macos_objc_msg_void3(center, sel('removeObserver:name:object:'), data.window,
+			nsstring('NSViewFrameDidChangeNotification'), field)
+		msg_void(field, 'release')
+	}
+	data.transparent_title_font_fields.clear()
+}
+
+fn sync_transparent_title_font_fields(mut data NativeWindowData) {
+	if !data.transparent_tahoe { return }
+	font := window_title_font(data.window)
+	if is_nil(font) {
+		if data.transparent_title_font_fields.len > 0 {
+			clear_transparent_title_font_fields(mut data)
+		}
+		return
+	}
+	fields := window_font_title_fields(data.window)
+	if fields != data.transparent_title_font_fields {
+		clear_transparent_title_font_fields(mut data)
+		center := msg_id(get_class('NSNotificationCenter'), 'defaultCenter')
+		name := nsstring('NSViewFrameDidChangeNotification')
+		for field in fields {
+			data.transparent_title_font_fields << msg_id(field, 'retain')
+			msg_void_bool(field, 'setPostsFrameChangedNotifications:', true)
+			C.witty_macos_observe(center, data.window, sel('nativeTitleFontFrameChanged:'), name, field)
+		}
+	}
+	for field in fields {
+		if msg_id(field, 'font') != font {
+			msg_void1(field, 'setFont:', font)
+		}
+		C.witty_window_font_fit_title_field(field)
+	}
+}
+
+fn native_title_font_frame_changed(_window ObjId, _cmd Sel, notification ObjId) {
+	C.witty_window_font_fit_title_field(msg_id(notification, 'object'))
 }
 
 fn window_font_attributed_title(window ObjId) ObjId {
@@ -77,11 +121,15 @@ fn window_font_title_changed(self ObjId, _cmd Sel, title ObjId) {
 	C.witty_window_font_super_set_title(self, title)
 	refresh_native_window_title_attributes(self)
 	window_font_single_line(self)
-	if data := native_window_data(self) { if data.tabs_tahoe { queue_tahoe_window(self, .title, false, false, 0) } }
+	if mut data := native_window_data(self) {
+		if data.tabs_tahoe { queue_tahoe_window(self, .title, false, false, 0) }
+		sync_transparent_title_font_fields(mut data)
+	}
 }
 
 fn register_window_font_methods(cls ObjId) {
 	add_method(cls, 'setTitle:', voidptr(window_font_title_changed), 'v@:@')
+	add_method(cls, 'nativeTitleFontFrameChanged:', voidptr(native_title_font_frame_changed), 'v@:@')
 }
 
 // TerminalController.syncAppearance projects the focused surface's optional
@@ -98,9 +146,10 @@ pub fn set_native_window_title_font(view voidptr, family ?string) {
 	}
 	// TitlebarTabsVenturaTerminalWindow.titlebarFont also projects the font to
 	// TerminalToolbar's centered label when that custom toolbar exists.
-	if data := native_window_data(window) {
+	if mut data := native_window_data(window) {
 		if data.tabs_tahoe { queue_tahoe_window(window, .font, false, false, 0) }
 		else { msg_void1(data.title_label, 'setFont:', display_font) }
+		sync_transparent_title_font_fields(mut data)
 	}
 	window_font_single_line(window)
 	refresh_native_window_title_attributes(window)
