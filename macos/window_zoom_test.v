@@ -61,6 +61,13 @@ fn test_native_zoom_projection_has_real_tab_and_titlebar_controls() {
 	assert frame.height == if C.witty_native_os_at_least(26, 0, 0) { 38.0 } else { 37.0 }
 	button := msg_id_u64(msg_id(accessory, 'subviews'), 'objectAtIndex:', 0)
 	assert msg_rect(button, 'frame').y == 8
+	assert objc_utf8_string(msg_id(button, 'accessibilityLabel')) == 'Reset Split Zoom'
+	msg_void(button, 'updateLayer')
+	mask := msg_id(msg_id(button, 'layer'), 'mask')
+	assert !is_nil(msg_id(mask, 'contents'))
+	assert msg_f64(mask, 'contentsScale') == msg_f64(window, 'backingScaleFactor')
+	msg_void1(button, 'performClick:', nil_obj())
+	assert g_zoom_probe_actions == 2
 	toolbar:=msg_id(window,'toolbar')
 	item:=native_toolbar_item(toolbar,nil_obj(),toolbar,nsstring('ResetZoom'),true)
 	assert msg_id(item,'view')==data.zoom_toolbar_button

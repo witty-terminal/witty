@@ -1,5 +1,6 @@
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 #include <AppKit/AppKit.h>
+#include <QuartzCore/QuartzCore.h>
 
 typedef struct { long majorVersion; long minorVersion; long patchVersion; } witty_native_os_version;
 static inline bool witty_native_os_at_least(long major, long minor, long patch) {
@@ -25,5 +26,25 @@ static inline NSImage *witty_zoom_canvas_template(const uint8_t *bytes, size_t c
     }];
     image.template = YES;
     return image;
+}
+
+static inline void witty_zoom_accessory_tint(NSButton *button, CALayer *layer) {
+    NSAppearance *appearance = button.effectiveAppearance;
+    NSColor *color = button.contentTintColor;
+    __block NSColor *tint = nil;
+    [appearance performAsCurrentDrawingAppearance:^{
+        tint = [color colorUsingColorSpace:NSColorSpace.displayP3ColorSpace];
+    }];
+    NSAppearanceName name = [appearance bestMatchFromAppearancesWithNames:
+        @[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
+    BOOL dark = [name isEqualToString:NSAppearanceNameDarkAqua];
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    // Apply vibrancy to the Canvas mask over the titlebar at composition time.
+    layer.compositingFilter = button.window.isMainWindow ? nil : (dark ? @"plusL" : @"plusD");
+    layer.contentsFormat = kCAContentsFormatRGBA16Float;
+    layer.backgroundColor = tint.CGColor;
+    layer.opacity = button.isHighlighted ? 0.5f : 1.0f;
+    [CATransaction commit];
 }
 #endif

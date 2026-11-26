@@ -6,6 +6,7 @@ import gg.canvas
 #insert "@VMODROOT/macos/window_zoom_abi.h"
 fn C.witty_native_os_at_least(major i64,minor i64,patch i64) bool
 fn C.witty_zoom_canvas_template(bytes &u8, count usize, draw fn (ObjId, &ObjCRect) bool) ObjId
+fn C.witty_zoom_accessory_tint(button ObjId, layer ObjId)
 
 const reset_zoom_pdf = $embed_file('@VMODROOT/build_assets/macos/Assets.xcassets/ResetZoom.imageset/ResetZoom.pdf').to_bytes()
 const zoom_accessory_spacing = 8.0
@@ -44,8 +45,8 @@ fn native_window_split_zoom(window ObjId,_cmd Sel,_sender ObjId) {
 	if !is_nil(userdata) && g_action_cb != unsafe { nil } { g_action_cb(userdata,10) }
 }
 fn register_native_zoom_window_methods(cls ObjId) { add_method(cls,'splitZoom:',voidptr(native_window_split_zoom),'v@:@') }
-fn zoom_button(window ObjId,toolbar bool) ObjId {
-	button:=msg_id_rect(alloc('NSButton'),'initWithFrame:',objc_rect(0,0,20,20))
+fn zoom_button(window ObjId,toolbar bool,button_class string,image ObjId) ObjId {
+	button:=msg_id_rect(alloc(button_class),'initWithFrame:',objc_rect(0,0,20,20))
 	msg_void1(button,'setTarget:',if toolbar { nil_obj() } else { window })
 	msg_void1(button,'setAction:',sel('splitZoom:'))
 	msg_void_bool(button,'setBordered:',false)
@@ -53,14 +54,66 @@ fn zoom_button(window ObjId,toolbar bool) ObjId {
 	msg_void1(button,'setToolTip:',nsstring('Reset Zoom'))
 	msg_void1(button,'setContentTintColor:',msg_id(get_class('NSColor'),'controlAccentColor'))
 	msg_void_u64(button,'setState:',1)
-	msg_void1(button,'setImage:',reset_zoom_template())
+	msg_void1(button,'setImage:',image)
 	msg_void_bool(button,'setTranslatesAutoresizingMaskIntoConstraints:',false)
 	for anchor in ['widthAnchor','heightAnchor'] { msg_void_bool(msg_id_f64(msg_id(button,anchor),'constraintEqualToConstant:',20),'setActive:',true) }
 	return button
 }
+
+fn zoom_accessory_wants_update_layer(_button ObjId, _cmd Sel) bool {
+	return true
+}
+
+fn update_zoom_accessory_layer(button ObjId, _cmd Sel) {
+	layer := msg_id(button, 'layer')
+	scale := msg_f64(msg_id(button, 'window'), 'backingScaleFactor')
+	if is_nil(layer) || scale <= 0 { return }
+	mask := msg_id(layer, 'mask')
+	if is_nil(mask) || msg_f64(mask, 'contentsScale') != scale {
+		bounds := msg_rect(button, 'bounds')
+		image := reset_zoom_template()
+		size := C.witty_macos_text_size(image)
+		glyph := objc_rect((bounds.width - size.width) * 0.5, (bounds.height - size.height) * 0.5,
+			size.width, size.height)
+		width, height := int(bounds.width * scale), int(bounds.height * scale)
+		mut raster := canvas.new_raster_surface(width: width, height: height) or { return }
+		if !C.witty_canvas_symbol_mask(image, &glyph, &bounds, raster.pixels.data, width, height,
+			false) {
+			return
+		}
+		C.witty_canvas_set_layer_mask(layer, raster.pixels.data, width, height, scale)
+	}
+	C.witty_zoom_accessory_tint(button, layer)
+}
+
+fn zoom_accessory_environment_changed(button ObjId, cmd Sel) {
+	name := unsafe { cstring_to_vstring(C.sel_getName(cmd)) }
+	view_super_void(button, 'VTZoomAccessoryButton', name)
+	msg_void_bool(button, 'setNeedsDisplay:', true)
+}
+
+fn zoom_accessory_button(window ObjId) ObjId {
+	if is_nil(get_class('VTZoomAccessoryButton')) {
+		cls := C.macos_objc_allocate_class_pair(get_class('NSButton'), cstr('VTZoomAccessoryButton'), 0)
+		add_method(cls, 'wantsUpdateLayer', voidptr(zoom_accessory_wants_update_layer), 'B@:')
+		add_method(cls, 'updateLayer', voidptr(update_zoom_accessory_layer), 'v@:')
+		for name in ['viewDidMoveToWindow', 'viewDidChangeBackingProperties', 'viewDidChangeEffectiveAppearance'] {
+			add_method(cls, name, voidptr(zoom_accessory_environment_changed), 'v@:')
+		}
+		C.macos_objc_register_class_pair(cls)
+	}
+	button := zoom_button(window, false, 'VTZoomAccessoryButton', nil_obj())
+	msg_void1(button, 'setTitle:', nsstring(''))
+	msg_void_bool(button, 'setWantsLayer:', true)
+	label := nsstring('Reset Split Zoom')
+	msg_void1(button, 'setToolTip:', label)
+	msg_void1(button, 'setAccessibilityLabel:', label)
+	return button
+}
+
 fn prepare_native_zoom_views(mut data NativeWindowData) {
 	if !is_nil(data.zoom_tab_button) { return }
-	data.zoom_tab_button=zoom_button(data.window,false)
+	data.zoom_tab_button=zoom_button(data.window,false,'NSButton',reset_zoom_template())
 	msg_void_bool(data.zoom_tab_button,'setHidden:',true)
 	stack:=msg_id(alloc('NSStackView'),'init')
 	msg_void_u64(stack,'setOrientation:',0)
@@ -76,13 +129,12 @@ fn prepare_native_zoom_views(mut data NativeWindowData) {
 	msg_void1(stack,'addArrangedSubview:',data.zoom_tab_button)
 	msg_void1(msg_id(data.window,'tab'),'setAccessoryView:',stack)
 	msg_void(stack,'release')
-	data.zoom_toolbar_button=zoom_button(data.window,true)
+	data.zoom_toolbar_button=zoom_button(data.window,true,'NSButton',reset_zoom_template())
 	if msg_u64(data.window,'styleMask') & ns_window_style_titled!=0 {
 		data.zoom_accessory=msg_id(alloc('NSTitlebarAccessoryViewController'),'init')
 		msg_void_u64(data.zoom_accessory,'setLayoutAttribute:',2)
 		container:=msg_id_rect(alloc('NSView'),'initWithFrame:',objc_rect(0,0,0,0))
-		button:=zoom_button(data.window,false)
-		msg_void1(button,'setToolTip:',nsstring('Reset Split Zoom'))
+		button:=zoom_accessory_button(data.window)
 		msg_void1(container,'addSubview:',button)
 		msg_void(button,'release')
 		msg_void1(data.zoom_accessory,'setView:',container)
@@ -123,6 +175,7 @@ fn update_native_zoom_views(mut data NativeWindowData) {
 		button:=msg_id_u64(msg_id(view,'subviews'),'objectAtIndex:',0)
 		msg_void_rect(button, 'setFrame:', objc_rect(0, zoom_accessory_spacing, 20, 20))
 		msg_void1(button,'setContentTintColor:',msg_id(get_class('NSColor'),if msg_bool(data.window,'isMainWindow') { 'controlAccentColor' } else { 'secondaryLabelColor' }))
+		msg_void_bool(button, 'setNeedsDisplay:', true)
 	}
 	set_zoom_accessory_attached(data,msg_u64(msg_id(msg_id(data.window,'tabGroup'),'windows'),'count')<=1)
 }
