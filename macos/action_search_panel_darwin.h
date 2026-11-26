@@ -67,17 +67,18 @@ static inline double witty_search_symbol_bounds(NSImage *symbol, const CGRect *b
     return alignment.size.width;
 }
 
+static inline CALayer *witty_search_button_layer(CALayer *host, NSString *name) {
+    for (CALayer *layer in host.sublayers) {
+        if ([layer.name isEqualToString:name]) return layer;
+    }
+    return nil;
+}
+
 static inline void witty_search_present_symbol(NSView *view, const CGRect *bounds,
         const uint32_t *pixels, int width, int height, bool active) {
     CALayer *host = view.layer;
     if (!host) return;
-    CALayer *ink = nil;
-    for (CALayer *layer in host.sublayers) {
-        if ([layer.name isEqualToString:@"WittySearchSymbol"]) {
-            ink = layer;
-            break;
-        }
-    }
+    CALayer *ink = witty_search_button_layer(host, @"WittySearchSymbol");
 
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -119,15 +120,30 @@ static inline void witty_search_draw_count(CGContextRef target, NSTextField *vie
     CFRelease(line);
 }
 
-static inline void witty_search_fill_button(CGContextRef target, NSView *view, const CGRect *bounds,
-        const uint32_t *pixels, int width, int height, bool pressed) {
-    CGImageRef mask = witty_canvas_make_text_mask(pixels, width, height);
-    if (!mask) return;
-    [view.effectiveAppearance performAsCurrentDrawingAppearance:^{
-        NSColor *ink = NSColor.labelColor;
-        NSColor *color = [ink colorWithAlphaComponent:ink.alphaComponent * (pressed ? 0.2 : 0.1)];
-        witty_canvas_present_text_mask(target, mask, bounds, color, view.isFlipped);
-    }];
-    CGImageRelease(mask);
+static inline void witty_search_fill_button(NSView *view, bool active, bool pressed) {
+    CALayer *host = view.layer;
+    if (!host) return;
+    CALayer *fill = witty_search_button_layer(host, @"WittySearchButtonFill");
+    if (!fill && !active) return;
+
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    if (!fill) {
+        fill = [CALayer layer];
+        fill.name = @"WittySearchButtonFill";
+        fill.cornerCurve = kCACornerCurveContinuous;
+        fill.cornerRadius = 6;
+        [host insertSublayer:fill atIndex:0];
+    }
+    fill.hidden = !active;
+    if (active) {
+        fill.frame = host.bounds;
+        [view.effectiveAppearance performAsCurrentDrawingAppearance:^{
+            NSColor *ink = [NSColor.labelColor colorUsingColorSpace:NSColorSpace.extendedSRGBColorSpace];
+            if (ink) witty_canvas_set_layer_srgb_fill(fill, ink.redComponent, ink.greenComponent,
+                ink.blueComponent, ink.alphaComponent * (pressed ? 0.2 : 0.1));
+        }];
+    }
+    [CATransaction commit];
 }
 #endif

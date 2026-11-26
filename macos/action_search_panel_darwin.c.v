@@ -13,7 +13,7 @@ fn C.witty_search_configure_button(button ObjId, label ObjId)
 fn C.witty_search_reset_cursor(button ObjId)
 fn C.witty_search_symbol_bounds(symbol ObjId, bounds &ObjCRect, frame &ObjCRect) f64
 fn C.witty_search_draw_count(context voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int)
-fn C.witty_search_fill_button(context voidptr, view ObjId, bounds &ObjCRect, pixels &u32, width int, height int, pressed bool)
+fn C.witty_search_fill_button(view ObjId, active bool, pressed bool)
 fn C.witty_search_present_symbol(view ObjId, bounds &ObjCRect, pixels &u32, width int, height int, active bool)
 
 const search_panel_margin = 8.0
@@ -203,12 +203,8 @@ fn search_draw_button(view ObjId, _cmd Sel, _rect ObjCRect) {
 	bounds := msg_rect(view, 'bounds')
 	pressed := msg_bool(view, 'isHighlighted')
 	hovered := !is_nil(C.macos_objc_get_ptr_ivar(view, cstr('hovered')))
-	if hovered || pressed {
-		scale := view_backing_scale(voidptr(view))
-		mask := native_canvas_grouped_continuous_rect(int(math.round(bounds.width * scale)),
-			int(math.round(bounds.height * scale)), scale, 6, C.witty_canvas_backing_phases(view)) or { return }
-		C.witty_search_fill_button(context, view, &bounds, mask.pixels.data, mask.width, mask.height, pressed)
-	}
+	active := hovered || pressed
+	C.witty_search_fill_button(view, active, pressed)
 	symbol := msg_id(view, 'image')
 	if is_nil(symbol) { return }
 	mut glyph := ObjCRect{}
@@ -219,8 +215,7 @@ fn search_draw_button(view ObjId, _cmd Sel, _rect ObjCRect) {
 	mask := canvas.new_raster_surface(width: width, height: height) or { return }
 	if C.witty_canvas_symbol_mask(symbol, &glyph, &pixel_bounds, mask.pixels.data, width, height,
 		msg_bool(view, 'isFlipped')) {
-		C.witty_search_present_symbol(view, &pixel_bounds, mask.pixels.data, width, height,
-			hovered || pressed)
+		C.witty_search_present_symbol(view, &pixel_bounds, mask.pixels.data, width, height, active)
 	}
 }
 
