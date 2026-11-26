@@ -49,6 +49,19 @@ TMUX_COPY_FIXTURES = ("tmux-copy-search", "tmux-copy-selection")
 TMUX_COPY_MATCH = "needle: first"
 TMUX_FIXTURES = ("tmux", "tmux-switch-pane", *TMUX_COPY_FIXTURES)
 OPTIONAL_APPLICATIONS = {"tmux": TMUX_FIXTURES, "nvim": NEOVIM_FIXTURES}
+SCROLLBACK_KEYS = {
+    "scrollback-page-up": ("f10",),
+    "scrollback-keep-position": ("f10", "space"),
+    "scrollback-follow-output": ("f10", "space"),
+    "scrollback-search": ("f7",),
+    "scrollback-search-selected": ("f7", "f8"),
+    "scrollback-search-wrap": ("f7", "f8", "f9"),
+    "scrollback-search-return": ("f7", "f8", "f9", "f8"),
+}
+SCROLLBACK_OUTPUT_OPTIONS = {
+    "scrollback-keep-position": "--scroll-to-bottom=no-keystroke,no-output",
+    "scrollback-follow-output": "--scroll-to-bottom=no-keystroke,output",
+}
 TRANSLUCENT_WINDOW = (
     "--background-opacity=0.5", "--window-padding-x=7,5", "--window-padding-y=3,8",
 )
@@ -114,6 +127,13 @@ VIM_RETURN = GRID_FRAME_START + r'''
 /bin/sleep 0.18
 "$@" -c 'redraw!' -c 'sleep 180m' -c 'qa!' || exit 1
 printf 'ready'
+exec /bin/sleep 20
+'''
+SCROLLBACK = GRID_FRAME_START + r'''
+: > "$1" || exit 1
+if /bin/dd bs=1 count=1 of=/dev/null 2>/dev/null; then
+    printf '\033]4;42;#a94376\007\r\n\033[1mNew output, row 49\033[0m'
+fi
 exec /bin/sleep 20
 '''
 ZSH = r'''stty -echo
@@ -306,6 +326,45 @@ def prepare_tmux_copy_history(work):
     (work / "tmux-copy-history.txt").write_text("".join(lines), encoding="utf-8")
 
 
+def prepare_scrollback_fixture(work, output):
+    rows = []
+    for row in range(1, 49):
+        label = "needle" if row in (5, 38, 44) else "normal"
+        background = "\x1b[48;5;42m" if row < 48 else "\x1b[48;2;120;200;110m"
+        rows.append(f"{background}  \x1b[0m Output {row:02d}  {label} · {'█' * (row % 13)}")
+    (work / "scrollback.bin").write_bytes(CLEAR_FRAME + b"\x1b[?25l" + "\r\n".join(rows).encode())
+    (work / "scrollback.sh").write_text(SCROLLBACK)
+    source = Path(__file__).with_name("macos_probe_keys.m")
+    library = output / "macos-probe-keys.dylib"
+    subprocess.run(["/usr/bin/xcrun", "clang", "-fobjc-arc", "-dynamiclib", "-framework", "AppKit",
+                    source, "-o", library], check=True, timeout=30)
+    return library
+
+
+def capture_scrollback(witty, options, prefix, settle, name, library):
+    ready = prefix.with_suffix(".ready")
+    output_option = SCROLLBACK_OUTPUT_OPTIONS.get(name)
+    args = [
+        *options, "--palette=42=176879", "--search-background=ffe082",
+        "--search-selected-background=f2a57e", "--keybind=f7=search:needle",
+        "--keybind=f8=navigate_search:next", "--keybind=f9=navigate_search:previous",
+        "--keybind=f10=scroll_page_up",
+    ]
+    if output_option:
+        args.append(output_option)
+    args.extend(("-e", "/bin/sh", "scrollback.sh", "scrollback",
+                 f"{WINDOW_ROWS} {WINDOW_COLUMNS}", ready))
+    env = {
+        "DYLD_INSERT_LIBRARIES": str(library),
+        "WITTY_VIEWPORT_KEYS": ",".join(SCROLLBACK_KEYS[name]),
+        "WITTY_VIEWPORT_READY": str(ready),
+    }
+    capture_witty(witty, args, prefix, settle + 2, env=env)
+    log = prefix.with_suffix(".log")
+    if "macOS render probe dispatched all keys" not in log.read_text():
+        raise RuntimeError(f"Scrollback probe keys were not dispatched. Use a standalone Witty build and check {log}")
+
+
 def start_tmux_copy_fixture(server, work, *, select):
     command = ["/usr/bin/env", "-u", "TMUX", "-u", "TMUX_PANE", *server]
     history = shlex.quote(str(work / "tmux-copy-history.txt"))
@@ -379,6 +438,9 @@ def run(witty, output, settle, references, programs):
         prepare_applications(work, ("tmux",))
     if any(name in references for name in TMUX_COPY_FIXTURES):
         prepare_tmux_copy_history(work)
+    probe_keys = None
+    if any(name in SCROLLBACK_KEYS for name in references):
+        probe_keys = prepare_scrollback_fixture(work, output)
     commands = fixture_args(work)
     if "nvim" in programs:
         commands.update(prepare_neovim(work, programs["nvim"]))
@@ -401,6 +463,8 @@ def run(witty, output, settle, references, programs):
             prefix = output / f"{name}-witty"
             if name in TMUX_FIXTURES:
                 capture_tmux_frame(witty, tmux, options, work, prefix, settle, name)
+            elif name in SCROLLBACK_KEYS:
+                capture_scrollback(witty, options, prefix, settle, name, probe_keys)
             else:
                 capture_witty(witty, [*options, *commands[name]], prefix, settle)
             with Image.open(prefix.with_suffix(".png")) as png:
@@ -438,6 +502,7 @@ def main():
     if not args.witty.is_file() or not os.access(args.witty, os.X_OK):
         parser.error(f"expected an executable file at {args.witty}")
     optional_fixtures = {name for fixtures in OPTIONAL_APPLICATIONS.values() for name in fixtures}
+    optional_fixtures.update(SCROLLBACK_KEYS)
     default_fixtures = [name for name in references if name not in optional_fixtures]
     selected = {name: references[name] for name in args.fixture or default_fixtures}
     programs = {}

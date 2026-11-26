@@ -23,7 +23,7 @@ def configure_xvfb_capture(scale=1):
     )
 
 
-def capture_witty(binary, args, prefix, settle):
+def capture_witty(binary, args, prefix, settle, *, env=None):
     png = prefix.with_suffix(".png")
     log_path = prefix.with_suffix(".log")
     with log_path.open("wb") as log:
@@ -31,7 +31,7 @@ def capture_witty(binary, args, prefix, settle):
             [binary, f"--screenshot={png}", *args],
             stdout=log,
             stderr=subprocess.STDOUT,
-            env={**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(settle)},
+            env={**os.environ, **(env or {}), "SCREENSHOT_SETTLE_SECONDS": str(settle)},
             timeout=15 + settle,
         )
     if result.returncode or not png.is_file():
