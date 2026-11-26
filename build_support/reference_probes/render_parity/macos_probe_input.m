@@ -438,6 +438,55 @@ static void capture_scrollbar(NSScrollView *scroll, NSString *prefix, NSUInteger
     });
 }
 
+static NSPasteboard *probe_find_board;
+static NSPasteboard *(*original_pasteboard)(id, SEL, NSString *);
+
+static NSPasteboard *find_pasteboard(id cls, SEL command, NSString *name) {
+    if ([name isEqualToString:NSPasteboardNameFind]) return probe_find_board;
+    return original_pasteboard(cls, command, name);
+}
+
+static void capture_find(NSView *view, NSString *prefix, NSUInteger step) {
+    static NSString *const states[] = {@"closed", @"selected", @"typing", @"unfocused"};
+    NSWindow *window = view.window;
+    NSTextView *editor = [window.firstResponder isKindOfClass:NSTextView.class]
+        ? (NSTextView *)window.firstResponder : nil;
+    if (!capture_window_frame(view, prefix, states[step])) {
+        fprintf(stderr, "macOS render probe could not capture Find at %s\n", states[step].UTF8String);
+        exit(EXIT_FAILURE);
+    }
+
+    if (step == 0) {
+        // Isolate each probe process from the desktop Find pasteboard.
+        probe_find_board = [NSPasteboard pasteboardWithUniqueName];
+        if (![probe_find_board setString:@"needle" forType:NSPasteboardTypeString]) exit(EXIT_FAILURE);
+        SEL selector = @selector(pasteboardWithName:);
+        Method method = class_getClassMethod(NSPasteboard.class, selector);
+        original_pasteboard = (NSPasteboard *(*)(id, SEL, NSString *))method_getImplementation(method);
+        class_replaceMethod(object_getClass(NSPasteboard.class), selector, (IMP)find_pasteboard,
+            method_getTypeEncoding(method));
+        send_key_sequence(view, @[@"f7"], 0, nil);
+    } else if (step == 1 && NSEqualRanges(editor.selectedRange, NSMakeRange(0, 6)) &&
+            [editor.string isEqualToString:@"needle"]) {
+        [editor insertText:@"café ✨" replacementRange:NSMakeRange(NSNotFound, 0)];
+        editor.insertionPointColor = NSColor.clearColor;
+    } else if (step == 2 && [editor.string isEqualToString:@"café ✨"] &&
+            [window makeFirstResponder:view]) {
+        // Wait for the unfocused field to repaint.
+    } else if (step == 3 && window.firstResponder == view &&
+            [[probe_find_board stringForType:NSPasteboardTypeString] isEqualToString:@"café ✨"]) {
+        [probe_find_board releaseGlobally];
+        exit(EXIT_SUCCESS);
+    } else {
+        fprintf(stderr, "macOS render probe could not complete Find at %s\n", states[step].UTF8String);
+        [probe_find_board releaseGlobally];
+        exit(EXIT_FAILURE);
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 450 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        capture_find(view, prefix, step + 1);
+    });
+}
+
 __attribute__((constructor)) static void install_probe_input(void) {
     const char *sequence = getenv("WITTY_VIEWPORT_KEYS");
     const char *drag = getenv("WITTY_VIEWPORT_DRAG");
@@ -447,6 +496,7 @@ __attribute__((constructor)) static void install_probe_input(void) {
     const char *hover = getenv("WITTY_VIEWPORT_HOVER_CAPTURE");
     const char *split = getenv("WITTY_VIEWPORT_SPLIT_CAPTURE");
     const char *scrollbar = getenv("WITTY_VIEWPORT_SCROLLBAR_CAPTURE");
+    const char *find = getenv("WITTY_VIEWPORT_FIND_CAPTURE");
     const bool ghostty = getenv("WITTY_VIEWPORT_HOVER_GHOSTTY") != NULL;
     const bool split_focus = getenv("WITTY_VIEWPORT_SPLIT_FOCUS") != NULL;
     const bool has_keys = sequence && *sequence;
@@ -455,8 +505,9 @@ __attribute__((constructor)) static void install_probe_input(void) {
     const bool has_hover = hover && *hover;
     const bool has_split = split && *split;
     const bool has_scrollbar = scrollbar && *scrollbar;
-    if (!ready || has_keys + has_drag + has_resize + has_hover + has_split + has_scrollbar != 1) return;
-    if (has_hover || has_split || has_scrollbar) {
+    const bool has_find = find && *find;
+    if (!ready || has_keys + has_drag + has_resize + has_hover + has_split + has_scrollbar + has_find != 1) return;
+    if (has_hover || has_split || has_scrollbar || has_find) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 160 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
             // A standalone Witty binary may never receive a LaunchServices activation.
             if (!ghostty && NSApp.windows.count == 0) {
@@ -466,14 +517,16 @@ __attribute__((constructor)) static void install_probe_input(void) {
                         notificationWithName:NSApplicationDidBecomeActiveNotification object:NSApp]];
                 }
             }
-            NSString *prefix = [NSString stringWithUTF8String:has_hover ? hover : has_split ? split : scrollbar];
+            const char *capture = has_hover ? hover : has_split ? split : has_scrollbar ? scrollbar : find;
+            NSString *prefix = [NSString stringWithUTF8String:capture];
             NSString *ready_path = [NSString stringWithUTF8String:ready];
             NSString *marker = has_split ? [ready_path stringByAppendingPathComponent:@"pane1.ready"] : ready_path;
             wait_for_terminal(marker, 80, ghostty, ^(NSView *view) {
                 [view.window makeKeyAndOrderFront:nil];
                 [NSApp activateIgnoringOtherApps:YES];
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (has_split ? 450 : 400) * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-                    if (has_split) capture_split(view.window, prefix, ready_path, ghostty, split_focus, 0, 30);
+                    if (has_find) capture_find(view, prefix, 0);
+                    else if (has_split) capture_split(view.window, prefix, ready_path, ghostty, split_focus, 0, 30);
                     else if (has_scrollbar) {
                         NSScrollView *scroll = view.enclosingScrollView;
                         [scroll flashScrollers];

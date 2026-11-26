@@ -3,6 +3,25 @@
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 #import <objc/runtime.h>
 
+static inline NSColor *witty_search_unfocused_text_color(void) {
+    return [NSColor colorWithName:nil dynamicProvider:^NSColor *(NSAppearance *appearance) {
+        __block NSColor *ink;
+        [appearance performAsCurrentDrawingAppearance:^{
+            ink = NSColor.labelColor;
+            CGColorRef color = ink.CGColor;
+            if (CGColorGetAlpha(color) == 216.0 / 255) {
+                // The plain field draws with 85% opacity before AppKit rounds glyph coverage.
+                CGColorRef precise = CGColorCreateCopyWithAlpha(color, 0.85f);
+                if (precise) {
+                    ink = [NSColor colorWithCGColor:precise];
+                    CGColorRelease(precise);
+                }
+            }
+        }];
+        return ink;
+    }];
+}
+
 @interface WittySearchFieldCell : NSTextFieldCell
 @end
 
@@ -21,6 +40,7 @@
 }
 
 - (NSText *)setUpFieldEditorAttributes:(NSText *)text {
+    self.textColor = NSColor.labelColor;
     NSText *editor = [super setUpFieldEditorAttributes:text];
     if ([editor isKindOfClass:NSTextView.class]) {
         NSTextView *view = (NSTextView *)editor;
@@ -30,6 +50,11 @@
         [selection release];
     }
     return editor;
+}
+
+- (void)endEditing:(NSText *)text {
+    [super endEditing:text];
+    self.textColor = witty_search_unfocused_text_color();
 }
 
 @end
@@ -49,7 +74,7 @@ static inline void witty_search_configure_editor(NSTextField *field) {
     field.drawsBackground = NO;
     field.focusRingType = NSFocusRingTypeNone;
     field.font = [NSFont systemFontOfSize:13];
-    field.textColor = NSColor.labelColor;
+    field.textColor = witty_search_unfocused_text_color();
     field.placeholderString = @"Search";
     field.cell.usesSingleLineMode = YES;
     field.cell.scrollable = YES;
