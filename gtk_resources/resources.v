@@ -120,15 +120,16 @@ $if !windows {
 	#include <poll.h>
 	#include <unistd.h>
 	#include <errno.h>
-}
-fn C.poll(voidptr, u32, int) int
-fn C.read(int, voidptr, uint) int
 
-struct ResourcePollFd {
-mut:
-	fd i32 // C pollfd stores the descriptor in a 32-bit int.
-	events i16
-	revents i16
+	struct C.pollfd {
+	mut:
+		fd      i32
+		events  i16
+		revents i16
+	}
+
+	fn C.poll(fds &C.pollfd, nfds u32, timeout int) int
+	fn C.read(int, voidptr, uint) int
 }
 
 // process.Child.collectOutput uses Io.poll to drain both pipes, checking each
@@ -141,7 +142,8 @@ fn collect_output(mut process os.Process) !(string, string) {
 	} $else {
 		mut stdout := []u8{}
 		mut stderr := []u8{}
-		mut fds := [ResourcePollFd{fd: i32(process.stdio_fd[1]), events: i16(C.POLLIN)}, ResourcePollFd{fd: i32(process.stdio_fd[2]), events: i16(C.POLLIN)}]!
+		mut fds := [C.pollfd{fd: i32(process.stdio_fd[1]), events: i16(C.POLLIN)},
+			C.pollfd{fd: i32(process.stdio_fd[2]), events: i16(C.POLLIN)}]!
 		mut buffer := []u8{len: 4096}
 		for fds[0].fd >= 0 || fds[1].fd >= 0 {
 			if C.poll(&fds[0], 2, -1) < 0 {
