@@ -79,6 +79,7 @@ mut:
 	search_field_plate  ObjId
 	search_field        ObjId
 	search_count        ObjId
+	search_pasteboard   ObjId
 	search_bar_width    f64
 	search_scale        f64
 	search_phases       int
@@ -386,9 +387,8 @@ fn (mut state NativeActionSurface) refresh() {
 
 pub fn (mut state NativeActionSurface) start_search(needle string) {
 	if state.closed { return }
-	if state.search_active {
-		if needle.len > 0 && needle != state.search_needle { state.set_search_needle(needle) }
-	} else {
+	opening := !state.search_active
+	if opening {
 		state.search_active = true
 		state.search_selected = none
 		state.search_total = none
@@ -396,11 +396,24 @@ pub fn (mut state NativeActionSurface) start_search(needle string) {
 		state.search_published = false
 		state.initialize_search_panel()
 		state.refresh_search_panel()
-		state.set_search_needle(needle)
 	}
-	msg_void1(state.search_field, 'setStringValue:', nsstring(state.search_needle))
+	mut select_imported := false
+	if needle.len > 0 && (opening || needle != state.search_needle) {
+		state.replace_search_query(needle)
+		state.write_find_query(needle)
+	} else if opening {
+		query := state.read_find_query() or { '' }
+		state.replace_search_query(query)
+		select_imported = query.len > 0
+	}
 	state.refresh()
 	msg_bool1(view_window(state.view), 'makeFirstResponder:', state.search_field)
+	if select_imported { msg_void1(state.search_field, 'selectText:', nil_obj()) }
+}
+
+fn (mut state NativeActionSurface) replace_search_query(query string) {
+	msg_void1(state.search_field, 'setStringValue:', nsstring(query))
+	state.set_search_needle(query)
 }
 
 pub fn (mut state NativeActionSurface) end_search() {
@@ -459,7 +472,10 @@ pub fn (mut state NativeActionSurface) search_counts(selected ?uint, total ?uint
 fn action_search_edit(self ObjId, _cmd Sel, _notification ObjId) {
 	mut state := action_owner_state(self) or { return }
 	value := objc_utf8_string(msg_id(state.search_field, 'stringValue'))
-	if value != state.search_needle { state.set_search_needle(value) }
+	if value != state.search_needle {
+		state.set_search_needle(value)
+		state.write_find_query(value)
+	}
 }
 
 fn action_search_command(self ObjId, _cmd Sel, _control ObjId, _text_view ObjId, command Sel) bool {

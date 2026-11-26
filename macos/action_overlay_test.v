@@ -42,8 +42,11 @@ fn test_native_search_editor_and_timer_consumers() {
 	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{
 		binding: audit_action_binding
 	})
+	board := msg_id(get_class('NSPasteboard'), 'pasteboardWithUniqueName')
+	surface.search_pasteboard = board
 	defer {
 		surface.deinit()
+		msg_void(board, 'releaseGlobally')
 		close_tab(view)
 	}
 	audit_native_actions.clear()
@@ -121,4 +124,45 @@ fn test_native_search_editor_and_timer_consumers() {
 	surface.ring_bell()
 	surface.focus(true)
 	assert !surface.bell
+}
+
+fn test_native_find_pasteboard_restores_and_refreshes_search() {
+	app_init()
+	view := create_window(640, 480, '')
+	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{
+		binding: audit_action_binding
+	})
+	board := msg_id(get_class('NSPasteboard'), 'pasteboardWithUniqueName')
+	surface.search_pasteboard = board
+	defer {
+		surface.deinit()
+		msg_void(board, 'releaseGlobally')
+		close_tab(view)
+	}
+	mime := nsstring('public.utf8-plain-text')
+	assert msg_bool2(board, 'setString:forType:', nsstring('needle'), mime)
+	audit_native_actions.clear()
+	surface.start_search('')
+	assert audit_native_actions == ['search:needle']
+	editor := search_field_editor(surface.search_field) or { panic('missing search field editor') }
+	assert objc_utf8_string(msg_id(editor, 'string')) == 'needle'
+	assert C.witty_macos_msg_range(editor, sel('selectedRange')).length == 6
+
+	msg_void(board, 'clearContents')
+	assert msg_bool2(board, 'setString:forType:', nsstring('café ✨'), mime)
+	center := msg_id(get_class('NSNotificationCenter'), 'defaultCenter')
+	msg_void2(center, 'postNotificationName:object:', nsstring('NSApplicationDidBecomeActiveNotification'),
+		shared_app())
+	assert audit_native_actions.last() == 'search:café ✨'
+	assert objc_utf8_string(msg_id(editor, 'string')) == 'café ✨'
+	assert C.witty_macos_msg_range(editor, sel('selectedRange')).length == 6
+
+	msg_void1(surface.search_field, 'setStringValue:', nsstring('another'))
+	action_search_edit(surface.owner, sel('controlTextDidChange:'), nil_obj())
+	assert objc_utf8_string(msg_id1(board, 'stringForType:', mime)) == 'another'
+	surface.end_search()
+	surface.start_search('')
+	assert audit_native_actions.last() == 'search:another'
+	surface.start_search('explicit')
+	assert objc_utf8_string(msg_id1(board, 'stringForType:', mime)) == 'explicit'
 }

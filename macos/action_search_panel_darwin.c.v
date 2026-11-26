@@ -5,6 +5,7 @@ import math
 
 #insert "@VMODROOT/macos/action_search_panel_darwin.h"
 
+fn C.witty_search_find_pasteboard() ObjId
 fn C.witty_search_configure_editor(field ObjId)
 fn C.witty_search_panel_colors(bar ObjId, shadow ObjId, plate ObjId, field_plate ObjId)
 fn C.witty_search_configure_button(button ObjId, label ObjId)
@@ -18,6 +19,43 @@ const search_panel_height = 44.0
 const search_field_width = 238.0
 const search_field_height = 28.0
 
+fn (surface &NativeActionSurface) find_pasteboard() ObjId {
+	if !is_nil(surface.search_pasteboard) { return surface.search_pasteboard }
+	return C.witty_search_find_pasteboard()
+}
+
+fn (surface &NativeActionSurface) read_find_query() ?string {
+	query := msg_id1(surface.find_pasteboard(), 'stringForType:', nsstring('public.utf8-plain-text'))
+	if is_nil(query) { return none }
+	return objc_utf8_string(query)
+}
+
+fn (surface &NativeActionSurface) write_find_query(needle string) {
+	if current := surface.read_find_query() {
+		if current == needle { return }
+	}
+	board := surface.find_pasteboard()
+	msg_void(board, 'clearContents')
+	msg_bool2(board, 'setString:forType:', nsstring(needle), nsstring('public.utf8-plain-text'))
+}
+
+fn search_application_activated(bar ObjId, _cmd Sel, _notification ObjId) {
+	mut surface := action_owner_state(bar) or { return }
+	if surface.closed || !surface.search_active { return }
+	query := surface.read_find_query() or { return }
+	if query == surface.search_needle { return }
+	surface.replace_search_query(query)
+	if editor := search_field_editor(surface.search_field) {
+		msg_void1(editor, 'selectAll:', nil_obj())
+	}
+}
+
+fn search_field_editor(field ObjId) ?ObjId {
+	editor := msg_id(field, 'currentEditor')
+	if is_nil(editor) { return none }
+	return editor
+}
+
 fn (mut surface NativeActionSurface) initialize_search_panel() {
 	mut cls := get_class('WittySearchBar')
 	if is_nil(cls) {
@@ -27,6 +65,7 @@ fn (mut surface NativeActionSurface) initialize_search_panel() {
 		add_method(cls, 'mouseDown:', voidptr(search_drag_start), 'v@:@')
 		add_method(cls, 'mouseDragged:', voidptr(search_drag_changed), 'v@:@')
 		add_method(cls, 'mouseUp:', voidptr(search_drag_end), 'v@:@')
+		add_method(cls, 'searchApplicationActivated:', voidptr(search_application_activated), 'v@:@')
 		C.macos_objc_register_class_pair(cls)
 
 		count := C.macos_objc_allocate_class_pair(get_class('NSTextField'), cstr('WittySearchCount'), 0)
@@ -79,6 +118,8 @@ fn (mut surface NativeActionSurface) initialize_search_panel() {
 	}
 	surface.search_bar_width = x + search_panel_margin
 	surface.search_scale = 0
+	C.witty_macos_observe(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'), bar,
+		sel('searchApplicationActivated:'), nsstring('NSApplicationDidBecomeActiveNotification'), shared_app())
 }
 
 fn search_panel_subview(class_name string, parent ObjId, frame ObjCRect) ObjId {
@@ -90,10 +131,12 @@ fn search_panel_subview(class_name string, parent ObjId, frame ObjCRect) ObjId {
 }
 
 fn (mut surface NativeActionSurface) remove_search_panel() {
+	msg_void1(msg_id(get_class('NSNotificationCenter'), 'defaultCenter'), 'removeObserver:', surface.search_bar)
 	window := view_window(surface.view)
-	editor := msg_id(surface.search_field, 'currentEditor')
-	if !is_nil(editor) && msg_id(window, 'firstResponder') == editor {
-		msg_bool1(window, 'makeFirstResponder:', surface.view)
+	if editor := search_field_editor(surface.search_field) {
+		if msg_id(window, 'firstResponder') == editor {
+			msg_bool1(window, 'makeFirstResponder:', surface.view)
+		}
 	}
 	msg_void1(surface.search_field, 'setDelegate:', nil_obj())
 	C.macos_objc_set_ptr_ivar(surface.search_bar, cstr('state'), nil_obj())

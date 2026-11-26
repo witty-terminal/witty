@@ -22,9 +22,12 @@ fn test_native_split_dimming_tracks_the_focused_pane_and_app_config() {
 	right_view := create_split_surface_view(host)
 	mut left := new_action_surface(left_view, unsafe { nil }, ActionCallbacks{})
 	mut right := new_action_surface(right_view, unsafe { nil }, ActionCallbacks{})
+	board := msg_id(get_class('NSPasteboard'), 'pasteboardWithUniqueName')
+	right.search_pasteboard = board
 	defer {
 		left.deinit()
 		right.deinit()
+		msg_void(board, 'releaseGlobally')
 		msg_void(window, 'close')
 		msg_void(window, 'release')
 		msg_void(left_view, 'release')

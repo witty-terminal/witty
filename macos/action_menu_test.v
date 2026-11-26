@@ -19,8 +19,11 @@ fn test_native_menu_bindings_are_live_core_actions() {
 	defer { set_input_client_callbacks(InputClientCallbacks{}) }
 	view := create_window(640, 480, 'menu')
 	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{})
+	board := msg_id(get_class('NSPasteboard'), 'pasteboardWithUniqueName')
+	surface.search_pasteboard = board
 	defer {
 		surface.deinit()
+		msg_void(board, 'releaseGlobally')
 		close_tab(view)
 	}
 	item := g_config_menu_items['close_tab:right'] or { panic('missing close-right consumer') }

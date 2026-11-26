@@ -1,6 +1,10 @@
 #include "canvas_text_darwin.h"
 
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
+static inline NSPasteboard *witty_search_find_pasteboard(void) {
+    return [NSPasteboard pasteboardWithName:NSPasteboardNameFind];
+}
+
 static inline void witty_search_configure_editor(NSTextField *field) {
     field.bordered = NO;
     field.bezeled = NO;
