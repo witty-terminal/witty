@@ -44,8 +44,8 @@ def recover_coverage(samples, opaque_samples, intervals):
     return round(alpha * 65535)
 
 
-def pack_masks(directory, scale):
-    # The rounded edge stops changing once it meets the straight top edge.
+def read_masks(directory, scale, leading):
+    # Cap the index at the width where the corner meets the straight top edge.
     min_width, max_width, corner_size = (20, 29, 28) if scale == 2 else (10, 15, 14)
     captured_widths = 15 if scale == 2 else 8
     control_y = ((captured_widths * 4 + 11) // 12) * 60 + 5
@@ -62,13 +62,14 @@ def pack_masks(directory, scale):
     for width in range(min_width, max_width + 1):
         for phase in range(4):
             index = (width - min_width) * 4 + phase
-            x0 = (index % 12) * 44 + 2 + ((phase ^ width) & 1)
+            x0 = (index % 12) * 44 + 2 + ((phase ^ (0 if leading else width)) & 1)
             y0 = (index // 12) * 60 + 2 + (phase >> 1)
             mask = bytearray()
             for y in range(corner_size):
                 coverage = []
                 for x in range(min(width, corner_size)):
-                    samples = [image.getpixel((x0 + width - 1 - x, y0 + y)) for image in captures]
+                    pixel = x0 + (x if leading else width - 1 - x), y0 + y
+                    samples = [image.getpixel(pixel) for image in captures]
                     coverage.append(recover_coverage(samples, opaque, intervals))
                 first = next((x for x, alpha in enumerate(coverage) if alpha != 0), len(coverage))
                 end = next((x + 1 for x in reversed(range(first, len(coverage)))
@@ -76,35 +77,51 @@ def pack_masks(directory, scale):
                 band = coverage[first:end]
                 mask.extend((first, len(band)))
                 mask.extend(struct.pack(f"<{len(band)}H", *band))
-            masks.append(mask)
+            masks.append(bytes(mask))
+    return masks
 
-    # Little-endian byte offsets followed by one row stream per width and phase.
-    offset = len(masks) * 2
+
+def pack_masks(masks):
+    # Little-endian byte offsets followed by their shared row streams.
     packed = bytearray()
+    streams = bytearray()
+    offsets = {}
     for mask in masks:
-        packed.extend(struct.pack("<H", offset))
-        offset += len(mask)
-    return packed + b"".join(masks)
+        if mask not in offsets:
+            offsets[mask] = len(masks) * 2 + len(streams)
+            streams.extend(mask)
+        packed.extend(struct.pack("<H", offsets[mask]))
+    return packed + streams
+
+
+def build_assets(captures):
+    for scale in (1, 2):
+        masks = read_masks(captures / f"alpha{scale}-trailing", scale, leading=False)
+        if scale == 2:
+            # At 2× the two orientations can round to different alpha values.
+            masks.extend(read_masks(captures / "alpha2-leading", scale, leading=True))
+        (ASSETS / f"hover_corner_masks_{scale}x.bin").write_bytes(pack_masks(masks))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--captures", type=Path, help="Reuse an existing alpha1 and alpha2 pair")
+    parser.add_argument(
+        "--captures", type=Path,
+        help="Reuse captured alpha1-trailing, alpha2-trailing and alpha2-leading frames",
+    )
     args = parser.parse_args()
     if args.captures is not None:
-        for scale in (1, 2):
-            data = pack_masks(args.captures / f"alpha{scale}", scale)
-            (ASSETS / f"hover_corner_masks_{scale}x.bin").write_bytes(data)
+        build_assets(args.captures)
         return
     with tempfile.TemporaryDirectory() as temp:
         temp = Path(temp)
         probe = temp / "probe"
         subprocess.run(["swiftc", "-parse-as-library", str(PROBE), "-o", str(probe)], check=True)
-        for scale in (1, 2):
-            captures = temp / f"alpha{scale}"
+        for scale, direction in ((1, "trailing"), (2, "trailing"), (2, "leading")):
+            captures = temp / f"alpha{scale}-{direction}"
             captures.mkdir()
-            subprocess.run([str(probe), str(captures), str(scale)], check=True)
-            (ASSETS / f"hover_corner_masks_{scale}x.bin").write_bytes(pack_masks(captures, scale))
+            subprocess.run([str(probe), str(captures), str(scale), direction], check=True)
+        build_assets(temp)
 
 
 if __name__ == "__main__":

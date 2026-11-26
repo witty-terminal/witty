@@ -290,7 +290,9 @@ fn hover_apply_corner_mask(mut coverage []f32, width int, rows int, scale int, r
 	min_width := int(2 * hover_padding) * scale
 	max_width := if scale == 1 { 15 } else { 29 }
 	mask_width := math.min(math.max(width, min_width), max_width)
-	index := (mask_width - min_width) * 4 + phase
+	// The 2× atlas stores trailing corners, then their independently sampled leading corners.
+	direction_offset := if scale == 2 && round_left { max_width - min_width + 1 } else { 0 }
+	index := (direction_offset + mask_width - min_width) * 4 + phase
 	mut offset := hover_mask_word(data, index * 2)
 	// Each row stores a transparent prefix and a run of 16-bit coverage values.
 	// The rest of the row is already opaque.

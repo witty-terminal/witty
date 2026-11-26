@@ -484,10 +484,14 @@ fn test_hover_banner_raster_mirroring_and_display_string() {
 
 fn test_hover_banner_live_corner_coverage_near_straight_edge() {
 	one := hover_corner_coverage(16, 14, 1, true, 0)
-	two := hover_corner_coverage(30, 28, 2, true, 0)
+	leading := hover_corner_coverage(30, 28, 2, true, 0)
+	trailing := hover_corner_coverage(30, 28, 2, false, 0)
 	// The corner still covers part of the first row where it approaches the straight edge.
 	assert math.round(one[12] * 65535) == 63967
-	assert math.round(two[24] * 65535) == 62207
+	assert math.round(leading[24] * 65535) == 62207
+	// At 2×, the native leading and trailing curves round differently at this pixel.
+	assert math.round(leading[13] * 65535) == 15656
+	assert math.round(trailing[30 - 1 - 13] * 65535) == 15640
 }
 
 fn test_hover_banner_live_corner_compresses_at_the_top_edge() {
