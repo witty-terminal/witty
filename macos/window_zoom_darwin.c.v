@@ -1,7 +1,41 @@
+@[has_globals]
 module macos
+
+import gg.canvas
 
 #insert "@VMODROOT/macos/window_zoom_abi.h"
 fn C.witty_native_os_at_least(major i64,minor i64,patch i64) bool
+fn C.witty_zoom_canvas_template(bytes &u8, count usize, draw fn (ObjId, &ObjCRect) bool) ObjId
+
+const reset_zoom_pdf = $embed_file('@VMODROOT/build_assets/macos/Assets.xcassets/ResetZoom.imageset/ResetZoom.pdf').to_bytes()
+__global g_reset_zoom_template ObjId
+
+fn draw_reset_zoom_template(source ObjId, glyph &ObjCRect) bool {
+	context := native_canvas_overlay_context()
+	if is_nil(context) { return false }
+	mut bounds := ObjCRect{}
+	mut width, mut height := 0, 0
+	C.witty_canvas_pixel_bounds(context, glyph, &bounds, &width, &height)
+	mut mask := canvas.new_raster_surface(width: width, height: height) or { return false }
+	if !C.witty_canvas_symbol_mask(source, glyph, &bounds, mask.pixels.data, width, height, false) {
+		return false
+	}
+	image := C.witty_canvas_make_text_mask(mask.pixels.data, width, height)
+	if is_nil(image) { return false }
+	C.witty_canvas_present_text_mask(context, image, &bounds, msg_id(get_class('NSColor'), 'blackColor'),
+		false)
+	C.CFRelease(image)
+	return true
+}
+
+fn reset_zoom_template() ObjId {
+	if is_nil(g_reset_zoom_template) {
+		image := C.witty_zoom_canvas_template(reset_zoom_pdf.data, usize(reset_zoom_pdf.len),
+			draw_reset_zoom_template)
+		g_reset_zoom_template = msg_id(image, 'retain')
+	}
+	return g_reset_zoom_template
+}
 
 fn native_window_split_zoom(window ObjId,_cmd Sel,_sender ObjId) {
 	view:=terminal_view_for_window(window)
@@ -18,7 +52,7 @@ fn zoom_button(window ObjId,toolbar bool) ObjId {
 	msg_void1(button,'setToolTip:',nsstring('Reset Zoom'))
 	msg_void1(button,'setContentTintColor:',msg_id(get_class('NSColor'),'controlAccentColor'))
 	msg_void_u64(button,'setState:',1)
-	msg_void1(button,'setImage:',msg_id1(get_class('NSImage'),'imageNamed:',nsstring('ResetZoom')))
+	msg_void1(button,'setImage:',reset_zoom_template())
 	msg_void_bool(button,'setTranslatesAutoresizingMaskIntoConstraints:',false)
 	for anchor in ['widthAnchor','heightAnchor'] { msg_void_bool(msg_id_f64(msg_id(button,anchor),'constraintEqualToConstant:',20),'setActive:',true) }
 	return button

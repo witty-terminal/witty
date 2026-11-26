@@ -1,6 +1,28 @@
 @[has_globals]
 module macos
 
+import gg.canvas
+
+fn C.witty_zoom_image_from_pdf(bytes &u8, count usize) ObjId
+
+fn test_reset_zoom_canvas_preserves_pdf_coverage_at_native_backing_scales() {
+	app_init()
+	source := C.witty_zoom_image_from_pdf(reset_zoom_pdf.data, usize(reset_zoom_pdf.len))
+	template := reset_zoom_template()
+	assert !is_nil(source)
+	assert !is_nil(template)
+	glyph := objc_rect(0, 0, 14, 14)
+	for scale in [1, 2] {
+		size := 14 * scale
+		mut expected := canvas.new_raster_surface(width: size, height: size) or { panic(err) }
+		mut actual := canvas.new_raster_surface(width: size, height: size) or { panic(err) }
+		assert C.witty_canvas_symbol_mask(source, &glyph, &glyph, expected.pixels.data, size, size, false)
+		assert C.witty_canvas_symbol_mask(template, &glyph, &glyph, actual.pixels.data, size, size, false)
+		assert expected.pixels.any(it >> 24 != 0)
+		assert expected.pixels.map(it >> 24) == actual.pixels.map(it >> 24)
+	}
+}
+
 __global ( g_zoom_probe_actions int )
 fn zoom_probe_action(_userdata voidptr,action int) { assert action==10; g_zoom_probe_actions++ }
 
@@ -24,6 +46,10 @@ fn test_native_zoom_projection_has_real_tab_and_titlebar_controls() {
 	assert msg_id(data.zoom_tab_button,'action')==sel('splitZoom:')
 	assert msg_id(data.zoom_tab_button,'target')==window
 	assert msg_id(data.zoom_toolbar_button,'target')==nil_obj()
+	image := msg_id(data.zoom_tab_button, 'image')
+	assert !is_nil(image)
+	assert msg_bool(image, 'isTemplate')
+	assert msg_id(data.zoom_toolbar_button, 'image') == image
 	msg_void1(data.zoom_tab_button,'performClick:',nil_obj())
 	assert g_zoom_probe_actions==1
 	set_native_split_zoom(view,true)
