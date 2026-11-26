@@ -56,6 +56,7 @@ namespace spv {
 }
 
 #include <algorithm>
+#include <stdint.h>
 #include <map>
 #include <memory>
 #include <set>

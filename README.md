@@ -18,10 +18,10 @@ make
 Witty builds its bundled glslang shader compiler into `.witty-build/native/libglslang.a`. The `libslang-devel` package provides the separate S-Lang library. If `v .` reports that the archive is missing, run `make` from the Witty checkout or invoke the build driver directly. Both commands build the native dependencies before compiling Witty.
 
 ```sh
-VFLAGS='-cc clang' v -path "$PWD|@vlib|@vmodules" run tools/build install
+VFLAGS='-cc clang' v -path "$PWD|@vlib|@vmodules" run tools/build install -Doptimize=ReleaseFast
 ```
 
-Run the installed application with `./v-out/bin/witty`.
+Run the installed application with `./v-out/bin/witty`. The release build embeds assets such as Unicode tables, fonts, and shaders in the executable.
 
 ## Capturing the terminal
 

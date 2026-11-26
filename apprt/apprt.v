@@ -574,10 +574,10 @@ pub fn (mut s CoreSurface) deinit() {
 
 pub fn (mut s CoreSurface) key_callback(event voidptr) !InputEffect {
 	if !isnil(s.backend) && !isnil(event) && g_core_bridge.surface_key != unsafe { nil } {
-		mut effect := InputEffect.ignored
+		mut effect := u8(InputEffect.ignored)
 		g_core_bridge.surface_key(s.backend, unsafe { &input.KeyEvent(event) }, &effect)!
 		s.sync_backend()
-		return effect
+		return unsafe { InputEffect(effect) }
 	}
 	return .ignored
 }
@@ -997,7 +997,7 @@ pub type CoreSurfaceDeinitFn = fn (voidptr)
 
 pub type CoreSurfaceSnapshotFn = fn (voidptr) CoreSurfaceSnapshot
 
-pub type CoreSurfaceKeyFn = fn (voidptr, &input.KeyEvent, &InputEffect) !
+pub type CoreSurfaceKeyFn = fn (voidptr, &input.KeyEvent, &u8) !
 
 pub type CoreSurfaceVoidFn = fn (voidptr) !
 

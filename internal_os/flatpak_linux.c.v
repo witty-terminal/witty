@@ -9,6 +9,7 @@ import pty
 #include <gio/gunixfdlist.h>
 #include <errno.h>
 #include <unistd.h>
+#include "@VMODROOT/internal_os/flatpak_linux.h"
 
 // GLib/GIO declarations, typed as the GTK runtime declares them (V keeps one
 // declaration per C function). GVariants are built with the typed
@@ -28,13 +29,13 @@ fn C.g_main_loop_new(context voidptr, is_running int) voidptr
 fn C.g_main_loop_unref(loop voidptr)
 fn C.g_main_loop_run(loop voidptr)
 fn C.g_main_loop_quit(loop voidptr)
-fn C.g_bus_get_sync(bus_type int, cancellable voidptr, error &voidptr) voidptr
+fn C.witty_flatpak_bus_get_sync(bus_type int, cancellable voidptr, error &&C.GError) voidptr
 fn C.g_object_unref(obj voidptr)
-fn C.g_error_free(err voidptr)
+fn C.g_error_free(err &C.GError)
 fn C.g_free(mem voidptr)
 fn C.g_get_current_dir() &char
 fn C.g_unix_fd_list_new() voidptr
-fn C.g_unix_fd_list_append(list voidptr, fd int, error &voidptr) int
+fn C.g_unix_fd_list_append(list voidptr, fd int, error &&C.GError) int
 fn C.G_VARIANT_TYPE(type_string &char) voidptr
 fn C.g_variant_builder_new(vtype voidptr) voidptr
 fn C.g_variant_builder_unref(builder voidptr)
@@ -52,17 +53,17 @@ fn C.g_variant_ref_sink(value voidptr) voidptr
 fn C.g_variant_unref(value voidptr)
 fn C.g_variant_get_child_value(value voidptr, index uint) voidptr
 fn C.g_variant_get_uint32(value voidptr) u32
-fn C.g_dbus_connection_signal_subscribe(connection voidptr, sender &char, interface_name &char, member &char, object_path &char, arg0 &char, flags int, callback voidptr, user_data voidptr, user_data_free_func voidptr) u32
+fn C.witty_flatpak_subscribe_host_command_exited(connection voidptr, user_data voidptr) u32
 fn C.g_dbus_connection_signal_unsubscribe(connection voidptr, subscription_id u32)
-fn C.g_dbus_connection_call_sync(connection voidptr, bus_name &char, object_path &char, interface_name &char, method_name &char, parameters voidptr, reply_type voidptr, flags int, timeout_msec int, cancellable voidptr, error &voidptr) voidptr
-fn C.g_dbus_connection_call_with_unix_fd_list_sync(connection voidptr, bus_name &char, object_path &char, interface_name &char, method_name &char, parameters voidptr, reply_type voidptr, flags int, timeout_msec int, fd_list voidptr, out_fd_list &voidptr, cancellable voidptr, error &voidptr) voidptr
+fn C.witty_flatpak_dbus_call_sync(connection voidptr, bus_name &char, object_path &char, interface_name &char, method_name &char, parameters voidptr, reply_type voidptr, flags int, timeout_msec int, cancellable voidptr, error &&C.GError) voidptr
+fn C.g_dbus_connection_call_with_unix_fd_list_sync(connection voidptr, bus_name &char, object_path &char, interface_name &char, method_name &char, parameters voidptr, reply_type voidptr, flags int, timeout_msec int, fd_list voidptr, out_fd_list &voidptr, cancellable voidptr, error &&C.GError) voidptr
 fn C.read(fd int, buf voidptr, count uint) int
 
-fn gerror_message(err voidptr) string {
+fn gerror_message(err &C.GError) string {
 	if isnil(err) {
 		return ''
 	}
-	return unsafe { cstring_to_vstring((&C.GError(err)).message) }
+	return unsafe { cstring_to_vstring(err.message) }
 }
 
 // g_variant_get(value, "(u...)") for the uint32 child at index.
@@ -76,13 +77,13 @@ fn flatpak_variant_get_uint32(value voidptr, index uint) u32 {
 
 fn flatpak_host_command_signal_linux(pid u32, sig u8, pg bool) ! {
 	// Get our bus connection.
-	mut g_err := voidptr(unsafe { nil })
+	mut g_err := &C.GError(unsafe { nil })
 	defer {
 		if !isnil(g_err) {
 			C.g_error_free(g_err)
 		}
 	}
-	bus := C.g_bus_get_sync(C.G_BUS_TYPE_SESSION, unsafe { nil }, &g_err)
+	bus := C.witty_flatpak_bus_get_sync(C.G_BUS_TYPE_SESSION, unsafe { nil }, &g_err)
 	if isnil(bus) {
 		log.warn('signal error getting bus: ${gerror_message(g_err)}')
 		return error('FlatpakSetupFail')
@@ -94,7 +95,7 @@ fn flatpak_host_command_signal_linux(pid u32, sig u8, pg bool) ! {
 	// "(uub)"
 	params := [C.g_variant_new_uint32(pid), C.g_variant_new_uint32(u32(sig)),
 		C.g_variant_new_boolean(if pg { 1 } else { 0 })]
-	reply := C.g_dbus_connection_call_sync(bus, c'org.freedesktop.Flatpak', c'/org/freedesktop/Flatpak/Development',
+	reply := C.witty_flatpak_dbus_call_sync(bus, c'org.freedesktop.Flatpak', c'/org/freedesktop/Flatpak/Development',
 		c'org.freedesktop.Flatpak.Development', c'HostCommandSignal', C.g_variant_new_tuple(params.data,
 		uint(params.len)), C.G_VARIANT_TYPE(c'()'), C.G_DBUS_CALL_FLAGS_NONE, C.G_MAXINT,
 		unsafe { nil }, &g_err)
@@ -127,13 +128,13 @@ fn flatpak_host_command_thread_main(command &FlatpakHostCommand) {
 
 	// Get our bus connection. This has to remain active until we exit
 	// the thread otherwise our signals won't be called.
-	mut g_err := voidptr(unsafe { nil })
+	mut g_err := &C.GError(unsafe { nil })
 	defer {
 		if !isnil(g_err) {
 			C.g_error_free(g_err)
 		}
 	}
-	bus := C.g_bus_get_sync(C.G_BUS_TYPE_SESSION, unsafe { nil }, &g_err)
+	bus := C.witty_flatpak_bus_get_sync(C.G_BUS_TYPE_SESSION, unsafe { nil }, &g_err)
 	if isnil(bus) {
 		log.warn('spawn error getting bus: ${gerror_message(g_err)}')
 		self.update_state(FlatpakStateErr{})
@@ -160,7 +161,7 @@ fn flatpak_host_command_thread_main(command &FlatpakHostCommand) {
 // Once this is called, the self pointer MUST remain stable. This
 // requirement is due to using GLib under the covers with callbacks.
 fn (mut self FlatpakHostCommand) start(bus voidptr, loop voidptr) ! {
-	mut err := voidptr(unsafe { nil })
+	mut err := &C.GError(unsafe { nil })
 	defer {
 		if !isnil(err) {
 			C.g_error_free(err)
@@ -235,9 +236,7 @@ fn (mut self FlatpakHostCommand) start(bus voidptr, loop voidptr) ! {
 	}
 
 	// Subscribe to exit notifications
-	subscription_id := C.g_dbus_connection_signal_subscribe(bus, c'org.freedesktop.Flatpak',
-		c'org.freedesktop.Flatpak.Development', c'HostCommandExited', c'/org/freedesktop/Flatpak/Development',
-		unsafe { nil }, 0, voidptr(flatpak_host_command_on_exit), voidptr(self), unsafe { nil })
+	subscription_id := C.witty_flatpak_subscribe_host_command_exited(bus, self)
 	// Zig's errdefer is emulated by a reached defer that runs until start succeeds.
 	mut ok := false
 	defer {
@@ -270,7 +269,8 @@ fn (mut self FlatpakHostCommand) start(bus voidptr, loop voidptr) ! {
 	ok = true
 }
 
-fn flatpak_host_command_on_exit(bus voidptr, _ &char, _ &char, _ &char, _ &char, params voidptr, ud voidptr) {
+@[export: 'witty_flatpak_host_command_on_exit']
+fn flatpak_host_command_on_exit(bus voidptr, params voidptr, ud voidptr) {
 	mut self := unsafe { &FlatpakHostCommand(ud) }
 	started_state := self.current_state().started()
 
