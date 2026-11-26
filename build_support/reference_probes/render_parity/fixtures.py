@@ -454,13 +454,12 @@ def resize_prompt_last():
     )
 
 
-def grapheme_sequences():
-    wait_for_initial_grid()
+def grapheme_sequences(columns):
     return (
         "\x1b[?2027hEmoji sequences: 🏴\u200d☠\ufe0f  ❤\ufe0f  ☀\ufe0e\r\n"
-        f"Combining accent with clustering\x1b[{GRID_COLUMNS - 1}Gne\u0301\r\n"
-        f"\x1b[?2027lCombining accent without clustering\x1b[{GRID_COLUMNS - 1}Gne\u0301\r\n"
-        f"\x1b[?2027hEmoji presentation at the right edge\x1b[{GRID_COLUMNS}G❤\ufe0f after wrap"
+        f"Combining accent with clustering\x1b[{columns - 1}Gne\u0301\r\n"
+        f"\x1b[?2027lCombining accent without clustering\x1b[{columns - 1}Gne\u0301\r\n"
+        f"\x1b[?2027hEmoji presentation at the right edge\x1b[{columns}G❤\ufe0f after wrap"
     ).encode()
 
 
@@ -492,36 +491,43 @@ def visual_bell(trigger):
         time.sleep(0.02)
 
 
+def wrapped_wide_glyphs(columns):
+    r, g, b = WIDE_EDIT_BEFORE
+    background = f"\x1b[48;2;{r};{g};{b}m"
+    return (
+        f"\x1b[1;1HErase a wrapped wide glyph\x1b[1;{columns}H{background}字\x1b[0m keep"
+        f"\x1b[3;1HDelete from its spacer tail\x1b[3;{columns}H{background}字\x1b[0m shift"
+    ).encode()
+
+
+def wrapped_wide_edits():
+    r, g, b = WIDE_EDIT_AFTER
+    return f"\x1b[48;2;{r};{g};{b}m\x1b[2;1H\x1b[X\x1b[4;2H\x1b[P\x1b[0m".encode()
+
+
 def edit_wrapped_wide():
     wait_for_initial_grid()
     attrs = termios.tcgetattr(sys.stdin)
     tty.setraw(sys.stdin)
     try:
-        r, g, b = WIDE_EDIT_BEFORE
-        background = f"\x1b[48;2;{r};{g};{b}m"
-        sys.stdout.write(
-            f"\x1b[1;1HErase a wrapped wide glyph\x1b[1;{GRID_COLUMNS}H{background}字\x1b[0m keep"
-            f"\x1b[3;1HDelete from its spacer tail\x1b[3;{GRID_COLUMNS}H{background}字\x1b[0m shift"
-        )
-        sys.stdout.flush()
+        output = sys.stdout.buffer
+        output.write(wrapped_wide_glyphs(GRID_COLUMNS))
+        output.flush()
         # Wait until the initial frame has been captured before changing it.
         if sys.stdin.read(1):
-            r, g, b = WIDE_EDIT_AFTER
-            sys.stdout.write(f"\x1b[48;2;{r};{g};{b}m\x1b[2;1H\x1b[X\x1b[4;2H\x1b[P\x1b[0m")
-            sys.stdout.flush()
+            output.write(wrapped_wide_edits())
+            output.flush()
             sys.stdin.read(1)
     finally:
         termios.tcsetattr(sys.stdin, termios.TCSANOW, attrs)
 
 
-def colored_line_erase():
-    # An erase issued before the startup resize uses the old right edge.
-    wait_for_initial_grid()
+def colored_line_erase(rows):
     return (
         "Colored line erase\x1b[2;1HErase to end \x1b[48;2;71;99;143m\x1b[K\x1b[0m"
         "\x1b[3;23HErase to start\x1b[3;22H\x1b[48;2;55;105;81m\x1b[1K\x1b[0m"
         "\x1b[4;17HPreviously visible\x1b[48;2;112;73;96m\x1b[2K\x1b[1GErase whole row\x1b[0m"
-        f"\x1b[{GRID_ROWS};1HLast row \x1b[48;2;99;75;59m\x1b[K\x1b[0m"
+        f"\x1b[{rows};1HLast row \x1b[48;2;99;75;59m\x1b[K\x1b[0m"
     ).encode()
 
 
@@ -619,9 +625,12 @@ def main():
     elif fixture == "terminal-sprites":
         sys.stdout.buffer.write(terminal_sprites())
     elif fixture == "colored-line-erase":
-        sys.stdout.buffer.write(colored_line_erase())
+        # Erasing before the startup resize uses the old right edge.
+        wait_for_initial_grid()
+        sys.stdout.buffer.write(colored_line_erase(GRID_ROWS))
     elif fixture == "grapheme-sequences":
-        sys.stdout.buffer.write(grapheme_sequences())
+        wait_for_initial_grid()
+        sys.stdout.buffer.write(grapheme_sequences(GRID_COLUMNS))
     elif fixture == "font-zoom":
         wait_for_initial_grid()
         color = ";".join(map(str, FONT_ZOOM_MARKER))

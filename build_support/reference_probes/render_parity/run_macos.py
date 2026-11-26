@@ -20,8 +20,9 @@ from applications import (
 from capture import capture_witty, output_directory, write_versions
 from fixtures import CLEAR as CLEAR_FRAME
 from fixtures import (
-    WALLPAPER_OPTIONS, kitty_layers, kitty_layout, kitty_retransmit, kitty_unicode,
-    prepare_raster_effects, shader_fixture_options,
+    WALLPAPER_OPTIONS, colored_line_erase, grapheme_sequences, kitty_layers, kitty_layout,
+    kitty_retransmit, kitty_unicode, prepare_raster_effects, shader_fixture_options,
+    wrapped_wide_edits, wrapped_wide_glyphs,
 )
 
 
@@ -68,7 +69,7 @@ KITTY_FIXTURES = {
     "kitty-retransmit": kitty_retransmit,
     "kitty-unicode": kitty_unicode,
 }
-LESS = r'''while :; do
+WAIT_FOR_PTY_GRID = r'''while :; do
     size=$(/bin/stty size) || exit 1
     case "$size" in
         "0 "*|*" 0") ;;
@@ -80,6 +81,8 @@ LESS = r'''while :; do
     esac
     /bin/sleep 0.01
 done
+'''
+LESS = WAIT_FOR_PTY_GRID + r'''
 case "$1" in
     search) set -- -R '+/needle' pager-search.txt ;;
     next) set -- -R "$(printf '+/needle\nn')" pager-search.txt ;;
@@ -88,6 +91,16 @@ esac
 printf '\033[?25l'
 exec /usr/bin/env -i TERM=xterm-256color LC_ALL=en_US.UTF-8 LESSHISTFILE=- LESSSECURE=1 \
     /usr/bin/less -N -PsPager "$@"
+'''
+GRID_FRAME = WAIT_FOR_PTY_GRID + r'''
+/bin/stty -icanon -echo -opost || exit 1
+/bin/cat "$1.bin" || exit 1
+if [ -n "$3" ]; then
+    # Leave the wrapped text visible before sending the edits.
+    /bin/sleep 0.18
+    /bin/cat "$3.bin" || exit 1
+fi
+exec /bin/sleep 20
 '''
 ZSH = r'''stty -echo
 printf '\033[2J\033[H\033[1;32malex\033[0m files %%\r\n'
@@ -119,6 +132,11 @@ def prepare_fixtures(work):
     write_pager_fixture(work / "pager-search.txt")
     for name, payload in (("text", TEXT), ("ansi", ANSI), ("unicode", UNICODE)):
         (work / f"{name}.bin").write_bytes(("\x1b[2J\x1b[H" + payload).encode("utf-8"))
+    (work / "grid-frame.sh").write_text(GRID_FRAME)
+    (work / "grapheme-sequences.bin").write_bytes(CLEAR_FRAME + grapheme_sequences(WINDOW_COLUMNS))
+    (work / "colored-line-erase.bin").write_bytes(CLEAR_FRAME + colored_line_erase(WINDOW_ROWS))
+    (work / "wide-edit-before.bin").write_bytes(CLEAR_FRAME + wrapped_wide_glyphs(WINDOW_COLUMNS))
+    (work / "wide-edit.bin").write_bytes(wrapped_wide_edits())
 
     width, height = 32, 24
     pixels = bytes(
@@ -152,7 +170,8 @@ def fixture_args(work):
     )
     cursor = terminal_command(CURSOR)
     pager = ("-e", "/bin/sh", "pager.sh")
-    pager_grid = f"{WINDOW_ROWS} {WINDOW_COLUMNS}"
+    grid_frame = ("-e", "/bin/sh", "grid-frame.sh")
+    grid_size = f"{WINDOW_ROWS} {WINDOW_COLUMNS}"
     text = terminal_command("/bin/cat text.bin")
     ansi = terminal_command("/bin/cat ansi.bin")
     ansi_without_cursor = terminal_command(r'/bin/cat ansi.bin; printf "\033[?25l"')
@@ -173,6 +192,10 @@ def fixture_args(work):
         "ansi-translucent": (*TRANSLUCENT_WINDOW, "--background-opacity-cells=true", *ansi),
         "unicode": unicode,
         "unicode-translucent": (*TRANSLUCENT_WINDOW, *unicode),
+        "grapheme-sequences": (*grid_frame, "grapheme-sequences", grid_size),
+        "colored-line-erase": (*grid_frame, "colored-line-erase", grid_size),
+        "wide-edit-before": (*grid_frame, "wide-edit-before", grid_size),
+        "wide-edit": (*grid_frame, "wide-edit-before", grid_size, "wide-edit"),
         "kitty": kitty,
         "kitty-translucent": (*TRANSLUCENT_WINDOW, *kitty),
         **kitty_commands,
@@ -189,10 +212,10 @@ def fixture_args(work):
             "--window-width=75", "--window-height=20", "--window-padding-x=2,3",
             "--window-padding-y=2,7", *vim,
         ),
-        "pager": (*pager, "open", pager_grid),
+        "pager": (*pager, "open", grid_size),
         "pager-default": (*DEFAULT_WINDOW, *pager),
-        "pager-search": (*pager, "search", pager_grid),
-        "pager-search-next": (*pager, "next", pager_grid),
+        "pager-search": (*pager, "search", grid_size),
+        "pager-search-next": (*pager, "next", grid_size),
         "cursor": cursor,
         "cursor-srgb": ("--window-colorspace=srgb", "--alpha-blending=linear-corrected", *cursor),
         "ls": terminal_command(f"{CLEAR_AND_HIDE_CURSOR}; /bin/ls -G -C files"),

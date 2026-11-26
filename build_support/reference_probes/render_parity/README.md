@@ -81,6 +81,8 @@ The probe runs Witty's screenshot command offscreen and compares the dimensions 
 
 The terminal text fixtures cover ligatures, ANSI colors and decorations, box drawing, Powerline separators, combining accents, wide characters, and emoji. The translucent cases check how styled cells and glyphs blend over a partially transparent background with unequal padding.
 
+The `grapheme-sequences` fixture places emoji presentation selectors and combining accents at the right edge with clustering enabled and disabled. The `colored-line-erase` fixture checks the backgrounds after erasing to either edge and across a full row. The `wide-edit-before` and `wide-edit` fixtures capture wrapped double-width glyphs before and after erasing a glyph and deleting from its trailing cell. The fixtures wait for the configured PTY grid before writing text at the margin.
+
 The Kitty fixtures also check z-order across cell backgrounds and glyphs, cropped and offset placement, image replacement, and Unicode placeholders. The layering case runs with opaque and translucent backgrounds.
 
 The wallpaper fixtures stretch and tile an alpha PNG behind styled text and colored cells. The shader fixtures run a tint pass followed by a channel swap with default and linear-corrected blending. `shader-wallpaper` runs that chain over the translucent tiled wallpaper.
