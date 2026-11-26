@@ -142,6 +142,17 @@ fn (mut surface NativeActionSurface) clear_hover_tracking() {
 	}
 }
 
+fn hover_banner_width(available f64, text_width f64, scale f64) f64 {
+	padding := 2 * hover_padding
+	// The banner padding and the spacer split the shortage in a narrow pane.
+	width := if available < padding + hover_spacer {
+		(available + padding - hover_spacer) / 2
+	} else {
+		text_width + padding
+	}
+	return math.min(available, math.ceil(width * scale) / scale)
+}
+
 fn (mut surface NativeActionSurface) refresh_hover_visuals() {
 	if is_nil(surface.hover_label) {
 		return
@@ -163,7 +174,7 @@ fn (mut surface NativeActionSurface) refresh_hover_visuals() {
 		surface.hover_text_width = text_width
 	}
 	scale := view_backing_scale(surface.view)
-	width := math.min(available, math.ceil((surface.hover_text_width + 2 * hover_padding) * scale) / scale)
+	width := hover_banner_width(available, surface.hover_text_width, scale)
 	y := view_height(surface.view) - hover_height
 	x := if surface.hover_left { available - width } else { 0.0 }
 	old_width := view_width(surface.hover_ink)
@@ -237,18 +248,21 @@ fn hover_canvas_mask(width int, height int, scale f64, round_left bool) !canvas.
 fn hover_corner_coverage(width int, height int, scale f64, round_left bool, phase int) []f32 {
 	mut coverage := []f32{len: width * height, init: 1.0}
 	extent := canvas_corner_x[0][0]
-	radius := math.min(hover_radius * scale, math.min(width, height) / extent)
-	corner := math.min(math.min(width, height), int(math.ceil(radius * extent)))
-	mut diagonals := []HoverCornerDiagonal{len: corner + 1}
+	// Narrow banners clip the fixed-radius outline at their bounds.
+	radius := hover_radius * scale
+	corner := int(math.ceil(radius * extent))
+	columns := math.min(width, corner)
+	rows := math.min(height, corner)
+	mut diagonals := []HoverCornerDiagonal{len: math.max(columns, rows) + 1}
 	for i in 0 .. diagonals.len {
 		diagonals[i] = hover_corner_diagonal(i, radius)
 	}
 	phase_x := phase & 1
 	phase_y := (phase >> 1) & 1
 	// Core Animation derives the coverage ramp from 2×2 groups of backing pixels.
-	for row in 0 .. corner {
+	for row in 0 .. rows {
 		dy := 1 - 2 * ((row + phase_y) & 1)
-		for column in 0 .. corner {
+		for column in 0 .. columns {
 			dx := 1 - 2 * ((column + phase_x) & 1)
 			distance := hover_corner_distance(column, row, diagonals)
 			horizontal := dx * (hover_corner_distance(column + dx, row, diagonals) - distance)

@@ -294,12 +294,14 @@ fn test_native_hover_banner_capture() {
 	live := os.getenv('WITTY_HOVER_BANNER_LIVE_OUTPUT')
 	if output.len == 0 && live.len == 0 { return }
 	app_init()
-	frame := objc_rect(0, 0, 240, 80)
+	width := os.getenv('WITTY_HOVER_BANNER_WIDTH').int()
+	window_width := if width > 0 { width } else { 240 }
+	frame := objc_rect(0, 0, f64(window_width), 80)
 	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
 		frame, 0, ns_backing_store_buffered, false)
 	msg_void_bool(window, 'setReleasedWhenClosed:', false)
 	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
-	view := create_offscreen_terminal_view(240, 80)
+	view := create_offscreen_terminal_view(window_width, 80)
 	msg_void1(window, 'setContentView:', view)
 	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{})
 	defer {
@@ -349,6 +351,17 @@ fn test_native_hover_banner_capture() {
 	}
 }
 
+fn test_hover_banner_clips_the_url_when_an_ellipsis_does_not_fit() {
+	url := nsstring('https://example.org/path')
+	mut width := 0.0
+	line := C.witty_hover_line(url, 4, &width)
+	assert !is_nil(line)
+	defer { C.CFRelease(line) }
+	assert width == 4
+	assert hover_banner_width(22, width, 2) == 14
+	assert hover_banner_width(15, 0, 2) == 8.5
+}
+
 fn test_hover_banner_raster_mirroring_and_display_string() {
 	assert hover_display_url('https://example.org/é/東京') == 'https://example.org/é/東京'
 	assert hover_display_url('https://example.org/a\u202eb') == 'https://example.org/a\\u{202E}b'
@@ -373,6 +386,14 @@ fn test_hover_banner_live_corner_coverage_near_straight_edge() {
 	// The corner still covers part of the first row where it approaches the straight edge.
 	assert math.round(one[12] * 255) == 249
 	assert math.round(two[24] * 255) == 242
+}
+
+fn test_hover_banner_live_narrow_corner_keeps_its_radius() {
+	full := hover_corner_coverage(28, 28, 2, true, 0)
+	narrow := hover_corner_coverage(24, 28, 2, true, 0)
+	assert narrow[6 * 24 + 4] == full[6 * 28 + 4]
+	assert narrow[24 * 24] == full[24 * 28]
+	assert narrow[13] == full[13]
 }
 
 fn test_hover_banner_live_corner_follows_backing_pixel_phase() {

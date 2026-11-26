@@ -19,9 +19,14 @@ static inline CTLineRef witty_hover_line(NSString *text, double limit, double *w
     CTLineRef token = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)ellipsis);
     [ellipsis release];
     CTLineRef truncated = token ? CTLineCreateTruncatedLine(line, limit, kCTLineTruncationMiddle, token) : NULL;
-    CFRelease(line);
     if (token) CFRelease(token);
-    *width = truncated ? CTLineGetTypographicBounds(truncated, NULL, NULL, NULL) : 0;
+    if (!truncated) {
+        // Use the offered width and clip the original line when the ellipsis cannot fit.
+        *width = limit;
+        return line;
+    }
+    CFRelease(line);
+    *width = CTLineGetTypographicBounds(truncated, NULL, NULL, NULL);
     return truncated;
 }
 
