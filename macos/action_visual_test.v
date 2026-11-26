@@ -290,6 +290,28 @@ fn test_native_readonly_badge_layout_and_capture() {
 	assert msg_bool(surface.readonly_badge, 'isHidden')
 }
 
+fn test_native_hover_banner_follows_window_appearance() {
+	app_init()
+	view := create_window(240, 120, 'link preview appearance')
+	window := msg_id(view, 'window')
+	mut surface := new_action_surface(view, unsafe { nil }, ActionCallbacks{})
+	defer {
+		surface.deinit()
+		close_tab(view)
+	}
+	surface.configure_scroll(true, false)
+	surface.mouse_over_link('https://example.org/path')
+	for name in ['NSAppearanceNameDarkAqua', 'NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
+		appearance := msg_id1(get_class('NSAppearance'), 'appearanceNamed:', nsstring(name))
+		msg_void1(window, 'setAppearance:', appearance)
+		assert native_appearance_is_dark(msg_id(view, 'effectiveAppearance'))
+		background := msg_id(surface.hover_background_layer, 'backgroundColor')
+		assert !is_nil(background)
+		color := msg_id1(get_class('NSColor'), 'colorWithCGColor:', background)
+		assert (native_color_object_luminance(color) > 0.5) == (name == 'NSAppearanceNameAqua')
+	}
+}
+
 fn test_native_hover_banner_capture() {
 	output := os.getenv('WITTY_HOVER_BANNER_OUTPUT')
 	live := os.getenv('WITTY_HOVER_BANNER_LIVE_OUTPUT')

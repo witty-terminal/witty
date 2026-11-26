@@ -431,6 +431,11 @@ static inline int witty_hover_backing_phases(NSView *view) {
     return (left & 1) | ((right & 1) << 1) | ((top & 1) << 2) | ((bottom & 1) << 3);
 }
 
+static inline NSAppearance *witty_hover_appearance(NSView *view) {
+    // The scroll view can use a different appearance for its scrollbar.
+    return view.window.effectiveAppearance ?: view.effectiveAppearance;
+}
+
 static inline void witty_hover_draw_background(CGContextRef target, NSView *view, const CGRect *bounds,
         const uint32_t *pixels, int width, int height) {
     CGImageRef mask = witty_canvas_make_text_mask(pixels, width, height);
@@ -438,7 +443,7 @@ static inline void witty_hover_draw_background(CGContextRef target, NSView *view
     CGContextSaveGState(target);
     CGContextSetInterpolationQuality(target, kCGInterpolationNone);
     CGContextClipToMask(target, *bounds, mask);
-    [[view effectiveAppearance] performAsCurrentDrawingAppearance:^{
+    [witty_hover_appearance(view) performAsCurrentDrawingAppearance:^{
         CGContextSetFillColorWithColor(target, [NSColor windowBackgroundColor].CGColor);
     }];
     CGContextFillRect(target, *bounds);
@@ -451,7 +456,7 @@ static inline void witty_hover_set_background(NSView *view, CALayer *layer, cons
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     layer.frame = view.bounds;
-    [[view effectiveAppearance] performAsCurrentDrawingAppearance:^{
+    [witty_hover_appearance(view) performAsCurrentDrawingAppearance:^{
         layer.backgroundColor = NSColor.windowBackgroundColor.CGColor;
     }];
     // Core Animation applies the 16-bit coverage to the original opaque tint.
@@ -588,7 +593,7 @@ static inline void witty_hover_draw_line(CGContextRef target, WittyHoverLine *li
             (bitmap_target ? WittyCanvasRoundInkNearest : WittyCanvasNativeInk),
         .fit_color_glyphs_to_backing = true,
     };
-    [[view effectiveAppearance] performAsCurrentDrawingAppearance:^{
+    [witty_hover_appearance(view) performAsCurrentDrawingAppearance:^{
         if (@available(macOS 12.0, *)) {
             if (line->fragment) {
                 NSColor *tint = NSColor.labelColor;

@@ -48,6 +48,7 @@ fn register_surface_scroll() {
  add_method(cls,'mouseDragged:',voidptr(surface_inspector_dragged),'v@:@')
  add_method(cls,'mouseUp:',voidptr(surface_inspector_up),'v@:@')
  add_method(cls,'layout',voidptr(surface_scroll_layout),'v@:')
+ add_method(cls,'viewDidChangeEffectiveAppearance',voidptr(surface_scroll_appearance_changed),'v@:')
  add_method(cls,'safeAreaInsets',voidptr(surface_scroll_insets),'{NSEdgeInsets=dddd}@:')
  add_method(cls,'boundsChanged:',voidptr(surface_scroll_bounds),'v@:@')
  add_method(cls,'liveStart:',voidptr(surface_scroll_live_start),'v@:@')
@@ -153,6 +154,10 @@ fn set_surface_split_dimming(view voidptr, fill u32, opacity f64) {
 
 fn surface_scroll_resize(self ObjId,_cmd Sel,_size ObjCSize) { if mut state := native_surface_scroll(self) { state.layout() } }
 fn surface_scroll_layout(self ObjId,_cmd Sel) { if mut state := native_surface_scroll(self) { state.layout() } }
+fn surface_scroll_appearance_changed(self ObjId, _cmd Sel) {
+	view_super_void(self, 'WittySurfaceContainer', 'viewDidChangeEffectiveAppearance')
+	if mut state := native_surface_scroll(self) { state.surface.refresh_hover_appearance() }
+}
 fn (mut state NativeSurfaceScroll) layout() {
  bounds := msg_rect(state.container,'bounds')
  height := if is_nil(state.inspector) { bounds.height } else { native_split_first_extent(bounds.height, state.inspector_ratio, 1) }

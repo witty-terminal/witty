@@ -218,9 +218,10 @@ fn (mut surface NativeActionSurface) refresh_hover_visuals() {
 }
 
 fn (mut surface NativeActionSurface) refresh_hover_appearance() {
-	if !is_nil(surface.hover_label) && surface.hover_url.len > 0 {
+	if !surface.closed && !is_nil(surface.hover_label) && surface.hover_url.len > 0 {
 		surface.refresh_hover_background()
 		msg_void_bool(surface.hover_label, 'setNeedsDisplay:', true)
+		msg_void1(msg_id(surface.hover_ink, 'layer'), 'setContents:', nil_obj())
 		msg_void_bool(surface.hover_ink, 'setNeedsDisplay:', true)
 	}
 }
