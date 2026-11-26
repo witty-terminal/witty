@@ -95,6 +95,13 @@ python3 build_support/reference_probes/render_parity/run_macos_split.py \
   .witty-build/artifacts/witty /Applications/Ghostty.app/Contents/MacOS/ghostty
 ```
 
+The foreground scrollbar probe drags the AppKit scrollbar to the middle, the top, and back to the bottom. It compares the thumb and terminal text together in dark, light, and translucent windows, with zero pixel tolerance.
+
+```sh
+python3 build_support/reference_probes/render_parity/run_macos_scrollbar.py \
+  .witty-build/artifacts/witty /Applications/Ghostty.app/Contents/MacOS/ghostty
+```
+
 The terminal text fixtures cover ligatures, ANSI colors and decorations, box drawing, Powerline separators, combining accents, wide characters, and emoji. The translucent cases check how styled cells and glyphs blend over a partially transparent background with unequal padding.
 
 The `grapheme-sequences` fixture places emoji presentation selectors and combining accents at the right edge with clustering enabled and disabled. The `colored-line-erase` fixture checks the backgrounds after erasing to either edge and across a full row. The `wide-edit-before` and `wide-edit` fixtures capture wrapped double-width glyphs before and after erasing a glyph and deleting from its trailing cell. The fixtures wait for the configured PTY grid before writing text at the margin.

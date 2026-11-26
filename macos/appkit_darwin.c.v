@@ -886,12 +886,9 @@ fn update_metal_drawable_size(view ObjId) {
 		msg_void_f64(layer, 'setContentsScale:', scale)
 		msg_void(transaction, 'commit')
 	}
-	if !is_nil(active_layer) {
-		msg_void_rect(active_layer, 'setFrame:', bounds)
-	}
 	// The original view-owned layer is a CAMetalLayer. Once the renderer
-	// installs Ghostty's IOSurface layer, the active layer intentionally has
-	// no drawableSize property and is sized through its frame instead.
+	// installs its IOSurface layer, AppKit sizes and positions that layer with
+	// the view. Its frame origin must follow the surface through scrollback.
 	if !is_nil(stored_layer)
 		&& msg_bool1(stored_layer, 'respondsToSelector:', sel('setDrawableSize:')) {
 		msg_void_size(stored_layer, 'setDrawableSize:', objc_size(bounds.width * scale, bounds.height * scale))

@@ -301,6 +301,44 @@ static void capture_split(NSWindow *window, NSString *prefix, NSString *ready, B
     });
 }
 
+static NSEvent *scroller_event(NSScroller *scroller, NSEventType type, NSPoint location) {
+    return [NSEvent mouseEventWithType:type location:[scroller convertPoint:location toView:nil]
+        modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+        windowNumber:scroller.window.windowNumber context:nil eventNumber:0 clickCount:1
+        pressure:type == NSEventTypeLeftMouseUp ? 0 : 1];
+}
+
+static void capture_scrollbar(NSScrollView *scroll, NSString *prefix, NSUInteger step) {
+    static NSString *const states[] = {@"middle", @"top", @"bottom"};
+    static const double positions[] = {0.5, 0.0, 1.0};
+    NSScroller *scroller = scroll.verticalScroller;
+    NSRect knob = scroller ? [scroller rectForPart:NSScrollerKnob] : NSZeroRect;
+    NSRect slot = scroller ? [scroller rectForPart:NSScrollerKnobSlot] : NSZeroRect;
+    const double travel = NSHeight(slot) - NSHeight(knob);
+    if (!scroller || NSIsEmptyRect(knob) || travel <= 0) {
+        fprintf(stderr, "macOS render probe could not find a scrollbar with history\n");
+        exit(EXIT_FAILURE);
+    }
+
+    NSPoint from = NSMakePoint(NSMidX(knob), NSMidY(knob));
+    NSPoint to = NSMakePoint(from.x, NSMinY(slot) + NSHeight(knob) / 2 + positions[step] * travel);
+    // AppKit tracks a pressed scrollbar in its own event loop. Queue the
+    // drag and release for that loop before starting the actual press.
+    [NSApp postEvent:scroller_event(scroller, NSEventTypeLeftMouseDragged, to) atStart:NO];
+    [NSApp postEvent:scroller_event(scroller, NSEventTypeLeftMouseUp, to) atStart:NO];
+    [scroller mouseDown:scroller_event(scroller, NSEventTypeLeftMouseDown, from)];
+    [scroll flashScrollers];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 420 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        if (fabs(scroller.doubleValue - positions[step]) > 1.0 / travel ||
+                !capture_window_frame(scroll.window.contentView, prefix, states[step])) {
+            fprintf(stderr, "macOS render probe could not capture scrollbar at %s\n", states[step].UTF8String);
+            exit(EXIT_FAILURE);
+        }
+        if (step == 2) exit(EXIT_SUCCESS);
+        capture_scrollbar(scroll, prefix, step + 1);
+    });
+}
+
 __attribute__((constructor)) static void install_probe_input(void) {
     const char *sequence = getenv("WITTY_VIEWPORT_KEYS");
     const char *drag = getenv("WITTY_VIEWPORT_DRAG");
@@ -309,14 +347,16 @@ __attribute__((constructor)) static void install_probe_input(void) {
     const char *ready = getenv("WITTY_VIEWPORT_READY");
     const char *hover = getenv("WITTY_VIEWPORT_HOVER_CAPTURE");
     const char *split = getenv("WITTY_VIEWPORT_SPLIT_CAPTURE");
+    const char *scrollbar = getenv("WITTY_VIEWPORT_SCROLLBAR_CAPTURE");
     const bool ghostty = getenv("WITTY_VIEWPORT_HOVER_GHOSTTY") != NULL;
     const bool has_keys = sequence && *sequence;
     const bool has_drag = drag && *drag;
     const bool has_resize = size && *size;
     const bool has_hover = hover && *hover;
     const bool has_split = split && *split;
-    if (!ready || has_keys + has_drag + has_resize + has_hover + has_split != 1) return;
-    if (has_hover || has_split) {
+    const bool has_scrollbar = scrollbar && *scrollbar;
+    if (!ready || has_keys + has_drag + has_resize + has_hover + has_split + has_scrollbar != 1) return;
+    if (has_hover || has_split || has_scrollbar) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 160 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
             // A standalone Witty binary may never receive a LaunchServices activation.
             if (!ghostty && NSApp.windows.count == 0) {
@@ -326,7 +366,7 @@ __attribute__((constructor)) static void install_probe_input(void) {
                         notificationWithName:NSApplicationDidBecomeActiveNotification object:NSApp]];
                 }
             }
-            NSString *prefix = [NSString stringWithUTF8String:has_hover ? hover : split];
+            NSString *prefix = [NSString stringWithUTF8String:has_hover ? hover : has_split ? split : scrollbar];
             NSString *ready_path = [NSString stringWithUTF8String:ready];
             NSString *marker = has_split ? [ready_path stringByAppendingPathComponent:@"pane1.ready"] : ready_path;
             wait_for_terminal(marker, 80, ghostty, ^(NSView *view) {
@@ -334,6 +374,13 @@ __attribute__((constructor)) static void install_probe_input(void) {
                 [NSApp activateIgnoringOtherApps:YES];
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (has_split ? 450 : 400) * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
                     if (has_split) capture_split(view.window, prefix, ready_path, ghostty, 0, 30);
+                    else if (has_scrollbar) {
+                        NSScrollView *scroll = view.enclosingScrollView;
+                        [scroll flashScrollers];
+                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 420 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+                            capture_scrollbar(scroll, prefix, 0);
+                        });
+                    }
                     else capture_hover(view, prefix, ghostty, 0);
                 });
             });
