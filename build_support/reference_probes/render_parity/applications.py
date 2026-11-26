@@ -14,6 +14,63 @@ APPLICATION_STAGES = {
 }
 LESS_MARKERS = {1: (24, 130, 80), 15: (54, 92, 156), 29: (144, 80, 120)}
 TMUX_ACTIVE = (24, 130, 80)
+NEOVIM_FIXTURES = {"nvim-diagnostics": 0, "nvim-selection": 1}
+NEOVIM_SCRIPT = '''local api = vim.api
+
+vim.o.termguicolors = true
+vim.o.background = "dark"
+vim.o.shortmess = "I"
+vim.o.number = true
+vim.o.signcolumn = "no"
+vim.o.laststatus = 2
+vim.o.statusline = " Neovim %=%{mode()} "
+vim.o.showmode = false
+vim.o.showcmd = false
+vim.o.ruler = false
+vim.o.guicursor = "a:block-blinkon0"
+
+api.nvim_set_hl(0, "Normal", { fg = "#e4e5e9", bg = "#161820" })
+api.nvim_set_hl(0, "LineNr", { fg = "#8194ad" })
+api.nvim_set_hl(0, "EndOfBuffer", { fg = "#8194ad" })
+api.nvim_set_hl(0, "StatusLine", { fg = "#eff4ff", bg = "#344566", bold = true })
+api.nvim_set_hl(0, "Visual", { fg = "#f2f7ff", bg = "#404d90" })
+api.nvim_set_hl(0, "FixtureKeyword", { fg = "#95c3ff", bold = true })
+api.nvim_set_hl(0, "FixtureComment", { fg = "#84ba8d", italic = true })
+api.nvim_set_hl(0, "DiagnosticUnderlineError", { undercurl = true, sp = "#ff6080" })
+api.nvim_set_hl(0, "DiagnosticVirtualTextError", { fg = "#ff9db0", bg = "#453141" })
+
+local lines = {
+  'local label = "café 🚀"',
+  "return read(label)",
+  "",
+  "-- Wide cells ┌─┐ and combining accents é",
+}
+api.nvim_buf_set_lines(0, 0, -1, false, lines)
+local namespace = api.nvim_create_namespace("witty-fixture")
+api.nvim_buf_set_extmark(0, namespace, 0, 0, { end_col = 5, hl_group = "FixtureKeyword" })
+api.nvim_buf_set_extmark(0, namespace, 1, 0, { end_col = 6, hl_group = "FixtureKeyword" })
+api.nvim_buf_set_extmark(0, namespace, 3, 0, { end_col = #lines[4], hl_group = "FixtureComment" })
+vim.diagnostic.set(namespace, 0, {
+  { lnum = 1, col = 7, end_col = 11, message = "Undefined name", severity = vim.diagnostic.severity.ERROR },
+}, { signs = false, underline = true, virtual_text = { prefix = "!", spacing = 2 } })
+if vim.g.parity_select == 1 then
+  api.nvim_win_set_cursor(0, { 1, 14 })
+  vim.cmd("normal! v$")
+else
+  api.nvim_win_set_cursor(0, { 1, 0 })
+end
+'''
+
+
+def prepare_neovim(work, executable):
+    (work / "editor.lua").write_text(NEOVIM_SCRIPT, encoding="utf-8")
+    return {
+        name: (
+            "--term=xterm-256color", "-e", executable, "-u", "NONE", "-i", "NONE", "-n",
+            "--cmd", f"let g:parity_select = {select}", "-c", "luafile editor.lua",
+        )
+        for name, select in NEOVIM_FIXTURES.items()
+    }
 
 
 def prepare_applications(work, fixtures):

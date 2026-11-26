@@ -4034,8 +4034,14 @@ pub fn (mut self Terminal) print_attributes() !string {
 	if pen.flags.italic() {
 		result.write_string(';3')
 	}
-	if pen.flags.underline() != .none {
-		result.write_string(';4')
+	underline := pen.flags.underline()
+	match underline {
+		.none {}
+		.single { result.write_string(';4') }
+		else { result.write_string(';4:${u8(underline)}') }
+	}
+	if pen.flags.overline() {
+		result.write_string(';53')
 	}
 	if pen.flags.blink() {
 		result.write_string(';5')

@@ -2829,35 +2829,24 @@ fn test_is_dirty_and_clear() {
 // Print attributes
 // ============================================================
 
-fn test_print_attributes() {
-	mut t := create_test_terminal(80, 80) or {
-		assert false
-		return
-	}
+fn test_print_attributes() ! {
+	mut t := create_test_terminal(80, 80)!
 	defer { t.deinit() }
 
-	// Default attributes
-	result := t.print_attributes() or {
-		assert false
-		return
-	}
-	assert result == '0'
+	assert t.print_attributes()! == '0'
 
-	// Bold
-	t.set_attribute(SgrBold{}) or { assert false }
-	result2 := t.print_attributes() or {
-		assert false
-		return
-	}
-	assert result2 == '0;1'
+	t.set_attribute(SgrBold{})!
+	assert t.print_attributes()! == '0;1'
 
-	// Bold + italic
-	t.set_attribute(SgrItalic{}) or { assert false }
-	result3 := t.print_attributes() or {
-		assert false
-		return
+	t.set_attribute(SgrItalic{})!
+	assert t.print_attributes()! == '0;1;3'
+
+	styles := [UnderlineStyle.single, .double, .curly, .dotted, .dashed, .none]
+	parameters := [';4', ';4:2', ';4:3', ';4:4', ';4:5', '']
+	for index, style in styles {
+		t.set_attribute(SgrUnderline{ style: style })!
+		assert t.print_attributes()! == '0;1;3${parameters[index]}'
 	}
-	assert result3 == '0;1;3'
 }
 
 // ============================================================

@@ -94,4 +94,11 @@ python3 build_support/reference_probes/render_parity/run_macos.py \
   ./Witty.app/Contents/MacOS/witty --fixture tmux --fixture tmux-switch-pane
 ```
 
+The optional `nvim-diagnostics` and `nvim-selection` fixtures use Neovim 0.12.6. They check the colored diagnostic undercurl, inline diagnostic text, and a visual selection across a wide emoji. With `nvim` on `PATH`, select both fixtures to compare the editor frames.
+
+```sh
+python3 build_support/reference_probes/render_parity/run_macos.py \
+  ./Witty.app/Contents/MacOS/witty --fixture nvim-diagnostics --fixture nvim-selection
+```
+
 The [reference table](ghostty-1.4.0-macos.tsv) uses captures from Ghostty's own terminal IOSurface at 2× on Apple Silicon running macOS 27.2. The Metal output is Display P3, including in fixtures where the terminal interprets its input colors as sRGB. The application fixtures cover Vim and `less` at explicit and default window sizes, colored `ls`, Git diff, and zsh. The `less` fixtures wait for the PTY grid before capturing the numbered lines and status prompt. The original Ghostty 1.4.0 executable had SHA-256 `4b30ac9b049cdf9eb75b6d8c7764856c2b882de97c688dce8a1b80916b55271b`. [Ghostty download](https://ghostty.org/download)

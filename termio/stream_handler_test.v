@@ -287,12 +287,11 @@ fn test_stream_handler_decrqss_hollow_cursor_uses_blink_mode() ! {
 fn test_stream_handler_decrqss_uses_terminal_sgr_serialization() ! {
 	mut handler, mut ctx := make_test_handler()
 	defer { ctx.t.deinit() }
-	handler.terminal.set_attribute(terminal.SgrUnderline{ style: .double })!
-	handler.terminal.set_attribute(terminal.SgrOverline{})!
+	mut stream := terminal.Stream.init[StreamHandler](handler)
+	stream.next_slice('\x1b[4:3;53m\x1bP\$qm\x1b\\'.bytes())!
 
-	handler.dcs_decrqss(.sgr)
 	msg := ctx.mailbox.spsc.queue.pop() or { panic('expected SGR DECRPSS response') }
-	assert (msg as WriteSmall).slice().bytestr() == '\x1bP1\$r0;4m\x1b\\'
+	assert (msg as WriteSmall).slice().bytestr() == '\x1bP1\$r0;4:3;53m\x1b\\'
 }
 
 // Test bell dispatches without crashing.

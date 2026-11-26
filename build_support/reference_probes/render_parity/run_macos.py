@@ -13,7 +13,9 @@ import tempfile
 
 from PIL import Image
 
-from applications import TMUX_ACTIVE, prepare_applications, tmux_fixture_command
+from applications import (
+    NEOVIM_FIXTURES, TMUX_ACTIVE, prepare_applications, prepare_neovim, tmux_fixture_command,
+)
 from capture import capture_witty, output_directory, write_versions
 from fixtures import CLEAR as CLEAR_FRAME
 from fixtures import (
@@ -39,6 +41,7 @@ OPTIONS = (
 )
 DEFAULT_WINDOW = ("--window-width=0", "--window-height=0")
 TMUX_FIXTURES = ("tmux", "tmux-switch-pane")
+OPTIONAL_APPLICATIONS = {"tmux": TMUX_FIXTURES, "nvim": NEOVIM_FIXTURES}
 TRANSLUCENT_WINDOW = (
     "--background-opacity=0.5", "--window-padding-x=7,5", "--window-padding-y=3,8",
 )
@@ -200,22 +203,27 @@ def capture_tmux_frame(witty, tmux, options, work, prefix, settle, switch_pane):
                            stderr=subprocess.DEVNULL, timeout=5)
 
 
-def run(witty, output, settle, references, tmux=None):
+def run(witty, output, settle, references, programs):
     os.environ.pop("GHOSTTY_RESOURCES_DIR", None)
     os.environ.pop("LSCOLORS", None)
     os.environ.update(LC_ALL="en_US.UTF-8", MTL_DEBUG_LAYER="1")
     work = output / "fixtures"
     prepare_fixtures(work)
+    tmux = programs.get("tmux")
     if tmux:
         prepare_applications(work, ("tmux",))
     commands = fixture_args(work)
+    if "nvim" in programs:
+        commands.update(prepare_neovim(work, programs["nvim"]))
     options = [*OPTIONS, f"--working-directory={work}"]
     write_versions(output, witty)
     with (output / "versions.txt").open("a") as versions:
         versions.write(f"macOS {platform.mac_ver()[0]} {platform.machine()}\n")
         versions.write(f"Reference: {REFERENCE.name}\n")
-        if tmux:
-            versions.write(subprocess.check_output([tmux, "-V"], text=True, timeout=5))
+        for name, executable in programs.items():
+            flag = "-V" if name == "tmux" else "--version"
+            version = subprocess.check_output([executable, flag], text=True, timeout=5).splitlines()[0]
+            versions.write(f"{version}\n")
     print(f"Captures and logs: {output}", flush=True)
     matches = True
     with (output / "results.tsv").open("w") as report:
@@ -254,7 +262,7 @@ def main():
     parser.add_argument("--output", type=Path, help="new directory for screenshots, logs, and the report")
     parser.add_argument("--settle-seconds", type=float, default=1.1)
     parser.add_argument("--fixture", choices=references.keys(), action="append",
-                        help="run a specific fixture, including optional tmux cases")
+                        help="run a specific fixture, including optional application cases")
     args = parser.parse_args()
     if sys.platform != "darwin":
         parser.error("run on macOS")
@@ -262,16 +270,19 @@ def main():
         parser.error("--settle-seconds must be finite and nonnegative")
     if not args.witty.is_file() or not os.access(args.witty, os.X_OK):
         parser.error(f"expected an executable file at {args.witty}")
-    default_fixtures = [name for name in references if name not in TMUX_FIXTURES]
+    optional_fixtures = {name for fixtures in OPTIONAL_APPLICATIONS.values() for name in fixtures}
+    default_fixtures = [name for name in references if name not in optional_fixtures]
     selected = {name: references[name] for name in args.fixture or default_fixtures}
-    tmux = None
-    if any(name in selected for name in TMUX_FIXTURES):
-        executable = shutil.which("tmux")
+    programs = {}
+    for program, fixtures in OPTIONAL_APPLICATIONS.items():
+        if not any(name in selected for name in fixtures):
+            continue
+        executable = shutil.which(program)
         if executable is None:
-            parser.error("the tmux fixtures require tmux on PATH")
-        tmux = Path(executable).resolve()
+            parser.error(f"the {program} fixtures require {program} on PATH")
+        programs[program] = Path(executable).resolve()
     try:
-        return run(args.witty.resolve(), output_directory(args.output), args.settle_seconds, selected, tmux)
+        return run(args.witty.resolve(), output_directory(args.output), args.settle_seconds, selected, programs)
     except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         print(f"Render comparison failed: {error}", file=sys.stderr)
         return 1
