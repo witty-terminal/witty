@@ -1,11 +1,49 @@
 #include "canvas_text_darwin.h"
 
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
+#import <objc/runtime.h>
+
+@interface WittySearchFieldCell : NSTextFieldCell
+@end
+
+@implementation WittySearchFieldCell
+
+- (NSTextView *)fieldEditorForView:(NSView *)view {
+    static char editorKey;
+    NSTextView *editor = objc_getAssociatedObject(view, &editorKey);
+    if (!editor) {
+        // Find's selection style belongs to this control's field editor.
+        editor = [NSTextView textViewUsingTextLayoutManager:YES];
+        editor.fieldEditor = YES;
+        objc_setAssociatedObject(view, &editorKey, editor, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return editor;
+}
+
+- (NSText *)setUpFieldEditorAttributes:(NSText *)text {
+    NSText *editor = [super setUpFieldEditorAttributes:text];
+    if ([editor isKindOfClass:NSTextView.class]) {
+        NSTextView *view = (NSTextView *)editor;
+        NSMutableDictionary *selection = [view.selectedTextAttributes mutableCopy];
+        selection[NSForegroundColorAttributeName] = self.textColor;
+        view.selectedTextAttributes = selection;
+        [selection release];
+    }
+    return editor;
+}
+
+@end
+
 static inline NSPasteboard *witty_search_find_pasteboard(void) {
     return [NSPasteboard pasteboardWithName:NSPasteboardNameFind];
 }
 
 static inline void witty_search_configure_editor(NSTextField *field) {
+    WittySearchFieldCell *cell = [[WittySearchFieldCell alloc] initTextCell:@""];
+    field.cell = cell;
+    [cell release];
+    field.editable = YES;
+    field.selectable = YES;
     field.bordered = NO;
     field.bezeled = NO;
     field.drawsBackground = NO;

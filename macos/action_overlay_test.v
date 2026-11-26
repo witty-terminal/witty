@@ -150,6 +150,8 @@ fn test_native_find_pasteboard_restores_and_refreshes_search() {
 	editor := search_field_editor(surface.search_field) or { panic('missing search field editor') }
 	assert objc_utf8_string(msg_id(editor, 'string')) == 'needle'
 	assert C.witty_macos_msg_range(editor, sel('selectedRange')).length == 6
+	selection_tint := msg_id1(msg_id(editor, 'selectedTextAttributes'), 'objectForKey:', nsstring('NSColor'))
+	assert msg_bool1(selection_tint, 'isEqual:', msg_id(surface.search_field, 'textColor'))
 
 	msg_void(board, 'clearContents')
 	assert msg_bool2(board, 'setString:forType:', nsstring('café ✨'), mime)
@@ -160,8 +162,8 @@ fn test_native_find_pasteboard_restores_and_refreshes_search() {
 	assert objc_utf8_string(msg_id(editor, 'string')) == 'café ✨'
 	assert C.witty_macos_msg_range(editor, sel('selectedRange')).length == 6
 
-	msg_void1(surface.search_field, 'setStringValue:', nsstring('another'))
-	action_search_edit(surface.owner, sel('controlTextDidChange:'), nil_obj())
+	msg_void1(editor, 'insertText:', nsstring('another'))
+	assert audit_native_actions.last() == 'search:another'
 	assert objc_utf8_string(msg_id1(board, 'stringForType:', mime)) == 'another'
 	surface.end_search()
 	surface.start_search('')
