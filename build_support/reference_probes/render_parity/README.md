@@ -111,7 +111,7 @@ python3 build_support/reference_probes/render_parity/run_macos.py \
   ./Witty.app/Contents/MacOS/witty --fixture nvim-diagnostics --fixture nvim-selection
 ```
 
-The opt-in `scrollback-*`, `selection-*`, and live `font-zoom-*` fixtures use the Xcode command-line tools to build an input helper that runs inside a standalone Witty executable. Pass the binary from a build with `-Demit-macos-app=false` and select the fixtures explicitly.
+The opt-in scrollback, selection, live font zoom, and window resize fixtures use the Xcode command-line tools to build an input helper that runs inside a standalone Witty executable. Pass the binary from a build with `-Demit-macos-app=false` and select the fixtures explicitly.
 
 The scrollback fixtures cover Page Up, palette changes while scrolled, following new output, and finding visible and older matches. The search fixtures check the selected highlight and wrapping in both directions.
 
@@ -140,6 +140,15 @@ python3 build_support/reference_probes/render_parity/run_macos.py \
   --fixture font-zoom --fixture font-zoom-larger --fixture font-zoom-restored \
   --fixture font-zoom-smaller --fixture font-zoom-reset --fixture font-zoom-fractional \
   --fixture font-zoom-pty
+```
+
+The resize fixtures narrow and widen the terminal window. They check reflow with the cursor in trailing blanks or near the bottom, pending wrap after widening, and the shell prompt while it waits for a redraw. After the terminal reports its new grid, the cursor fixtures print a colored `X` at the current position so the screenshot can check placement without window focus.
+
+```sh
+python3 build_support/reference_probes/render_parity/run_macos.py \
+  .witty-build/artifacts/witty \
+  --fixture resize-cursor-in-blanks --fixture resize-cursor-near-bottom \
+  --fixture resize-pending-wrap --fixture resize-prompt-last
 ```
 
 The [reference table](ghostty-1.4.0-macos.tsv) uses captures from Ghostty's own terminal IOSurface at 2× on Apple Silicon running macOS 27.2. The Metal output is Display P3, including in fixtures where the terminal interprets its input colors as sRGB. The application fixtures cover Vim and `less` at explicit and default window sizes, colored `ls`, Git diff, and zsh. The `less` fixtures wait for the PTY grid before capturing the numbered lines and status prompt. The original Ghostty 1.4.0 executable had SHA-256 `4b30ac9b049cdf9eb75b6d8c7764856c2b882de97c688dce8a1b80916b55271b`. [Ghostty download](https://ghostty.org/download)

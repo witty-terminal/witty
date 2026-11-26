@@ -22,7 +22,7 @@ from applications import (
 from capture import capture_witty, output_directory, write_versions
 from fixtures import CLEAR as CLEAR_FRAME
 from fixtures import (
-    TERMINAL_COLOR_PALETTE, TERMINAL_COLOR_RESET, TERMINAL_COLOR_SCREEN,
+    RESIZE_WRAP_COLOR, TERMINAL_COLOR_PALETTE, TERMINAL_COLOR_RESET, TERMINAL_COLOR_SCREEN,
     WALLPAPER_OPTIONS, colored_line_erase, font_zoom_frame, grapheme_sequences, kitty_layers,
     kitty_layout, kitty_retransmit, kitty_unicode, prepare_raster_effects, shader_fixture_options,
     terminal_color_updates, wide_selection_frame, wrapped_wide_edits, wrapped_wide_glyphs,
@@ -56,6 +56,12 @@ FONT_ZOOM_KEYS = {
     "font-zoom-reset": ("f8", "f9"),
     "font-zoom-fractional": ("f10",),
     "font-zoom-pty": ("f7",),
+}
+WINDOW_RESIZES = {
+    "resize-cursor-in-blanks": ((320, 160), "9;39"),
+    "resize-cursor-near-bottom": ((320, 160), "9;39"),
+    "resize-pending-wrap": ((528, 263), "15;65"),
+    "resize-prompt-last": ((320, 160), "9;39"),
 }
 SCROLLBACK_KEYS = {
     "scrollback-page-up": ("f10",),
@@ -161,6 +167,23 @@ set -- $size
 printf '\033[6;1H\033[38;2;106;201;170mPTY grid: %s rows, %s columns ┌─┐\033[0m' "$1" "$2"
 exec /bin/sleep 20
 '''
+RESIZE_FRAME = "initial_grid=${2/ /;}\n" + GRID_FRAME_START + r'''
+prefix=$(printf '\033[48;')
+printf '\033[?2048h'
+IFS= read -r -d t -t 5 report || exit 1
+[[ $report == "$prefix$initial_grid;"* ]] || exit 1
+: > "$1" || exit 1
+# The terminal sends this report after updating its grid and reflowing the screen.
+while IFS= read -r -d t -t 5 report; do
+    [[ $report == "$prefix$2;"* ]] || continue
+    printf '\033[?2048l'
+    if [ -n "$3" ]; then
+        printf '\033[48;2;%smX\033[0m' "$3"
+    fi
+    exec /bin/sleep 20
+done
+exit 1
+'''
 SCROLLBACK = INPUT_FRAME_START + r'''
 if /bin/dd bs=1 count=1 of=/dev/null 2>/dev/null; then
     printf '\033]4;42;#a94376\007\r\n\033[1mNew output, row 49\033[0m'
@@ -193,6 +216,25 @@ def alternate_screen_frames():
         "alternate-screen-return": b"\x1b[?1049lready",
         "alternate-screen-reenter": b"\x1b[?1049h\x1b[0m\x1b[HSecond full-screen session",
     }
+
+
+def prepare_resize_fixtures(work):
+    full_line = ("Full line before widening " + "1234567890" * WINDOW_COLUMNS)[:WINDOW_COLUMNS]
+    frames = {
+        "resize-cursor-in-blanks": b"shell % \r\nabc\x1b[1;56H",
+        "resize-cursor-near-bottom": (
+            b"line 1 before resize\r\n\x1b[12;1Hbottom "
+            b"\x1b[33mline that should remain visible after resize\x1b[0m"
+        ),
+        "resize-pending-wrap": full_line.encode(),
+        "resize-prompt-last": (
+            b"Previous command output\r\n\x1b]133;A;redraw=last\x07bash$ \x1b]133;B\x07"
+            b"printf '%s\\n' 'a long command waiting for redraw'"
+        ),
+    }
+    for name, frame in frames.items():
+        (work / f"{name}.bin").write_bytes(CLEAR_FRAME + frame)
+    (work / "resize.sh").write_text(RESIZE_FRAME)
 
 
 def prepare_fixtures(work):
@@ -387,16 +429,17 @@ def build_probe_input(output):
 
 
 def capture_with_input(witty, args, prefix, settle, library, script, frame, *, keys=(), drag=(),
-                       option_drag=False):
+                       option_drag=False, resize=(), script_args=()):
     ready = prefix.with_suffix(".ready")
     env = {
         "DYLD_INSERT_LIBRARIES": str(library),
         "WITTY_VIEWPORT_KEYS": ",".join(keys),
         "WITTY_VIEWPORT_DRAG": ",".join(map(str, drag)),
         "WITTY_VIEWPORT_DRAG_OPTION": "1" if option_drag else "",
+        "WITTY_VIEWPORT_RESIZE": "x".join(map(str, resize)),
         "WITTY_VIEWPORT_READY": str(ready),
     }
-    command = (*args, "-e", "/bin/sh", script, frame, f"{WINDOW_ROWS} {WINDOW_COLUMNS}", ready)
+    command = (*args, "-e", "/bin/bash", script, frame, f"{WINDOW_ROWS} {WINDOW_COLUMNS}", ready, *script_args)
     capture_witty(witty, command, prefix, settle + 2, env=env)
     log = prefix.with_suffix(".log")
     if "macOS render probe dispatched input" not in log.read_text():
@@ -424,6 +467,13 @@ def capture_font_zoom(witty, options, prefix, settle, name, library):
     )
     script = "font-zoom-pty.sh" if name == "font-zoom-pty" else "font-zoom.sh"
     capture_with_input(witty, args, prefix, settle, library, script, "font-zoom", keys=FONT_ZOOM_KEYS[name])
+
+
+def capture_resize(witty, options, prefix, settle, name, library):
+    size, grid = WINDOW_RESIZES[name]
+    color = ";".join(map(str, RESIZE_WRAP_COLOR)) if name != "resize-prompt-last" else ""
+    capture_with_input(witty, (*options, "--resize-overlay=never"), prefix, settle, library, "resize.sh",
+                       name, resize=size, script_args=(grid, color))
 
 
 def capture_selection(witty, options, prefix, settle, name, library):
@@ -516,6 +566,7 @@ def run(witty, output, settle, references, programs):
     scrollback = any(name in SCROLLBACK_KEYS for name in references)
     selection = any(name in SELECTION_DRAGS for name in references)
     font_zoom = any(name in FONT_ZOOM_KEYS for name in references)
+    resize = any(name in WINDOW_RESIZES for name in references)
     if scrollback:
         prepare_scrollback_fixture(work)
     if selection:
@@ -523,7 +574,9 @@ def run(witty, output, settle, references, programs):
     if font_zoom:
         (work / "font-zoom.sh").write_text(INPUT_FRAME_START + "exec /bin/sleep 20\n")
         (work / "font-zoom-pty.sh").write_text(FONT_ZOOM_PTY, encoding="utf-8")
-    probe_input = build_probe_input(output) if scrollback or selection or font_zoom else None
+    if resize:
+        prepare_resize_fixtures(work)
+    probe_input = build_probe_input(output) if scrollback or selection or font_zoom or resize else None
     commands = fixture_args(work)
     if "nvim" in programs:
         commands.update(prepare_neovim(work, programs["nvim"]))
@@ -552,6 +605,8 @@ def run(witty, output, settle, references, programs):
                 capture_selection(witty, options, prefix, settle, name, probe_input)
             elif name in FONT_ZOOM_KEYS:
                 capture_font_zoom(witty, options, prefix, settle, name, probe_input)
+            elif name in WINDOW_RESIZES:
+                capture_resize(witty, options, prefix, settle, name, probe_input)
             else:
                 capture_witty(witty, [*options, *commands[name]], prefix, settle)
             with Image.open(prefix.with_suffix(".png")) as png:
@@ -592,6 +647,7 @@ def main():
     optional_fixtures.update(SCROLLBACK_KEYS)
     optional_fixtures.update(SELECTION_DRAGS)
     optional_fixtures.update(FONT_ZOOM_KEYS)
+    optional_fixtures.update(WINDOW_RESIZES)
     default_fixtures = [name for name in references if name not in optional_fixtures]
     selected = {name: references[name] for name in args.fixture or default_fixtures}
     programs = {}

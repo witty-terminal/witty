@@ -93,6 +93,18 @@ static void send_mouse_drag(NSView *view, const char *drag, NSEventModifierFlags
     fprintf(stderr, "macOS render probe dispatched input\n");
 }
 
+static void resize_window(NSView *view, const char *size) {
+    int width, height;
+    char trailing;
+    if (sscanf(size, "%dx%d%c", &width, &height, &trailing) != 2 || width <= 0 || height <= 0) {
+        fprintf(stderr, "macOS render probe expected positive window width and height\n");
+        exit(EXIT_FAILURE);
+    }
+    [view.window setContentSize:NSMakeSize(width, height)];
+    [view.window.contentView layoutSubtreeIfNeeded];
+    fprintf(stderr, "macOS render probe dispatched input\n");
+}
+
 static void wait_for_terminal(const char *ready, int attempts, void (^dispatch_input)(NSView *)) {
     if (access(ready, F_OK) == 0) {
         for (NSWindow *window in NSApplication.sharedApplication.windows) {
@@ -116,12 +128,16 @@ __attribute__((constructor)) static void install_probe_input(void) {
     const char *sequence = getenv("WITTY_VIEWPORT_KEYS");
     const char *drag = getenv("WITTY_VIEWPORT_DRAG");
     const char *option = getenv("WITTY_VIEWPORT_DRAG_OPTION");
+    const char *size = getenv("WITTY_VIEWPORT_RESIZE");
     const char *ready = getenv("WITTY_VIEWPORT_READY");
     const bool has_keys = sequence && *sequence;
     const bool has_drag = drag && *drag;
-    if (!ready || has_keys == has_drag) return;
+    const bool has_resize = size && *size;
+    if (!ready || has_keys + has_drag + has_resize != 1) return;
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (has_drag) {
+        if (has_resize) {
+            wait_for_terminal(ready, 50, ^(NSView *view) { resize_window(view, size); });
+        } else if (has_drag) {
             const NSEventModifierFlags modifiers = option && *option ? NSEventModifierFlagOption : 0;
             wait_for_terminal(ready, 50, ^(NSView *view) { send_mouse_drag(view, drag, modifiers); });
         } else {
