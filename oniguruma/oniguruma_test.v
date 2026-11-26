@@ -120,8 +120,8 @@ fn test_regex_search_and_mismatch() {
 	mut region := regex.search('hello foo bar', Options{})!
 	defer { region.deinit() }
 	assert region.count() == 1
-	assert region.starts() == [6]
-	assert region.ends() == [9]
+	assert region.starts() == [i32(6)]
+	assert region.ends() == [i32(9)]
 	assert region.starts().data == voidptr(region.beg)
 	assert region.ends().data == voidptr(region.end)
 	if _ := regex.search('hello', Options{}) {
@@ -140,12 +140,12 @@ fn test_region_native_layout_and_borrowed_ranges() {
 	mut region := regex.search('xfoo barz', Options{})!
 	defer { region.deinit() }
 	assert region.count() == 3
-	assert region.starts() == [1, 1, 5]
-	assert region.ends() == [8, 4, 8]
+	assert region.starts() == [i32(1), 1, 5]
+	assert region.ends() == [i32(8), 4, 8]
 	assert region.starts().data == voidptr(region.beg)
 	assert region.ends().data == voidptr(region.end)
 	mut advanced := Region{}
 	defer { advanced.deinit() }
 	assert regex.search_advanced('xfoo barz', 1, 8, mut advanced, Options{})! == 1
-	assert advanced.starts() == [1, 1, 5]
+	assert advanced.starts() == [i32(1), 1, 5]
 }

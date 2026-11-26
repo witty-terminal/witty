@@ -447,10 +447,11 @@ pub fn (r &Regex) search_advanced(str string, start uint, end uint, mut region R
 
 pub struct Region {
 mut:
-	allocated    int
-	num_regs     int
-	beg          &int = unsafe { nil }
-	end          &int = unsafe { nil }
+	// OnigRegion stores C int counts and offsets, even when V int is 64-bit.
+	allocated    i32
+	num_regs     i32
+	beg          &i32 = unsafe { nil }
+	end          &i32 = unsafe { nil }
 	history_root voidptr
 }
 
@@ -462,11 +463,11 @@ pub fn (r &Region) count() uint {
 	return uint(r.num_regs)
 }
 
-pub fn (r &Region) starts() []int {
+pub fn (r &Region) starts() []i32 {
 	if r.num_regs == 0 {
 		return []
 	}
-	mut result := []int{}
+	mut result := []i32{}
 	unsafe {
 		result.data = voidptr(r.beg)
 		result.len = r.num_regs
@@ -476,11 +477,11 @@ pub fn (r &Region) starts() []int {
 	return result
 }
 
-pub fn (r &Region) ends() []int {
+pub fn (r &Region) ends() []i32 {
 	if r.num_regs == 0 {
 		return []
 	}
-	mut result := []int{}
+	mut result := []i32{}
 	unsafe {
 		result.data = voidptr(r.end)
 		result.len = r.num_regs
