@@ -130,13 +130,13 @@ def kitty_retransmit():
     )
 
 
-def kitty_history():
+def kitty_history(rows=GRID_ROWS):
     return (
         kitty_solid(1, 5, 404, (250, 50, 30))
         + b"\x1b[6;12H\x1b_Ga=p,i=404,p=1,c=4,r=2,C=1,q=2;\x1b\\"
         + kitty_solid(2, 5, 405, (20, 120, 245))
         # Scroll the blue image into history and erase that history.
-        + f"\x1b[{GRID_ROWS};1H\n\n\x1b[3J\x1b[2;1HKitty image history".encode()
+        + f"\x1b[{rows};1H\n\n\x1b[3J\x1b[2;1HKitty image history".encode()
     )
 
 
@@ -160,11 +160,11 @@ def kitty_layout():
     return commands
 
 
-def kitty_cursor():
+def kitty_cursor(columns=GRID_COLUMNS):
     commands = bytearray(kitty_solid(1, 1, 411, (205, 135, 245), place=False))
     for row, col, cols, rows, label in (
         (2, 4, 3, 2, "Below and right"),
-        (5, GRID_COLUMNS - 1, 2, 1, "Wrapped caption"),
+        (5, columns - 1, 2, 1, "Wrapped caption"),
     ):
         commands += f"\x1b[{row};{col}H\x1b_Ga=p,i=411,c={cols},r={rows},q=2;\x1b\\{label}".encode()
 
@@ -302,12 +302,12 @@ def kitty_delete_selection():
     return commands
 
 
-def kitty_delete_visible():
+def kitty_delete_visible(rows=GRID_ROWS):
     commands = bytearray(kitty_solid(1, 3, 601, (240, 73, 70)))
     commands += kitty_solid(1, 20, 602, (78, 229, 119), place=False)
     commands += b"\x1b_Ga=p,i=602,p=1,c=2,r=2,C=1,q=2;\x1b\\"
     commands += kitty_solid(1, 1, 603, (91, 137, 242), place=False)
-    commands += f"\x1b[{GRID_ROWS};1H\n".encode()
+    commands += f"\x1b[{rows};1H\n".encode()
     commands += kitty_solid(3, 30, 604, (247, 201, 80))
     # One placement is wholly in history, and another straddles the top edge.
     commands += b"\x1b_Ga=d,d=A,q=2;\x1b\\"

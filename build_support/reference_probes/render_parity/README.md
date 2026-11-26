@@ -96,7 +96,7 @@ The `terminal-colors` fixtures compare live OSC changes to the palette, foregrou
 
 The `alternate-screen` fixtures capture the primary screen, scrolling between a fixed header and footer on the alternate screen, returning to the primary screen, and reentering a cleared alternate screen. The return frame checks the restored cursor, text attributes, and pending wrap. The `vim-return` fixture opens and quits the system Vim, then checks that the shell displays the same restored frame.
 
-The Kitty fixtures also check z-order across cell backgrounds and glyphs, cropped and offset placement, image replacement, and Unicode placeholders. The layering case runs with opaque and translucent backgrounds.
+The Kitty fixtures also check z-order across cell backgrounds and glyphs, cropped and offset placement, image replacement, relative placement, and pinned Unicode placeholders. The layering case runs with opaque and translucent backgrounds. The scrolling and deletion fixtures check placements at scroll margins, cursor movement after placement, clearing images from history, and deleting selected or visible images. The animation fixture checks editing and composing frames and the final frame after one timed loop. These fixtures wait for the configured PTY grid before sending image commands.
 
 The wallpaper fixtures stretch and tile an alpha PNG behind styled text and colored cells. The shader fixtures run a tint pass followed by a channel swap with default and linear-corrected blending. `shader-wallpaper` runs that chain over the translucent tiled wallpaper.
 

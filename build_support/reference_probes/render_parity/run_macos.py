@@ -1,6 +1,7 @@
 import argparse
 import base64
 import csv
+from functools import partial
 import hashlib
 import math
 import os
@@ -23,9 +24,11 @@ from capture import capture_witty, output_directory, write_versions
 from fixtures import CLEAR as CLEAR_FRAME
 from fixtures import (
     RESIZE_WRAP_COLOR, TERMINAL_COLOR_PALETTE, TERMINAL_COLOR_RESET, TERMINAL_COLOR_SCREEN,
-    WALLPAPER_OPTIONS, colored_line_erase, font_zoom_frame, grapheme_sequences, kitty_layers,
-    kitty_layout, kitty_retransmit, kitty_unicode, prepare_raster_effects, shader_fixture_options,
-    terminal_color_updates, wide_selection_frame, wrapped_wide_edits, wrapped_wide_glyphs,
+    WALLPAPER_OPTIONS, colored_line_erase, font_zoom_frame, grapheme_sequences, kitty_animation,
+    kitty_cursor, kitty_delete_selection, kitty_delete_visible, kitty_history, kitty_layers, kitty_layout,
+    kitty_relative, kitty_retransmit, kitty_scroll, kitty_unicode, kitty_unicode_pinned,
+    prepare_raster_effects, shader_fixture_options, terminal_color_updates, wide_selection_frame,
+    wrapped_wide_edits, wrapped_wide_glyphs,
 )
 
 
@@ -108,6 +111,17 @@ KITTY_FIXTURES = {
     "kitty-layout": kitty_layout,
     "kitty-retransmit": kitty_retransmit,
     "kitty-unicode": kitty_unicode,
+}
+KITTY_GRID_FIXTURES = {
+    "kitty-scroll-up": partial(kitty_scroll, down=False),
+    "kitty-scroll-down": partial(kitty_scroll, down=True),
+    "kitty-history": partial(kitty_history, rows=WINDOW_ROWS),
+    "kitty-cursor": partial(kitty_cursor, columns=WINDOW_COLUMNS),
+    "kitty-relative": kitty_relative,
+    "kitty-delete-selection": kitty_delete_selection,
+    "kitty-delete-visible": partial(kitty_delete_visible, rows=WINDOW_ROWS),
+    "kitty-animation": kitty_animation,
+    "kitty-unicode-pinned": kitty_unicode_pinned,
 }
 WAIT_FOR_PTY_GRID = r'''while :; do
     size=$(/bin/stty size) || exit 1
@@ -289,7 +303,7 @@ def prepare_fixtures(work):
         f"\x1b_Ga=T,f=32,s={width},v={height},q=2;"
     )
     (work / "kitty.bin").write_bytes(header.encode() + base64.b64encode(pixels) + b"\x1b\\")
-    for name, payload in KITTY_FIXTURES.items():
+    for name, payload in (KITTY_FIXTURES | KITTY_GRID_FIXTURES).items():
         (work / f"{name}.bin").write_bytes(CLEAR_FRAME + payload())
     prepare_raster_effects(work)
 
@@ -360,6 +374,7 @@ def fixture_args(work):
         "kitty": kitty,
         "kitty-translucent": (*TRANSLUCENT_WINDOW, *kitty),
         **kitty_commands,
+        **{name: (*grid_frame, name, grid_size) for name in KITTY_GRID_FIXTURES},
         "kitty-layers-translucent": (*TRANSLUCENT_WINDOW, *kitty_commands["kitty-layers"]),
         "wallpaper-stretch": (wallpaper, *WALLPAPER_OPTIONS["wallpaper-stretch"], *ansi_without_cursor),
         "wallpaper-repeat": (*repeated_wallpaper, *ansi_without_cursor),
