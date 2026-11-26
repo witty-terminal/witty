@@ -52,17 +52,25 @@ fn native_canvas_draw_mask(context voidptr, view ObjId, frame ObjCRect, mask can
 	C.CFRelease(image)
 }
 
-fn native_canvas_draw_symbol(context voidptr, view ObjId, symbol ObjId, glyph ObjCRect, color ObjId) {
-	if is_nil(symbol) { return }
+fn native_canvas_rasterize_symbol(context voidptr, view ObjId, symbol ObjId, glyph ObjCRect) !(canvas.RasterSurface, ObjCRect) {
+	if is_nil(symbol) { return error('missing symbol image') }
 	mut bounds := ObjCRect{}
 	mut width, mut height := 0, 0
 	C.witty_canvas_pixel_bounds(context, &glyph, &bounds, &width, &height)
-	mut mask := canvas.new_raster_surface(width: width, height: height) or { return }
-	flipped := msg_bool(view, 'isFlipped')
-	if !C.witty_canvas_symbol_mask(symbol, &glyph, &bounds, mask.pixels.data, width, height, flipped) { return }
-	image := C.witty_canvas_make_native_color_mask(mask.pixels.data, width, height, view, color)
+	mut mask := canvas.new_raster_surface(width: width, height: height)!
+	if !C.witty_canvas_symbol_mask(symbol, &glyph, &bounds, mask.pixels.data, width, height,
+		msg_bool(view, 'isFlipped')) {
+		return error('could not rasterize symbol')
+	}
+	return mask, bounds
+}
+
+fn native_canvas_draw_symbol(context voidptr, view ObjId, symbol ObjId, glyph ObjCRect, color ObjId) {
+	mask, bounds := native_canvas_rasterize_symbol(context, view, symbol, glyph) or { return }
+	image := C.witty_canvas_make_native_color_mask(mask.pixels.data, mask.width, mask.height, view,
+		color)
 	if is_nil(image) { return }
-	C.witty_canvas_present_oriented_image(context, image, &bounds, flipped)
+	C.witty_canvas_present_oriented_image(context, image, &bounds, msg_bool(view, 'isFlipped'))
 	C.CFRelease(image)
 }
 

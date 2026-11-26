@@ -10,6 +10,7 @@ fn C.witty_readonly_rasterize_title(title ObjId, tint ObjId, bounds &ObjCRect, p
 fn C.witty_readonly_configure_layers(material ObjId, ink ObjId, corner f64, border f64)
 fn C.witty_readonly_outline(ink ObjId) ObjId
 fn C.witty_readonly_update_outline(ink ObjId)
+fn C.witty_readonly_present_eye(ink ObjId, tint ObjId, bounds &ObjCRect, pixels &u32, width int, height int)
 
 const readonly_title = 'Read-only'
 const readonly_height = 23.0
@@ -95,8 +96,13 @@ fn readonly_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 	}
 	tint := C.witty_macos_color_rgba(0.8, 0.592, 0.4, 1)
 	symbol := C.witty_canvas_system_symbol(nsstring('eye.fill'), 12, 0)
-	native_canvas_draw_symbol(context, self, symbol, objc_rect(8, (bounds.height - 12) / 2, 18, 12),
-		tint)
+	glyph := objc_rect(8, (bounds.height - 12) / 2, 18, 12)
+	if bitmap {
+		native_canvas_draw_symbol(context, self, symbol, glyph, tint)
+	} else if mask, eye_bounds := native_canvas_rasterize_symbol(context, self, symbol, glyph) {
+		C.witty_readonly_present_eye(self, tint, &eye_bounds, mask.pixels.data, mask.width,
+			mask.height)
+	}
 	image := C.witty_readonly_rasterize_title(nsstring(readonly_title), tint, &bounds,
 		raster.pixels.data, w, h)
 	if is_nil(image) { return }
