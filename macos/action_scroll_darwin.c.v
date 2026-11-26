@@ -139,14 +139,10 @@ fn set_surface_split_dimming(view voidptr, fill u32, opacity f64) {
 	msg_void(transaction, 'begin')
 	msg_void_bool(transaction, 'setDisableActions:', true)
 	if scroll.split_dimming_fill != ?u32(fill) {
-		tile := native_canvas_fill_tile(fill)
-		if !is_nil(tile) {
-			msg_void1(layer, 'setContents:', ObjId(tile))
-			C.CFRelease(tile)
-			scroll.split_dimming_fill = fill
-		}
+		native_canvas_layer_fill(layer, fill, 1)
+		scroll.split_dimming_fill = fill
 	}
-	// Apply opacity during composition so the opaque tile transforms to the window color space first.
+	// Apply opacity after converting the fill to the window's color space.
 	C.witty_macos_msg_void_f32(layer, sel('setOpacity:'), f32(opacity))
 	msg_void_bool(scroll.split_dimming, 'setHidden:', false)
 	msg_void(transaction, 'commit')

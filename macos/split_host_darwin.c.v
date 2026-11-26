@@ -18,7 +18,10 @@ mut:
 	dim_fill u32
 	dim_opacity f64
 	divider_view ObjId
-	divider_color u32
+	divider_layers []ObjId
+	divider_rgb u32
+	divider_brightness f64 = 1
+	inspector_divider_color u32
 	dividers []NativeSplitDivider
 }
 
@@ -46,7 +49,7 @@ fn register_split_host_class() {
 	overlay := C.macos_objc_allocate_class_pair(get_class('NSView'), cstr('WittySplitDividerOverlay'), 0)
 	add_method(overlay, 'isFlipped', voidptr(split_host_is_flipped), 'B@:')
 	add_method(overlay, 'hitTest:', voidptr(action_passive_hit), '@@:{CGPoint=dd}')
-	add_method(overlay, 'drawRect:', voidptr(split_divider_draw), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
+	add_method(overlay, 'viewDidChangeBackingProperties', voidptr(split_divider_backing_changed), 'v@:')
 	C.macos_objc_register_class_pair(overlay)
 }
 pub fn create_split_host(view voidptr) &NativeSplitHost {
@@ -106,6 +109,10 @@ fn (mut host NativeSplitHost) layout_divider_view(bounds ObjCRect) {
 	}
 	if is_nil(host.divider_view) {
 		host.divider_view = msg_id_rect(alloc('WittySplitDividerOverlay'), 'initWithFrame:', bounds)
+		layer := msg_id(get_class('CALayer'), 'layer')
+		msg_void_bool(layer, 'setGeometryFlipped:', true)
+		msg_void1(host.divider_view, 'setLayer:', layer)
+		msg_void_bool(host.divider_view, 'setWantsLayer:', true)
 		C.witty_canvas_place_overlay(host.container, host.divider_view, nil_obj())
 		msg_void(host.divider_view, 'release')
 	} else if msg_id(msg_id(host.container, 'subviews'), 'lastObject') != host.divider_view {
@@ -113,18 +120,15 @@ fn (mut host NativeSplitHost) layout_divider_view(bounds ObjCRect) {
 	}
 	msg_void_rect(host.divider_view, 'setFrame:', bounds)
 	msg_void_bool(host.divider_view, 'setHidden:', false)
-	msg_void_bool(host.divider_view, 'setNeedsDisplay:', true)
+	host.layout_divider_layers(view_backing_scale(voidptr(host.divider_view)))
 }
 
-fn native_split_divider_color(config NativeWindowConfig) u32 {
-	if color := config.split_divider_color { return color }
+fn native_split_divider_shade(config NativeWindowConfig) (u32, f64) {
+	if color := config.split_divider_color { return color, 1 }
 	background := config.background
 	// Scaling HSB brightness preserves hue and saturation in the RGB channels.
 	brightness := if native_color_luminance(background) > 0.5 { 0.92 } else { 0.6 }
-	r := split_divider_channel((background >> 16) & 255, brightness)
-	g := split_divider_channel((background >> 8) & 255, brightness)
-	b := split_divider_channel(background & 255, brightness)
-	return r << 16 | g << 8 | b
+	return background, brightness
 }
 
 fn split_divider_channel(value u32, brightness f64) u32 {
@@ -136,16 +140,23 @@ fn split_divider_channel(value u32, brightness f64) u32 {
 }
 
 pub fn (mut host NativeSplitHost) set_appearance(config NativeWindowConfig, focused_view voidptr) {
-	divider_color := native_split_divider_color(config)
+	divider_rgb, divider_brightness := native_split_divider_shade(config)
 	fill := config.unfocused_split_fill or { config.background }
 	opacity := 1.0 - config.unfocused_split_opacity
-	if host.focused_view == focused_view && host.dim_fill == fill && host.dim_opacity == opacity
-		&& host.divider_color == divider_color {
+	divider_changed := host.divider_rgb != divider_rgb || host.divider_brightness != divider_brightness
+	if host.focused_view == focused_view && host.dim_fill == fill && host.dim_opacity == opacity && !divider_changed {
 		return
 	}
-	if host.divider_color != divider_color {
-		host.divider_color = divider_color
-		msg_void_bool(host.divider_view, 'setNeedsDisplay:', true)
+	if divider_changed {
+		host.divider_rgb = divider_rgb
+		host.divider_brightness = divider_brightness
+		r := split_divider_channel(divider_rgb >> 16, divider_brightness)
+		g := split_divider_channel((divider_rgb >> 8) & 255, divider_brightness)
+		b := split_divider_channel(divider_rgb & 255, divider_brightness)
+		host.inspector_divider_color = r << 16 | g << 8 | b
+		for line in host.divider_layers {
+			native_canvas_layer_fill(line, divider_rgb, divider_brightness)
+		}
 	}
 	host.focused_view = focused_view
 	host.dim_fill = fill
@@ -159,7 +170,7 @@ fn (host &NativeSplitHost) refresh_surface_appearance() {
 	for view in leaves {
 		dim := leaves.len > 1 && host.tree.zoomed == unsafe { nil } && view != focused
 		set_surface_split_dimming(view, host.dim_fill, if dim { host.dim_opacity } else { 0.0 })
-		set_surface_inspector_divider_color(view, host.divider_color)
+		set_surface_inspector_divider_color(view, host.inspector_divider_color)
 	}
 }
 pub fn view_window(view voidptr) voidptr { return msg_id(view, 'window') }
@@ -194,17 +205,34 @@ fn split_dividers(n &NativeSplitNode, bounds SplitBounds, iw f64, ih f64) []Nati
 	result << split_dividers(n.right, right, iw, ih)
 	return result
 }
-fn split_divider_draw(self ObjId, _cmd Sel, _dirty ObjCRect) {
-	host := split_host(msg_id(self, 'superview')) or { return }
-	host.draw_dividers(native_canvas_overlay_context(), view_backing_scale(voidptr(self)))
+fn split_divider_backing_changed(self ObjId, _cmd Sel) {
+	view_super_void(self, 'WittySplitDividerOverlay', 'viewDidChangeBackingProperties')
+	mut host := split_host(msg_id(self, 'superview')) or { return }
+	if !msg_bool(self, 'isHidden') {
+		host.layout_divider_layers(view_backing_scale(voidptr(self)))
+	}
 }
 
-fn (host &NativeSplitHost) draw_dividers(context voidptr, scale f64) {
-	mut rects := []ObjCRect{cap: host.dividers.len}
-	for divider in host.dividers {
-		rects << native_canvas_overlay_rect(divider.line, scale)
+fn (mut host NativeSplitHost) layout_divider_layers(scale f64) {
+	parent := msg_id(host.divider_view, 'layer')
+	transaction := get_class('CATransaction')
+	msg_void(transaction, 'begin')
+	msg_void_bool(transaction, 'setDisableActions:', true)
+	for i, divider in host.dividers {
+		if i == host.divider_layers.len {
+			line := msg_id(get_class('CALayer'), 'layer')
+			native_canvas_layer_fill(line, host.divider_rgb, host.divider_brightness)
+			msg_void1(parent, 'addSublayer:', line)
+			host.divider_layers << line
+		}
+		line := host.divider_layers[i]
+		msg_void_f64(line, 'setContentsScale:', scale)
+		msg_void_rect(line, 'setFrame:', native_canvas_overlay_rect(divider.line, scale))
 	}
-	native_canvas_fill_rects(context, host.divider_color, rects)
+	for host.divider_layers.len > host.dividers.len {
+		msg_void(host.divider_layers.pop(), 'removeFromSuperlayer')
+	}
+	msg_void(transaction, 'commit')
 }
 
 fn (host &NativeSplitHost) divider_at(point ObjCPoint) ?NativeSplitDivider {

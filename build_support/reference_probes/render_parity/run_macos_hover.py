@@ -10,7 +10,7 @@ import sys
 
 from PIL import Image, ImageChops
 
-from capture import output_directory, write_versions
+from capture import compare_rgba, output_directory, write_versions
 from run_macos import INPUT_FRAME_START, OPTIONS, WINDOW_COLUMNS, WINDOW_ROWS, build_probe_input
 
 
@@ -101,14 +101,6 @@ def verify_transitions(frames, fixture, opacity):
         raise RuntimeError(f"Link preview did not repaint and clear in {fixture}")
 
 
-def compare(witty, ghostty):
-    if witty.size != ghostty.size:
-        return "", ""
-    r, g, b, a = ImageChops.difference(witty, ghostty).split()
-    levels = ImageChops.lighter(ImageChops.lighter(r, g), ImageChops.lighter(b, a))
-    return witty.width * witty.height - levels.histogram()[0], levels.getextrema()[1]
-
-
 def run(witty, ghostty, output, tolerance):
     work = output / "fixtures"
     prepare_fixture(work)
@@ -129,7 +121,7 @@ def run(witty, ghostty, output, tolerance):
                 verify_transitions(frames[app], fixture, opacity)
             for state in STATES:
                 actual, reference = frames["witty"][state], frames["ghostty"][state]
-                count, error = compare(actual, reference)
+                count, error = compare_rgba(actual, reference)
                 within_limit = isinstance(error, int) and error <= tolerance
                 writer.writerow((color_space, opacity, kind, appearance, state, f"{actual.width}x{actual.height}",
                                  f"{reference.width}x{reference.height}", count, error,

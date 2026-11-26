@@ -88,6 +88,13 @@ python3 build_support/reference_probes/render_parity/run_macos_hover.py \
 
 The probe Command-hovers over a plain URL and an OSC 8 link in light and dark windows. It runs in Display P3 and sRGB, each with opaque and 70% opaque terminal backgrounds. It captures the terminal underline and the preview before and after the pointer crosses into the preview area, switches the window appearance while the preview is on the right, then checks that the preview returns to the left and clears. The translucent cases verify that the preview stays opaque over the translucent terminal. The report includes the exact number of differing pixels and the largest channel difference per frame. The default tolerance is zero. Pass `--maximum-channel-error 1` to allow one level of color rounding while keeping the exact counts in the report.
 
+The foreground split probe captures the full client area as a new pane opens on the right, focus returns to the left, a bottom pane opens, and zoom and close restore the surrounding panes. It compares glyph scale, dividers, and unfocused fills in dark, light, custom-color, and translucent windows. Run it in a desktop session with both executables able to load the probe dylib. Every decoded RGBA pixel must match.
+
+```sh
+python3 build_support/reference_probes/render_parity/run_macos_split.py \
+  .witty-build/artifacts/witty /Applications/Ghostty.app/Contents/MacOS/ghostty
+```
+
 The terminal text fixtures cover ligatures, ANSI colors and decorations, box drawing, Powerline separators, combining accents, wide characters, and emoji. The translucent cases check how styled cells and glyphs blend over a partially transparent background with unequal padding.
 
 The `grapheme-sequences` fixture places emoji presentation selectors and combining accents at the right edge with clustering enabled and disabled. The `colored-line-erase` fixture checks the backgrounds after erasing to either edge and across a full row. The `wide-edit-before` and `wide-edit` fixtures capture wrapped double-width glyphs before and after erasing a glyph and deleting from its trailing cell. The fixtures wait for the configured PTY grid before writing text at the margin.

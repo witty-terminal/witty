@@ -4,13 +4,13 @@ import os
 
 #insert "@VMODROOT/macos/canvas_overlay_test_bridge.h"
 
-fn C.witty_overlay_test_tile(layer ObjId) u32
+fn C.witty_overlay_test_split_fill_matches(layer ObjId, rgb u32, brightness f64) bool
 fn C.witty_overlay_test_opacity(layer ObjId) f32
 fn C.witty_overlay_test_png(view ObjId) ObjId
 
-fn assert_split_dimming(view ObjId, pixel u32, opacity f32) {
+fn assert_split_dimming(view ObjId, rgb u32, opacity f32) {
 	layer := msg_id(view, 'layer')
-	assert C.witty_overlay_test_tile(layer) == pixel
+	assert C.witty_overlay_test_split_fill_matches(layer, rgb, 1)
 	assert C.witty_overlay_test_opacity(layer) == opacity
 }
 
@@ -44,7 +44,7 @@ fn test_native_split_dimming_tracks_the_focused_pane_and_app_config() {
 	assert !is_nil(right_dimming)
 	assert !msg_bool(right_dimming, 'isHidden')
 	assert msg_id(msg_id(right.scroll.container, 'subviews'), 'lastObject') == right_dimming
-	assert_split_dimming(right_dimming, 0xff161820, 0.5)
+	assert_split_dimming(right_dimming, 0x161820, 0.5)
 	assert msg_rect(right_dimming, 'frame') == msg_rect(right.scroll.scroll, 'frame')
 
 	host.set_appearance(config, right_view)
@@ -60,9 +60,9 @@ fn test_native_split_dimming_tracks_the_focused_pane_and_app_config() {
 
 	updated := NativeWindowConfig{ ...config, unfocused_split_opacity: 0.75, unfocused_split_fill: u32(0x81315a) }
 	host.set_appearance(updated, right_view)
-	assert_split_dimming(left_dimming, 0xff81315a, 0.25)
+	assert_split_dimming(left_dimming, 0x81315a, 0.25)
 	host.layout()
-	assert_split_dimming(left_dimming, 0xff81315a, 0.25)
+	assert_split_dimming(left_dimming, 0x81315a, 0.25)
 	host.replace_tree(NativeSplitTree{ root: tree.root, zoomed: tree.root.find(right_view) or { panic('missing right pane') } })
 	assert msg_bool(host.divider_view, 'isHidden')
 	assert msg_bool(left_dimming, 'isHidden')

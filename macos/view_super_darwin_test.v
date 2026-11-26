@@ -38,6 +38,34 @@ fn test_terminal_view_inherited_responder_tracking_and_backing_super_calls() {
 	msg_void(view, 'viewDidChangeBackingProperties')
 }
 
+fn test_terminal_layer_updates_when_a_detached_view_joins_a_window() {
+	app_init()
+	window_view := create_restorable_window(200, 120, 'backing scale probe')
+	window := view_window(window_view)
+	view := create_terminal_view(objc_rect(0, 0, 40, 30))
+	layer := msg_id(get_class('CALayer'), 'layer')
+	defer {
+		msg_void(view, 'removeFromSuperview')
+		msg_void(view, 'release')
+		close_native_window(window)
+		release_native_object(window)
+		release_native_object(window_view)
+	}
+	window_scale := view_backing_scale(window_view)
+	detached_scale := if window_scale == 1 { f64(2) } else { f64(1) }
+	metal_install_iosurface_layer(view, layer, detached_scale)
+	assert msg_f64(layer, 'contentsScale') == detached_scale
+	msg_void1(window_view, 'addSubview:', view)
+	assert msg_f64(layer, 'contentsScale') == window_scale
+	width, height := metal_layer_surface_size(layer)
+	assert width == 40 * window_scale
+	assert height == 30 * window_scale
+
+	msg_void_f64(layer, 'setContentsScale:', detached_scale)
+	msg_void(view, 'viewDidChangeBackingProperties')
+	assert msg_f64(layer, 'contentsScale') == window_scale
+}
+
 fn test_inspector_view_inherited_responder_and_backing_super_calls() {
 	app_init()
 	register_inspector_view()

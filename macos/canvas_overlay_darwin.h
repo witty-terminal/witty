@@ -96,6 +96,22 @@ static inline CGColorRef witty_canvas_make_opaque_color(CGColorSpaceRef space, d
     return CGColorCreate(space, components);
 }
 
+static inline void witty_canvas_set_layer_srgb_fill(CALayer *layer, float r, float g, float b) {
+    // Present a constant Canvas fill without a texture. Core Animation
+    // dithers converted image contents, even at uniform color and coverage.
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceExtendedSRGB);
+    if (!space) return;
+    CGColorRef fill = witty_canvas_make_opaque_color(space, r, g, b);
+    if (fill) {
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        layer.backgroundColor = fill;
+        [CATransaction commit];
+        CGColorRelease(fill);
+    }
+    CGColorSpaceRelease(space);
+}
+
 static inline CGColorSpaceRef witty_canvas_convert_rgb(uint32_t rgb, void *target, double *r, double *g, double *b) {
     *r = (double)((rgb >> 16) & 255) / 255;
     *g = (double)((rgb >> 8) & 255) / 255;

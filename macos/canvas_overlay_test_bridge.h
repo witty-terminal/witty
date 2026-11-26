@@ -27,6 +27,19 @@ static inline double witty_overlay_test_fill_alpha(CALayer *layer) {
     return layer.backgroundColor ? CGColorGetAlpha(layer.backgroundColor) : 0;
 }
 
+static inline bool witty_overlay_test_split_fill_matches(CALayer *layer, uint32_t rgb, double brightness) {
+    CGColorRef fill = layer.backgroundColor;
+    if (!fill || layer.contents || CGColorGetAlpha(fill) != 1) return false;
+    CGColorSpaceRef space = CGColorGetColorSpace(fill);
+    CFStringRef name = space ? CGColorSpaceGetName(space) : NULL;
+    if (!name || !CFEqual(name, kCGColorSpaceExtendedSRGB)) return false;
+    const CGFloat *components = CGColorGetComponents(fill);
+    return CGColorGetNumberOfComponents(fill) == 4
+        && fabs(components[0] - (rgb >> 16) * brightness / 255) < 1e-7
+        && fabs(components[1] - ((rgb >> 8) & 255) * brightness / 255) < 1e-7
+        && fabs(components[2] - (rgb & 255) * brightness / 255) < 1e-7;
+}
+
 static inline bool witty_overlay_test_has_16bit_coverage(CALayer *layer) {
     CGImageRef image = (CGImageRef)layer.contents;
     if (!image || CGImageGetBitsPerComponent(image) != 16 ||

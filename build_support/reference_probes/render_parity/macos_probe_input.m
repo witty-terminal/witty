@@ -42,6 +42,7 @@ static void send_key_sequence(NSView *view, NSArray<NSString *> *keys, NSUIntege
         {"f8", NSF8FunctionKey, kVK_F8},
         {"f9", NSF9FunctionKey, kVK_F9},
         {"f10", NSF10FunctionKey, kVK_F10},
+        {"f11", NSF11FunctionKey, kVK_F11},
         {"space", ' ', kVK_Space},
     };
     for (size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); ++i) {
@@ -120,8 +121,8 @@ static void resize_window(NSView *view, const char *size) {
     fprintf(stderr, "macOS render probe dispatched input\n");
 }
 
-static bool capture_hover_frame(NSView *view, NSString *prefix, NSString *state) {
-    // Use the window server image so the preview and terminal appear together.
+static bool capture_window_frame(NSView *view, NSString *prefix, NSString *state) {
+    // The window server image includes the terminal and composited overlays.
     typedef CGImageRef (*WindowImage)(CGRect, CGWindowListOption, CGWindowID, CGWindowImageOption);
     WindowImage snapshot = (WindowImage)dlsym(RTLD_DEFAULT, "CGWindowListCreateImage");
     NSWindow *window = view.window;
@@ -202,7 +203,7 @@ static void send_command_flag(NSView *view, bool pressed) {
 
 static void capture_hover(NSView *view, NSString *prefix, BOOL ghostty, NSUInteger step) {
     NSArray<NSString *> *states = @[@"idle", @"hover", @"relocated", @"rethemed", @"returned", @"cleared"];
-    if (!capture_hover_frame(view, prefix, states[step])) {
+    if (!capture_window_frame(view, prefix, states[step])) {
         fprintf(stderr, "macOS render probe could not capture the foreground terminal window\n");
         exit(EXIT_FAILURE);
     }
@@ -231,8 +232,8 @@ static void capture_hover(NSView *view, NSString *prefix, BOOL ghostty, NSUInteg
         dispatch_get_main_queue(), ^{ capture_hover(view, prefix, ghostty, step + 1); });
 }
 
-static void wait_for_terminal(const char *ready, int attempts, BOOL ghostty, void (^dispatch_input)(NSView *)) {
-    if (access(ready, F_OK) == 0) {
+static void wait_for_terminal(NSString *ready, int attempts, BOOL ghostty, void (^dispatch_input)(NSView *)) {
+    if (access(ready.fileSystemRepresentation, F_OK) == 0) {
         for (NSWindow *window in NSApplication.sharedApplication.windows) {
             NSView *view = terminal_view(window.contentView, ghostty);
             if (!view) continue;
@@ -250,6 +251,56 @@ static void wait_for_terminal(const char *ready, int attempts, BOOL ghostty, voi
         dispatch_get_main_queue(), ^{ wait_for_terminal(ready, attempts - 1, ghostty, dispatch_input); });
 }
 
+static void capture_split(NSWindow *window, NSString *prefix, NSString *ready, BOOL ghostty,
+                          NSUInteger step, int attempts) {
+    static const struct {
+        const char *name;
+        const char *next_key;
+        unsigned panes_started;
+        BOOL left;
+        BOOL bottom;
+        BOOL full_width;
+    } stages[] = {
+        {"initial", "f7", 1, YES, NO, YES},
+        {"right", "f9", 2, NO, NO, NO},
+        {"left", "f8", 2, YES, NO, NO},
+        {"nested", "f10", 3, YES, YES, NO},
+        {"zoomed", "f10", 3, YES, NO, YES},
+        {"unzoomed", "f11", 3, YES, YES, NO},
+        {"closed", NULL, 3, YES, NO, NO},
+    };
+    NSString *marker = [ready stringByAppendingFormat:@"/pane%u.ready", stages[step].panes_started];
+    NSView *content = window.contentView;
+    id responder = window.firstResponder;
+    NSView *view = [responder isKindOfClass:NSView.class] ? responder : nil;
+    NSRect area = [content convertRect:content.bounds toView:nil];
+    NSRect frame = view ? [view convertRect:view.bounds toView:nil] : NSZeroRect;
+    BOOL left = NSMinX(frame) < NSMidX(area) - NSWidth(area) / 4;
+    BOOL bottom = NSMaxY(frame) < NSMidY(area) + NSHeight(area) / 4;
+    BOOL full_width = NSWidth(frame) > 3 * NSWidth(area) / 4;
+    BOOL focused = view && terminal_view(view, ghostty) == view && !view.isHiddenOrHasHiddenAncestor;
+    if (!focused || left != stages[step].left || bottom != stages[step].bottom ||
+            full_width != stages[step].full_width || access(marker.fileSystemRepresentation, F_OK) != 0) {
+        if (attempts <= 0) {
+            fprintf(stderr, "macOS render probe timed out waiting for split state %s\n", stages[step].name);
+            exit(EXIT_FAILURE);
+        }
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+            capture_split(window, prefix, ready, ghostty, step, attempts - 1);
+        });
+        return;
+    }
+    if (!capture_window_frame(content, prefix, [NSString stringWithUTF8String:stages[step].name])) {
+        fprintf(stderr, "macOS render probe could not capture split state %s\n", stages[step].name);
+        exit(EXIT_FAILURE);
+    }
+    if (!stages[step].next_key) exit(EXIT_SUCCESS);
+    send_key_sequence(view, @[[NSString stringWithUTF8String:stages[step].next_key]], 0, nil);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 700 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        capture_split(window, prefix, ready, ghostty, step + 1, 30);
+    });
+}
+
 __attribute__((constructor)) static void install_probe_input(void) {
     const char *sequence = getenv("WITTY_VIEWPORT_KEYS");
     const char *drag = getenv("WITTY_VIEWPORT_DRAG");
@@ -257,13 +308,15 @@ __attribute__((constructor)) static void install_probe_input(void) {
     const char *size = getenv("WITTY_VIEWPORT_RESIZE");
     const char *ready = getenv("WITTY_VIEWPORT_READY");
     const char *hover = getenv("WITTY_VIEWPORT_HOVER_CAPTURE");
+    const char *split = getenv("WITTY_VIEWPORT_SPLIT_CAPTURE");
     const bool ghostty = getenv("WITTY_VIEWPORT_HOVER_GHOSTTY") != NULL;
     const bool has_keys = sequence && *sequence;
     const bool has_drag = drag && *drag;
     const bool has_resize = size && *size;
     const bool has_hover = hover && *hover;
-    if (!ready || has_keys + has_drag + has_resize + has_hover != 1) return;
-    if (has_hover) {
+    const bool has_split = split && *split;
+    if (!ready || has_keys + has_drag + has_resize + has_hover + has_split != 1) return;
+    if (has_hover || has_split) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 160 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
             // A standalone Witty binary may never receive a LaunchServices activation.
             if (!ghostty && NSApp.windows.count == 0) {
@@ -273,27 +326,32 @@ __attribute__((constructor)) static void install_probe_input(void) {
                         notificationWithName:NSApplicationDidBecomeActiveNotification object:NSApp]];
                 }
             }
-            NSString *prefix = [NSString stringWithUTF8String:hover];
-            wait_for_terminal(ready, 80, ghostty, ^(NSView *view) {
+            NSString *prefix = [NSString stringWithUTF8String:has_hover ? hover : split];
+            NSString *ready_path = [NSString stringWithUTF8String:ready];
+            NSString *marker = has_split ? [ready_path stringByAppendingPathComponent:@"pane1.ready"] : ready_path;
+            wait_for_terminal(marker, 80, ghostty, ^(NSView *view) {
                 [view.window makeKeyAndOrderFront:nil];
                 [NSApp activateIgnoringOtherApps:YES];
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 400 * NSEC_PER_MSEC),
-                    dispatch_get_main_queue(), ^{ capture_hover(view, prefix, ghostty, 0); });
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (has_split ? 450 : 400) * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+                    if (has_split) capture_split(view.window, prefix, ready_path, ghostty, 0, 30);
+                    else capture_hover(view, prefix, ghostty, 0);
+                });
             });
         });
         return;
     }
     dispatch_async(dispatch_get_main_queue(), ^{
+        NSString *ready_path = [NSString stringWithUTF8String:ready];
         if (has_resize) {
-            wait_for_terminal(ready, 50, NO, ^(NSView *view) { resize_window(view, size); });
+            wait_for_terminal(ready_path, 50, NO, ^(NSView *view) { resize_window(view, size); });
         } else if (has_drag) {
             const NSEventModifierFlags modifiers = option && *option ? NSEventModifierFlagOption : 0;
-            wait_for_terminal(ready, 50, NO, ^(NSView *view) { send_mouse_drag(view, drag, modifiers); });
+            wait_for_terminal(ready_path, 50, NO, ^(NSView *view) { send_mouse_drag(view, drag, modifiers); });
         } else {
             NSArray<NSString *> *keys = [[NSString stringWithUTF8String:sequence] componentsSeparatedByString:@","];
             const char *path = getenv("WITTY_VIEWPORT_RELOAD_CONFIG");
             NSString *config_path = path && *path ? [NSString stringWithUTF8String:path] : nil;
-            wait_for_terminal(ready, 50, config_path != nil, ^(NSView *view) {
+            wait_for_terminal(ready_path, 50, config_path != nil, ^(NSView *view) {
                 send_key_sequence(view, keys, 0, config_path);
             });
         }

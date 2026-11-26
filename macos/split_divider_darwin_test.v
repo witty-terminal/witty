@@ -3,10 +3,14 @@ module macos
 import os
 import stbi
 
+#insert "@VMODROOT/macos/canvas_overlay_test_bridge.h"
+
+fn C.witty_overlay_test_split_fill_matches(layer ObjId, rgb u32, brightness f64) bool
+
 struct SplitDividerFixture {
-	name string
 	config NativeWindowConfig
-	divider u32
+	rgb u32
+	brightness f64
 }
 
 fn split_divider_fixture_pixels(shape ObjCRect, background u32, scale int, draw fn (voidptr)) ![]u8 {
@@ -26,11 +30,17 @@ fn split_divider_fixture_pixels(shape ObjCRect, background u32, scale int, draw 
 	return pixels
 }
 
-fn test_native_split_divider_color_and_backing_pixels() ! {
+fn test_native_split_divider_color_and_backing_geometry() ! {
+	app_init()
+	register_split_host_class()
+	bounds := objc_rect(0, 0, 103, 63)
+	container := msg_id_rect(alloc('NSView'), 'initWithFrame:', bounds)
+	defer { msg_void(container, 'release') }
 	left, right, bottom := voidptr(1), voidptr(2), voidptr(3)
 	tree := NativeSplitTree{root: native_split_leaf(left)}.inserting(right, left, .right)!
 	nested := tree.inserting(bottom, left, .down)!
 	mut host := NativeSplitHost{
+		container: container
 		tree: nested
 		dividers: split_dividers(nested.root, SplitBounds{ width: 103, height: 63 }, 1, 1)
 	}
@@ -41,33 +51,23 @@ fn test_native_split_divider_color_and_backing_pixels() ! {
 	assert host.divider_at(ObjCPoint{ x: 10, y: 27 }) == none
 
 	fixtures := [
-		SplitDividerFixture{ name: 'configured', config: NativeWindowConfig{ background: 0x161820, split_divider_color: u32(0x47637c) }, divider: 0x47637c },
-		SplitDividerFixture{ name: 'default-dark', config: NativeWindowConfig{ background: 0x161820 }, divider: 0x0d0e13 },
-		SplitDividerFixture{ name: 'default-light', config: NativeWindowConfig{ background: 0xf9f3e5 }, divider: 0xe5dfd3 },
+		SplitDividerFixture{ config: NativeWindowConfig{ background: 0x161820, split_divider_color: u32(0x47637c) }, rgb: 0x47637c, brightness: 1 },
+		SplitDividerFixture{ config: NativeWindowConfig{ background: 0x161820 }, rgb: 0x161820, brightness: 0.6 },
+		SplitDividerFixture{ config: NativeWindowConfig{ background: 0xf9f3e5 }, rgb: 0xf9f3e5, brightness: 0.92 },
 	]
+	host.layout_divider_view(bounds)
+	assert host.divider_layers.len == 2
+	vertical, horizontal := host.divider_layers[0], host.divider_layers[1]
 	for fixture in fixtures {
 		host.set_appearance(fixture.config, left)
+		assert C.witty_overlay_test_split_fill_matches(vertical, fixture.rgb, fixture.brightness)
+		assert C.witty_overlay_test_split_fill_matches(horizontal, fixture.rgb, fixture.brightness)
 		for scale in [1, 2] {
-			width, height := 103 * scale, 63 * scale
-			pixels := split_divider_fixture_pixels(objc_rect(0, 0, 103, 63), fixture.config.background, scale,
-				fn [host, scale] (context voidptr) { host.draw_dividers(context, scale) })!
-			if output := os.getenv_opt('WITTY_SPLIT_DIVIDER_OUTPUT') {
-				stbi.stbi_write_png(os.join_path(output, '${fixture.name}-${scale}x-witty.png'), width,
-					height, 4, pixels.data, width * 4)!
-			}
-			divider_x := if scale == 1 { 51 } else { 101 }
-			divider_y := if scale == 1 { 31 } else { 61 }
-			for y in 0 .. height {
-				for x in 0 .. width {
-					offset := (y * width + x) * 4
-					rgb := (u32(pixels[offset]) << 16) | (u32(pixels[offset + 1]) << 8) | u32(pixels[offset + 2])
-					vertical := x >= divider_x && x < divider_x + scale
-					horizontal := y >= divider_y && y < divider_y + scale && x < divider_x
-					expected := if vertical || horizontal { fixture.divider } else { fixture.config.background }
-					assert rgb == expected, '${fixture.name} ${scale}x at (${x}, ${y})'
-					assert pixels[offset + 3] == 255
-				}
-			}
+			host.layout_divider_layers(scale)
+			divider_x := if scale == 1 { 51.0 } else { 50.5 }
+			divider_y := if scale == 1 { 31.0 } else { 30.5 }
+			assert msg_rect(vertical, 'frame') == objc_rect(divider_x, 0, 1, 63)
+			assert msg_rect(horizontal, 'frame') == objc_rect(0, divider_y, 51, 1)
 		}
 	}
 }

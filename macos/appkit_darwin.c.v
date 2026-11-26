@@ -150,6 +150,7 @@ fn register_classes() {
 		add_method(view_cls, 'becomeFirstResponder', voidptr(vt_view_become_first_responder), 'B@:')
 		add_method(view_cls, 'resignFirstResponder', voidptr(vt_view_resign_first_responder), 'B@:')
 		add_method(view_cls, 'updateTrackingAreas', voidptr(vt_view_update_tracking_areas), 'v@:')
+		add_method(view_cls, 'viewDidMoveToWindow', voidptr(vt_view_window_changed), 'v@:')
 		add_method(view_cls, 'viewDidChangeBackingProperties', voidptr(vt_view_backing_changed), 'v@:')
 		add_method(view_cls, 'drawRect:', voidptr(vt_view_draw_rect), 'v@:{CGRect={CGPoint=dd}{CGSize=dd}}')
 		add_method(view_cls, 'keyDown:', voidptr(vt_view_key_down), 'v@:@')
@@ -266,6 +267,13 @@ fn setup_view_tracking(view ObjId) {
 fn vt_view_update_tracking_areas(self ObjId, _cmd Sel) {
 	view_super_void(self, 'VTTerminalView', 'updateTrackingAreas')
 	setup_view_tracking(self)
+}
+
+fn vt_view_window_changed(self ObjId, _cmd Sel) {
+	view_super_void(self, 'VTTerminalView', 'viewDidMoveToWindow')
+	if !is_nil(msg_id(self, 'window')) {
+		vt_view_frame_did_change(self, unsafe { nil }, unsafe { nil })
+	}
 }
 
 fn vt_view_backing_changed(self ObjId, _cmd Sel) {
@@ -859,13 +867,24 @@ fn update_metal_drawable_size(view ObjId) {
 		return
 	}
 	bounds := msg_rect(view, 'bounds')
-	mut scale := if !is_nil(active_layer) {
-		msg_f64(active_layer, 'contentsScale')
+	layer := if is_nil(active_layer) { stored_layer } else { active_layer }
+	layer_scale := msg_f64(layer, 'contentsScale')
+	mut scale := if is_nil(msg_id(view, 'window')) {
+		layer_scale
 	} else {
-		msg_f64(stored_layer, 'contentsScale')
+		view_backing_scale(voidptr(view))
 	}
 	if scale <= 0 {
 		scale = 1
+	}
+	// A split's renderer can install its layer before the view has a window.
+	// Keep the layer's pixel dimensions in sync with the attached view's DPI.
+	if scale != layer_scale {
+		transaction := get_class('CATransaction')
+		msg_void(transaction, 'begin')
+		msg_void_bool(transaction, 'setDisableActions:', true)
+		msg_void_f64(layer, 'setContentsScale:', scale)
+		msg_void(transaction, 'commit')
 	}
 	if !is_nil(active_layer) {
 		msg_void_rect(active_layer, 'setFrame:', bounds)

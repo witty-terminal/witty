@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import time
 
-from PIL import Image
+from PIL import Image, ImageChops
 
 
 def configure_xvfb_capture(scale=1):
@@ -82,6 +82,14 @@ def open_window(command, log_path, *, env=None):
 def read_window(helper, window):
     pixels = subprocess.check_output([helper, window], timeout=5)
     return Image.open(io.BytesIO(pixels))
+
+
+def compare_rgba(actual, expected):
+    if actual.size != expected.size:
+        return "", ""
+    r, g, b, a = ImageChops.difference(actual, expected).split()
+    levels = ImageChops.lighter(ImageChops.lighter(r, g), ImageChops.lighter(b, a))
+    return actual.width * actual.height - levels.histogram()[0], levels.getextrema()[1]
 
 
 def write_versions(output, *binaries):
