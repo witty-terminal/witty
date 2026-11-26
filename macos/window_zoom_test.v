@@ -62,8 +62,15 @@ fn test_native_zoom_projection_has_real_tab_and_titlebar_controls() {
 	button := msg_id_u64(msg_id(accessory, 'subviews'), 'objectAtIndex:', 0)
 	assert msg_rect(button, 'frame').y == 8
 	assert objc_utf8_string(msg_id(button, 'accessibilityLabel')) == 'Reset Split Zoom'
+	layer := msg_id(button, 'layer')
+	opacity_key := nsstring('opacity')
+	msg_void_bool(button, 'highlight:', true)
 	msg_void(button, 'updateLayer')
-	mask := msg_id(msg_id(button, 'layer'), 'mask')
+	assert msg_f64(msg_id1(layer, 'valueForKey:', opacity_key), 'doubleValue') == 0.75
+	msg_void_bool(button, 'highlight:', false)
+	msg_void(button, 'updateLayer')
+	assert msg_f64(msg_id1(layer, 'valueForKey:', opacity_key), 'doubleValue') == 1.0
+	mask := msg_id(layer, 'mask')
 	assert !is_nil(msg_id(mask, 'contents'))
 	assert msg_f64(mask, 'contentsScale') == msg_f64(window, 'backingScaleFactor')
 	msg_void1(button, 'performClick:', nil_obj())

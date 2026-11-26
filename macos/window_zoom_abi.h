@@ -44,7 +44,7 @@ static inline void witty_zoom_accessory_tint(NSButton *button, CALayer *layer) {
     layer.compositingFilter = button.window.isMainWindow ? nil : (dark ? @"plusL" : @"plusD");
     layer.contentsFormat = kCAContentsFormatRGBA16Float;
     layer.backgroundColor = tint.CGColor;
-    layer.opacity = button.isHighlighted ? 0.5f : 1.0f;
+    layer.opacity = button.isHighlighted ? 0.75f : 1.0f;
     [CATransaction commit];
 }
 #endif
