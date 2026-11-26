@@ -125,6 +125,28 @@ fn native_canvas_rounded_mask(width int, height int, corner f64, opts NativeCanv
 	return raster
 }
 
+fn native_canvas_capsule_stroke(width int, height int, stroke f64, opacity f64) !canvas.RasterSurface {
+	mut raster := native_canvas_rounded_mask(width, height, height / 2.0,
+		style: .continuous_capsule, stroke: stroke, opacity: opacity)!
+	if width < height || height <= stroke { return raster }
+	// An inset continuous capsule stroke includes straight side segments through
+	// the endcaps. The inset centerline's radius determines where they start.
+	inset := stroke / 2
+	start := inset + (height / 2.0 - inset) * math.sqrt(2) / 3
+	for row in int(math.floor(start)) .. height - int(math.floor(start)) {
+		row_coverage := math.min(f64(row + 1), height - start) - math.max(f64(row), start)
+		for column in 0 .. int(math.ceil(stroke)) {
+			coverage := row_coverage * math.min(1.0, stroke - column)
+			pixel := u32(math.round(255 * opacity * coverage)) << 24
+			left := row * width + column
+			right := row * width + width - 1 - column
+			raster.pixels[left] = math.max(raster.pixels[left], pixel)
+			raster.pixels[right] = math.max(raster.pixels[right], pixel)
+		}
+	}
+	return raster
+}
+
 fn canvas_blur_kernel(sigma f64) []f64 {
 	radius := int(math.ceil(3 * sigma))
 	mut kernel := []f64{cap: 2 * radius + 1}

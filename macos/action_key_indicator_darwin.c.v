@@ -203,8 +203,7 @@ fn key_indicator_draw(self ObjId, _cmd Sel, _rect ObjCRect) {
 	h := int(math.round(bounds.height * scale))
 	mut opacity := 0.0
 	primary := C.witty_canvas_resolve_srgb_alpha(self, msg_id(get_class('NSColor'), 'labelColor'), &opacity)
-	stroke := native_canvas_rounded_mask(w, h, h / 2.0, style: .continuous_capsule,
-		stroke: scale, opacity: 0.15 * opacity) or { return }
+	stroke := native_canvas_capsule_stroke(w, h, scale, 0.15 * opacity) or { return }
 	native_canvas_draw_mask(context, self, bounds, stroke, primary)
 	for part in surface.key_parts {
 		if part.x >= bounds.width { break }
