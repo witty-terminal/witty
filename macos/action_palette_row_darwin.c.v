@@ -1,12 +1,12 @@
 module macos
 
+import gg.canvas
 import math
 
 #insert "@VMODROOT/macos/action_palette_row_darwin.h"
 
 fn C.witty_palette_row_text_width(text ObjId, size f64, medium bool) f64
-fn C.witty_palette_draw_row_text(context voidptr, text ObjId, color ObjId, size f64, medium bool, x f64, baseline f64, width f64, height f64)
-fn C.witty_palette_draw_matched_text(context voidptr, text ObjId, color ObjId, matches ObjId, accent ObjId, size f64, medium bool, x f64, baseline f64, width f64, height f64)
+fn C.witty_palette_draw_canvas_text(context voidptr, text ObjId, color ObjId, matches ObjId, accent ObjId, size f64, medium bool, baseline f64, clip &ObjCRect, bounds &ObjCRect, pixels &u32, width int, height int)
 fn C.witty_palette_row_symbol(name ObjId, x f64, height f64, frame &ObjCRect, width &f64) ObjId
 
 const palette_row_padding = 8.0
@@ -92,8 +92,26 @@ fn palette_draw_empty_message(view ObjId, _cmd Sel, _rect ObjCRect) {
 	if is_nil(context) { return }
 	frame := msg_rect(view, 'bounds')
 	ink := msg_id(get_class('NSColor'), 'secondaryLabelColor')
-	C.witty_palette_draw_row_text(context, nsstring('No matches'), ink, 13, false, 16, 29,
-		frame.width - 32, frame.height)
+	draw_palette_text(context, nsstring('No matches'), ink, objc_rect(16, 0, frame.width - 32,
+		frame.height), 29)
+}
+
+@[params]
+struct PaletteTextOptions {
+	size    f64 = 13
+	medium  bool
+	matches ObjId
+	accent  ObjId
+}
+
+fn draw_palette_text(context voidptr, text ObjId, color ObjId, clip ObjCRect, baseline f64, opts PaletteTextOptions) {
+	if clip.width <= 0 { return }
+	mut bounds := ObjCRect{}
+	mut width, mut height := 0, 0
+	C.witty_canvas_pixel_bounds(context, &clip, &bounds, &width, &height)
+	mut raster := canvas.new_raster_surface(width: width, height: height) or { return }
+	C.witty_palette_draw_canvas_text(context, text, color, opts.matches, opts.accent, opts.size,
+		opts.medium, baseline, &clip, &bounds, raster.pixels.data, width, height)
 }
 
 fn draw_palette_row_mask(context voidptr, view ObjId, frame ObjCRect, scale f64, radius f64, opts NativeCanvasRoundedMaskOptions, color u32) {
@@ -130,8 +148,8 @@ fn draw_palette_shortcuts(context voidptr, symbols []string, color ObjId, right 
 	for i, symbol in symbols {
 		cell := math.max(13.0, math.ceil(widths[i] * scale) / scale)
 		centered := math.round((x + (cell - widths[i]) / 2) * scale) / scale
-		C.witty_palette_draw_row_text(context, nsstring(symbol), color, 13, false, centered, baseline,
-			cell, height)
+		draw_palette_text(context, nsstring(symbol), color, objc_rect(centered, 0, cell, height),
+			baseline)
 		x += cell + 1
 	}
 	return start - palette_row_padding
@@ -198,8 +216,8 @@ fn palette_draw_row(view ObjId, _cmd Sel, _rect ObjCRect) {
 				draw_palette_row_mask(context, view, objc_rect(badge_x, y, width, palette_badge_height), scale,
 					palette_badge_height / 2,
 					NativeCanvasRoundedMaskOptions{ style: .continuous_capsule, opacity: 0.15 }, accent)
-				C.witty_palette_draw_row_text(context, text, accent_color, 10, true, badge_x + 7, y + 13,
-					width - 14, bounds.height)
+				draw_palette_text(context, text, accent_color,
+					objc_rect(badge_x + 7, 0, width - 14, bounds.height), y + 13, size: 10, medium: true)
 				right = badge_x - palette_row_padding
 			}
 		}
@@ -213,8 +231,9 @@ fn palette_draw_row(view ObjId, _cmd Sel, _rect ObjCRect) {
 	} else {
 		(bounds.height - palette_title_height) / 2 + 13
 	}
-	C.witty_palette_draw_matched_text(context, title, msg_id(colors, 'labelColor'), title_matches,
-		accent_color, 13, option.emphasis, x, title_baseline, right - x, bounds.height)
+	clip := objc_rect(x, 0, right - x, bounds.height)
+	draw_palette_text(context, title, msg_id(colors, 'labelColor'), clip, title_baseline,
+		medium: option.emphasis, matches: title_matches, accent: accent_color)
 	if subtitle.len > 0 {
 		text := nsstring(subtitle)
 		matches := if is_nil(title_matches) {
@@ -222,7 +241,7 @@ fn palette_draw_row(view ObjId, _cmd Sel, _rect ObjCRect) {
 		} else {
 			nil_obj()
 		}
-		C.witty_palette_draw_matched_text(context, text, secondary_color, matches, accent_color, 10,
-			false, x, bounds.height - palette_row_padding - 3, right - x, bounds.height)
+		draw_palette_text(context, text, secondary_color, clip, bounds.height - palette_row_padding - 3,
+			size: 10, matches: matches, accent: accent_color)
 	}
 }
