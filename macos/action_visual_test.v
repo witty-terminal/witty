@@ -367,6 +367,14 @@ fn test_hover_banner_raster_mirroring_and_display_string() {
 	}
 }
 
+fn test_hover_banner_live_corner_coverage_near_straight_edge() {
+	one := hover_canvas_mask(40, 52, 1, true, true)!
+	two := hover_canvas_mask(40, 52, 2, true, true)!
+	// The corner still covers part of the first row where it approaches the straight edge.
+	assert one.pixels[12] >> 24 == 249
+	assert two.pixels[24] >> 24 == 242
+}
+
 fn test_secure_badge_outline_coverage_at_both_scales() {
 	one := secure_outline_mask(35, 1)!
 	two := secure_outline_mask(70, 2)!

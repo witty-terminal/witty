@@ -16,6 +16,10 @@ const hover_padding = 5.0
 const hover_height = 26.0
 const hover_spacer = 8.0
 const hover_radius = 9.0
+// Unit-radius intercepts and slopes fitted to live corners at several radii.
+// Each knot marks an equally spaced diagonal, measured as the difference between x and y.
+const hover_corner_positions = [0.292983, 0.129539, 0.035918, 0.007138, 0.0]!
+const hover_corner_slopes = [-0.5, -0.345930, -0.146276, -0.025066, -0.006133]!
 
 fn (mut surface NativeActionSurface) initialize_hover_banner() {
 	mut cls := get_class('WittyHoverBanner')
@@ -166,6 +170,18 @@ fn (mut surface NativeActionSurface) refresh_hover_appearance() {
 	}
 }
 
+fn hover_corner_intercept(diagonal f64) f64 {
+	step := canvas_corner_x[0][0] / (hover_corner_positions.len - 1)
+	interval := diagonal / step
+	i := int(interval)
+	if i >= hover_corner_positions.len - 1 { return 0.0 }
+	t := interval - i
+	s := 1 - t
+	// Cubic Hermite interpolation in the diagonal coordinate.
+	return s * s * ((1 + 2 * t) * hover_corner_positions[i] + t * step * hover_corner_slopes[i])
+		+ t * t * ((1 + 2 * s) * hover_corner_positions[i + 1] - s * step * hover_corner_slopes[i + 1])
+}
+
 fn hover_canvas_mask(width int, height int, scale f64, round_left bool, live bool) !canvas.RasterSurface {
 	mut raster := canvas.new_raster_surface(width: width, height: height)!
 	if !live {
@@ -181,24 +197,16 @@ fn hover_canvas_mask(width int, height int, scale f64, round_left bool, live boo
 	extent := canvas_corner_x[0][0]
 	radius := math.min(hover_radius * scale, math.min(width, height) / extent)
 	corner := math.min(math.min(width, height), int(math.ceil(radius * extent)))
-	mut insets := []f64{len: corner}
-	mut spans := []f64{len: corner}
-	// Measure the curve along the axis with the gentler slope and spread the
-	// transition over the projected width of a screen pixel.
+	mut intercepts := []f64{len: corner}
+	// The corner intersects every pixel on a given diagonal at the same
+	// position. Coverage is the part of the pixel diagonal inside the fill.
 	for i in 0 .. corner {
-		inset := canvas_rounded_inset(i + 0.5, f64(2 * corner), radius, 0, .continuous)
-		// Allow for the live compositor's inward coverage bias. Taper the
-		// adjustment to zero where the curve meets a straight edge.
-		insets[i] = inset + math.min(1.0 / 16, inset * 4)
-		before := canvas_rounded_inset(i, f64(2 * corner), radius, 0, .continuous)
-		after := canvas_rounded_inset(i + 1, f64(2 * corner), radius, 0, .continuous)
-		spans[i] = 1 + before - after
+		intercepts[i] = radius * hover_corner_intercept(i / radius)
 	}
 	for row in 0 .. corner {
 		for column in 0 .. corner {
-			major := math.max(row, column)
-			distance := math.min(row, column) + 0.5 - insets[major]
-			coverage := math.clamp(0.5 + distance / spans[major], 0.0, 1.0)
+			diagonal := math.abs(row - column)
+			coverage := math.clamp(1 + math.min(row, column) - intercepts[diagonal], 0.0, 1.0)
 			x := if round_left { column } else { width - column - 1 }
 			raster.pixels[row * width + x] = u32(math.round(255 * coverage)) << 24
 		}
