@@ -158,8 +158,13 @@ fn native_canvas_continuous_rect(width int, height int, scale f64, radius f64, s
 	return raster
 }
 
-fn canvas_blur_kernel(sigma f64) []f64 {
-	radius := int(math.ceil(3 * sigma))
+@[params]
+struct CanvasBlurOptions {
+	cutoff f64 = 3
+}
+
+fn canvas_blur_kernel(sigma f64, opts CanvasBlurOptions) []f64 {
+	radius := int(math.ceil(opts.cutoff * sigma))
 	mut kernel := []f64{cap: 2 * radius + 1}
 	mut total := 0.0
 	for offset in -radius .. radius + 1 {
@@ -171,8 +176,8 @@ fn canvas_blur_kernel(sigma f64) []f64 {
 	return kernel
 }
 
-fn native_canvas_shadow_mask(mask canvas.RasterSurface, sigma f64, opacity f64) !canvas.RasterSurface {
-	kernel := canvas_blur_kernel(sigma)
+fn native_canvas_shadow_mask(mask canvas.RasterSurface, sigma f64, opacity f64, opts CanvasBlurOptions) !canvas.RasterSurface {
+	kernel := canvas_blur_kernel(sigma, opts)
 	pad := kernel.len / 2
 	width := mask.width + 2 * pad
 	height := mask.height + 2 * pad
