@@ -265,6 +265,25 @@ static inline CGContextRef witty_canvas_text_context(uint32_t *pixels, int width
     return context;
 }
 
+static inline CGImageRef witty_canvas_rasterize_attributed_text(NSAttributedString *text,
+        const CGRect *frame, const CGRect *bounds, uint32_t *pixels, int width, int height, bool flipped) {
+    CGContextRef context = witty_canvas_text_context(pixels, width, height, *bounds);
+    if (!context) return NULL;
+    if (flipped) {
+        CGContextTranslateCTM(context, 0, 2 * bounds->origin.y + bounds->size.height);
+        CGContextScaleCTM(context, 1, -1);
+    }
+    @autoreleasepool {
+        [NSGraphicsContext saveGraphicsState];
+        [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithCGContext:context flipped:flipped]];
+        [text drawInRect:NSRectFromCGRect(*frame)];
+        [NSGraphicsContext restoreGraphicsState];
+    }
+    CGImageRef image = CGBitmapContextCreateImage(context);
+    CGContextRelease(context);
+    return image;
+}
+
 static inline bool witty_canvas_symbol_mask(NSImage *symbol, const CGRect *glyph, const CGRect *bounds,
         uint32_t *pixels, int width, int height, bool flipped) {
     CGColorSpaceRef rgb = CGColorSpaceCreateDeviceRGB();
@@ -317,7 +336,7 @@ static inline void witty_canvas_present_tile(void *target, void *image, const vo
     CGContextRestoreGState(context);
 }
 
-static inline void witty_canvas_present_symbol(CGContextRef context, CGImageRef image,
+static inline void witty_canvas_present_oriented_image(CGContextRef context, CGImageRef image,
         const CGRect *bounds, bool flipped) {
     CGContextSaveGState(context);
     if (flipped) {

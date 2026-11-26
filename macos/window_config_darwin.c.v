@@ -1,6 +1,7 @@
 @[has_globals]
 module macos
 
+import gg.canvas
 import math
 
 #insert "@VMODROOT/macos/window_config_abi.h"
@@ -420,13 +421,14 @@ fn restore_last_window_frame(window ObjId, restore_origin bool, restore_size boo
 }
 
 fn C.witty_macos_text_size(obj ObjId) ObjCSize
+fn C.witty_macos_text_alignment_center() u64
 fn C.witty_macos_priority(obj ObjId, selector Sel, priority f32, axis u64)
 __global ( g_toolbar_windows map[u64]ObjId )
 fn native_title_label_moved(self ObjId, _cmd Sel) {
 	msg_void_bool(self, 'setEditable:', false)
 	msg_void_bool(self, 'setBordered:', false)
 	msg_void_bool(self, 'setDrawsBackground:', false)
-	msg_void_u64(self, 'setAlignment:', 2)
+	msg_void_u64(self, 'setAlignment:', C.witty_macos_text_alignment_center())
 	msg_void_u64(self, 'setLineBreakMode:', 4)
 	msg_void_bool(msg_id(self, 'cell'), 'setTruncatesLastVisibleLine:', true)
 	msg_void_bool(self, 'setTranslatesAutoresizingMaskIntoConstraints:', false)
@@ -434,12 +436,25 @@ fn native_title_label_moved(self ObjId, _cmd Sel) {
 	C.witty_macos_priority(self, sel('setContentCompressionResistancePriority:forOrientation:'), 750, 0)
 }
 fn native_title_label_draw(self ObjId, _cmd Sel, _dirty ObjCRect) {
+	context := native_canvas_overlay_context()
+	if is_nil(context) { return }
 	text := msg_id(msg_id(self, 'attributedStringValue'), 'mutableCopy')
 	if is_nil(text) { return }
+	defer { msg_void(text, 'release') }
 	size := C.witty_macos_text_size(text)
 	bounds := msg_rect(self, 'bounds')
-	msg_void_rect(text, 'drawInRect:', objc_rect(bounds.x, bounds.y + (bounds.height - size.height) / 2 - 1, bounds.width, size.height))
-	msg_void(text, 'release')
+	frame := objc_rect(bounds.x, bounds.y + (bounds.height - size.height) / 2 - 1,
+		bounds.width, size.height)
+	mut pixel_bounds := ObjCRect{}
+	mut width, mut height := 0, 0
+	C.witty_canvas_pixel_bounds(context, &bounds, &pixel_bounds, &width, &height)
+	mut raster := canvas.new_raster_surface(width: width, height: height) or { return }
+	flipped := msg_bool(self, 'isFlipped')
+	image := C.witty_canvas_rasterize_attributed_text(text, &frame, &pixel_bounds, raster.pixels.data,
+		width, height, flipped)
+	if is_nil(image) { return }
+	C.witty_canvas_present_oriented_image(context, image, &pixel_bounds, flipped)
+	C.CFRelease(image)
 }
 fn toolbar_array(names []string) ObjId {
 	mut objects := []voidptr{}

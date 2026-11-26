@@ -189,7 +189,7 @@ fn create_tahoe_title_view(mut data NativeWindowData) {
 	msg_void_bool(data.title_label, 'setEditable:', false)
 	msg_void_bool(data.title_label, 'setBordered:', false)
 	msg_void_bool(data.title_label, 'setDrawsBackground:', false)
-	msg_void_u64(data.title_label, 'setAlignment:', 2)
+	msg_void_u64(data.title_label, 'setAlignment:', C.witty_macos_text_alignment_center())
 	msg_void_u64(data.title_label, 'setLineBreakMode:', 4)
 	msg_void_bool(data.title_label, 'setUsesSingleLineMode:', true)
 	msg_void_bool(msg_id(data.title_label, 'cell'), 'setTruncatesLastVisibleLine:', true)

@@ -1,4 +1,8 @@
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
+#include <AppKit/NSTextField.h>
+
+static inline unsigned long long witty_macos_text_alignment_center(void) { return NSTextAlignmentCenter; }
+
 static inline void* witty_macos_color_rgba(double r, double g, double b, double a) {
     return ((id (*)(id,SEL,double,double,double,double))objc_msgSend)((id)objc_getClass("NSColor"),sel_registerName("colorWithSRGBRed:green:blue:alpha:"),r,g,b,a);
 }

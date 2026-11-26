@@ -141,6 +141,7 @@ fn test_selected_tahoe_toolbar_preserves_source_async_title_font_and_main_model(
 	tahoe_test_drain()
 	assert data.tahoe_title == 'changed title'
 	assert objc_utf8_string(msg_id(data.title_label, 'stringValue')) == 'changed title'
+	assert msg_u64(data.title_label, 'alignment') == C.witty_macos_text_alignment_center()
 	first_title_label := msg_id_u64(msg_id(first_title_view, 'subviews'), 'objectAtIndex:', 0)
 	assert objc_utf8_string(msg_id(first_title_label, 'stringValue')) == 'changed title'
 	records << tahoe_test_record('changed', data, item)

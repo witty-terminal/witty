@@ -1,8 +1,12 @@
 @[has_globals]
 module macos
 
+import os
+
 #insert "@VMODROOT/macos/window_font_test_abi.h"
+#insert "@VMODROOT/macos/canvas_overlay_test_bridge.h"
 fn C.witty_window_font_test_attribute(value ObjId, name ObjId) ObjId
+fn C.witty_overlay_test_png(view ObjId) ObjId
 
 fn C.object_setClass(object ObjId, cls ObjId) ObjId
 
@@ -11,6 +15,48 @@ fn font_fixture_toolbar_name(_self ObjId, _cmd Sel) ObjId { return nsstring('NST
 fn font_fixture_container_name(_self ObjId, _cmd Sel) ObjId { return nsstring('NSTitlebarContainerView') }
 __global font_fixture_is_key = false
 fn font_fixture_key_window(_self ObjId, _cmd Sel) bool { return font_fixture_is_key }
+
+fn test_legacy_window_title_capture() {
+	output := os.getenv_opt('WITTY_WINDOW_TITLE_OUTPUT') or { return }
+	app_init()
+	frame := objc_rect(0, 0, 180, 60)
+	window := msg_id_rect_u64_u64_bool(alloc('NSWindow'), 'initWithContentRect:styleMask:backing:defer:',
+		frame, 0, ns_backing_store_buffered, false)
+	msg_void_bool(window, 'setReleasedWhenClosed:', false)
+	msg_void1(window, 'setColorSpace:', msg_id(get_class('NSColorSpace'), 'displayP3ColorSpace'))
+	root := msg_id_rect(alloc('NSView'), 'initWithFrame:', frame)
+	msg_void_bool(root, 'setWantsLayer:', true)
+	msg_void1(window, 'setContentView:', root)
+	msg_void1(msg_id(root, 'layer'), 'setBackgroundColor:',
+		msg_id(native_color(0x566993, 1), 'CGColor'))
+	mut data := &NativeWindowData{window: window}
+	toolbar := create_terminal_toolbar(mut data)
+	label := data.title_label
+	msg_void1(root, 'addSubview:', label)
+	msg_void_rect(label, 'setFrame:', objc_rect(40, 19, 100, 22))
+	defer {
+		g_toolbar_windows.delete(u64(toolbar))
+		msg_void(toolbar, 'release')
+		msg_void(label, 'release')
+		msg_void(window, 'close')
+		msg_void(window, 'release')
+		msg_void(root, 'release')
+	}
+	titles := ['Witty test', 'Long title — café 日本語 👩‍💻', '', 'café 日本 👩‍💻']
+	for i, appearance in ['NSAppearanceNameAqua', 'NSAppearanceNameDarkAqua'] {
+		mode := if i == 0 { 'light' } else { 'dark' }
+		msg_void1(window, 'setAppearance:', msg_id1(get_class('NSAppearance'), 'appearanceNamed:',
+			nsstring(appearance)))
+		for j, title in titles {
+			msg_void1(label, 'setStringValue:', nsstring(title))
+			msg_void_bool(label, 'setNeedsDisplay:', true)
+			image := C.witty_overlay_test_png(root)
+			assert !is_nil(image)
+			assert msg_bool2(image, 'writeToFile:atomically:',
+				nsstring(os.join_path(output, '${mode}-${j}.png')), ObjId(1))
+		}
+	}
+}
 
 fn test_source_window_title_font_and_native_tab_title_updates() {
 	app_init()
@@ -30,6 +76,7 @@ fn test_source_window_title_font_and_native_tab_title_updates() {
 	assert !is_nil(field)
 	assert msg_id(field, 'font') == font
 	assert msg_id(data.title_label, 'font') == font
+	assert msg_u64(data.title_label, 'alignment') == C.witty_macos_text_alignment_center()
 	assert !msg_bool(field, 'usesSingleLineMode')
 	msg_void1(window, 'setTitle:', nsstring('changed title'))
 	attributed := msg_id(msg_id(window, 'tab'), 'attributedTitle')
