@@ -206,8 +206,8 @@ fn test_native_palette_panel_capture() {
 			capture_palette_live(window, base, live, mode)
 			palette.options = [
 				NativeCommandOption{
-					title:    'Open Café 👩🏽‍💻'
-					subtitle: 'Switch to the Café workspace'
+					title:    'Open Café 👩🏽‍💻 🇯🇵 🙂 🚀'
+					subtitle: 'Switch to the Café workspace ✔️'
 					symbols:  ['⌘', 'D']
 					badge:    '1.4.0'
 				},

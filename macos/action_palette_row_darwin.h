@@ -4,6 +4,7 @@
 #if !defined(V3CACHE_NATIVE_INTERFACE) || defined(V3CACHE_NATIVE_OWNER)
 #include <AppKit/AppKit.h>
 #include <CoreText/CoreText.h>
+#include "canvas_color_glyph_darwin.h"
 #include "canvas_overlay_darwin.h"
 
 static inline NSFont *witty_palette_row_font(double size, bool medium) {
@@ -109,14 +110,25 @@ static inline void witty_palette_draw_canvas_text(CGContextRef target, NSString 
         // SwiftUI positions the color emoji fallback half a point lower.
         bool colorGlyphs = font && (CTFontGetSymbolicTraits(font) & kCTFontColorGlyphsTrait);
         NSColor *tint = attributes[NSForegroundColorAttributeName] ?: color;
+        const double y = clip->size.height - baseline - (colorGlyphs ? 0.5 : 0);
+        if (colorGlyphs && CGBitmapContextGetBitsPerComponent(target) == 0) {
+            CGContextSaveGState(target);
+            CGContextClipToRect(target, *clip);
+            CGContextTranslateCTM(target, 0, clip->size.height);
+            CGContextScaleCTM(target, 1, -1);
+            CGContextSetTextMatrix(target, CGAffineTransformIdentity);
+            CGContextSetTextPosition(target, clip->origin.x, y);
+            const bool drawn = witty_canvas_draw_color_glyphs(target, run, font);
+            CGContextRestoreGState(target);
+            if (drawn) continue;
+        }
         NSColor *paint = colorGlyphs ? tint : [tint colorWithAlphaComponent:1];
 
         CGContextSaveGState(context);
         CGContextClipToRect(context, *clip);
         CGContextSetFillColorWithColor(context, paint.CGColor);
         CGContextSetTextMatrix(context, CGAffineTransformIdentity);
-        CGContextSetTextPosition(context, clip->origin.x,
-            clip->size.height - baseline - (colorGlyphs ? 0.5 : 0));
+        CGContextSetTextPosition(context, clip->origin.x, y);
         CTRunDraw(run, context, CFRangeMake(0, 0));
         CGContextRestoreGState(context);
 
