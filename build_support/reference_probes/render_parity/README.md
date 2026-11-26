@@ -2,11 +2,12 @@
 
 ## Linux
 
-Run this probe on Linux with an installed [Ghostty GTK release](https://ghostty.org/download), Python 3 with Pillow, DejaVu Sans Mono, Xvfb, `xauth`, `dbus-run-session`, `xdotool`, a C compiler with X11 headers, GNU `ls`, Git, Vim, less, and tmux.
+Run this probe on Linux with an installed [Ghostty release](https://ghostty.org/download), Python 3 with Pillow, DejaVu Sans Mono, Xvfb, `xauth`, `dbus-run-session`, `xdotool`, a C compiler with X11 headers, GNU `ls`, Git, Vim, less, and tmux.
 
-The probe works with debug and release builds. This command builds Witty with the settings used by the on-demand parity workflow.
+The probe works with debug and release builds. This command builds Witty with the settings used by the on-demand parity workflow. The HiDPI probe also uses `xrdb`.
 
 ```sh
+bash .github/scripts/install-ui2.sh
 VFLAGS='-cc clang -nocache' v -path "$PWD|@vlib|@vmodules" run tools/build install \
   -Doptimize=ReleaseSafe --prefix "$PWD/.witty-build/render-parity-witty"
 ```
@@ -14,7 +15,7 @@ VFLAGS='-cc clang -nocache' v -path "$PWD|@vlib|@vmodules" run tools/build insta
 From the repository root, start a fresh 24-bit Xvfb session and pass the two executable paths.
 
 ```sh
-xvfb-run -a -s "-screen 0 1440x900x24" dbus-run-session -- \
+xvfb-run -a -s "-screen 0 1440x900x24 -noreset" dbus-run-session -- \
   python3 build_support/reference_probes/render_parity/run.py \
   .witty-build/render-parity-witty/bin/witty "$(command -v ghostty)"
 ```
@@ -26,17 +27,12 @@ The grapheme fixture covers emoji presentation selectors and combining accents a
 The colored line erase fixture waits for the configured PTY grid before erasing to either edge and across a full row.
 The wide glyph editing fixture renders a colored glyph across a wrap, then erases or deletes it and checks that the previous row redraws.
 The text selection fixture uses a mouse drag starting on the second cell of an emoji to verify the highlight covers the full glyph.
-The Unicode input fixtures capture GTK’s underlined preview over a terminal wallpaper and at the right edge before the character is committed.
 The scrollback fixtures update the palette and append a row after scrolling into history, with `scroll-to-bottom=output` enabled and disabled.
-The scrollbar fixtures drag through terminal history and compare the visible text and scrollbar at the bottom, during the drag, and at the top. They cover the default GTK overlay scrollbar and a fixed scrollbar with a CSS track, thumb, and border.
+The scrollbar fixtures drag through terminal history and compare the visible text and scrollbar at the bottom, during the drag, and at the top. They cover the default overlay scrollbar.
 The search fixture drives scrollback search through keybindings and checks both highlight colors as navigation wraps from the newest match to the oldest and back.
-The split search fixture captures the full GTK client window and compares both panes as Find takes focus in the right pane.
-The `split-search-themed` fixture also checks custom CSS colors for the divider and the unfocused pane.
+The split search fixture captures the full client window and compares both panes as Find takes focus in the right pane.
 The `split-close` fixture closes a nested pane and verifies that the two surviving panes redraw with the expected focus.
-The `visual-bell-themed` fixture checks a CSS fill and rounded border during an unfocused bell and verifies that refocusing clears the overlay.
-The `progress-overlay-themed` fixture verifies the CSS colors of a paused progress fill and its trough.
-The command exit fixtures capture the banner over terminal text after a successful command and a failed command with custom CSS. They also verify that the Close button exits the terminal.
-The `readonly-overlay-themed` fixture checks that a custom badge background and fractional outlines match when the terminal enters read-only mode.
+The command exit fixture captures the banner over terminal text and verifies that the Close button exits the terminal.
 The resize fixtures narrow the window with the cursor after blank cells or near the bottom of the screen. They also check which row of a newly wrapped Bash prompt clears and where the next character appears after widening a full row.
 The `font-zoom` fixture enlarges, shrinks, and resets the font while the terminal is open. It checks live reflow and compares text, emoji, and sprites after the glyph atlases change.
 The `wallpaper-reload` fixture loads a PNG, turns on tiling, changes its opacity, and replaces it with a progressive JPEG. It then removes the wallpaper and reloads the original PNG while the terminal text stays on screen.
@@ -47,21 +43,15 @@ The `less` fixture captures an ANSI-colored file when it opens, after searching,
 
 Each run saves the PNGs, application logs, executable versions and hashes, and a `results.tsv` report under `.witty-build/render-parity/`. Differing pixels appear white in the corresponding `*-diff.png` mask. A size or pixel mismatch returns exit status 1.
 
-Use `--output` to choose a new directory, `--fixture` to repeat a single case, or `--settle-seconds` to allow more time for rendering on a slower host. Pass `--scale 2` to compare HiDPI captures. The probe defaults to 1× and records the requested GTK scale in `versions.txt`.
+Use `--output` to choose a new directory, `--fixture` to repeat a single case, or `--settle-seconds` to allow more time for rendering on a slower host. Pass `--scale 2` to compare HiDPI captures. The probe defaults to 1× and records the requested display scale in `versions.txt`.
 
-The optional `gtk-chrome-tabs` and `gtk-chrome-native` fixtures capture the full GTK client window after opening a second tab. They cover the integrated title bar with configured colors and the native header with a bottom tab bar. Use a release Witty build for these fixtures to avoid the debug-build banner.
-
-The optional `tab-overview` fixture uses a release build to capture two live thumbnails with configured window colors. It also searches for one tab and selects the result.
-
-The `command-palette-resize` fixture narrows the window with the palette open. It captures the dimmed terminal text and palette together, then restores the window and closes the palette. The workflow also runs this fixture at 2× with the OpenGL compositor.
-
-The `command-palette-themed` fixture applies custom CSS to the panel, search field, and selected row, then captures the filtered palette. The workflow runs this fixture with Cairo and with the OpenGL compositor at 2×.
+The `command-palette-resize` fixture narrows the window with the palette open. It captures the dimmed terminal text and palette together, then restores the window and closes the palette.
 
 The `terminal-title` fixture checks typing, canceling, applying, and resetting the title. The optional `close-confirmation` fixture verifies keyboard focus, canceling, and confirming the window close. It launches Witty normally and uses a release build to avoid the debug banner.
 
 The regular Linux CI build checks the initial PTY and a full-width colored erase at two grid sizes, capture with a configured tab bar, and rendering after an OpenGL shader link failure. It also replaces a red shader with a green one in a running terminal and uses the reload keybinding to verify that the rendered frame changes.
 
-The [Linux render parity workflow](../../../.github/workflows/render-parity.yml) runs on demand in GitHub Actions. It builds Witty on Ubuntu 26.04, verifies and extracts the pinned Ghostty 1.4.0 reference package, and uploads the screenshots, logs, and report. On Ubuntu 26.04 with the capture dependencies installed, the same script can compare an existing Witty build locally.
+The [Linux render parity workflow](../../../.github/workflows/render-parity.yml) runs on demand in GitHub Actions. It builds Witty on Ubuntu 26.04, verifies and installs the pinned Ghostty 1.4.0 reference package, and uploads the screenshots, logs, and report. On Ubuntu 26.04 with the capture dependencies installed, the same script can compare an existing Witty build locally.
 
 ```sh
 bash .github/scripts/linux-render-parity.sh \

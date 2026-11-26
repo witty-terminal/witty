@@ -70,16 +70,8 @@ fn test_platform_config_enum_layouts_and_source_ordinals() {
 	assert sizeof(MacShortcuts) == 1
 	assert [MacShortcuts.allow, .deny, .ask].map(u8(it)) == [u8(0), 1, 2]
 
-	assert sizeof(GtkSingleInstance) == 1
-	assert [GtkSingleInstance.false_, .true_, .detect].map(u8(it)) == [u8(0), 1, 2]
 	assert sizeof(LinuxCgroup) == 1
 	assert [LinuxCgroup.never, .always, .single_instance].map(u8(it)) == [u8(0), 1, 2]
-	assert sizeof(GtkTabsLocation) == 1
-	assert [GtkTabsLocation.top, .bottom].map(u8(it)) == [u8(0), 1]
-	assert sizeof(GtkToolbarStyle) == 1
-	assert [GtkToolbarStyle.flat, .raised, .raised_border].map(u8(it)) == [u8(0), 1, 2]
-	assert sizeof(GtkTitlebarStyle) == 4
-	assert [GtkTitlebarStyle.native, .tabs].map(i32(it)) == [i32(0), 1]
 }
 
 fn test_config_value_tag_layouts_and_source_ordinals() {
@@ -200,9 +192,6 @@ fn test_config_local_and_quick_terminal_tag_layouts_and_source_ordinals() {
 	assert sizeof(QuickTerminalPosition) == 1
 	assert [QuickTerminalPosition.top, .bottom, .left, .right, .center].map(u8(it)) == [u8(0),
 		1, 2, 3, 4]
-	assert sizeof(QuickTerminalLayer) == 1
-	assert [QuickTerminalLayer.overlay, .top, .bottom, .background].map(u8(it)) == [u8(0),
-		1, 2, 3]
 	assert sizeof(QuickTerminalScreen) == 1
 	assert [QuickTerminalScreen.main, .mouse, .macos_menu_bar].map(u8(it)) == [u8(0), 1, 2]
 	assert sizeof(QuickTerminalSpaceBehavior) == 1
@@ -277,7 +266,6 @@ fn test_load_cli_args_applies_flags_paths_and_command_tail() {
 			assert false, '-e must produce a direct command'
 		}
 	}
-	assert cfg.gtk_single_instance == .false_
 	assert cfg.quit_after_last_window_closed
 }
 
@@ -1417,49 +1405,30 @@ fn test_repeatable_command_rejects_missing_and_invalid_fields() {
 	assert false, 'expected invalid command palette entries'
 }
 
-fn test_gtk_window_config_parse_format_and_defaults() {
+fn test_window_and_quick_terminal_config_roundtrip() {
 	mut cfg := Config.default_config()
 	assert cfg.window_new_tab_position == .current
 	assert cfg.window_show_tab_bar == .auto
 	assert cfg.window_subtitle == .false_
-	assert cfg.gtk_opengl_debug == default_gtk_opengl_debug
-	assert cfg.gtk_titlebar
-	assert cfg.gtk_tabs_location == .top
-	assert !cfg.gtk_titlebar_hide_when_maximized
-	assert cfg.gtk_toolbar_style == .raised
-	assert cfg.gtk_titlebar_style == .native
-	assert cfg.gtk_wide_tabs
 	assert cfg.quick_terminal_position == .top
 	assert cfg.quick_terminal_size.primary == none
-	assert cfg.gtk_quick_terminal_layer == .top
-	assert cfg.gtk_quick_terminal_namespace == 'witty-quick-terminal'
 	assert cfg.quick_terminal_screen == .main
 	assert cfg.quick_terminal_animation_duration == 0.2
 	assert cfg.quick_terminal_autohide == default_quick_terminal_autohide
 	assert cfg.quick_terminal_space_behavior == .move
 	assert cfg.quick_terminal_keyboard_interactivity == .on_demand
 
-	gtk_debug_value := if default_gtk_opengl_debug { 'false' } else { 'true' }
 	quick_autohide_value := if default_quick_terminal_autohide { 'false' } else { 'true' }
 	cfg.load_string('window-new-tab-position = end
 window-show-tab-bar = never
 window-subtitle = working-directory
 quick-terminal-position = right
 quick-terminal-size = 50%,320px
-gtk-quick-terminal-layer = overlay
-gtk-quick-terminal-namespace = dev.witty.quick
 quick-terminal-screen = macos-menu-bar
 quick-terminal-animation-duration = 0.35
 quick-terminal-autohide = ${quick_autohide_value}
 quick-terminal-space-behavior = remain
-quick-terminal-keyboard-interactivity = exclusive
-gtk-opengl-debug = ${gtk_debug_value}
-gtk-titlebar = false
-gtk-tabs-location = bottom
-gtk-titlebar-hide-when-maximized = true
-gtk-toolbar-style = raised-border
-gtk-titlebar-style = tabs
-gtk-wide-tabs = false')
+quick-terminal-keyboard-interactivity = exclusive')
 	assert cfg.diagnostics.len == 0
 	assert cfg.window_new_tab_position == .end
 	assert cfg.window_show_tab_bar == .never
@@ -1477,20 +1446,11 @@ gtk-wide-tabs = false')
 	assert (quick_primary as QuickTerminalSizePercentage).value == 50
 	assert quick_secondary is QuickTerminalSizePixels
 	assert (quick_secondary as QuickTerminalSizePixels).value == 320
-	assert cfg.gtk_quick_terminal_layer == .overlay
-	assert cfg.gtk_quick_terminal_namespace == 'dev.witty.quick'
 	assert cfg.quick_terminal_screen == .macos_menu_bar
 	assert cfg.quick_terminal_animation_duration == 0.35
 	assert cfg.quick_terminal_autohide == !default_quick_terminal_autohide
 	assert cfg.quick_terminal_space_behavior == .remain
 	assert cfg.quick_terminal_keyboard_interactivity == .exclusive
-	assert cfg.gtk_opengl_debug == !default_gtk_opengl_debug
-	assert !cfg.gtk_titlebar
-	assert cfg.gtk_tabs_location == .bottom
-	assert cfg.gtk_titlebar_hide_when_maximized
-	assert cfg.gtk_toolbar_style == .raised_border
-	assert cfg.gtk_titlebar_style == .tabs
-	assert !cfg.gtk_wide_tabs
 
 	formatted := cfg.format_config(true)
 	assert formatted.contains('window-new-tab-position = end\n')
@@ -1498,20 +1458,11 @@ gtk-wide-tabs = false')
 	assert formatted.contains('window-subtitle = working-directory\n')
 	assert formatted.contains('quick-terminal-position = right\n')
 	assert formatted.contains('quick-terminal-size = 50%,320px\n')
-	assert formatted.contains('gtk-quick-terminal-layer = overlay\n')
-	assert formatted.contains('gtk-quick-terminal-namespace = dev.witty.quick\n')
 	assert formatted.contains('quick-terminal-screen = macos-menu-bar\n')
 	assert formatted.contains('quick-terminal-animation-duration = 0.35\n')
 	assert formatted.contains('quick-terminal-autohide = ${quick_autohide_value}\n')
 	assert formatted.contains('quick-terminal-space-behavior = remain\n')
 	assert formatted.contains('quick-terminal-keyboard-interactivity = exclusive\n')
-	assert formatted.contains('gtk-opengl-debug = ${gtk_debug_value}\n')
-	assert formatted.contains('gtk-titlebar = false\n')
-	assert formatted.contains('gtk-tabs-location = bottom\n')
-	assert formatted.contains('gtk-titlebar-hide-when-maximized = true\n')
-	assert formatted.contains('gtk-toolbar-style = raised-border\n')
-	assert formatted.contains('gtk-titlebar-style = tabs\n')
-	assert formatted.contains('gtk-wide-tabs = false\n')
 
 	mut roundtrip := Config.default_config()
 	roundtrip.load_string(formatted)
@@ -1531,26 +1482,11 @@ gtk-wide-tabs = false')
 	assert roundtrip_primary.value == quick_primary.value
 	assert roundtrip_secondary is QuickTerminalSizePixels
 	assert roundtrip_secondary.value == quick_secondary.value
-	assert roundtrip.gtk_quick_terminal_layer == cfg.gtk_quick_terminal_layer
-	assert roundtrip.gtk_quick_terminal_namespace == cfg.gtk_quick_terminal_namespace
 	assert roundtrip.quick_terminal_screen == cfg.quick_terminal_screen
 	assert roundtrip.quick_terminal_animation_duration == cfg.quick_terminal_animation_duration
 	assert roundtrip.quick_terminal_autohide == cfg.quick_terminal_autohide
 	assert roundtrip.quick_terminal_space_behavior == cfg.quick_terminal_space_behavior
 	assert roundtrip.quick_terminal_keyboard_interactivity == cfg.quick_terminal_keyboard_interactivity
-	assert roundtrip.gtk_opengl_debug == cfg.gtk_opengl_debug
-	assert roundtrip.gtk_titlebar == cfg.gtk_titlebar
-	assert roundtrip.gtk_tabs_location == cfg.gtk_tabs_location
-	assert roundtrip.gtk_titlebar_hide_when_maximized == cfg.gtk_titlebar_hide_when_maximized
-	assert roundtrip.gtk_toolbar_style == cfg.gtk_toolbar_style
-	assert roundtrip.gtk_titlebar_style == cfg.gtk_titlebar_style
-	assert roundtrip.gtk_wide_tabs == cfg.gtk_wide_tabs
-}
-
-fn test_gtk_window_config_rejects_invalid_enum() {
-	mut cfg := Config.default_config()
-	cfg.load_string('gtk-toolbar-style = floating')
-	assert cfg.diagnostics.len == 1
 }
 
 fn test_linux_cgroup_config_parse_format_and_defaults() {
@@ -1750,32 +1686,22 @@ fn test_bell_audio_parse_format_and_path_expansion() {
 	assert cfg.diagnostics.len == 1
 }
 
-fn test_gtk_css_config_parse_format_clone_and_clear() {
+fn test_window_title_config_parse_format_and_clear() {
 	mut cfg := Config.default_config()
-	cfg.load_string('window-title-font-family = Cantarell\nwindow-titlebar-background = #123456\nwindow-titlebar-foreground = aliceblue\ngtk-custom-css = one.css\ngtk-custom-css = ?optional.css')
+	cfg.load_string('window-title-font-family = Cantarell\nwindow-titlebar-background = #123456\nwindow-titlebar-foreground = aliceblue')
 	assert cfg.diagnostics.len == 0
 	assert cfg.window_title_font_family? == 'Cantarell'
 	assert cfg.window_titlebar_background? == ColorRGB{18, 52, 86}
 	assert cfg.window_titlebar_foreground? == ColorRGB{240, 248, 255}
-	assert cfg.gtk_custom_css.items == [
-		Path(PathRequired{ path: 'one.css' }),
-		Path(PathOptional{ path: 'optional.css' }),
-	]
-
-	cloned := cfg.clone()
-	assert cloned.gtk_custom_css.equal(cfg.gtk_custom_css)
 	formatted := cfg.format_config(true)
 	assert formatted.contains('window-title-font-family = Cantarell\n')
 	assert formatted.contains('window-titlebar-background = #123456\n')
 	assert formatted.contains('window-titlebar-foreground = #f0f8ff\n')
-	assert formatted.contains('gtk-custom-css = one.css\n')
-	assert formatted.contains('gtk-custom-css = ?optional.css\n')
 
-	cfg.load_string('window-title-font-family =\nwindow-titlebar-background =\nwindow-titlebar-foreground =\ngtk-custom-css =')
+	cfg.load_string('window-title-font-family =\nwindow-titlebar-background =\nwindow-titlebar-foreground =')
 	assert cfg.window_title_font_family == none
 	assert cfg.window_titlebar_background == none
 	assert cfg.window_titlebar_foreground == none
-	assert cfg.gtk_custom_css.items.len == 0
 }
 
 fn test_app_notifications_parse_format_and_defaults() {
@@ -2455,38 +2381,17 @@ fn test_theme_light_dark_sets_conditional() {
 	assert 'theme' in cfg.conditional_set
 }
 
-// Config.zig: "compatibility: gtk-single-instance desktop"
-fn test_compat_gtk_single_instance_desktop() {
-	mut cfg := Config.default_config()
-	cfg.load_string('gtk-single-instance = desktop\n')
-	// Before finalize, desktop remains detect.
-	assert cfg.gtk_single_instance == .detect
-}
-
-// Config.zig compatibility map: the removed hidden tab location is now the
-// window-show-tab-bar setting and leaves the actual tab location unchanged.
-fn test_compat_gtk_tabs_location_hidden() {
-	mut cfg := Config.default_config()
-	cfg.gtk_tabs_location = .bottom
-	cfg.load_string('gtk-tabs-location = hidden\n')
-	assert cfg.diagnostics.len == 0
-	assert cfg.gtk_tabs_location == .bottom
-	assert cfg.window_show_tab_bar == .never
-}
-
 fn test_compat_renamed_config_fields() {
 	mut cfg := Config.default_config()
-	cfg.load_string('background-blur-radius = 17\nadw-toolbar-style = raised-border\n')
+	cfg.load_string('background-blur-radius = 17\n')
 	assert cfg.diagnostics.len == 0
 	assert cfg.background_blur is BackgroundBlurRadius
 	assert (cfg.background_blur as BackgroundBlurRadius).radius == 17
-	assert cfg.gtk_toolbar_style == .raised_border
 
 	// The generic renamed-field handler applies the destination field's
 	// declared default for an explicitly empty value.
-	cfg.load_string('background-blur-radius =\nadw-toolbar-style =\n')
+	cfg.load_string('background-blur-radius =\n')
 	assert cfg.background_blur is BackgroundBlurFalse
-	assert cfg.gtk_toolbar_style == .raised
 }
 
 fn test_compat_removed_bool_invalid_value_is_not_silently_accepted() {
@@ -3452,11 +3357,9 @@ fn test_config_empty_link_uses_field_default_not_runtime_default_url() {
 
 fn test_xdg_terminal_exec_sets_only_initial_command_mode() {
 	mut cfg := Config.default_config()
-	default_single_instance := cfg.gtk_single_instance
 	default_quit := cfg.quit_after_last_window_closed
 	cfg.load_xdg_terminal_exec_args(['echo', 'hello world'])
 	assert cfg.xdg_terminal_exec
-	assert cfg.gtk_single_instance == default_single_instance
 	assert cfg.quit_after_last_window_closed == default_quit
 	command := cfg.initial_command or { panic('missing initial command') }
 	assert command.string_val() == 'echo hello world'
@@ -3482,7 +3385,6 @@ fn test_xdg_terminal_exec_theme_replay_uses_command_marker() ! {
 
 	command := cfg.initial_command or { panic('missing replayed initial command') }
 	assert command.string_val() == 'echo hello world'
-	assert cfg.gtk_single_instance == .false_
 	assert cfg.quit_after_last_window_closed
 	// cloneEmpty retains conditional state only, so the internal xdg marker is
 	// not copied when the synthetic -e stream rebuilds the config around a theme.
@@ -3493,7 +3395,7 @@ fn test_config_enum_parser_rejects_values_not_present_in_source() {
 	mut cfg := Config.default_config()
 	cfg.load_string('
 window-theme = sepia
-gtk-single-instance = maybe
+window-show-tab-bar = sometimes
 cursor-style = block-hollow
 ')
 	assert cfg.diagnostics.len == 3

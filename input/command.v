@@ -341,11 +341,6 @@ fn action_commands(action ActionTag) []Command {
 		.inspector {
 			[cmd(ActionInspector{ value: .toggle }, 'Toggle Inspector', 'Toggle the inspector.')]
 		}
-		.show_gtk_inspector {
-			[
-				cmd(ActionShowGtkInspector{}, 'Show the GTK Inspector', 'Show the GTK inspector.'),
-			]
-		}
 		.show_on_screen_keyboard {
 			[cmd(ActionShowOnScreenKeyboard{}, 'Show On-Screen Keyboard', 'Show the on-screen keyboard if present.')]
 		}

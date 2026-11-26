@@ -2,7 +2,7 @@ module internal_os
 
 // filter_snap_paths removes Snap variables and removes path components rooted
 // in one of the Snap directories. TERMINFO and Ghostty-owned variables are
-// intentionally preserved exactly as in Ghostty's GTK surface implementation.
+// derived from Ghostty's Linux surface implementation.
 pub fn filter_snap_paths(mut env map[string]string) {
 	snap_vars := ['SNAP', 'SNAP_USER_COMMON', 'SNAP_USER_DATA', 'SNAP_DATA', 'SNAP_COMMON']
 	mut env_to_remove := []string{}

@@ -131,10 +131,9 @@ pub enum MouseButton as int {
 }
 
 // BackendPlatform identifies the host runtime that owns an ImGui context.
-// Ghostty exposes these exact names through ImGuiIO.BackendPlatformName.
 pub enum BackendPlatform {
 	embedded
-	gtk
+	ui2
 }
 
 // Color is Dear ImGui's normalized RGBA color representation.

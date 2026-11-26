@@ -2790,7 +2790,7 @@ pub type Preedit = RenderPreedit
 pub type PreeditCodepoint = RenderPreeditCodepoint
 
 // Wakeup is the renderer thread's App.Mailbox redraw_surface push used when
-// the apprt must draw from the app thread (GTK). The renderer module cannot
+// the apprt must draw from the app thread. The renderer module cannot
 // import the core App, so the surface supplies the push as a callback.
 pub type WakeupFn = fn (voidptr)
 

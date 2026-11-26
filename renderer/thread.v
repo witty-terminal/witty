@@ -317,7 +317,7 @@ pub mut:
 	// this is a blocking queue so if it is full you will get errors (or block).
 	mailbox &datastruct.BlockingQueue[RendererMessage] = unsafe { nil }
 
-	// Mailbox to send messages to the app thread. GTK requires GPU work on the
+	// Mailbox to send messages to the app thread. The Linux runtime requires GPU work on the
 	// application thread; this callback is the translated App.Mailbox
 	// redraw_surface push used there (must_draw_from_app_thread).
 	app_redraw           Wakeup

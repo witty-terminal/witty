@@ -91,8 +91,8 @@ pub enum ActionKey as i32 {
 	render
 	// Control whether the inspector is shown or hidden.
 	inspector
-	// Legacy action tag retained for C ABI compatibility.
-	show_gtk_inspector
+	// Reserved for C ABI compatibility.
+	reserved_29
 	// The inspector for the given target has changes and should be
 	// rendered at the next opportunity.
 	render_inspector

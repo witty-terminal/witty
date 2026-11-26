@@ -157,8 +157,6 @@ _config() {
     "--undo-timeout=-:::( )" \
     "--quick-terminal-position=-:::(top bottom left right center)" \
     "--quick-terminal-size=-:::( )" \
-    "--gtk-quick-terminal-layer=-:::(overlay top bottom background)" \
-    "--gtk-quick-terminal-namespace=-:::( )" \
     "--quick-terminal-screen=-:::(main mouse macos-menu-bar)" \
     "--quick-terminal-animation-duration=-:::( )" \
     "--quick-terminal-autohide" \
@@ -195,15 +193,6 @@ _config() {
     "--linux-cgroup-memory-limit=-:::( )" \
     "--linux-cgroup-processes-limit=-:::( )" \
     "--linux-cgroup-hard-fail" \
-    "--gtk-opengl-debug" \
-    "--gtk-single-instance=-:::(false true detect)" \
-    "--gtk-titlebar" \
-    "--gtk-tabs-location=-:::(top bottom)" \
-    "--gtk-titlebar-hide-when-maximized" \
-    "--gtk-toolbar-style=-:::(flat raised raised-border)" \
-    "--gtk-titlebar-style=-:::(native tabs)" \
-    "--gtk-wide-tabs" \
-    "--gtk-custom-css=-:::_files" \
     "--desktop-notifications" \
     "--bold-color=-:::( )" \
     "--faint-opacity=-:::( )" \

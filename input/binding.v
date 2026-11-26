@@ -258,13 +258,8 @@ import zig_fmt
 // the last tab.
 // Toggle the tab overview.
 //
-// This is only supported on Linux and when the system's libadwaita
-// version is 1.4 or newer. The current libadwaita version can be
-// found by running `witty +version`.
 // Change the title of the current focused surface via a pop-up prompt.
 //
-// This requires libadwaita 1.5 or newer on Linux. The current libadwaita
-// version can be found by running `witty +version`.
 // Change the title of the current tab/window via a pop-up prompt. The
 // title set via this prompt overrides any title set by the terminal
 // and persists across focus changes within the tab.
@@ -311,15 +306,8 @@ import zig_fmt
 // Control the visibility of the terminal inspector.
 //
 // Valid arguments: `toggle`, `show`, `hide`.
-// Show the GTK inspector.
-//
-// Has no effect on macOS.
 // Show the on-screen keyboard if one is present.
 //
-// Only implemented on Linux (GTK). On GNOME, the "Screen Keyboard"
-// accessibility feature must be turned on, which can be found under
-// Settings > Accessibility > Typing. Other platforms are as of now
-// untested.
 // Open the configuration file in the default OS editor.
 //
 // If your default OS editor isn't configured then this will fail.
@@ -388,8 +376,6 @@ import zig_fmt
 // you can perform, their associated keybindings (if any), a search bar
 // to filter the actions, and the ability to then execute the action.
 //
-// This requires libadwaita 1.5 or newer on Linux. The current libadwaita
-// version can be found by running `witty +version`.
 // Toggle the quick terminal.
 //
 // The quick terminal, also known as the "Quake-style" or drop-down
@@ -541,7 +527,6 @@ import zig_fmt
 //
 //     Crash on the render thread for the focused surface.
 //
-// Make this a valid gobject if we're in a GTK environment.
 // For backwards compatibility we map "top" and "bottom" onto the enum
 // values "up" and "down"
 // This type will mix multiple distinct types with a set content-type
@@ -690,10 +675,8 @@ import zig_fmt
 //
 // Performable triggers are also not present in the reverse map. This
 // is so that GUI toolkits don't register performable triggers as
-// menu shortcuts (the primary use case of the reverse map). GUI toolkits
-// such as GTK handle menu shortcuts too early in the event lifecycle
-// for performable to work so this is a conscious decision to ease the
-// integration with GUI toolkits.
+// menu shortcuts. Some GUI toolkits dispatch menu shortcuts before
+// the terminal can check whether the action is performable.
 // The chain parent is the information necessary to attach a chained
 // action to the proper location in our mapping. It tracks both the
 // entry in the hashmap and the set it belongs to, which is needed
@@ -1710,9 +1693,6 @@ pub:
 	value InspectorMode
 }
 
-// Show the GTK inspector.
-pub struct ActionShowGtkInspector {}
-
 // Show the on-screen keyboard.
 pub struct ActionShowOnScreenKeyboard {}
 
@@ -1867,7 +1847,6 @@ pub type Action = ActionActivateKeyTable
 	| ActionSearchSelection
 	| ActionSelectAll
 	| ActionSetFontSize
-	| ActionShowGtkInspector
 	| ActionShowOnScreenKeyboard
 	| ActionStartSearch
 	| ActionText
@@ -1947,7 +1926,6 @@ pub enum ActionTag as u8 {
 	equalize_splits
 	reset_window_size
 	inspector
-	show_gtk_inspector
 	show_on_screen_keyboard
 	open_config
 	reload_config
@@ -2035,7 +2013,6 @@ pub fn (a Action) tag() ActionTag {
 		ActionEqualizeSplits { .equalize_splits }
 		ActionResetWindowSize { .reset_window_size }
 		ActionInspector { .inspector }
-		ActionShowGtkInspector { .show_gtk_inspector }
 		ActionShowOnScreenKeyboard { .show_on_screen_keyboard }
 		ActionOpenConfig { .open_config }
 		ActionReloadConfig { .reload_config }
@@ -2458,7 +2435,7 @@ pub enum ActionScope as u8 {
 pub fn (a Action) scope() ActionScope {
 	return match a.tag() {
 		.ignore, .unbind { .app }
-		.open_config, .reload_config, .close_all_windows, .quit, .toggle_quick_terminal, .toggle_visibility, .check_for_updates, .show_gtk_inspector {
+		.open_config, .reload_config, .close_all_windows, .quit, .toggle_quick_terminal, .toggle_visibility, .check_for_updates {
 			.app
 		}
 		.new_window, .undo, .redo { .app }
@@ -2763,9 +2740,6 @@ fn void_action(tag ActionTag) ?Action {
 		}
 		.reset_window_size {
 			return ActionResetWindowSize{}
-		}
-		.show_gtk_inspector {
-			return ActionShowGtkInspector{}
 		}
 		.show_on_screen_keyboard {
 			return ActionShowOnScreenKeyboard{}

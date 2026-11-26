@@ -83,7 +83,7 @@ debug output of Witty.
 In the debug output, you should see in the first 20 lines or so messages about
 loading (or not loading) a configuration file, as well as any errors it may have
 encountered. Configuration errors are also shown in a dedicated window on both
-macOS and Linux (GTK). Witty does not treat configuration errors as fatal and
+macOS and Linux. Witty does not treat configuration errors as fatal and
 will fall back to default values for erroneous keys.
 
 You can also view the full configuration Witty is loading using `witty

@@ -30,9 +30,15 @@ curl --fail --silent --show-error --location --retry 3 \
   --output "$reference_dir/$asset" \
   "https://github.com/mkasberg/ghostty-ubuntu/releases/download/1.4.0-0-ppa2/$asset"
 printf '%s  %s\n' "$digest" "$reference_dir/$asset" | sha256sum --check
-dpkg-deb --extract "$reference_dir/$asset" "$reference_dir/root"
+if [[ "${INSTALL_GHOSTTY_REFERENCE:-0}" == 1 ]]; then
+  sudo apt-get install -y --no-install-recommends "$reference_dir/$asset"
+  reference=$(command -v ghostty)
+else
+  dpkg-deb --extract "$reference_dir/$asset" "$reference_dir/root"
+  reference="$reference_dir/root/usr/bin/ghostty"
+fi
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-xvfb-run -a -s "-screen 0 2400x1600x24" dbus-run-session -- \
+xvfb-run -a -s "-screen 0 2400x1600x24 -noreset" dbus-run-session -- \
   python3 "$root/build_support/reference_probes/render_parity/run.py" \
-  "$witty" "$reference_dir/root/usr/bin/ghostty" --output "$output" "$@"
+  "$witty" "$reference" --output "$output" "$@"

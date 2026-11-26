@@ -24,12 +24,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             clang pkg-config gettext \
-            libgtk-4-1 libadwaita-1-0 libgtk4-layer-shell0 \
             libfreetype-dev libharfbuzz-dev libfontconfig-dev libonig-dev libglib2.0-dev \
             libxml2-dev libpng-dev zlib1g-dev libbz2-dev \
             libx11-dev libxi-dev libxcursor-dev libxrandr-dev libwayland-dev wayland-protocols \
             libegl-dev libgl-dev libgl1-mesa-dri fonts-dejavu-core \
-            curl dbus-daemon less python3-pil tmux vim xauth xdotool xvfb
+            curl dbus-daemon less python3-pil tmux vim xauth xdotool x11-xserver-utils xvfb
       - name: Install V
         run: bash .github/scripts/install-v.sh
       - name: Install UI2
@@ -39,6 +38,8 @@ jobs:
           bash .github/scripts/ci-build.sh install --system \
             -Doptimize=ReleaseSafe -Demit-docs=false -Dsimd=false
       - name: Compare with Ghostty 1.4.0
+        env:
+          INSTALL_GHOSTTY_REFERENCE: 1
         run: |
           bash .github/scripts/linux-render-parity.sh \
             "$RUNNER_TEMP/witty/bin/witty" "$RUNNER_TEMP/render-parity" \
@@ -53,12 +54,4 @@ jobs:
             ${{ runner.temp }}/render-parity/*.log
             ${{ runner.temp }}/render-parity/results.tsv
             ${{ runner.temp }}/render-parity/versions.txt
-            ${{ runner.temp }}/render-parity-gl/*.png
-            ${{ runner.temp }}/render-parity-gl/*.log
-            ${{ runner.temp }}/render-parity-gl/results.tsv
-            ${{ runner.temp }}/render-parity-gl/versions.txt
-            ${{ runner.temp }}/render-parity-gl-hidpi/*.png
-            ${{ runner.temp }}/render-parity-gl-hidpi/*.log
-            ${{ runner.temp }}/render-parity-gl-hidpi/results.tsv
-            ${{ runner.temp }}/render-parity-gl-hidpi/versions.txt
           if-no-files-found: ignore

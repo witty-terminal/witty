@@ -26,7 +26,7 @@ static inline ImGuiContext* witty_cimgui_context_create(void) {
 static inline void witty_cimgui_set_backend_platform(ImGuiContext* context, int platform) {
     ImGui_SetCurrentContext(context);
     ImGuiIO* io = ImGui_GetIO();
-    io->BackendPlatformName = platform == 1 ? "ghostty_gtk" : "ghostty_embedded";
+    io->BackendPlatformName = platform == 1 ? "witty_ui2" : "ghostty_embedded";
 }
 
 static inline void witty_cimgui_inspector_setup(

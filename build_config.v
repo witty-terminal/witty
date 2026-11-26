@@ -52,7 +52,7 @@ pub const artifact = $if wasm32 {
 // On macOS, this must match the App bundle ID. We can get that dynamically
 // via an API but I don't want to pay the cost of that at runtime.
 //
-// On GTK, this should match the various folders with resources.
+// Keep this identifier in sync with the desktop resource paths.
 //
 // There are many places that don't use this variable so simply swapping
 // this variable is NOT ENOUGH to change the bundle ID. I just wanted to

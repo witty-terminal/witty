@@ -9,6 +9,8 @@ fn test_action_c_enum_layouts_and_ordinals() {
 	}
 	assert action_count == 63
 	assert i32(ActionKey.quit) == 0
+	assert i32(ActionKey.reserved_29) == 29
+	assert i32(ActionKey.render_inspector) == 30
 	assert i32(ActionKey.readonly) == 62
 
 	assert sizeof(SplitDirection) == 4

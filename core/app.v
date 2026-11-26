@@ -193,7 +193,7 @@ module core
 // the "run" function.
 //
 // This is the core application logic that is shared across all application
-// runtimes (GTK, macOS Cocoa, browser, etc.). The apprt module provides
+// runtimes (UI2, macOS Cocoa, and browser). The apprt module provides
 // the platform-specific implementation, and this module contains the
 // platform-independent logic.
 
@@ -601,7 +601,7 @@ pub fn (mut self App) color_scheme_event(mut rt_app apprt.RuntimeApp, scheme app
 }
 
 // color_scheme_surfaces notifies every live terminal surface after the app's
-// conditional theme state changes. GTK invokes this alongside
+// conditional theme state changes. The runtime can invoke this alongside
 // color_scheme_event, matching Ghostty's style-manager callback.
 pub fn (mut self App) color_scheme_surfaces(scheme apprt.ColorScheme) {
 	for surface in self.surfaces {
@@ -726,9 +726,6 @@ pub fn (mut self App) perform_action(mut rt_app apprt.RuntimeApp, action input.A
 		}
 		input.ActionCheckForUpdates {
 			rt_app.perform_action(app_target, .check_for_updates, apprt.ActionVoid{})!
-		}
-		input.ActionShowGtkInspector {
-			rt_app.perform_action(app_target, .show_gtk_inspector, apprt.ActionVoid{})!
 		}
 		input.ActionUndo {
 			rt_app.perform_action(app_target, .undo, apprt.ActionVoid{})!

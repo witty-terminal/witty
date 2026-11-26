@@ -16,7 +16,6 @@ import comma_splitter
 import fontstyle
 import log
 
-const default_gtk_opengl_debug = $if debug { true } $else { false }
 const default_quit_after_last_window_closed = $if linux { true } $else { false }
 const default_linux_cgroup = $if linux { LinuxCgroup.single_instance } $else { LinuxCgroup.never }
 const default_quick_terminal_autohide = $if macos { true } $else { false }
@@ -44,18 +43,12 @@ const config_template = $embed_file('config-template').to_string()
 // doesn't support a specific radius value. The renaming is to let
 // one field be used for both platforms (macOS retained the ability
 // to set a radius).
-// Witty 1.2 renamed all our adw options to gtk because we now have
-// a hard dependency on libadwaita.
-// Witty 1.2 removed the `hidden` value from `gtk-tabs-location` and
-// moved it to `window-show-tab-bar`.
 // Witty 1.2 lets you set `cell-foreground` and `cell-background`
 // to match the cell foreground and background colors, respectively.
 // This can be used with `cursor-color` and `cursor-text` to recreate
 // this behavior. This applies to selection too.
 // Witty 1.2 merged `bold-is-bright` into the new `bold-color`
 // by setting the value to "bright".
-// Witty 1.2 removed the "desktop" option and renamed it to "detect".
-// The semantics also changed slightly but this is the correct mapping.
 // Witty 1.3 rename the "window" option to "new-window".
 // See: https://github.com/ghostty-org/ghostty/pull/9764
 // The font families to use.
@@ -183,9 +176,7 @@ const config_template = $embed_file('config-template').to_string()
 // Otherwise, the font size of existing terminals will be updated on
 // reload.
 //
-// On Linux with GTK, font size is scaled according to both display-wide and
-// text-specific scaling factors, which are often managed by your desktop
-// environment (e.g. the GNOME display scale and large text settings).
+// On Linux, font size follows the window's display scale.
 // On macOS we default a little bigger since this tends to look better. This
 // is purely subjective but this is easy to modify.
 // A repeatable configuration to set one or more font variations values for
@@ -414,9 +405,7 @@ const config_template = $embed_file('config-template').to_string()
 //   * `autohint` - Enable the freetype auto-hinter. Enabled by default.
 //
 //   * `light` - Use a light hinting style, better preserving glyph shapes.
-//     This is the most common setting in GTK apps and therefore also Witty's
-//     default. This has no effect if `monochrome` is enabled. Enabled by
-//     default.
+//     Enabled by default and ignored when `monochrome` is enabled.
 //
 // Example: `hinting`, `no-hinting`, `force-autohint`, `no-force-autohint`
 // A theme to use. This can be a built-in theme name, a custom theme
@@ -944,9 +933,6 @@ const config_template = $embed_file('config-template').to_string()
 //     be shell-expanded by the upstream (e.g. the shell used to type in
 //     the `witty -e` command).
 //
-//   * `gtk-single-instance=false` - This ensures that a new instance is
-//     launched and the CLI args are respected.
-//
 //   * `quit-after-last-window-closed=true` - This ensures that the Witty
 //     process will exit when the command exits. Additionally, the
 //     `quit-after-last-window-closed-delay` is unset.
@@ -972,12 +958,6 @@ const config_template = $embed_file('config-template').to_string()
 // enabled, or that your shell sends OSC 133 escape sequences to mark the start
 // and end of commands.
 //
-// On GTK, there is a context menu item that will enable command finished
-// notifications for a single command, overriding the `never` and `unfocused`
-// options.
-//
-// GTK only.
-//
 // Available since 1.3.0.
 // If command finished notifications are enabled, this controls how the user is
 // notified.
@@ -989,8 +969,6 @@ const config_template = $embed_file('config-template').to_string()
 //
 // Options can be combined by listing them as a comma separated list. Options
 // can be negated by prefixing them with `no-`. For example `no-bell,notify`.
-//
-// GTK only.
 //
 // Available since 1.3.0.
 // If command finished notifications are enabled, this controls how long a
@@ -1023,8 +1001,6 @@ const config_template = $embed_file('config-template').to_string()
 //
 // The maximum value is `584y 49w 23h 34m 33s 709ms 551µs 615ns`. Any
 // value larger than this will be clamped to the maximum value.
-//
-// GTK only.
 //
 // Available since 1.3.0
 // Extra environment variables to pass to commands launched in a terminal
@@ -1151,7 +1127,7 @@ const config_template = $embed_file('config-template').to_string()
 //     keybind actions, etc. but you will not have a visual UI widget showing
 //     a scrollbar.
 //
-// This only applies to macOS currently. GTK doesn't yet support scrollbars.
+// Available on macOS and Linux.
 // Match a regular expression against the terminal text and associate clicking
 // it with an action. This can be used to match URLs, file paths, etc. Actions
 // can be opening using the system opener (e.g. `open` or `xdg-open`) or
@@ -1206,30 +1182,15 @@ const config_template = $embed_file('config-template').to_string()
 // to get the new title.
 // The setting that will change the application class value.
 //
-// This controls the class field of the `WM_CLASS` X11 property (when running
-// under X11), the Wayland application ID (when running under Wayland), and the
-// bus name that Witty uses to connect to DBus.
-//
-// Note that changing this value between invocations will create new, separate
-// instances, of Witty when running with `gtk-single-instance=true`. See that
-// option for more details.
-//
-// Changing this value may break launching Witty from `.desktop` files, via
-// DBus activation, or systemd user services as the system is expecting Witty
-// to connect to DBus using the default `class` when it is launched.
-//
-// The class name must follow the requirements defined [in the GTK
-// documentation](https://docs.gtk.org/gio/type_func.Application.id_is_valid.html).
+// On X11, this controls the class field of the `WM_CLASS` property.
 //
 // The default is `com.alexander.witty`.
 //
-// This only affects GTK builds.
 // This controls the instance name field of the `WM_CLASS` X11 property when
 // running under X11. It has no effect otherwise.
 //
 // The default is `witty`.
 //
-// This only affects GTK builds.
 // The directory to change to after starting the command.
 //
 // This setting is secondary to the `window-inherit-working-directory`
@@ -1240,8 +1201,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 // The default is `inherit` except in special scenarios listed next. On macOS,
 // if Witty can detect it is launched from launchd (double-clicked) or
-// `open`, then it defaults to `home`. On Linux with GTK, if Witty can detect
-// it was launched from a desktop launcher, then it defaults to `home`.
+// `open`, then it defaults to `home`. On Linux, desktop launches also default to `home`.
 //
 // The value of this must be an absolute value or one of the special values
 // below:
@@ -1422,7 +1382,7 @@ const config_template = $embed_file('config-template').to_string()
 //    Note: this does not work in all environments; see the additional notes
 //    below for more information.
 //
-//    Available since: 1.0.0 on macOS, 1.2.0 on GTK
+//    Available since: 1.0.0 on macOS
 //
 //  * `unconsumed:`
 //
@@ -1731,10 +1691,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 //  * `server`
 //
-//    Prefer server-side decorations. This is only relevant on Linux with GTK,
-//    either on X11, or Wayland on a compositor that supports the
-//    `org_kde_kwin_server_decoration` protocol (e.g. KDE Plasma, but almost
-//    any non-GNOME desktop supports this protocol).
+//    Prefer server-side decorations where the window system supports them.
 //
 //    If `server` is set but the environment doesn't support server-side
 //    decorations, client-side decorations will be used instead.
@@ -1762,14 +1719,13 @@ const config_template = $embed_file('config-template').to_string()
 // Note: any font available on the system may be used, this font is not
 // required to be a fixed-width font.
 //
-// Available since: 1.0.0 on macOS, 1.1.0 on GTK
+// Available since: 1.0.0 on macOS
 // The text that will be displayed in the subtitle of the window. Valid values:
 //
 //   * `false` - Disable the subtitle.
 //   * `working-directory` - Set the subtitle to the working directory of the
 //      surface.
 //
-// This feature is only supported on GTK.
 //
 // Available since: 1.1.0
 // The theme to use for the windows. Valid values:
@@ -1821,10 +1777,6 @@ const config_template = $embed_file('config-template').to_string()
 // value will not affect the size of the window after it has been created. This
 // is only used for the initial size.
 //
-// BUG: On Linux with GTK, the calculated window size will not properly take
-// into account window decorations. As a result, the grid dimensions will not
-// exactly match this configuration. If window decorations are disabled (see
-// `window-decoration`), then this will work as expected.
 //
 // Windows smaller than 10 wide by 4 high are not allowed.
 // The starting window position. This position is in pixels and is relative
@@ -1847,9 +1799,7 @@ const config_template = $embed_file('config-template').to_string()
 // the visible screen area. This means that if the menu bar is visible, the
 // window will be placed below the menu bar.
 //
-// Note: this is only supported on macOS. The GTK runtime does not support
-// setting the window position, as windows are only allowed position
-// themselves in X11 and not Wayland.
+// This setting is supported on macOS.
 // Whether to enable saving and restoring window state. Window state includes
 // their position, size, tabs, splits, etc. Some window state requires shell
 // integration, such as preserving working directories. See `shell-integration`
@@ -1909,15 +1859,13 @@ const config_template = $embed_file('config-template').to_string()
 //    Never show the tab bar. Tabs are only accessible via the tab
 //    overview or by keybind actions.
 //
-// Currently only supported on Linux (GTK).
+// Available on Linux.
 // Background color for the window titlebar. This only takes effect if
-// window-theme is set to witty. Currently only supported in the GTK app
-// runtime.
+// window-theme is set to witty.
 //
 // Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 // Foreground color for the window titlebar. This only takes effect if
-// window-theme is set to witty. Currently only supported in the GTK app
-// runtime.
+// window-theme is set to witty.
 //
 // Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 // This controls when resize overlays are shown. Resize overlays are a
@@ -2223,41 +2171,6 @@ const config_template = $embed_file('config-template').to_string()
 // from the first by a comma (`,`). Percentage and pixel sizes can be mixed
 // together: for instance, a size of `50%,500px` for a top-positioned quick
 // terminal would be half a screen tall, and 500 pixels wide.
-//
-// Available since: 1.2.0
-// The layer of the quick terminal window. The higher the layer,
-// the more windows the quick terminal may conceal.
-//
-// Valid values are:
-//
-//  * `overlay`
-//
-//    The quick terminal appears in front of all windows.
-//
-//  * `top` (default)
-//
-//    The quick terminal appears in front of normal windows but behind
-//    fullscreen overlays like lock screens.
-//
-//  * `bottom`
-//
-//    The quick terminal appears behind normal windows but in front of
-//    wallpapers and other windows in the background layer.
-//
-//  * `background`
-//
-//    The quick terminal appears behind all windows.
-//
-// GTK Wayland only.
-//
-// Available since: 1.2.0
-// The namespace for the quick terminal window.
-//
-// This is an identifier that is used by the Wayland compositor and/or
-// scripts to determine the type of layer surfaces and to possibly apply
-// unique effects.
-//
-// GTK Wayland only.
 //
 // Available since: 1.2.0
 // The screen where the quick terminal should show up.
@@ -2605,7 +2518,7 @@ const config_template = $embed_file('config-template').to_string()
 //
 //  * `audio`
 //
-//    Play a custom sound. (GTK only)
+//    Play a custom sound.
 //
 //  * `attention` *(enabled by default)*
 //
@@ -2634,7 +2547,7 @@ const config_template = $embed_file('config-template').to_string()
 //    Display a border around the alerted surface until the terminal is
 //    re-focused or interacted with (such as on keyboard input).
 //
-//    Available since: 1.2.0 on GTK, 1.2.1 on macOS
+//    Available since: 1.2.1
 //
 // Example: `audio`, `no-audio`, `system`, `no-system`
 //
@@ -2643,18 +2556,17 @@ const config_template = $embed_file('config-template').to_string()
 // the path is not absolute, it is considered relative to the directory of the
 // configuration file that it is referenced from, or from the current working
 // directory if this is used as a CLI flag. The path may be prefixed with `~/`
-// to reference the user's home directory. (GTK only)
+// to reference the user's home directory.
 //
 // Available since: 1.2.0
 // If `audio` is an enabled bell feature, this is the volume to play the audio
 // file at (relative to the system volume). This is a floating point number
 // ranging from 0.0 (silence) to 1.0 (as loud as possible). The default is 0.5.
-// (GTK only)
 //
 // Available since: 1.2.0
 // Control the in-app notifications that Witty shows.
 //
-// On Linux (GTK), in-app notifications show up as toasts. Toasts appear
+// On Linux, in-app notifications show up as toasts. Toasts appear
 // overlaid on top of the terminal window. They are used to show information
 // that is not critical but may be important.
 //
@@ -2676,7 +2588,6 @@ const config_template = $embed_file('config-template').to_string()
 // A value of "false" will disable all notifications. A value of "true" will
 // enable all notifications.
 //
-// This configuration only applies to GTK.
 //
 // Available since: 1.1.0
 // If anything other than false, fullscreen mode on macOS will not use the
@@ -2972,13 +2883,6 @@ const config_template = $embed_file('config-template').to_string()
 // Witty process. Similarly, if a shell program is using too much CPU,
 // only that surface will be CPU-throttled.
 //
-// This will cause startup times to be slower (a hundred milliseconds or so),
-// so the default value is "single-instance." In single-instance mode, only
-// one instance of Witty is running (see gtk-single-instance) so the startup
-// time is a one-time cost. Additionally, single instance Witty is much
-// more likely to have many windows, tabs, etc. so cgroup isolation is a
-// big benefit.
-//
 // This feature requires systemd. If systemd is unavailable, cgroup
 // initialization will fail. By default, this will not prevent Witty
 // from working (see linux-cgroup-hard-fail).
@@ -2988,7 +2892,7 @@ const config_template = $embed_file('config-template').to_string()
 //   * `never` - Never use cgroups.
 //   * `always` - Always use cgroups.
 //   * `single-instance` - Enable cgroups only for Witty instances launched
-//     as single-instance applications (see gtk-single-instance).
+//     in single-instance mode.
 // Memory limit for any individual terminal process (tab, split, window,
 // etc.) in bytes. If this is unset then no memory limit will be set.
 //
@@ -3012,102 +2916,6 @@ const config_template = $embed_file('config-template').to_string()
 //
 // Note: This currently only affects cgroup initialization. Subprocesses
 // must always be able to move themselves into an isolated cgroup.
-// Enable or disable GTK's OpenGL debugging logs. The default is `true` for
-// debug builds, `false` for all others.
-//
-// Available since: 1.1.0
-// If `true`, the Witty GTK application will run in single-instance mode:
-// each new `witty` process launched will result in a new window if there is
-// already a running process.
-//
-// If `false`, each new witty process will launch a separate application.
-//
-// If `detect`, Witty will assume true (single instance) unless one of
-// the following scenarios is found:
-//
-// 1. TERM_PROGRAM environment variable is a non-empty value. In this
-// case, we assume Witty is being launched from a graphical terminal
-// session and you want a dedicated instance.
-//
-// 2. Any CLI arguments exist. In this case, we assume you are passing
-// custom Witty configuration. Single instance mode inherits the
-// configuration from when it was launched, so we must disable single
-// instance to load the new configuration.
-//
-// If either of these scenarios is producing a false positive, you can
-// set this configuration explicitly to the behavior you want.
-//
-// The pre-1.2 option `desktop` has been deprecated. Please replace
-// this with `detect`.
-//
-// The default value is `detect`.
-//
-// Note that debug builds of Witty have a separate single-instance ID
-// so you can test single instance without conflicting with release builds.
-// When enabled, the full GTK titlebar is displayed instead of your window
-// manager's simple titlebar. The behavior of this option will vary with your
-// window manager.
-//
-// This option does nothing when `window-decoration` is none or when running
-// under macOS.
-// Determines the side of the screen that the GTK tab bar will stick to.
-// Top, bottom, and hidden are supported. The default is top.
-//
-// When `hidden` is set, a tab button displaying the number of tabs will appear
-// in the title bar. It has the ability to open a tab overview for displaying
-// tabs. Alternatively, you can use the `toggle_tab_overview` action in a
-// keybind if your window doesn't have a title bar, or you can switch tabs
-// with keybinds.
-// If this is `true`, the titlebar will be hidden when the window is maximized,
-// and shown when the titlebar is unmaximized. GTK only.
-//
-// Available since: 1.1.0
-// Determines the appearance of the top and bottom bars tab bar.
-//
-// Valid values are:
-//
-//  * `flat` - Top and bottom bars are flat with the terminal window.
-//  * `raised` - Top and bottom bars cast a shadow on the terminal area.
-//  * `raised-border` - Similar to `raised` but the shadow is replaced with a
-//    more subtle border.
-// The style of the GTK titlebar. Available values are `native` and `tabs`.
-//
-// The `native` titlebar style is a traditional titlebar with a title, a few
-// buttons and window controls. A separate tab bar will show up below the
-// titlebar if you have multiple tabs open in the window.
-//
-// The `tabs` titlebar merges the tab bar and the traditional titlebar.
-// This frees up vertical space on your screen if you use multiple tabs. One
-// limitation of the `tabs` titlebar is that you cannot drag the titlebar
-// by the titles any longer (as they are tab titles now). Other areas of the
-// `tabs` title bar can be used to drag the window around.
-//
-// The default style is `native`.
-// If `true` (default), then the Witty GTK tabs will be "wide." Wide tabs
-// are the new typical Gnome style where tabs fill their available space.
-// If you set this to `false` then tabs will only take up space they need,
-// which is the old style.
-// Custom CSS files to be loaded.
-//
-// GTK CSS documentation can be found at the following links:
-//
-//   * https://docs.gtk.org/gtk4/css-overview.html - An overview of GTK CSS.
-//   * https://docs.gtk.org/gtk4/css-properties.html - A comprehensive list
-//     of supported CSS properties.
-//
-// Launch Witty with `env GTK_DEBUG=interactive witty` to tweak Witty's
-// CSS in real time using the GTK Inspector. Errors in your CSS files would
-// also be reported in the terminal you started Witty from. See
-// https://developer.gnome.org/documentation/tools/inspector.html for more
-// information about the GTK Inspector.
-//
-// This configuration can be repeated multiple times to load multiple files.
-// Prepend a ? character to the file path to suppress errors if the file does
-// not exist. If you want to include a file that begins with a literal ?
-// character, surround the file path in double quotes (").
-// The file size limit for a single stylesheet is 5MiB.
-//
-// Available since: 1.1.0
 // If `true` (default), applications running in the terminal can show desktop
 // notifications using certain escape sequences such as OSC 9 or OSC 777.
 // Modifies the color used for bold text in the terminal.
@@ -3482,9 +3290,6 @@ const config_template = $embed_file('config-template').to_string()
 // Witty in a CLI environment. We need this to change some behaviors.
 // We should keep the set of behaviors that depend on this as small
 // as possible because magic sucks, but each place is well documented.
-// Windows has its own problems, just ignore it for now since
-// its not a real supported target and GTK via WSL2 assuming
-// single instance is probably fine.
 // On macOS, we don't want to detect `open` calls as CLI envs.
 // Our desktop detection on macOS is very accurate due to how
 // processes are launched on macOS, so if we detect we're launched
@@ -3843,10 +3648,6 @@ const config_template = $embed_file('config-template').to_string()
 // format at all.
 // See macos-icon-frame
 // See macos-shortcuts
-// See gtk-single-instance
-// See gtk-tabs-location
-// See gtk-toolbar-style
-// See gtk-titlebar-style
 // See app-notifications
 // See bell-features
 // See mouse-shift-capture
@@ -3895,7 +3696,6 @@ const config_template = $embed_file('config-template').to_string()
 // our macOS application currently. We can switch to a proper
 // tagged union if we ever need to.
 // See window-decoration
-// Make this a valid gobject if we're in a GTK environment.
 // See theme
 // If there is a comma, equal sign, or colon, then we assume that
 // we're parsing a light/dark mode theme pair. Note that "=" isn't
@@ -4093,7 +3893,7 @@ pub mut:
 	notify_on_command_finish        NotifyOnCommandFinish = .never
 	notify_on_command_finish_action NotifyOnCommandFinishAction
 	notify_on_command_finish_after  Duration = Duration{ duration: 5_000_000_000 }
-	// The setting that will change the application class value (GTK only).
+	// Application class for X11 windows.
 	class ?string
 	// This controls the instance name field of the WM_CLASS X11 property.
 	x11_instance_name ?string
@@ -4124,19 +3924,19 @@ pub mut:
 	window_decoration WindowDecoration = .auto
 	// Font used for application window and tab titles.
 	window_title_font_family ?string
-	// Text shown in the GTK window subtitle.
+	// Text shown in the window subtitle.
 	window_subtitle WindowSubtitle = .false_
 	// The theme to use for the window (auto/system/light/dark/ghostty).
 	window_theme WindowTheme = .auto
-	// Optional titlebar colors used by the GTK ghostty window theme.
+	// Optional titlebar colors for the window theme.
 	window_titlebar_background ?ColorRGB
 	window_titlebar_foreground ?ColorRGB
 	// Position new tabs after the current tab or at the end.
 	window_new_tab_position WindowNewTabPosition = .current
-	// Controls whether the GTK tab bar is always, automatically, or never shown.
+	// Controls whether the tab bar is always, automatically, or never shown.
 	window_show_tab_bar WindowShowTabBar = .auto
 	// Controls when, where, and for how long the terminal grid size is shown
-	// while a GTK surface is resized.
+	// during a surface resize.
 	resize_overlay          ResizeOverlay = .after_first
 	resize_overlay_position ResizeOverlayPosition = .center
 	resize_overlay_duration Duration = Duration{ duration: 750 * 1_000_000 }
@@ -4159,9 +3959,6 @@ pub mut:
 	// Quick-terminal placement and dimensions.
 	quick_terminal_position QuickTerminalPosition = .top
 	quick_terminal_size     QuickTerminalSize
-	// Wayland layer-shell configuration for the quick terminal.
-	gtk_quick_terminal_layer     QuickTerminalLayer = .top
-	gtk_quick_terminal_namespace string = 'witty-quick-terminal'
 	// Platform-specific quick-terminal presentation behavior.
 	quick_terminal_screen             QuickTerminalScreen = .main
 	quick_terminal_animation_duration f64 = 0.2
@@ -4216,24 +4013,11 @@ pub mut:
 	macos_icon_ghost_color        ?ColorRGB
 	macos_icon_screen_color       ?ColorList
 	macos_shortcuts               MacShortcuts = .ask
-	// GTK single-instance behavior. `detect` chooses at finalize time.
-	gtk_single_instance GtkSingleInstance = .detect
 	// Linux systemd cgroup isolation and per-terminal limits.
 	linux_cgroup                 LinuxCgroup = default_linux_cgroup
 	linux_cgroup_memory_limit    ?u64
 	linux_cgroup_processes_limit ?u64
 	linux_cgroup_hard_fail       bool
-	// Enable GTK OpenGL diagnostics when stderr logging is active.
-	gtk_opengl_debug bool = default_gtk_opengl_debug
-	// GTK window chrome configuration.
-	gtk_titlebar                     bool = true
-	gtk_tabs_location                GtkTabsLocation = .top
-	gtk_titlebar_hide_when_maximized bool
-	gtk_toolbar_style                GtkToolbarStyle = .raised
-	gtk_titlebar_style               GtkTitlebarStyle = .native
-	gtk_wide_tabs                    bool = true
-	// User stylesheets loaded by the GTK application in declaration order.
-	gtk_custom_css RepeatablePath
 	// Low-level async backend preference (Linux only).
 	async_backend AsyncBackend = .auto
 	// Sparkle update policy and release channel (macOS only).
@@ -4381,37 +4165,11 @@ pub fn (c ColorList) format_entry() string {
 	return c.colors.map(it.format_buf()).join(',')
 }
 
-// GtkSingleInstance controls GTK single-instance behavior.
-pub enum GtkSingleInstance as u8 {
-	false_
-	true_
-	detect
-}
-
 // LinuxCgroup controls when systemd cgroup isolation is enabled.
 pub enum LinuxCgroup as u8 {
 	never
 	always
 	single_instance
-}
-
-// GtkTabsLocation controls which edge hosts the tab bar.
-pub enum GtkTabsLocation as u8 {
-	top
-	bottom
-}
-
-// GtkToolbarStyle controls the visual separation of the toolbar and terminal.
-pub enum GtkToolbarStyle as u8 {
-	flat
-	raised
-	raised_border
-}
-
-// GtkTitlebarStyle selects a traditional titlebar or a merged tab titlebar.
-pub enum GtkTitlebarStyle as i32 {
-	native
-	tabs
 }
 
 // Keybinds is the config value type backing the `keybind` option. It is a
@@ -5109,7 +4867,6 @@ pub fn (c Config) clone() Config {
 	copy.font_codepoint_map = c.font_codepoint_map.clone()
 	copy.custom_shader = c.custom_shader.clone() or { RepeatablePath{} }
 	copy.config_file = c.config_file.clone() or { RepeatablePath{} }
-	copy.gtk_custom_css = c.gtk_custom_css.clone() or { RepeatablePath{} }
 	copy.input = c.input.clone()
 	if colors := c.macos_icon_screen_color {
 		copy.macos_icon_screen_color = colors.clone()
@@ -6816,7 +6573,7 @@ pub fn (config BellFeatures) format_entry() string {
 		if config.border() { 'border' } else { 'no-border' }].join(',')
 }
 
-// AppNotifications controls the two GTK in-app toast categories. Defaults
+// AppNotifications controls in-app notification categories. Defaults
 // match Witty's packed struct, where both notification kinds are enabled.
 pub struct AppNotifications {
 	value u8 = 0x03
@@ -7683,7 +7440,6 @@ fn (mut c Config) apply_command_tail(command_args []string, location diagnostics
 		return
 	}
 	c.initial_command = Command(DirectCmd{ direct: command_args.clone() })
-	c.gtk_single_instance = .false_
 	c.quit_after_last_window_closed = true
 	c.quit_after_last_window_closed_delay = none
 	if c.shell_integration != .none_ {
@@ -7720,8 +7476,8 @@ fn is_boolean_config_key(key string) bool {
 		'window-inherit-working-directory', 'tab-inherit-working-directory',
 		'split-inherit-working-directory', 'window-inherit-font-size', 'window-step-resize',
 		'initial-window', 'quick-terminal-autohide', 'quit-after-last-window-closed',
-		'config-default-files', 'linux-cgroup-hard-fail', 'gtk-opengl-debug', 'gtk-titlebar',
-		'gtk-titlebar-hide-when-maximized', 'gtk-wide-tabs', 'macos-window-shadow',
+		'config-default-files', 'linux-cgroup-hard-fail',
+		'macos-window-shadow',
 		'macos-auto-secure-input', 'macos-secure-input-indication', 'cursor-style-blink']
 }
 
@@ -7822,7 +7578,6 @@ fn (mut c Config) expand_paths(base string) ! {
 	}
 	c.custom_shader.expand(base, mut c.diagnostics)!
 	c.config_file.expand(base, mut c.diagnostics)!
-	c.gtk_custom_css.expand(base, mut c.diagnostics)!
 	if mut background_image := c.background_image {
 		background_image.expand(base, mut c.diagnostics)!
 		c.background_image = background_image
@@ -8215,9 +7970,6 @@ fn (mut c Config) apply_kv(key string, value string) {
 				return
 			}
 		}
-		'gtk-quick-terminal-namespace' {
-			c.gtk_quick_terminal_namespace = value
-		}
 		'env' {
 			c.apply_env(value)
 		}
@@ -8341,11 +8093,6 @@ fn (mut c Config) apply_kv(key string, value string) {
 		}
 		'custom-shader' {
 			c.custom_shader.parse_cli(value) or {
-				c.invalid_config_value(key, value)
-			}
-		}
-		'gtk-custom-css' {
-			c.gtk_custom_css.parse_cli(value) or {
 				c.invalid_config_value(key, value)
 			}
 		}
@@ -8545,7 +8292,7 @@ fn (mut c Config) apply_kv(key string, value string) {
 				return
 			}
 		}
-		'font-thicken', 'background-opacity-cells', 'background-image-repeat', 'window-vsync', 'clipboard-trim-trailing-spaces', 'clipboard-paste-protection', 'clipboard-paste-bracketed-safe', 'cursor-click-to-move', 'desktop-notifications', 'mouse-hide-while-typing', 'mouse-reporting', 'selection-clear-on-copy', 'selection-clear-on-typing', 'vt-kam-allowed', 'wait-after-command', 'title-report', 'link-url', 'maximize', 'fullscreen', 'focus-follows-mouse', 'window-inherit-working-directory', 'tab-inherit-working-directory', 'split-inherit-working-directory', 'window-inherit-font-size', 'window-step-resize', 'initial-window', 'quick-terminal-autohide', 'quit-after-last-window-closed', 'config-default-files', 'linux-cgroup-hard-fail', 'gtk-opengl-debug', 'gtk-titlebar', 'gtk-titlebar-hide-when-maximized', 'gtk-wide-tabs', '_xdg-terminal-exec' {
+		'font-thicken', 'background-opacity-cells', 'background-image-repeat', 'window-vsync', 'clipboard-trim-trailing-spaces', 'clipboard-paste-protection', 'clipboard-paste-bracketed-safe', 'cursor-click-to-move', 'desktop-notifications', 'mouse-hide-while-typing', 'mouse-reporting', 'selection-clear-on-copy', 'selection-clear-on-typing', 'vt-kam-allowed', 'wait-after-command', 'title-report', 'link-url', 'maximize', 'fullscreen', 'focus-follows-mouse', 'window-inherit-working-directory', 'tab-inherit-working-directory', 'split-inherit-working-directory', 'window-inherit-font-size', 'window-step-resize', 'initial-window', 'quick-terminal-autohide', 'quit-after-last-window-closed', 'config-default-files', 'linux-cgroup-hard-fail', '_xdg-terminal-exec' {
 			parsed := c.parse_config_bool(key, value) or { return }
 			match key {
 				'font-thicken' {
@@ -8637,18 +8384,6 @@ fn (mut c Config) apply_kv(key string, value string) {
 				}
 				'linux-cgroup-hard-fail' {
 					c.linux_cgroup_hard_fail = parsed
-				}
-				'gtk-opengl-debug' {
-					c.gtk_opengl_debug = parsed
-				}
-				'gtk-titlebar' {
-					c.gtk_titlebar = parsed
-				}
-				'gtk-titlebar-hide-when-maximized' {
-					c.gtk_titlebar_hide_when_maximized = parsed
-				}
-				'gtk-wide-tabs' {
-					c.gtk_wide_tabs = parsed
 				}
 				'_xdg-terminal-exec' {
 					c.xdg_terminal_exec = parsed
@@ -8976,18 +8711,6 @@ fn (mut c Config) apply_kv(key string, value string) {
 				return
 			}
 		}
-		'gtk-quick-terminal-layer' {
-			c.gtk_quick_terminal_layer = match value {
-				'overlay' { .overlay }
-				'top' { .top }
-				'bottom' { .bottom }
-				'background' { .background }
-				else {
-					c.invalid_config_value(key, value)
-					return
-				}
-			}
-		}
 		'quick-terminal-screen' {
 			c.quick_terminal_screen = match value {
 				'main' { .main }
@@ -9064,22 +8787,6 @@ fn (mut c Config) apply_kv(key string, value string) {
 				c.background_blur = background_blur_parse_cli(value) or {
 					// A failed renamed-field handler falls through to the original
 					// unknown-field diagnostic.
-					c.diagnostics << Diagnostic{
-						message: '${key}: unknown field'
-					}
-					return
-				}
-			}
-		}
-		'adw-toolbar-style' {
-			// Witty 1.2 renamed the libadwaita-prefixed option to its GTK
-			// spelling.
-			c.gtk_toolbar_style = match value {
-				'' { .raised }
-				'flat' { .flat }
-				'raised' { .raised }
-				'raised-border' { .raised_border }
-				else {
 					c.diagnostics << Diagnostic{
 						message: '${key}: unknown field'
 					}
@@ -9337,65 +9044,6 @@ fn (mut c Config) apply_kv(key string, value string) {
 				c.linux_cgroup_processes_limit = c.parse_config_u64(key, value) or { return }
 			}
 		}
-		'gtk-single-instance' {
-			// Witty 1.2 kept `desktop` as a compatibility value that finalize
-			// later converts. Before finalize it remains `detect`.
-			match value {
-				'desktop', 'detect' {
-					c.gtk_single_instance = .detect
-				}
-				'true', 't', '1' {
-					c.gtk_single_instance = .true_
-				}
-				'false', 'f', '0' {
-					c.gtk_single_instance = .false_
-				}
-				else {
-					c.invalid_config_value(key, value)
-					return
-				}
-			}
-		}
-		'gtk-tabs-location' {
-			match value {
-				'top' {
-					c.gtk_tabs_location = .top
-				}
-				'bottom' {
-					c.gtk_tabs_location = .bottom
-				}
-				'hidden' {
-					// Witty 1.2 removed this enum value and its compatibility
-					// handler maps it to the replacement setting.
-					c.window_show_tab_bar = .never
-				}
-				else {
-					c.invalid_config_value(key, value)
-					return
-				}
-			}
-		}
-		'gtk-toolbar-style' {
-			c.gtk_toolbar_style = match value {
-				'flat' { .flat }
-				'raised' { .raised }
-				'raised-border' { .raised_border }
-				else {
-					c.invalid_config_value(key, value)
-					return
-				}
-			}
-		}
-		'gtk-titlebar-style' {
-			c.gtk_titlebar_style = match value {
-				'native' { .native }
-				'tabs' { .tabs }
-				else {
-					c.invalid_config_value(key, value)
-					return
-				}
-			}
-		}
 		else {
 			// Config's reflected CLI parser reports unknown fields as a
 			// diagnostic. Platform-specific fields are still present in Config,
@@ -9438,13 +9086,6 @@ fn (mut c Config) apply_kv_missing(key string) {
 		}
 		'bold-is-bright' {
 			c.bold_color = BoldColorBright{}
-		}
-		'adw-toolbar-style' {
-			// compatibilityRenamed fails because the destination enum requires a
-			// value, then the original unknown-field error is reported.
-			c.diagnostics << Diagnostic{
-				message: '${key}: unknown field'
-			}
 		}
 		else {
 			message := if is_config_key(key) {
@@ -10051,14 +9692,6 @@ pub fn (mut c Config) finalize() ! {
 					log.warn('no default shell found, will default to using sh')
 				}
 			}
-		}
-	}
-
-	// Linux is Witty's GTK artifact, so this is the translated apprt-specific
-	// default from Config.finalize.
-	$if linux {
-		if c.gtk_single_instance == .detect {
-			c.gtk_single_instance = if probable_cli { .false_ } else { .true_ }
 		}
 	}
 
@@ -11007,13 +10640,6 @@ pub enum QuickTerminalPosition as u8 {
 	left
 	right
 	center
-}
-
-pub enum QuickTerminalLayer as u8 {
-	overlay
-	top
-	bottom
-	background
 }
 
 pub enum QuickTerminalScreen as u8 {

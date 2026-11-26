@@ -187,8 +187,6 @@ _witty() {
     config+=" --undo-timeout="
     config+=" --quick-terminal-position="
     config+=" --quick-terminal-size="
-    config+=" --gtk-quick-terminal-layer="
-    config+=" --gtk-quick-terminal-namespace="
     config+=" --quick-terminal-screen="
     config+=" --quick-terminal-animation-duration="
     config+=" '--quick-terminal-autohide '"
@@ -225,15 +223,6 @@ _witty() {
     config+=" --linux-cgroup-memory-limit="
     config+=" --linux-cgroup-processes-limit="
     config+=" '--linux-cgroup-hard-fail '"
-    config+=" '--gtk-opengl-debug '"
-    config+=" --gtk-single-instance="
-    config+=" '--gtk-titlebar '"
-    config+=" --gtk-tabs-location="
-    config+=" '--gtk-titlebar-hide-when-maximized '"
-    config+=" --gtk-toolbar-style="
-    config+=" --gtk-titlebar-style="
-    config+=" '--gtk-wide-tabs '"
-    config+=" --gtk-custom-css="
     config+=" '--desktop-notifications '"
     config+=" --bold-color="
     config+=" --faint-opacity="
@@ -386,8 +375,6 @@ _witty() {
       --undo-timeout) return ;;
       --quick-terminal-position) mapfile -t COMPREPLY < <( compgen -W "top bottom left right center" -- "$cur" ); _add_spaces ;;
       --quick-terminal-size) return ;;
-      --gtk-quick-terminal-layer) mapfile -t COMPREPLY < <( compgen -W "overlay top bottom background" -- "$cur" ); _add_spaces ;;
-      --gtk-quick-terminal-namespace) return ;;
       --quick-terminal-screen) mapfile -t COMPREPLY < <( compgen -W "main mouse macos-menu-bar" -- "$cur" ); _add_spaces ;;
       --quick-terminal-animation-duration) return ;;
       --quick-terminal-autohide) return ;;
@@ -424,15 +411,6 @@ _witty() {
       --linux-cgroup-memory-limit) return ;;
       --linux-cgroup-processes-limit) return ;;
       --linux-cgroup-hard-fail) return ;;
-      --gtk-opengl-debug) return ;;
-      --gtk-single-instance) mapfile -t COMPREPLY < <( compgen -W "false true detect" -- "$cur" ); _add_spaces ;;
-      --gtk-titlebar) return ;;
-      --gtk-tabs-location) mapfile -t COMPREPLY < <( compgen -W "top bottom" -- "$cur" ); _add_spaces ;;
-      --gtk-titlebar-hide-when-maximized) return ;;
-      --gtk-toolbar-style) mapfile -t COMPREPLY < <( compgen -W "flat raised raised-border" -- "$cur" ); _add_spaces ;;
-      --gtk-titlebar-style) mapfile -t COMPREPLY < <( compgen -W "native tabs" -- "$cur" ); _add_spaces ;;
-      --gtk-wide-tabs) return ;;
-      --gtk-custom-css) _files ;;
       --desktop-notifications) return ;;
       --bold-color) return ;;
       --faint-opacity) return ;;

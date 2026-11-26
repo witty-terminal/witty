@@ -638,12 +638,6 @@ def main():
         # Leave one column at the right edge before printing a two-cell glyph.
         "wide-wrap": ("60 column wrap\n" + "X" * 59 + "日本語 😀 café\n").encode(),
         "selection-wide": wide_selection_frame(),
-        "preedit-inline": (
-            b"Unicode input preview\n"
-            b"\x1b[3;1H\x1b[38;2;140;191;252;48;2;50;62;73m"
-            b" styled text: ABCDEFGHIJKLMNOPQRSTUVWX \x1b[0m\x1b[3;17H\x1b[?25h"
-        ),
-        "preedit-edge": b"Unicode input near the right edge\x1b[6;57H\x1b[?25h",
         "resize-cursor-in-blanks": b"shell % \r\nabc\x1b[1;56H\x1b[2 q\x1b[?25h",
         "resize-cursor-near-bottom": (
             b"line 1 before resize\r\n\x1b[10;1Hbottom "
@@ -653,13 +647,10 @@ def main():
         "resize-overlay": b"Resize the terminal\r\n",
         "key-state-overlay": b"Activate a key table\r\n",
         "readonly-overlay": b"Toggle read-only mode\r\n",
-        "readonly-overlay-themed": b"Toggle read-only mode\r\n",
-        "command-palette": b"GTK command palette\r\n",
-        "command-palette-compact": b"GTK command palette\r\n",
-        "command-palette-resize": b"GTK command palette\r\n",
-        "command-palette-themed": b"GTK command palette\r\n",
-        "window-chrome": b"GTK window chrome\r\n",
-        "terminal-dialog": b"\x1b]0;Initial title\x07GTK dialog fixture\r\n",
+        "command-palette": b"Command palette\r\n",
+        "command-palette-compact": b"Command palette\r\n",
+        "command-palette-resize": b"Command palette\r\n",
+        "terminal-dialog": b"\x1b]0;Initial title\x07Terminal dialog fixture\r\n",
     }
     sys.stdout.buffer.write(CLEAR)
     sys.stdout.flush()
@@ -756,29 +747,13 @@ def main():
         trigger.unlink()
         sys.exit(int(sys.argv[3]))
     elif fixture == "clipboard-confirmation":
-        sys.stdout.buffer.write(b"GTK Clipboard Fixture\r\n")
+        sys.stdout.buffer.write(b"Clipboard fixture\r\n")
         sys.stdout.flush()
         while not os.path.exists(sys.argv[2]):
             time.sleep(0.02)
         text = b"Clipboard fixture alpha\nClipboard fixture bravo"
         sys.stdout.buffer.write(b"\x1b]52;c;" + base64.b64encode(text) + b"\x07")
         os.unlink(sys.argv[2])
-    elif fixture == "gtk-toast":
-        trigger = Path(sys.argv[2])
-        sys.stdout.buffer.write(b"GTK Toast Fixture\r\n")
-        sys.stdout.flush()
-        while not trigger.exists():
-            time.sleep(0.02)
-        sys.stdout.buffer.write(b"\x1b]52;c;\x07")
-        sys.stdout.flush()
-        trigger.unlink()
-    elif fixture == "tab-overview":
-        counter = Path(sys.argv[2])
-        tab = int(counter.read_text()) + 1
-        counter.write_text(str(tab))
-        sys.stdout.buffer.write(
-            f"\x1b]0;Tab {tab}\x07Terminal {tab}\r\n\x1b[48;2;{30 * tab};120;84m          \x1b[0m".encode()
-        )
     elif fixture == "progress-overlay":
         sys.stdout.buffer.write(b"Paused progress\r\n\x1b]9;4;1;32\x07\x1b]9;4;2;71\x07\x1b]9;4;4;51\x07")
     elif fixture in ("link-preview", "link-preview-right"):

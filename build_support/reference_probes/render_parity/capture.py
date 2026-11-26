@@ -11,13 +11,13 @@ from PIL import Image, ImageChops
 
 
 def configure_xvfb_capture(scale=1):
+    if scale != 1:
+        subprocess.run(["xrdb", "-merge"], input=f"Xft.dpi: {96 * scale}\n",
+                       text=True, check=True, timeout=5)
+    os.environ.pop("WAYLAND_DISPLAY", None)
     os.environ.update(
-        GDK_BACKEND="x11",
-        GSK_RENDERER=os.environ.get("GSK_RENDERER", "cairo"),
-        GDK_SCALE=str(scale),
-        GDK_DPI_SCALE="1",
+        XDG_SESSION_TYPE="x11",
         GSETTINGS_BACKEND="memory",
-        GTK_A11Y="none",
         LIBGL_ALWAYS_SOFTWARE="1",
         LC_ALL="C.UTF-8",
     )

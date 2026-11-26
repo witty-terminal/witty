@@ -60,7 +60,7 @@ The `.po` file contains a list of entries that look like this:
 
 ```po
 #. Translators: the category in the right-click context menu that contains split items for all directions
-#: src/apprt/gtk/ui/1.0/menu-surface-context-menu.blp:38
+#: apprt/ui2_runtime/screen_linux.v
 #  译注：其他终端程序对 Split 皆有不同翻译，此处采取最直观的翻译方式
 msgctxt "Context menu"
 msgid "Split"

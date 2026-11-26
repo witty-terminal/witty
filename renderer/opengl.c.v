@@ -146,13 +146,13 @@ $if renderer_opengl ?|| (!renderer_metal ?&& !macos && !ios) {
 		_ = self
 	}
 
-	// thread_exit mirrors Ghostty's lifecycle hook. Global GTK bindings are
+	// thread_exit mirrors Ghostty's lifecycle hook. The OpenGL bindings are
 	// intentionally not unloaded because they may be shared by other surfaces.
 	pub fn (self &OpenGLAPI) thread_exit() {
 		_ = self
 	}
 
-	// display_realized reloads the bindings after GTK recreates a surface.
+	// display_realized reloads the bindings when the runtime recreates a surface.
 	pub fn (self &OpenGLAPI) display_realized() {
 		_ = self
 		$if app_runtime_ui2 ?|| (linux && !app_runtime_none ?) {

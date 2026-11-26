@@ -502,7 +502,6 @@ fn (mut c CoreApp) perform_app_action(mut app App, action input.Action) ! {
 		}
 		input.ActionToggleVisibility { app.perform_action(target, .toggle_visibility, ActionVoid{})! }
 		input.ActionCheckForUpdates { app.perform_action(target, .check_for_updates, ActionVoid{})! }
-		input.ActionShowGtkInspector { app.perform_action(target, .show_gtk_inspector, ActionVoid{})! }
 		input.ActionUndo { app.perform_action(target, .undo, ActionVoid{})! }
 		input.ActionRedo { app.perform_action(target, .redo, ActionVoid{})! }
 		else {}

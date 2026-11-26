@@ -128,9 +128,7 @@ adjusted their font size will retain their manually adjusted size.
 Otherwise, the font size of existing terminals will be updated on
 reload.
 
-On Linux with GTK, font size is scaled according to both display-wide and
-text-specific scaling factors, which are often managed by your desktop
-environment (e.g. the GNOME display scale and large text settings).
+On Linux, font size follows the window's display scale.
 font-variation
 A repeatable configuration to set one or more font variations values for
 a variable font. A variable font is a single font, usually with a filename
@@ -378,9 +376,7 @@ Available flags:
   * `autohint` - Enable the freetype auto-hinter. Enabled by default.
 
   * `light` - Use a light hinting style, better preserving glyph shapes.
-    This is the most common setting in GTK apps and therefore also Witty's
-    default. This has no effect if `monochrome` is enabled. Enabled by
-    default.
+    Enabled by default and ignored when `monochrome` is enabled.
 
 Example: `hinting`, `no-hinting`, `force-autohint`, `no-force-autohint`
 theme
@@ -944,9 +940,6 @@ other behaviors as well:
     be shell-expanded by the upstream (e.g. the shell used to type in
     the `witty -e` command).
 
-  * `gtk-single-instance=false` - This ensures that a new instance is
-    launched and the CLI args are respected.
-
   * `quit-after-last-window-closed=true` - This ensures that the Witty
     process will exit when the command exits. Additionally, the
     `quit-after-last-window-closed-delay` is unset.
@@ -973,12 +966,6 @@ Command finished notifications requires that either shell integration is
 enabled, or that your shell sends OSC 133 escape sequences to mark the start
 and end of commands.
 
-On GTK, there is a context menu item that will enable command finished
-notifications for a single command, overriding the `never` and `unfocused`
-options.
-
-GTK only.
-
 Available since 1.3.0.
 notify-on-command-finish-action
 If command finished notifications are enabled, this controls how the user is
@@ -991,8 +978,6 @@ Available options:
 
 Options can be combined by listing them as a comma separated list. Options
 can be negated by prefixing them with `no-`. For example `no-bell,notify`.
-
-GTK only.
 
 Available since 1.3.0.
 notify-on-command-finish-after
@@ -1026,8 +1011,6 @@ A future update may disallow this.
 
 The maximum value is `584y 49w 23h 34m 33s 709ms 551µs 615ns`. Any
 value larger than this will be clamped to the maximum value.
-
-GTK only.
 
 Available since 1.3.0
 env
@@ -1222,31 +1205,16 @@ to get the new title.
 class
 The setting that will change the application class value.
 
-This controls the class field of the `WM_CLASS` X11 property (when running
-under X11), the Wayland application ID (when running under Wayland), and the
-bus name that Witty uses to connect to DBus.
-
-Note that changing this value between invocations will create new, separate
-instances, of Witty when running with `gtk-single-instance=true`. See that
-option for more details.
-
-Changing this value may break launching Witty from `.desktop` files, via
-DBus activation, or systemd user services as the system is expecting Witty
-to connect to DBus using the default `class` when it is launched.
-
-The class name must follow the requirements defined [in the GTK
-documentation](https://docs.gtk.org/gio/type_func.Application.id_is_valid.html).
+On X11, this controls the class field of the `WM_CLASS` property.
 
 The default is `com.alexander.witty`.
 
-This only affects GTK builds.
 x11-instance-name
 This controls the instance name field of the `WM_CLASS` X11 property when
 running under X11. It has no effect otherwise.
 
 The default is `witty`.
 
-This only affects GTK builds.
 working-directory
 The directory to change to after starting the command.
 
@@ -1258,8 +1226,7 @@ window.
 
 The default is `inherit` except in special scenarios listed next. On macOS,
 if Witty can detect it is launched from launchd (double-clicked) or
-`open`, then it defaults to `home`. On Linux with GTK, if Witty can detect
-it was launched from a desktop launcher, then it defaults to `home`.
+`open`, then it defaults to `home`. On Linux, desktop launches also default to `home`.
 
 The value of this must be an absolute value or one of the special values
 below:
@@ -1441,7 +1408,7 @@ the behavior of the keybind. These are:
    Note: this does not work in all environments; see the additional notes
    below for more information.
 
-   Available since: 1.0.0 on macOS, 1.2.0 on GTK
+   Available since: 1.0.0 on macOS
 
  * `unconsumed:`
 
@@ -1762,10 +1729,7 @@ Valid values:
 
  * `server`
 
-   Prefer server-side decorations. This is only relevant on Linux with GTK,
-   either on X11, or Wayland on a compositor that supports the
-   `org_kde_kwin_server_decoration` protocol (e.g. KDE Plasma, but almost
-   any non-GNOME desktop supports this protocol).
+   Prefer server-side decorations where the window system supports them.
 
    If `server` is set but the environment doesn't support server-side
    decorations, client-side decorations will be used instead.
@@ -1794,7 +1758,7 @@ If this setting is left unset, the system default font will be used.
 Note: any font available on the system may be used, this font is not
 required to be a fixed-width font.
 
-Available since: 1.0.0 on macOS, 1.1.0 on GTK
+Available since: 1.0.0 on macOS
 window-subtitle
 The text that will be displayed in the subtitle of the window. Valid values:
 
@@ -1802,7 +1766,6 @@ The text that will be displayed in the subtitle of the window. Valid values:
   * `working-directory` - Set the subtitle to the working directory of the
      surface.
 
-This feature is only supported on GTK.
 
 Available since: 1.1.0
 window-theme
@@ -1857,10 +1820,6 @@ This only affects the initial window size of any new window. Changing this
 value will not affect the size of the window after it has been created. This
 is only used for the initial size.
 
-BUG: On Linux with GTK, the calculated window size will not properly take
-into account window decorations. As a result, the grid dimensions will not
-exactly match this configuration. If window decorations are disabled (see
-`window-decoration`), then this will work as expected.
 
 Windows smaller than 10 wide by 4 high are not allowed.
 window-position-x
@@ -1884,9 +1843,7 @@ On macOS, the window position is relative to the top-left corner of
 the visible screen area. This means that if the menu bar is visible, the
 window will be placed below the menu bar.
 
-Note: this is only supported on macOS. The GTK runtime does not support
-setting the window position, as windows are only allowed position
-themselves in X11 and not Wayland.
+This setting is supported on macOS.
 window-save-state
 Whether to enable saving and restoring window state. Window state includes
 their position, size, tabs, splits, etc. Some window state requires shell
@@ -1950,17 +1907,15 @@ Valid values:
    Never show the tab bar. Tabs are only accessible via the tab
    overview or by keybind actions.
 
-Currently only supported on Linux (GTK).
+Available on Linux.
 window-titlebar-background
 Background color for the window titlebar. This only takes effect if
-window-theme is set to witty. Currently only supported in the GTK app
-runtime.
+window-theme is set to witty.
 
 Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 window-titlebar-foreground
 Foreground color for the window titlebar. This only takes effect if
-window-theme is set to witty. Currently only supported in the GTK app
-runtime.
+window-theme is set to witty.
 
 Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 resize-overlay
@@ -2290,12 +2245,6 @@ together: for instance, a size of `50%,500px` for a top-positioned quick
 terminal would be half a screen tall, and 500 pixels wide.
 
 Available since: 1.2.0
-gtk-quick-terminal-layer
-Legacy configuration option for the retired GTK runtime.
-
-gtk-quick-terminal-namespace
-Legacy configuration option for the retired GTK runtime.
-
 quick-terminal-screen
 The screen where the quick terminal should show up.
 
@@ -2654,7 +2603,7 @@ Valid values are:
 
  * `audio`
 
-   Play a custom sound. (GTK only)
+   Play a custom sound.
 
  * `attention` *(enabled by default)*
 
@@ -2683,7 +2632,7 @@ Valid values are:
    Display a border around the alerted surface until the terminal is
    re-focused or interacted with (such as on keyboard input).
 
-   Available since: 1.2.0 on GTK, 1.2.1 on macOS
+   Available since: 1.2.1
 
 Example: `audio`, `no-audio`, `system`, `no-system`
 
@@ -2693,20 +2642,19 @@ If `audio` is an enabled bell feature, this is a path to an audio file. If
 the path is not absolute, it is considered relative to the directory of the
 configuration file that it is referenced from, or from the current working
 directory if this is used as a CLI flag. The path may be prefixed with `~/`
-to reference the user's home directory. (GTK only)
+to reference the user's home directory.
 
 Available since: 1.2.0
 bell-audio-volume
 If `audio` is an enabled bell feature, this is the volume to play the audio
 file at (relative to the system volume). This is a floating point number
 ranging from 0.0 (silence) to 1.0 (as loud as possible). The default is 0.5.
-(GTK only)
 
 Available since: 1.2.0
 app-notifications
 Control the in-app notifications that Witty shows.
 
-On Linux (GTK), in-app notifications show up as toasts. Toasts appear
+On Linux, in-app notifications show up as toasts. Toasts appear
 overlaid on top of the terminal window. They are used to show information
 that is not critical but may be important.
 
@@ -2728,7 +2676,6 @@ with a comma.
 A value of "false" will disable all notifications. A value of "true" will
 enable all notifications.
 
-This configuration only applies to GTK.
 
 Available since: 1.1.0
 macos-non-native-fullscreen
@@ -3041,13 +2988,6 @@ only that shell will be killed by the oom monitor instead of the entire
 Witty process. Similarly, if a shell program is using too much CPU,
 only that surface will be CPU-throttled.
 
-This will cause startup times to be slower (a hundred milliseconds or so),
-so the default value is "single-instance." In single-instance mode, only
-one instance of Witty is running (see gtk-single-instance) so the startup
-time is a one-time cost. Additionally, single instance Witty is much
-more likely to have many windows, tabs, etc. so cgroup isolation is a
-big benefit.
-
 This feature requires systemd. If systemd is unavailable, cgroup
 initialization will fail. By default, this will not prevent Witty
 from working (see linux-cgroup-hard-fail).
@@ -3057,7 +2997,7 @@ Valid values are:
   * `never` - Never use cgroups.
   * `always` - Always use cgroups.
   * `single-instance` - Enable cgroups only for Witty instances launched
-    as single-instance applications (see gtk-single-instance).
+    in single-instance mode.
 linux-cgroup-memory-limit
 Memory limit for any individual terminal process (tab, split, window,
 etc.) in bytes. If this is unset then no memory limit will be set.
@@ -3084,33 +3024,6 @@ Witty to exit or new surfaces to not be created.
 
 Note: This currently only affects cgroup initialization. Subprocesses
 must always be able to move themselves into an isolated cgroup.
-gtk-opengl-debug
-Legacy configuration option for the retired GTK runtime.
-
-gtk-single-instance
-Legacy configuration option for the retired GTK runtime.
-
-gtk-titlebar
-Legacy configuration option for the retired GTK runtime.
-
-gtk-tabs-location
-Legacy configuration option for the retired GTK runtime.
-
-gtk-titlebar-hide-when-maximized
-Legacy configuration option for the retired GTK runtime.
-
-gtk-toolbar-style
-Legacy configuration option for the retired GTK runtime.
-
-gtk-titlebar-style
-Legacy configuration option for the retired GTK runtime.
-
-gtk-wide-tabs
-Legacy configuration option for the retired GTK runtime.
-
-gtk-custom-css
-Legacy configuration option for the retired GTK runtime.
-
 desktop-notifications
 If `true` (default), applications running in the terminal can show desktop
 notifications using certain escape sequences such as OSC 9 or OSC 777.

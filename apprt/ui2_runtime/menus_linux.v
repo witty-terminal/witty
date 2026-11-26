@@ -11,7 +11,6 @@ fn (app &App) palette_view(bounds ui2.Rect) ui2.Element {
 	mut rows := []ui2.Element{}
 	query := app.palette_query.to_lower()
 	for i, command in app.runtime.config.command_palette_entry.items {
-		if command.action.tag() == .show_gtk_inspector { continue }
 		if !command.title.to_lower().contains(query) && !command.description.to_lower().contains(query) {
 			continue
 		}

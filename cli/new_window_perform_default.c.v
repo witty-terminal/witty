@@ -1,7 +1,6 @@
 module cli
 
-// Only the GTK runtime supports the new-window IPC action. The Linux-specific
-// file with this basename replaces this fallback on that platform.
+// The Linux implementation launches a new process for the new-window action.
 fn perform_new_window_ipc(opts NewWindowOptions) !bool {
 	_ = opts
 	return false

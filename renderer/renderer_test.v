@@ -933,7 +933,7 @@ fn test_balance_padding_modes() {
 $if renderer_metal ? || ((macos || ios) && !renderer_opengl ?) {
 fn test_rebuild_row_shapes_and_renders_text() ! {
 	// The OpenGL renderer creates its frame buffers and shaders during init,
-	// so it needs a current GL context, which only GtkGLArea supplies. Metal
+	// so it needs a current GL context, which the Linux window runtime supplies. Metal
 	// needs no context, so this test runs on macOS only.
 	$if !macos {
 		return

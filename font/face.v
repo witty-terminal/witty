@@ -296,7 +296,6 @@ import quirks
 // The DPI of the screen so we can convert points to pixels.
 // Converts points to pixels
 // 1 point = 1/72 inch
-// Make this a valid gobject if we're in a GTK environment.
 // A font variation setting. The best documentation for this I know of
 // is actually the CSS font-variation-settings property on MDN:
 // https://developer.mozilla.org/en-US/docs/Web/CSS/font-variation-settings

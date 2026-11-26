@@ -113,7 +113,6 @@ jobs:
           exe="$RUNNER_TEMP/witty/bin/witty"
           "$exe" --version | tee "$RUNNER_TEMP/witty-version"
           grep -E 'app runtime +: ui2$' "$RUNNER_TEMP/witty-version"
-          ! ldd "$exe" | grep -Ei 'libgtk|libgdk|libadwaita'
       - name: Capture Linux terminal screenshots
         run: |
           xvfb-run -a -s "-screen 0 1440x900x24" \

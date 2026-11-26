@@ -61,7 +61,7 @@ fn test_native_dispatch_title_guard_and_source_acknowledgement() {
 	for kind in [apprt.ActionKey.move_tab, .goto_tab, .goto_split, .resize_split,
 		.toggle_split_zoom, .prompt_title, .undo, .redo, .present_terminal,
 		.toggle_tab_overview, .toggle_window_decorations, .size_limit, .quit_timer,
-		.show_child_exited, .show_gtk_inspector, .show_on_screen_keyboard, .command_finished, .render] {
+		.show_child_exited, .reserved_29, .show_on_screen_keyboard, .command_finished, .render] {
 		assert !runtime_action(unsafe { nil }, apprt.SurfaceTarget{}, apprt.RuntimeAction{ action: kind })
 	}
 }

@@ -332,8 +332,7 @@ fn native_command_options(app &apprt.App) []macos.NativeCommandOption {
 		}
 	}
 	for command in app.config.command_palette_entry.items {
-		if command.action.tag() in [.toggle_tab_overview, .toggle_window_decorations,
-			.show_gtk_inspector] {
+		if command.action.tag() in [.toggle_tab_overview, .toggle_window_decorations] {
 			continue
 		}
 		symbols := if trigger := app.config.keybind.set.get_trigger(command.action) {

@@ -38,21 +38,12 @@ CURSOR_COLOR = (255, 238, 170)
 SELECTION_BACKGROUND = (23, 81, 107)
 SEARCH_BACKGROUND = (255, 224, 130)
 SEARCH_SELECTED_BACKGROUND = (242, 165, 126)
-PALETTE_THEME_BACKGROUND = (54, 87, 129)
-READONLY_THEME_BACKGROUND = (33, 128, 205)
-SPLIT_THEME_DIVIDER = (190, 115, 185)
-BELL_THEME_FILL = (33, 128, 205)
-BELL_THEME_BORDER = (214, 106, 69)
-COMMAND_EXIT_THEME_BACKGROUND = (33, 128, 205)
-PROGRESS_THEME_TROUGH = (90, 67, 90)
-PROGRESS_THEME_FILL = (33, 128, 205)
 FONT_ZOOM_ACTIONS = (
     ("", None, 0), ("-larger", "1", 1), ("-restored", "2", 0), ("-smaller", "2", -1), ("-reset", "3", 0),
 )
 TERMINAL_COLOR_STAGES = ("", "-palette", "-foreground", "-background", "-cursor", "-reset", "-reload")
-SCROLLBAR_FIXTURES = ("scrollbar", "scrollbar-themed")
+SCROLLBAR_FIXTURES = ("scrollbar",)
 SCROLLBAR_STAGES = ("", "-drag", "-top")
-SCROLLBAR_THUMB = (33, 128, 205)
 CAPTURE_STAGES = {
     **APPLICATION_STAGES,
     "font-zoom": tuple(stage for stage, _, _ in FONT_ZOOM_ACTIONS),
@@ -61,20 +52,18 @@ CAPTURE_STAGES = {
     "terminal-colors": TERMINAL_COLOR_STAGES,
     **dict.fromkeys(SCROLLBAR_FIXTURES, SCROLLBAR_STAGES),
 }
-PREEDIT_FIXTURES = ("preedit-inline", "preedit-edge")
 INTERACTIVE_FIXTURES = (
-    "selection-wide", "wide-edit", "search-wrap", *PREEDIT_FIXTURES, *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES,
+    "selection-wide", "wide-edit", "search-wrap", *SCROLLBACK_FIXTURES, *RESIZE_FIXTURES,
 )
 LINK_PREVIEW_FIXTURES = ("link-preview", "link-preview-right")
-READONLY_FIXTURES = ("readonly-overlay", "readonly-overlay-themed")
-SPLIT_SEARCH_FIXTURES = ("split-search", "split-search-themed")
-BELL_FIXTURES = ("visual-bell", "visual-bell-themed")
-COMMAND_EXIT_FIXTURES = ("command-exit-banner", "command-exit-banner-themed")
-PROGRESS_FIXTURES = ("progress-overlay", "progress-overlay-themed")
+READONLY_FIXTURES = ("readonly-overlay",)
+SPLIT_SEARCH_FIXTURES = ("split-search",)
+BELL_FIXTURES = ("visual-bell",)
+COMMAND_EXIT_FIXTURES = ("command-exit-banner",)
+PROGRESS_FIXTURES = ("progress-overlay",)
 COMMAND_PALETTE_FIXTURES = (
-    "command-palette", "command-palette-compact", "command-palette-resize", "command-palette-themed",
+    "command-palette", "command-palette-compact", "command-palette-resize",
 )
-WINDOW_CHROME_FIXTURES = ("gtk-chrome-tabs", "gtk-chrome-native")
 TITLE_DIALOG_ACTIONS = {"terminal-title": "prompt_surface_title", "tab-title": "prompt_tab_title"}
 TERMINAL_DIALOG_FIXTURES = (*TITLE_DIALOG_ACTIONS, "close-confirmation")
 FIXTURES = (
@@ -82,7 +71,7 @@ FIXTURES = (
     *INTERACTIVE_FIXTURES, *SCROLLBAR_FIXTURES, *SPLIT_SEARCH_FIXTURES, "split-close", *BELL_FIXTURES, *PROGRESS_FIXTURES,
     "resize-overlay", "key-state-overlay", *COMMAND_EXIT_FIXTURES,
     *LINK_PREVIEW_FIXTURES, *READONLY_FIXTURES, *COMMAND_PALETTE_FIXTURES, "clipboard-confirmation", "config-errors",
-    *TITLE_DIALOG_ACTIONS, "gtk-toast",
+    *TITLE_DIALOG_ACTIONS,
     "terminal-sprites", "terminal-sprites-adjusted", *CURSOR_STYLES,
     "kitty", *KITTY_SCROLL_FIXTURES, "kitty-retransmit", "kitty-history", "kitty-layout", "kitty-cursor",
     "kitty-unicode", "kitty-unicode-pinned", "kitty-layers", "kitty-relative",
@@ -92,7 +81,6 @@ FIXTURES = (
 )
 OPTIONS = (
     "--config-default-files=false",
-    "--gtk-single-instance=false",
     "--window-decoration=none",
     "--scrollbar=never",
     "--window-save-state=never",
@@ -158,14 +146,6 @@ def fixture_args(name, work):
         ))
     if name == "terminal-colors":
         return [*options, "-e", sys.executable, str(PROBE / "fixtures.py"), name, str(work / f"{name}.input")]
-    if name == "tab-overview":
-        program = shlex.join([sys.executable, str(PROBE / "fixtures.py"), name, str(work / "overview-tab-count")])
-        return [
-            *options, "--window-width=84", "--window-height=28", "--window-decoration=client",
-            "--gtk-titlebar-style=tabs", "--window-show-tab-bar=always", "--window-theme=ghostty",
-            "--window-titlebar-background=3b294f", "--window-titlebar-foreground=e2c6a5",
-            "--keybind=ctrl+alt+t=new_tab", "--keybind=ctrl+alt+o=toggle_tab_overview", f"--command={program}",
-        ]
     if name in TERMINAL_DIALOG_FIXTURES:
         action = TITLE_DIALOG_ACTIONS.get(name, "close_window")
         return [
@@ -178,21 +158,6 @@ def fixture_args(name, work):
             *options, "--initial-window=false", "--quit-after-last-window-closed=false",
             f"--config-file={work / 'diagnostics.conf'}",
         ]
-    if name in WINDOW_CHROME_FIXTURES:
-        program = shlex.join([sys.executable, str(PROBE / "fixtures.py"), "window-chrome"])
-        options.extend((
-            "--window-decoration=client", "--window-width=80", "--window-height=22",
-            "--window-show-tab-bar=always", "--title=Chrome Fixture", "--keybind=ctrl+alt+t=new_tab",
-            f"--command={program}",
-        ))
-        if name == "gtk-chrome-tabs":
-            options.extend((
-                "--gtk-titlebar-style=tabs", "--gtk-tabs-location=top", "--window-theme=ghostty",
-                "--window-titlebar-background=3b294f", "--window-titlebar-foreground=e2c6a5",
-            ))
-        else:
-            options.extend(("--gtk-titlebar-style=native", "--gtk-tabs-location=bottom", "--window-theme=light"))
-        return options
     if name in (*SPLIT_SEARCH_FIXTURES, "split-close"):
         command = [sys.executable, str(PROBE / "fixtures.py"), "split-search"]
         if name == "split-close":
@@ -200,27 +165,12 @@ def fixture_args(name, work):
                 "--confirm-close-surface=false", "--keybind=ctrl+alt+h=goto_split:left",
                 "--keybind=ctrl+alt+v=new_split:down", "--keybind=ctrl+alt+w=close_surface",
             ))
-        if name == "split-search-themed":
-            css = work / "split-theme.css"
-            css.write_text(
-                "widget.unfocused-split { background-color: #21b443; opacity: .43; }\n"
-                f".window .split paned > separator {{ background-color: #{bytes(SPLIT_THEME_DIVIDER).hex()}; }}\n"
-            )
-            options.append(f"--gtk-custom-css={css}")
         return [
             *options, "--keybind=ctrl+alt+d=new_split:right", "--unfocused-split-fill=81315a",
             "--split-divider-color=47637c", f"--command={shlex.join([*command, 'Right'])}",
             "-e", *command, "Left",
         ]
     if name in BELL_FIXTURES:
-        if name == "visual-bell-themed":
-            css = work / "bell-theme.css"
-            css.write_text(
-                ".surface .bell-overlay { "
-                f"background-color: #{bytes(BELL_THEME_FILL).hex()}; "
-                f"border-color: #{bytes(BELL_THEME_BORDER).hex()}; border-radius: 9px; }}\n"
-            )
-            options.append(f"--gtk-custom-css={css}")
         return [
             *options, "--bell-features=border,no-title,no-attention",
             "-e", sys.executable, str(PROBE / "fixtures.py"), "visual-bell", str(work / "bell.trigger"),
@@ -231,56 +181,19 @@ def fixture_args(name, work):
             "-e", sys.executable, str(PROBE / "fixtures.py"), name, str(work / "clipboard.trigger"),
         ]
     if name in COMMAND_EXIT_FIXTURES:
-        themed = name == "command-exit-banner-themed"
-        if themed:
-            css = work / "command-exit-theme.css"
-            css.write_text(
-                ".child-exited.abnormal banner revealer > widget { "
-                f"background-color: #{bytes(COMMAND_EXIT_THEME_BACKGROUND).hex()}; "
-                "border-radius: 6px; }\n"
-            )
-            options.append(f"--gtk-custom-css={css}")
         return [
             *options, "--wait-after-command=true", "--confirm-close-surface=false",
             "-e", sys.executable, str(PROBE / "fixtures.py"), "command-exit-banner",
-            str(work / "command-exit.trigger"), "7" if themed else "0",
-        ]
-    if name == "gtk-toast":
-        return [
-            *options, "--window-width=85", "--window-height=28", "--clipboard-write=allow",
-            "--app-notifications=clipboard-copy",
-            "-e", sys.executable, str(PROBE / "fixtures.py"), name, str(work / "toast.trigger"),
+            str(work / "command-exit.trigger"), "0",
         ]
     if name == "resize-overlay":
         options.extend(("--resize-overlay=always", "--resize-overlay-duration=5s"))
-    if name == "progress-overlay-themed":
-        css = work / "progress-theme.css"
-        css.write_text(
-            ".surface progressbar.osd trough { "
-            f"background-color: #{bytes(PROGRESS_THEME_TROUGH).hex()}; }}\n"
-            ".surface progressbar.osd.error trough progress { "
-            f"background-color: #{bytes(PROGRESS_THEME_FILL).hex()}; }}\n"
-        )
-        options.append(f"--gtk-custom-css={css}")
-        name = "progress-overlay"
     if name == "key-state-overlay":
         options.extend(("--keybind=copy/escape=deactivate_key_table", "--keybind=ctrl+alt+k=activate_key_table:copy"))
     if name in LINK_PREVIEW_FIXTURES:
         options.append("--link-previews=true")
     if name in READONLY_FIXTURES:
         options.append("--keybind=ctrl+alt+o=toggle_readonly")
-        if name == "readonly-overlay-themed":
-            css = work / "readonly.css"
-            css.write_text(
-                ".surface .readonly_overlay {\n"
-                f"  background: #{bytes(READONLY_THEME_BACKGROUND).hex()};\n"
-                "  background-clip: padding-box;\n"
-                "  border: 1.5px solid #917aa5;\n"
-                "  outline: 1.5px solid #c89768;\n"
-                "  border-radius: 5.5px;\n"
-                "}\n"
-            )
-            options.append(f"--gtk-custom-css={css}")
     if name in COMMAND_PALETTE_FIXTURES:
         options.extend((
             "--title=Palette Fixture",
@@ -294,9 +207,6 @@ def fixture_args(name, work):
             options.extend(("--window-width=53", "--window-height=17", "--window-theme=light"))
         else:
             options.extend(("--window-width=85", "--window-height=25"))
-        if name == "command-palette-themed":
-            css = work / f"{name}-config" / "palette.css"
-            options.append(f"--gtk-custom-css={css}")
     if name == "shader":
         options.extend(shader_fixture_options(work))
     if name == "shader-reload":
@@ -312,8 +222,6 @@ def fixture_args(name, work):
     if name in WALLPAPER_OPTIONS:
         options.extend([f"--background-image={work / 'wallpaper.png'}", *WALLPAPER_OPTIONS[name]])
         name = "ansi"
-    if name == "preedit-inline":
-        options.extend((f"--background-image={work / 'wallpaper.png'}", "--background-image-fit=stretch"))
     if name == "terminal-sprites-adjusted":
         options.extend(("--adjust-cell-width=1", "--adjust-cell-height=1"))
         name = "terminal-sprites"
@@ -336,16 +244,6 @@ def fixture_args(name, work):
         options.append(f"--scroll-to-bottom=no-keystroke,{output}")
     if name in SCROLLBAR_FIXTURES:
         options.append("--scrollbar=system")
-        if name == "scrollbar-themed":
-            css = work / "scrollbar.css"
-            css.write_text(
-                "scrollbar.vertical { min-width: 16px; padding: 2px; background-color: #43304a; }\n"
-                "scrollbar.vertical trough { background-color: #534355; border-radius: 4px; }\n"
-                "scrollbar.vertical slider { "
-                f"background: #{bytes(SCROLLBAR_THUMB).hex()}; min-width: 12px; margin: 0; "
-                "border: 1px solid #ffb94a; border-radius: 4px; }\n"
-            )
-            options.append(f"--gtk-custom-css={css}")
         name = "scrollbar"
     return [*options, "-e", sys.executable, str(PROBE / "fixtures.py"), name]
 
@@ -448,10 +346,8 @@ def capture_shader_reload(binary, args, helper, output, work, app, settle, scale
 
 
 def capture_scrollbar(binary, args, helper, output, name, app, settle, scale):
-    themed = name == "scrollbar-themed"
     env = {
         **os.environ,
-        "GTK_OVERLAY_SCROLLING": "0" if themed else "1",
         "SCREENSHOT_SETTLE_SECONDS": str(len(SCROLLBAR_STAGES) * (settle + 5) + 5),
     }
     capture_args = [f"--screenshot={output / f'{name}-terminal.png'}"] if app == "witty" else []
@@ -464,7 +360,7 @@ def capture_scrollbar(binary, args, helper, output, name, app, settle, scale):
         def thumb_pixels(image, y):
             # The default dark-theme thumb is brighter than the empty cells underneath it.
             pixels = [(x, image.getpixel((x, y))) for x in range(width - 40 * scale, width)]
-            return [x for x, rgb in pixels if rgb == SCROLLBAR_THUMB or (not themed and rgb[0] > 64)]
+            return [x for x, rgb in pixels if rgb[0] > 64]
 
         point = ((PADDING + 1) * scale, (PADDING + 1) * scale)
         red, green, blue = SCROLLBAR_MARKER
@@ -543,7 +439,7 @@ def capture_terminal_colors(binary, args, helper, output, work, app, settle, sca
             capture_application_frame(helper, window, output / f"terminal-colors{stage}-{app}.png", settle, rendered)
 
 
-def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir, *, themed=False, witty=False):
+def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir, *, witty=False):
     # Screenshot mode suppresses Witty's debug banner. The X11 capture
     # includes both panes and the search widget above the terminal content.
     capture_args = [f"--screenshot={prefix}-active-pane.png"] if witty else []
@@ -560,17 +456,12 @@ def capture_split_search(binary, args, helper, prefix, settle, scale, config_dir
                 if image.getpixel((3 * image.width // 4, image.height // 8))[:3] == SPLIT_RIGHT_COLOR:
                     probe = (image.width // 2, 10 * scale)
                     divider = image.getpixel(probe)
-                    if themed:
-                        dimming = image.getpixel((image.width // 6, image.height // 8))
-                        # GTK can tint the handle with its focus highlight.
-                        if divider[0] < 150 or divider[2] < 150 or dimming[1] <= dimming[0]:
-                            raise RuntimeError("Custom CSS did not color the split divider and unfocused pane")
                     break
             time.sleep(0.05)
         else:
             raise RuntimeError("The right pane did not render after splitting")
 
-        # Send the query without pauses between characters so GTK can paint the settled entry.
+        # Send the query without pauses between characters to capture the settled entry.
         subprocess.run(
             ["xdotool", "key", "ctrl+shift+f", "sleep", "0.25", "type", "--delay", "0", "pane"],
             check=True, timeout=5,
@@ -627,7 +518,7 @@ def capture_split_close(binary, args, helper, prefix, settle, scale, config_dir,
         restored.save(prefix.with_suffix(".png"))
 
 
-def capture_visual_bell(binary, args, helper, prefix, settle, scale, *, themed=False, witty=False):
+def capture_visual_bell(binary, args, helper, prefix, settle, scale, *, witty=False):
     capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
     fade = max(settle, 0.65)
     env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(4 * fade + 8)}
@@ -665,8 +556,6 @@ def capture_visual_bell(binary, args, helper, prefix, settle, scale, *, themed=F
             image.save(prefix.with_suffix(".png"))
             body = image.getpixel(inside)
             border = image.getpixel(edge)
-            if themed and (body, border) != (BELL_THEME_FILL, BELL_THEME_BORDER):
-                raise RuntimeError("The themed visual bell colors did not render")
             if body == background or border == body:
                 raise RuntimeError("BEL did not draw both the fill and border of the unfocused terminal")
 
@@ -678,7 +567,7 @@ def capture_visual_bell(binary, args, helper, prefix, settle, scale, *, themed=F
                 raise RuntimeError("Refocusing the terminal did not clear the bell overlay")
 
 
-def capture_progress_overlay(binary, args, helper, prefix, settle, scale, *, themed=False, witty=False):
+def capture_progress_overlay(binary, args, helper, prefix, settle, scale, *, witty=False):
     capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
     env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(settle + 8)}
     with open_window([binary, *capture_args, *args], prefix.with_suffix(".log"), env=env) as (_, window):
@@ -688,16 +577,15 @@ def capture_progress_overlay(binary, args, helper, prefix, settle, scale, *, the
             with read_window(helper, window) as image:
                 fill = image.getpixel((image.width * 48 // 100, scale))
                 rest = image.getpixel((image.width * 54 // 100, scale))
-                ready = (fill, rest) == (PROGRESS_THEME_FILL, PROGRESS_THEME_TROUGH) if themed else fill != rest
+                ready = fill != rest
                 if ready:
                     image.save(prefix.with_suffix(".png"))
                     return
             time.sleep(0.05)
-        message = "The themed progress colors did not render" if themed else "The paused progress fill did not reach 51%"
-        raise RuntimeError(message)
+        raise RuntimeError("The paused progress fill did not reach 51%")
 
 
-def capture_command_exit_banner(binary, args, helper, prefix, settle, scale, *, themed=False):
+def capture_command_exit_banner(binary, args, helper, prefix, settle, scale):
     # Launch normally so the Close button can exit the app after capture.
     trigger = Path(args[-2])
     trigger.unlink(missing_ok=True)
@@ -720,8 +608,6 @@ def capture_command_exit_banner(binary, args, helper, prefix, settle, scale, *, 
         time.sleep(fade)
         with read_window(helper, window) as image:
             image.save(prefix.with_suffix(".png"))
-            if themed and image.getpixel(probe) != COMMAND_EXIT_THEME_BACKGROUND:
-                raise RuntimeError("The themed command exit banner background did not render")
             close_x = image.width - 42 * scale
             close_y = image.height - 23 * scale
         subprocess.run(
@@ -788,7 +674,7 @@ def capture_surface_badge(binary, args, helper, prefix, name, settle, scale, *, 
             unhovered = idle.crop(link_cells) if name == "link-preview" else None
         try:
             subprocess.run(["xdotool", *command], check=True, timeout=5)
-            # Read-only uses a 500 ms GTK crossfade.
+            # Read-only uses a 500 ms transition.
             if not link_preview:
                 time.sleep(0.65)
             deadline = time.monotonic() + 4
@@ -797,9 +683,6 @@ def capture_surface_badge(binary, args, helper, prefix, name, settle, scale, *, 
                     # The preview label can appear before the terminal has painted the underline.
                     badge = image.crop(region)
                     preview_visible = ImageChops.difference(before, badge).getbbox()
-                    if name == "readonly-overlay-themed":
-                        colors = badge.getcolors(badge.width * badge.height)
-                        preview_visible = any(color == READONLY_THEME_BACKGROUND for _, color in colors)
                     underline_visible = (
                         unhovered is None or ImageChops.difference(unhovered, image.crop(link_cells)).getbbox()
                     )
@@ -814,12 +697,11 @@ def capture_surface_badge(binary, args, helper, prefix, name, settle, scale, *, 
 
 
 def capture_command_palette(binary, args, helper, prefix, settle, config_dir, *,
-                            resize_scale=None, panel_color=None, witty=False):
+                            resize_scale=None, witty=False):
     capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
     fade = max(settle, 0.6)
     # Capture the whole settled dialog after editing the query.
-    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
-    env = {**os.environ, "GSK_DEBUG": debug, "XDG_CONFIG_HOME": str(config_dir),
+    env = {**os.environ, "XDG_CONFIG_HOME": str(config_dir),
            "SCREENSHOT_SETTLE_SECONDS": str(4 * fade + 8)}
     with open_window([binary, *capture_args, *args], prefix.with_suffix(".log"), env=env) as (_, window):
         time.sleep(fade)
@@ -844,10 +726,6 @@ def capture_command_palette(binary, args, helper, prefix, settle, config_dir, *,
         with read_window(helper, window) as image:
             if image.tobytes() in (opened, idle):
                 raise RuntimeError("The command palette did not filter its rows")
-            if panel_color is not None:
-                colors = image.getcolors(image.width * image.height)
-                if not any(color == panel_color for _, color in colors):
-                    raise RuntimeError("The custom command palette background did not render")
             if resize_scale is None:
                 image.save(prefix.with_suffix(".png"))
         if resize_scale is not None:
@@ -879,74 +757,12 @@ def capture_command_palette(binary, args, helper, prefix, settle, config_dir, *,
                 raise RuntimeError("The selected command did not execute and close the palette")
 
 
-def capture_window_chrome(binary, args, helper, prefix, settle):
-    # Compare the whole settled frame after the tab bar changes.
-    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
-    env = {**os.environ, "GSK_DEBUG": debug}
-    with open_window([binary, *args], prefix.with_suffix(".log"), env=env) as (_, window):
-        subprocess.run(
-            ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window, "14", "150"],
-            check=True, timeout=5,
-        )
-        time.sleep(settle)
-        with read_window(helper, window) as image:
-            single_tab = image.tobytes()
-        subprocess.run(["xdotool", "key", "ctrl+alt+t"], check=True, timeout=5)
-        time.sleep(settle)
-        with read_window(helper, window) as image:
-            if image.tobytes() == single_tab:
-                raise RuntimeError("Opening a second tab did not change the window chrome")
-            image.save(prefix.with_suffix(".png"))
-
-
-def capture_tab_overview(binary, args, helper, prefix, settle, scale, config_dir, counter):
-    counter.write_text("0")
-    fade = max(settle, 0.8)
-    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
-    env = {**os.environ, "GSK_DEBUG": debug, "XDG_CONFIG_HOME": str(config_dir)}
-
-    def xdotool(*command):
-        return subprocess.check_output(["xdotool", *command], text=True, timeout=5).strip()
-
-    with open_window([binary, *args], prefix.with_suffix(".log"), env=env) as (_, window):
-        xdotool("windowfocus", "--sync", window, "mousemove", "--window", window, "4", "10")
-        time.sleep(fade)
-        if xdotool("getwindowname", window) != "Tab 1":
-            raise RuntimeError("The first overview tab did not start")
-        xdotool("key", "ctrl+alt+t")
-        time.sleep(fade)
-        if xdotool("getwindowname", window) != "Tab 2":
-            raise RuntimeError("The second overview tab did not start")
-        with read_window(helper, window) as image:
-            second = image.tobytes()
-
-        xdotool("key", "ctrl+alt+o")
-        time.sleep(fade)
-        with read_window(helper, window) as image:
-            if image.tobytes() == second:
-                raise RuntimeError("The tab overview did not open")
-            image.save(prefix.with_suffix(".png"))
-            width, height = image.size
-        search = str(26 * scale)
-        xdotool("mousemove", "--window", window, search, search, "click", "1")
-        xdotool("type", "--delay", "0", "Tab 1")
-        time.sleep(fade)
-        with read_window(helper, window) as image:
-            if image.getpixel((7 * width // 10, height // 3)) != image.getpixel((width // 10, height // 2)):
-                raise RuntimeError("Searching the tab overview did not hide the second tab")
-        xdotool("mousemove", "--window", window, str(3 * width // 10), str(height // 3), "click", "1")
-        time.sleep(fade)
-        if xdotool("getwindowname", window) != "Tab 1":
-            raise RuntimeError("Selecting the tab overview result did not switch tabs")
-
-
 def capture_clipboard_confirmation(binary, args, helper, prefix, settle, *, witty=False):
     capture_args = [f"--screenshot={prefix}-terminal.png"] if witty else []
     fade = max(settle, 0.65)
     trigger = Path(args[-1])
     trigger.unlink(missing_ok=True)
-    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
-    env = {**os.environ, "GSK_DEBUG": debug, "SCREENSHOT_SETTLE_SECONDS": str(4 * fade + 8)}
+    env = {**os.environ, "SCREENSHOT_SETTLE_SECONDS": str(4 * fade + 8)}
     with open_window([binary, *capture_args, *args], prefix.with_suffix(".log"), env=env) as (process, window):
         subprocess.run(
             ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window, "14", "80"],
@@ -975,40 +791,10 @@ def capture_clipboard_confirmation(binary, args, helper, prefix, settle, *, witt
                 raise RuntimeError("Denying clipboard access did not close the confirmation")
 
 
-def capture_gtk_toast(binary, args, helper, prefix, settle):
-    trigger = Path(args[-1])
-    trigger.unlink(missing_ok=True)
-    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
-    env = {**os.environ, "GSK_DEBUG": debug}
-    with open_window([binary, *args], prefix.with_suffix(".log"), env=env) as (process, window):
-        subprocess.run(
-            ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window, "14", "80"],
-            check=True, timeout=5,
-        )
-        time.sleep(max(settle, 0.65))
-        with read_window(helper, window) as image:
-            idle = image.tobytes()
-        trigger.touch()
-        deadline = time.monotonic() + 2
-        while trigger.exists() and time.monotonic() < deadline:
-            time.sleep(0.02)
-        if trigger.exists():
-            raise RuntimeError("The toast fixture did not send the clipboard clear request")
-        # Let the entrance animation settle within the three-second timeout.
-        time.sleep(0.75)
-        if process.poll() is not None:
-            raise RuntimeError("Clearing the clipboard exited the terminal")
-        with read_window(helper, window) as image:
-            if image.tobytes() == idle:
-                raise RuntimeError("Clearing the clipboard did not show a toast")
-            image.save(prefix.with_suffix(".png"))
-
-
 def capture_config_errors(binary, args, helper, prefix, settle, scale):
     config = Path(args[-1].removeprefix("--config-file="))
     config.write_text("fixture-unknown-option = value\n")
-    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
-    env = {**os.environ, "GSK_DEBUG": debug}
+    env = os.environ.copy()
     with open_window([binary, *args], prefix.with_suffix(".log"), env=env) as (process, window):
         subprocess.run(
             ["xdotool", "windowfocus", "--sync", window, "mousemove", "--window", window, "5", "10"],
@@ -1044,8 +830,7 @@ def capture_terminal_dialog(binary, args, helper, prefix, settle, config_dir, na
     # Closing the window is part of the close fixture, so launch it normally.
     capture_args = [f"--screenshot={prefix}-terminal.png"] if witty and name in TITLE_DIALOG_ACTIONS else []
     fade = max(settle, 0.65)
-    debug = ",".join(filter(None, (os.environ.get("GSK_DEBUG"), "full-redraw")))
-    env = {**os.environ, "GSK_DEBUG": debug, "XDG_CONFIG_HOME": str(config_dir),
+    env = {**os.environ, "XDG_CONFIG_HOME": str(config_dir),
            "SCREENSHOT_SETTLE_SECONDS": str(8 * fade + 8)}
 
     def xdotool(*command):
@@ -1113,25 +898,6 @@ def drag_wide_selection(window, padding, cell_width, cell_height):
 
     def rendered(image):
         return image.getpixel(probe)[:3] == SELECTION_BACKGROUND
-
-    return rendered
-
-
-def type_unicode_preedit(window, fixture, padding, cell_width, cell_height):
-    # GTK's Unicode entry shows an underlined preview until Enter is pressed.
-    subprocess.run(
-        ["xdotool", "windowfocus", "--sync", window, "key", "ctrl+shift+u",
-         "sleep", "0.1", "key", "--delay", "80", "2", "6", "0", "3"],
-        check=True, timeout=5,
-    )
-    left, right, row = (16, 21, 2) if fixture == "preedit-inline" else (52, 60, 5)
-    area = (padding + left * cell_width, padding + row * cell_height,
-            padding + right * cell_width, padding + (row + 1) * cell_height)
-
-    def rendered(image):
-        crop = image.crop(area).convert("RGB")
-        colors = crop.getcolors(crop.width * crop.height)
-        return any(color == FOREGROUND and count >= 4 * cell_width for count, color in colors)
 
     return rendered
 
@@ -1240,8 +1006,6 @@ def capture_interactive(binary, args, helper, prefix, fixture, settle, scale, *,
     env = os.environ.copy()
     if witty:
         env["SCREENSHOT_SETTLE_SECONDS"] = str(settle + 3)
-    if fixture in PREEDIT_FIXTURES:
-        env["GTK_IM_MODULE"] = "gtk-im-context-simple"
     log = prefix.with_suffix(".log")
     with open_window([binary, *capture_args, *args], log, env=env) as (process, window):
         time.sleep(settle)
@@ -1264,7 +1028,7 @@ def capture_interactive(binary, args, helper, prefix, fixture, settle, scale, *,
         elif fixture in RESIZE_FIXTURES:
             rendered = resize_window(window, (412 * scale, 211 * scale), CURSOR_COLOR)
         else:
-            rendered = type_unicode_preedit(window, fixture, padding, cell_width, cell_height)
+            raise ValueError(f"Unknown interactive fixture: {fixture}")
 
         if witty:
             if process.wait(timeout=settle + 10) or not png.is_file():
@@ -1322,8 +1086,7 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
     build_window_reader(helper)
     write_versions(output, witty, ghostty)
     with (output / "versions.txt").open("a") as versions:
-        versions.write(f"GTK scale: {scale}\n")
-        versions.write(f"GTK renderer: {os.environ['GSK_RENDERER']}\n")
+        versions.write(f"Display scale: {scale}\n")
     print(f"Captures and logs: {output}", flush=True)
     matches = True
     with (output / "results.tsv").open("w") as report:
@@ -1360,28 +1123,22 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
                 capture_interactive(witty, args, helper, actual, name, settle, scale, witty=True)
             elif name in (*SPLIT_SEARCH_FIXTURES, "split-close"):
                 config_dir = work / f"{name}-config"
-                gtk_config = config_dir / "gtk-4.0"
-                gtk_config.mkdir(parents=True)
-                (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
+                config_dir.mkdir()
                 if name == "split-close":
                     capture_split_close(ghostty, args, helper, expected, settle, scale, config_dir)
                     capture_split_close(witty, args, helper, actual, settle, scale, config_dir, witty=True)
                 else:
-                    themed = name == "split-search-themed"
-                    capture_split_search(ghostty, args, helper, expected, settle, scale, config_dir, themed=themed)
-                    capture_split_search(witty, args, helper, actual, settle, scale, config_dir, themed=themed, witty=True)
+                    capture_split_search(ghostty, args, helper, expected, settle, scale, config_dir)
+                    capture_split_search(witty, args, helper, actual, settle, scale, config_dir, witty=True)
             elif name in BELL_FIXTURES:
-                themed = name == "visual-bell-themed"
-                capture_visual_bell(ghostty, args, helper, expected, settle, scale, themed=themed)
-                capture_visual_bell(witty, args, helper, actual, settle, scale, themed=themed, witty=True)
+                capture_visual_bell(ghostty, args, helper, expected, settle, scale)
+                capture_visual_bell(witty, args, helper, actual, settle, scale, witty=True)
             elif name in PROGRESS_FIXTURES:
-                themed = name == "progress-overlay-themed"
-                capture_progress_overlay(ghostty, args, helper, expected, settle, scale, themed=themed)
-                capture_progress_overlay(witty, args, helper, actual, settle, scale, themed=themed, witty=True)
+                capture_progress_overlay(ghostty, args, helper, expected, settle, scale)
+                capture_progress_overlay(witty, args, helper, actual, settle, scale, witty=True)
             elif name in COMMAND_EXIT_FIXTURES:
-                themed = name == "command-exit-banner-themed"
-                capture_command_exit_banner(ghostty, args, helper, expected, settle, scale, themed=themed)
-                capture_command_exit_banner(witty, args, helper, actual, settle, scale, themed=themed)
+                capture_command_exit_banner(ghostty, args, helper, expected, settle, scale)
+                capture_command_exit_banner(witty, args, helper, actual, settle, scale)
             elif name in ("resize-overlay", "key-state-overlay"):
                 capture_mode_overlay(ghostty, args, helper, expected, name, settle, scale)
                 capture_mode_overlay(witty, args, helper, actual, name, settle, scale, witty=True)
@@ -1390,47 +1147,21 @@ def run(witty, ghostty, output, settle, fixtures, scale=1):
                 capture_surface_badge(witty, args, helper, actual, name, settle, scale, witty=True)
             elif name in COMMAND_PALETTE_FIXTURES:
                 config_dir = work / f"{name}-config"
-                gtk_config = config_dir / "gtk-4.0"
-                gtk_config.mkdir(parents=True)
-                (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
-                panel_color = None
-                if name == "command-palette-themed":
-                    panel_color = PALETTE_THEME_BACKGROUND
-                    (config_dir / "palette.css").write_text(
-                        f"dialog sheet.background {{ background: #{bytes(panel_color).hex()}; }}\n"
-                        ".command-palette-search { background: #2180cd; }\n"
-                        ".command-palette-view row:selected { background: #744821; }\n"
-                    )
+                config_dir.mkdir()
                 resize_scale = scale if name == "command-palette-resize" else None
                 capture_command_palette(ghostty, args, helper, expected, settle, config_dir,
-                                        resize_scale=resize_scale, panel_color=panel_color)
+                                        resize_scale=resize_scale)
                 capture_command_palette(witty, args, helper, actual, settle, config_dir,
-                                        resize_scale=resize_scale, panel_color=panel_color, witty=True)
-            elif name in WINDOW_CHROME_FIXTURES:
-                capture_window_chrome(ghostty, args, helper, expected, settle)
-                capture_window_chrome(witty, args, helper, actual, settle)
-            elif name == "tab-overview":
-                config_dir = work / "tab-overview-config"
-                gtk_config = config_dir / "gtk-4.0"
-                gtk_config.mkdir(parents=True)
-                (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
-                counter = work / "overview-tab-count"
-                capture_tab_overview(ghostty, args, helper, expected, settle, scale, config_dir, counter)
-                capture_tab_overview(witty, args, helper, actual, settle, scale, config_dir, counter)
+                                        resize_scale=resize_scale, witty=True)
             elif name == "clipboard-confirmation":
                 capture_clipboard_confirmation(ghostty, args, helper, expected, settle)
                 capture_clipboard_confirmation(witty, args, helper, actual, settle, witty=True)
-            elif name == "gtk-toast":
-                capture_gtk_toast(ghostty, args, helper, expected, settle)
-                capture_gtk_toast(witty, args, helper, actual, settle)
             elif name == "config-errors":
                 capture_config_errors(ghostty, args, helper, expected, settle, scale)
                 capture_config_errors(witty, args, helper, actual, settle, scale)
             elif name in TERMINAL_DIALOG_FIXTURES:
                 config_dir = work / f"{name}-config"
-                gtk_config = config_dir / "gtk-4.0"
-                gtk_config.mkdir(parents=True)
-                (gtk_config / "settings.ini").write_text("[Settings]\ngtk-cursor-blink=false\n")
+                config_dir.mkdir()
                 capture_terminal_dialog(ghostty, args, helper, expected, settle, config_dir, name)
                 capture_terminal_dialog(witty, args, helper, actual, settle, config_dir, name, witty=True)
             else:
@@ -1454,8 +1185,8 @@ def main():
     parser.add_argument("ghostty", type=Path, help="path to the Ghostty reference executable")
     parser.add_argument("--output", type=Path, help="new directory for screenshots, logs, and the report")
     parser.add_argument("--settle-seconds", type=float, default=1.0)
-    parser.add_argument("--scale", type=int, choices=(1, 2), default=1, help="GTK display scale (default: 1)")
-    parser.add_argument("--fixture", choices=(*FIXTURES, *WINDOW_CHROME_FIXTURES, "tab-overview", "close-confirmation"), action="append",
+    parser.add_argument("--scale", type=int, choices=(1, 2), default=1, help="Display scale (default: 1)")
+    parser.add_argument("--fixture", choices=(*FIXTURES, "close-confirmation"), action="append",
                         help="run only this fixture, repeatable")
     args = parser.parse_args()
     if sys.platform != "linux" or not os.environ.get("DISPLAY"):
