@@ -556,6 +556,16 @@ def wide_selection_frame():
     ).encode()
 
 
+def font_zoom_frame():
+    color = ";".join(map(str, FONT_ZOOM_MARKER))
+    return (
+        f"\x1b[48;2;{color}m      \x1b[0m\r\n"
+        "café · 日本語 · Σ · 😀\r\n"
+        "\x1b[38;2;235;174;114m" + "0123456789" * 4 + " wrap here 日本😀é\x1b[0m\r\n"
+        "─ ║ █ ░ ☀"
+    ).encode()
+
+
 def main():
     fixture = sys.argv[1]
     output = {
@@ -652,13 +662,7 @@ def main():
         sys.stdout.buffer.write(grapheme_sequences(GRID_COLUMNS))
     elif fixture == "font-zoom":
         wait_for_initial_grid()
-        color = ";".join(map(str, FONT_ZOOM_MARKER))
-        sys.stdout.buffer.write(
-            (f"\x1b[48;2;{color}m      \x1b[0m\r\n"
-             "café · 日本語 · Σ · 😀\r\n"
-             "\x1b[38;2;235;174;114m" + "0123456789" * 4 + " wrap here 日本😀é\x1b[0m\r\n"
-             "─ ║ █ ░ ☀").encode()
-        )
+        sys.stdout.buffer.write(font_zoom_frame())
     elif fixture == "wallpaper-reload":
         wait_for_initial_grid()
         color = ";".join(map(str, WALLPAPER_RELOAD_MARKER))

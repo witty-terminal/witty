@@ -23,8 +23,8 @@ from capture import capture_witty, output_directory, write_versions
 from fixtures import CLEAR as CLEAR_FRAME
 from fixtures import (
     TERMINAL_COLOR_PALETTE, TERMINAL_COLOR_RESET, TERMINAL_COLOR_SCREEN,
-    WALLPAPER_OPTIONS, colored_line_erase, grapheme_sequences, kitty_layers, kitty_layout,
-    kitty_retransmit, kitty_unicode, prepare_raster_effects, shader_fixture_options,
+    WALLPAPER_OPTIONS, colored_line_erase, font_zoom_frame, grapheme_sequences, kitty_layers,
+    kitty_layout, kitty_retransmit, kitty_unicode, prepare_raster_effects, shader_fixture_options,
     terminal_color_updates, wide_selection_frame, wrapped_wide_edits, wrapped_wide_glyphs,
 )
 
@@ -49,6 +49,14 @@ TMUX_COPY_FIXTURES = ("tmux-copy-search", "tmux-copy-selection")
 TMUX_COPY_MATCH = "needle: first"
 TMUX_FIXTURES = ("tmux", "tmux-switch-pane", *TMUX_COPY_FIXTURES)
 OPTIONAL_APPLICATIONS = {"tmux": TMUX_FIXTURES, "nvim": NEOVIM_FIXTURES}
+FONT_ZOOM_KEYS = {
+    "font-zoom-larger": ("f7",),
+    "font-zoom-restored": ("f7", "f8"),
+    "font-zoom-smaller": ("f8",),
+    "font-zoom-reset": ("f8", "f9"),
+    "font-zoom-fractional": ("f10",),
+    "font-zoom-pty": ("f7",),
+}
 SCROLLBACK_KEYS = {
     "scrollback-page-up": ("f10",),
     "scrollback-keep-position": ("f10", "space"),
@@ -140,6 +148,19 @@ exec /bin/sleep 20
 INPUT_FRAME_START = GRID_FRAME_START + r'''
 : > "$1" || exit 1
 '''
+FONT_ZOOM_PTY = "initial_grid=$2\n" + INPUT_FRAME_START + r'''
+while :; do
+    size=$(/bin/stty size) || exit 1
+    case "$size" in
+        "0 "*|*" 0") ;;
+        *) [ "$size" = "$initial_grid" ] || break ;;
+    esac
+    /bin/sleep 0.01
+done
+set -- $size
+printf '\033[6;1H\033[38;2;106;201;170mPTY grid: %s rows, %s columns ┌─┐\033[0m' "$1" "$2"
+exec /bin/sleep 20
+'''
 SCROLLBACK = INPUT_FRAME_START + r'''
 if /bin/dd bs=1 count=1 of=/dev/null 2>/dev/null; then
     printf '\033]4;42;#a94376\007\r\n\033[1mNew output, row 49\033[0m'
@@ -200,6 +221,7 @@ def prepare_fixtures(work):
         (work / f"{name}.bin").write_bytes(("\x1b[2J\x1b[H" + payload).encode("utf-8"))
     (work / "grid-frame.sh").write_text(GRID_FRAME)
     (work / "grapheme-sequences.bin").write_bytes(CLEAR_FRAME + grapheme_sequences(WINDOW_COLUMNS))
+    (work / "font-zoom.bin").write_bytes(CLEAR_FRAME + font_zoom_frame())
     (work / "colored-line-erase.bin").write_bytes(CLEAR_FRAME + colored_line_erase(WINDOW_ROWS))
     (work / "wide-edit-before.bin").write_bytes(CLEAR_FRAME + wrapped_wide_glyphs(WINDOW_COLUMNS))
     (work / "wide-edit.bin").write_bytes(wrapped_wide_edits())
@@ -274,6 +296,7 @@ def fixture_args(work):
         "unicode": unicode,
         "unicode-translucent": (*TRANSLUCENT_WINDOW, *unicode),
         "grapheme-sequences": (*grid_frame, "grapheme-sequences", grid_size),
+        "font-zoom": (*grid_frame, "font-zoom", grid_size),
         "colored-line-erase": (*grid_frame, "colored-line-erase", grid_size),
         "wide-edit-before": (*grid_frame, "wide-edit-before", grid_size),
         "wide-edit": (*grid_frame, "wide-edit-before", grid_size, "wide-edit"),
@@ -394,6 +417,15 @@ def capture_scrollback(witty, options, prefix, settle, name, library):
                        keys=SCROLLBACK_KEYS[name])
 
 
+def capture_font_zoom(witty, options, prefix, settle, name, library):
+    args = (
+        *options, "--keybind=f7=increase_font_size:3", "--keybind=f8=decrease_font_size:3",
+        "--keybind=f9=reset_font_size", "--keybind=f10=set_font_size:14.5",
+    )
+    script = "font-zoom-pty.sh" if name == "font-zoom-pty" else "font-zoom.sh"
+    capture_with_input(witty, args, prefix, settle, library, script, "font-zoom", keys=FONT_ZOOM_KEYS[name])
+
+
 def capture_selection(witty, options, prefix, settle, name, library):
     args = [
         *options, "--window-padding-x=0", "--window-padding-y=0", "--window-padding-balance=false",
@@ -483,11 +515,15 @@ def run(witty, output, settle, references, programs):
         prepare_tmux_copy_history(work)
     scrollback = any(name in SCROLLBACK_KEYS for name in references)
     selection = any(name in SELECTION_DRAGS for name in references)
+    font_zoom = any(name in FONT_ZOOM_KEYS for name in references)
     if scrollback:
         prepare_scrollback_fixture(work)
     if selection:
         prepare_selection_fixtures(work)
-    probe_input = build_probe_input(output) if scrollback or selection else None
+    if font_zoom:
+        (work / "font-zoom.sh").write_text(INPUT_FRAME_START + "exec /bin/sleep 20\n")
+        (work / "font-zoom-pty.sh").write_text(FONT_ZOOM_PTY, encoding="utf-8")
+    probe_input = build_probe_input(output) if scrollback or selection or font_zoom else None
     commands = fixture_args(work)
     if "nvim" in programs:
         commands.update(prepare_neovim(work, programs["nvim"]))
@@ -514,6 +550,8 @@ def run(witty, output, settle, references, programs):
                 capture_scrollback(witty, options, prefix, settle, name, probe_input)
             elif name in SELECTION_DRAGS:
                 capture_selection(witty, options, prefix, settle, name, probe_input)
+            elif name in FONT_ZOOM_KEYS:
+                capture_font_zoom(witty, options, prefix, settle, name, probe_input)
             else:
                 capture_witty(witty, [*options, *commands[name]], prefix, settle)
             with Image.open(prefix.with_suffix(".png")) as png:
@@ -553,6 +591,7 @@ def main():
     optional_fixtures = {name for fixtures in OPTIONAL_APPLICATIONS.values() for name in fixtures}
     optional_fixtures.update(SCROLLBACK_KEYS)
     optional_fixtures.update(SELECTION_DRAGS)
+    optional_fixtures.update(FONT_ZOOM_KEYS)
     default_fixtures = [name for name in references if name not in optional_fixtures]
     selected = {name: references[name] for name in args.fixture or default_fixtures}
     programs = {}
