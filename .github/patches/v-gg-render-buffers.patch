@@ -1,0 +1,265 @@
+diff --git a/vlib/gg/render/context.v b/vlib/gg/render/context.v
+index 1c3041c5..bd9f1a2a 100644
+--- a/vlib/gg/render/context.v
++++ b/vlib/gg/render/context.v
+@@ -64,6 +64,7 @@ pub mut:
+ 	commands          []Command
+ 	uniforms          []Uniform
+ 	vbuf              gfx.Buffer
++	vbuf_capacity     int
+ 	vertex_count      int
+ 	vtx_count         int
+ 	base_vertex       int
+@@ -116,9 +117,6 @@ pub fn new_context(desc Desc) &Context {
+ 	st.sample_count = if desc.sample_count > 0 { desc.sample_count } else { 1 }
+ 	st.color_format = desc.color_format
+ 	st.depth_format = desc.depth_format
+-	st.verts = []Vertex{len: max_v}
+-	st.commands = []Command{len: max_c}
+-	st.uniforms = []Uniform{len: max_c}
+ 	st.matrix_tos[0] = 0
+ 	st.matrix_tos[1] = 0
+ 	st.matrix_tos[2] = 0
+@@ -132,13 +130,6 @@ pub fn new_context(desc Desc) &Context {
+ 	st.texturing_enabled = false
+ 
+ 	if gfx.is_valid() {
+-		buf_desc := gfx.BufferDesc{
+-			size:  uint(max_v) * uint(sizeof(Vertex))
+-			type:  .vertexbuffer
+-			usage: .stream
+-		}
+-		st.vbuf = gfx.make_buffer(&buf_desc)
+-
+ 		mut pixels := []u8{len: 64 * 4, init: 0xff}
+ 		mut img_desc := gfx.ImageDesc{
+ 			type:         ._2d
+@@ -335,6 +326,7 @@ pub fn (ctx &Context) destroy() {
+ 		}
+ 	}
+ 	st.vbuf = gfx.Buffer{}
++	st.vbuf_capacity = 0
+ 	st.def_pip = Pipeline{}
+ 	st.def_img = gfx.Image{}
+ 	st.def_smp = gfx.Sampler{}
+diff --git a/vlib/gg/render/context_api.v b/vlib/gg/render/context_api.v
+index 674d5d0f..72c00acd 100644
+--- a/vlib/gg/render/context_api.v
++++ b/vlib/gg/render/context_api.v
+@@ -42,8 +42,8 @@ pub fn (ctx &Context) end() {
+ 			st.matrix_stack[matrixmode_modelview.value][st.matrix_tos[matrixmode_modelview.value]])
+ 		uni.mvp = mvp
+ 		uni.tm = st.matrix_stack[matrixmode_texture.value][st.matrix_tos[matrixmode_texture.value]]
+-		if st.uniforms_count < st.uniforms.len {
+-			st.uniforms[st.uniforms_count] = uni
++		if st.uniforms_count < st.max_commands {
++			st.uniforms << uni
+ 			st.uniforms_count++
+ 		} else {
+ 			st.error = .uniforms_full
+@@ -65,7 +65,7 @@ pub fn (ctx &Context) end() {
+ 	if merge {
+ 		st.commands[st.commands_count - 1].num_vertices += st.vertex_count - st.base_vertex
+ 	} else {
+-		if st.commands_count < st.commands.len {
++		if st.commands_count < st.max_commands {
+ 			cmd := Command{
+ 				kind:          .draw
+ 				primitive:     st.cur_prim
+@@ -78,7 +78,7 @@ pub fn (ctx &Context) end() {
+ 				blend_mode:    pip.blend_mode
+ 				layer_id:      st.layer_id
+ 			}
+-			st.commands[st.commands_count] = cmd
++			st.commands << cmd
+ 			st.commands_count++
+ 		} else {
+ 			st.error = .commands_full
+@@ -137,25 +137,7 @@ pub fn (ctx &Context) c4f(r f32, g f32, b f32, a f32) {
+ }
+ 
+ pub fn (ctx &Context) v2f(x f32, y f32) {
+-	mut st := ctx.st
+-	if !st.in_begin { return }
+-	if (st.cur_prim == .quads) && ((st.vtx_count & 3) == 3) {
+-		if st.vertex_count < st.max_vertices {
+-			st.verts[st.vertex_count] = st.verts[st.vertex_count - 3]
+-			st.vertex_count++
+-		}
+-		if st.vertex_count < st.max_vertices {
+-			st.verts[st.vertex_count] = st.verts[st.vertex_count - 2]
+-			st.vertex_count++
+-		}
+-	}
+-	if st.vertex_count < st.max_vertices {
+-		st.verts[st.vertex_count] = Vertex{ x: x, y: y, z: 0.0, u: st.u, v: st.vv, rgba: st.rgba, psize: st.point_size }
+-		st.vertex_count++
+-		st.vtx_count++
+-	} else {
+-		st.error = .vertices_full
+-	}
++	ctx.v3f(x, y, 0.0)
+ }
+ 
+ pub fn (ctx &Context) v3f(x f32, y f32, z f32) {
+@@ -163,16 +145,18 @@ pub fn (ctx &Context) v3f(x f32, y f32, z f32) {
+ 	if !st.in_begin { return }
+ 	if (st.cur_prim == .quads) && ((st.vtx_count & 3) == 3) {
+ 		if st.vertex_count < st.max_vertices {
+-			st.verts[st.vertex_count] = st.verts[st.vertex_count - 3]
++			vertex := st.verts[st.vertex_count - 3]
++			st.verts << vertex
+ 			st.vertex_count++
+ 		}
+ 		if st.vertex_count < st.max_vertices {
+-			st.verts[st.vertex_count] = st.verts[st.vertex_count - 2]
++			vertex := st.verts[st.vertex_count - 2]
++			st.verts << vertex
+ 			st.vertex_count++
+ 		}
+ 	}
+ 	if st.vertex_count < st.max_vertices {
+-		st.verts[st.vertex_count] = Vertex{ x: x, y: y, z: z, u: st.u, v: st.vv, rgba: st.rgba, psize: st.point_size }
++		st.verts << Vertex{ x: x, y: y, z: z, u: st.u, v: st.vv, rgba: st.rgba, psize: st.point_size }
+ 		st.vertex_count++
+ 		st.vtx_count++
+ 	} else {
+@@ -473,9 +457,9 @@ pub fn (ctx &Context) disable_texture() {
+ 
+ pub fn (ctx &Context) scissor_rect(x int, y int, w int, h int, origin_top_left bool) {
+ 	mut st := ctx.st
+-	if st.commands_count < st.commands.len {
++	if st.commands_count < st.max_commands {
+ 		cmd := Command{ kind: .scissor, x: x, y: y, w: w, h: h, origin_top_left: origin_top_left, layer_id: st.layer_id }
+-		st.commands[st.commands_count] = cmd
++		st.commands << cmd
+ 		st.commands_count++
+ 	}
+ }
+@@ -486,9 +470,9 @@ pub fn (ctx &Context) scissor_rectf(x f32, y f32, w f32, h f32, origin_top_left
+ 
+ pub fn (ctx &Context) viewport(x int, y int, w int, h int, origin_top_left bool) {
+ 	mut st := ctx.st
+-	if st.commands_count < st.commands.len {
++	if st.commands_count < st.max_commands {
+ 		cmd := Command{ kind: .viewport, x: x, y: y, w: w, h: h, origin_top_left: origin_top_left, layer_id: st.layer_id }
+-		st.commands[st.commands_count] = cmd
++		st.commands << cmd
+ 		st.commands_count++
+ 	}
+ }
+@@ -502,15 +486,50 @@ pub fn (ctx &Context) layer(id int) {
+ 	st.layer_id = id
+ }
+ 
++// Keep only as much streaming storage as the largest recording seen so far.
++fn (mut st State) ensure_vertex_buffer() bool {
++	if st.vbuf_capacity >= st.vertex_count {
++		return true
++	}
++	mut capacity := if st.vbuf_capacity > 0 { st.vbuf_capacity } else { 1024 }
++	for capacity < st.vertex_count && capacity <= st.max_vertices / 2 {
++		capacity *= 2
++	}
++	if capacity < st.vertex_count || capacity > st.max_vertices {
++		capacity = st.max_vertices
++	}
++	desc := gfx.BufferDesc{
++		size:  uint(capacity) * uint(sizeof(Vertex))
++		type:  .vertexbuffer
++		usage: .stream
++	}
++	buffer := gfx.make_buffer(&desc)
++	if gfx.query_buffer_state(buffer) != .valid {
++		if buffer.id != 0 {
++			gfx.destroy_buffer(buffer)
++		}
++		return false
++	}
++	if st.vbuf.id != 0 {
++		gfx.destroy_buffer(st.vbuf)
++	}
++	st.vbuf = buffer
++	st.vbuf_capacity = capacity
++	return true
++}
++
+ pub fn (ctx &Context) draw() {
+ 	mut st := ctx.st
+ 	if st.vertex_count == 0 || st.commands_count == 0 { return }
+ 	if st.update_frame_id != st.frame_id {
+-		st.update_frame_id = st.frame_id
+ 		if gfx.is_valid() {
++			if !st.ensure_vertex_buffer() {
++				return
++			}
+ 			rng := gfx.Range{ ptr: &st.verts[0], size: uint(st.vertex_count) * uint(sizeof(Vertex)) }
+ 			gfx.update_buffer(st.vbuf, &rng)
+ 		}
++		st.update_frame_id = st.frame_id
+ 	}
+ 	mut cur_pip := gfx.Pipeline{}
+ 	mut cur_img := gfx.Image{}
+@@ -558,6 +577,9 @@ pub fn (ctx &Context) draw() {
+ // and leaves other contexts and the frame index unchanged.
+ pub fn (ctx &Context) rewind() {
+ 	mut st := ctx.st
++	st.verts.clear()
++	st.commands.clear()
++	st.uniforms.clear()
+ 	st.vertex_count = 0
+ 	st.commands_count = 0
+ 	st.uniforms_count = 0
+diff --git a/vlib/gg/text_rendering.c.v b/vlib/gg/text_rendering.c.v
+index 5f19a2b4..039f3077 100644
+--- a/vlib/gg/text_rendering.c.v
++++ b/vlib/gg/text_rendering.c.v
+@@ -89,8 +89,10 @@ fn (mut rt FonsRenderTarget) create_atlas(width int, height int) {
+ 	rt.atlas_w = width
+ 	rt.atlas_h = height
+ 	rt.pending_upload = false
+-	if rt.ctx != unsafe { nil } && rt.ctx.r != unsafe { nil } {
+-		rt.ctx.r.register_image(int(rt.atlas_img.id), unsafe { nil }, width, height, 1, 0)
++	$if !gg_gpu_only_text_atlas ? {
++		if rt.ctx != unsafe { nil } && rt.ctx.r != unsafe { nil } {
++			rt.ctx.r.register_image(int(rt.atlas_img.id), unsafe { nil }, width, height, 1, 0)
++		}
+ 	}
+ }
+ 
+@@ -109,20 +111,22 @@ fn fons_render_update(uptr voidptr, rect &i32, data &u8) {
+ 	// rasterize new glyphs within one frame share a single sg_update_image.
+ 	rt.pending_upload = true
+ 	rt.pending_data = data
+-	if rt.ctx != unsafe { nil } && rt.ctx.r != unsafe { nil } {
+-		// rect is {x, y, width, height} of the dirty atlas region; only that
+-		// region is copied into the CPU texture registry.
+-		mut rx := 0
+-		mut ry := 0
+-		mut rw := 0
+-		mut rh := 0
+-		unsafe {
+-			rx = rect[0]
+-			ry = rect[1]
+-			rw = rect[2]
+-			rh = rect[3]
++	$if !gg_gpu_only_text_atlas ? {
++		if rt.ctx != unsafe { nil } && rt.ctx.r != unsafe { nil } {
++			// rect is {x, y, width, height} of the dirty atlas region; only that
++			// region is copied into the CPU texture registry.
++			mut rx := 0
++			mut ry := 0
++			mut rw := 0
++			mut rh := 0
++			unsafe {
++				rx = rect[0]
++				ry = rect[1]
++				rw = rect[2]
++				rh = rect[3]
++			}
++			rt.ctx.r.update_image_region(int(rt.atlas_img.id), voidptr(data), rx, ry, rw, rh, 1)
+ 		}
+-		rt.ctx.r.update_image_region(int(rt.atlas_img.id), voidptr(data), rx, ry, rw, rh, 1)
+ 	}
+ }
+ 

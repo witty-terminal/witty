@@ -30,6 +30,10 @@ pub fn (d Driver) v_arguments(artifact Artifact, deps NativeDeps) ![]string {
 	if d.cfg.app_runtime == 'ui2' && d.cfg.target.os in ['macos', 'windows'] {
 		args << ['-d', 'ui2_custom_rendering']
 	}
+	if artifact == .exe && d.cfg.app_runtime == 'ui2' {
+		// UI2 uses the GPU atlas. Terminal captures read the pane texture directly.
+		args << ['-d', 'gg_gpu_only_text_atlas']
+	}
 	if d.cfg.target.darwin() {
 		// Witty's Objective-C bridges manage ownership explicitly. Sokol's
 		// Metal backend supports manual reference counting in the same unit.
