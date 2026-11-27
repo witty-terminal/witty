@@ -155,14 +155,14 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		if device == unsafe { nil } {
 			return error('Metal not available')
 		}
-		queue := macos.metal_new_command_queue(device)
-		if queue == unsafe { nil } {
+		// Shared panes encode through the window's GG command queue.
+		queue := if share_gg { voidptr(unsafe { nil }) } else { macos.metal_new_command_queue(device) }
+		if !share_gg && queue == unsafe { nil } {
 			macos.metal_release(device)
 			return error('Metal command queue unavailable')
 		}
 		gg_owned := $if macos && !renderer_opengl ? { gg_metal_acquire(device, share_gg) } $else { false }
 		if share_gg && !gg_owned {
-			macos.metal_release(queue)
 			macos.metal_release(device)
 			return error('Metal terminal could not share the window GG context')
 		}

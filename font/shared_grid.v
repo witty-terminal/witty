@@ -102,8 +102,9 @@ pub fn SharedGrid.init(resolver CodepointResolver) !SharedGrid {
 	// We need to support loading options since we use the size data
 	assert resolver.collection.load_options != none
 
-	mut atlas_grayscale := Atlas.init(512, .grayscale)!
-	atlas_color := Atlas.init(512, .bgra) or {
+	// Larger glyph sets grow the two atlases independently.
+	mut atlas_grayscale := Atlas.init(256, .grayscale)!
+	atlas_color := Atlas.init(128, .bgra) or {
 		atlas_grayscale.deinit()
 		return err
 	}
@@ -352,14 +353,19 @@ pub fn (mut self SharedGrid) render_glyph(index Index, glyph_index u32, opts Ren
 	}
 
 	// Render into the atlas
-	glyph := self.resolver.render_glyph(mut atlas, index, glyph_index, render_opts) or {
-		if err.msg() == 'AtlasFull' {
-			// If the atlas is full, we resize it
+	// A startup glyph can still use the full size of the original atlas's
+	// first growth. Once that size is reached, grow at most once per glyph.
+	max_size := if atlas.size < 512 { u32(1024) } else { atlas.size * 2 }
+	mut glyph := Glyph{}
+	for {
+		glyph = self.resolver.render_glyph(mut atlas, index, glyph_index, render_opts) or {
+			if err.msg() != 'AtlasFull' || atlas.size >= max_size {
+				return err
+			}
 			atlas.grow(atlas.size * 2)!
-			self.resolver.render_glyph(mut atlas, index, glyph_index, render_opts)!
-		} else {
-			return err
+			continue
 		}
+		break
 	}
 
 	// Cache and return

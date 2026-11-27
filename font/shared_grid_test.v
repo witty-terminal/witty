@@ -84,6 +84,19 @@ fn test_shared_grid_grows_full_sprite_atlas() {
 	assert grid.atlas_grayscale.size == original_size * 2
 }
 
+fn test_shared_grid_grows_past_first_doubling_for_large_glyph() {
+	mut grid := make_grid('normal')!
+	defer { grid.deinit() }
+	grid.atlas_grayscale.deinit()
+	grid.atlas_grayscale = Atlas.init(4, .grayscale)!
+
+	result := grid.render_glyph(Index.init_special(.sprite), 0x2588, RenderOptions{
+		grid_metrics: grid.metrics
+	})!
+	assert result.glyph.width > 0
+	assert grid.atlas_grayscale.size > 8
+}
+
 fn test_shared_grid_render_codepoint() {
 	mut grid := make_grid('normal') or { panic(err) }
 	defer { grid.deinit() }
