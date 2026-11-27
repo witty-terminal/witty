@@ -17,7 +17,7 @@ pub fn (mut self Renderer) screenshot_png(path string) ! {
 		if width == 0 || height == 0 {
 			return error('terminal frame has no drawable size')
 		}
-		self.draw_frame_metal(true)!
+		self.draw_frame_metal(true, none)!
 		if self.health != .healthy {
 			return error('terminal frame render failed')
 		}

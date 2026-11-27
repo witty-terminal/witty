@@ -66,6 +66,9 @@ pub fn run(mut terminal core.App, path string, delay f64) ! {
 	ui2.on_window_cleanup(window_cleanup)
 	ui2.set_window_event_filter(window_event)
 	ui2.set_gl_surface_renderer(render_pane)
+	$if macos {
+		ui2.set_window_surface_renderer(render_window_pane)
+	}
 	ui2.run_window_with_options(ui2.WindowOptions{
 		title:        'Witty'
 		width:        800

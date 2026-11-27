@@ -110,7 +110,7 @@ fn startup_size(data voidptr, size apprt.InitialSize, minimum apprt.SizeLimit) ?
 
 fn (mut app App) destroy_pane(mut pane Pane) {
 	defer { restore_ui_state() }
-	pane.presentation.deinit()
+	pane.destroy_presentation()
 	app.core.delete_surface(pane.surface_ref)
 	pane.surface.deinit()
 }
@@ -140,14 +140,7 @@ fn (mut app App) draw(mut pane Pane, scale f64) ! {
 	// The surface callback's rectangle comes from the previous paint. Use the
 	// dimensions the pane layout assigned for this frame.
 	size := if app.capture_size.width > 0 { app.capture_size } else { size_in_pixels(pane.frame, scale) }
-	if pane.host.content_scale.x != f32(scale) {
-		pane.host.content_scale = apprt.ContentScale{ x: f32(scale), y: f32(scale) }
-		pane.surface.content_scale_callback(pane.host.content_scale)!
-	}
-	if pane.host.size != size {
-		pane.host.size = size
-		pane.surface.size_callback(size)!
-	}
+	prepare_pane_size(mut pane, size, scale)!
 	prepare_draw(size)!
 	pane.surface.draw()!
 	if pane.present()! {
@@ -160,6 +153,17 @@ fn (mut app App) draw(mut pane Pane, scale f64) ! {
 			app.capture_complete = true
 			quit_window()
 		}
+	}
+}
+
+fn prepare_pane_size(mut pane Pane, size apprt.SurfaceSize, scale f64) ! {
+	if pane.host.content_scale.x != f32(scale) {
+		pane.host.content_scale = apprt.ContentScale{ x: f32(scale), y: f32(scale) }
+		pane.surface.content_scale_callback(pane.host.content_scale)!
+	}
+	if pane.host.size != size {
+		pane.host.size = size
+		pane.surface.size_callback(size)!
 	}
 }
 

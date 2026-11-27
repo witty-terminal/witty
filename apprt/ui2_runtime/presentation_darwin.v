@@ -9,6 +9,7 @@ struct PanePresentation {
 mut:
 	texture voidptr
 	image gfx.Image
+	direct bool
 }
 
 fn (p PanePresentation) deinit() {
@@ -25,11 +26,55 @@ fn (mut tab Tab) release_presentation() {
 	for {
 		entry := iterator.next() or { break }
 		mut pane := unsafe { entry.view }
-		ui2.clear_surface_image(pane.element_id())
-		pane.presentation.deinit()
-		pane.presentation = PanePresentation{}
-		pane.surface.renderer.release_ui2_metal_targets()
+		pane.release_presentation()
 	}
+}
+
+fn (mut pane Pane) release_presentation() {
+	pane.clear_presentation()
+	pane.surface.renderer.release_ui2_metal_targets()
+}
+
+fn (mut pane Pane) destroy_presentation() {
+	renderer.wait_for_ui2_metal_readers()
+	pane.clear_presentation()
+}
+
+fn (mut pane Pane) clear_presentation() {
+	ui2.clear_surface_image(pane.element_id())
+	pane.presentation.deinit()
+	pane.presentation = PanePresentation{}
+}
+
+fn render_window_pane(id string, scale f64, swapchain gfx.Swapchain) ui2.WindowSurfaceResult {
+	mut app := g_app
+	if app.screenshot != '' || app.runtime.config.background_opacity < 1
+		|| swapchain.color_format != .bgra8 || swapchain.sample_count != 1
+		|| swapchain.metal.current_drawable == unsafe { nil } {
+		return .unhandled
+	}
+	mut pane := app.active_pane() or { return .unhandled }
+	if pane.element_id() != id { return .unhandled }
+	texture := renderer.ui2_metal_drawable_texture(swapchain)
+	if texture == unsafe { nil } { return .retry }
+	size := apprt.SurfaceSize{ width: u32(swapchain.width), height: u32(swapchain.height) }
+	prepare_pane_size(mut pane, size, scale) or {
+		app.failure = err
+		quit_window()
+		return .retry
+	}
+	renderer.wait_for_ui2_metal_readers()
+	drawn := pane.surface.renderer.draw_ui2_metal_window(texture, size.width, size.height) or {
+		app.failure = err
+		quit_window()
+		return .retry
+	}
+	if !drawn { return .unhandled }
+	if !pane.presentation.direct {
+		pane.release_presentation()
+		pane.presentation.direct = true
+	}
+	return .drawn
 }
 
 fn prepare_draw(_ apprt.SurfaceSize) ! {

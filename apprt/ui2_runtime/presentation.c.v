@@ -10,7 +10,7 @@ $if linux || windows {
 
 	struct PanePresentation {}
 
-	fn (p PanePresentation) deinit() {}
+	fn (mut pane Pane) destroy_presentation() {}
 
 	fn initial_window_scale() f64 { return ui2.scale() }
 

@@ -36,6 +36,15 @@ static inline void witty_gg_metal_unlock(void) {
 	pthread_mutex_unlock(&witty_gg_metal_mutex);
 }
 
+static inline void *witty_gg_metal_drawable_texture(void *drawable, size_t width, size_t height) {
+	void *texture = ((void *(*)(void *, SEL))objc_msgSend)(drawable, sel_registerName("texture"));
+	if (((size_t (*)(void *, SEL))objc_msgSend)(texture, sel_registerName("width")) != width ||
+		((size_t (*)(void *, SEL))objc_msgSend)(texture, sel_registerName("height")) != height) {
+		return NULL;
+	}
+	return texture;
+}
+
 static inline bool witty_gg_metal_retain_import(void *object) {
 #if !__has_feature(objc_arc)
 	// Sokol releases imported Metal objects under manual reference

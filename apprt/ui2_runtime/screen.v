@@ -91,7 +91,7 @@ fn layout_panes(tree &datastruct.SplitTree[Pane], handle datastruct.Handle, fram
 			elements << ui2.opengl(pane.element_id(), frame)
 			$if macos {
 				// A newly visible pane can register before its texture is ready.
-				if pane.presentation.image.id == 0 { ui2.request_paint() }
+				if !pane.presentation.direct && pane.presentation.image.id == 0 { ui2.request_paint() }
 			}
 			scroll := pane.scrollbar
 			if show_scrollbar && scroll.total > scroll.len && scroll.len != 0 {

@@ -1472,6 +1472,17 @@ fn render_flattened_highlight(src highlight.Flattened) terminal.RenderFlattenedH
 // If `sync` is true, this will synchronously block until
 // the frame is finished drawing and has been presented.
 pub fn (mut self Renderer) draw_frame(sync_ bool) ! {
+	_ = self.draw_frame_to_target(sync_, none)!
+}
+
+// The window owns this attachment and presents it after painting its widgets.
+struct WindowRenderTarget {
+	texture voidptr
+	width   u32
+	height  u32
+}
+
+fn (mut self Renderer) draw_frame_to_target(sync_ bool, window ?WindowRenderTarget) !bool {
 	if self.draw_mutex != unsafe { nil } {
 		self.draw_mutex.lock()
 	}
@@ -1488,10 +1499,16 @@ pub fn (mut self Renderer) draw_frame(sync_ bool) ! {
 		}
 	}
 	$if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
-		self.draw_frame_metal(sync_)!
+		if window != none && (self.api.layer != none || !self.api.gg_owned
+			|| self.api.target_pixel_format() != .bgra8unorm
+			|| self.config.custom_shaders.items.len != 0 || self.bg_image != none) {
+			return false
+		}
+		self.draw_frame_metal(sync_, window)!
 	} $else {
 		self.draw_frame_opengl(sync_)!
 	}
+	return true
 }
 
 // Callback from the graphics API when a frame is completed.

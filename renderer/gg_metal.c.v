@@ -38,6 +38,7 @@ $if macos && !renderer_opengl ? {
 
 	fn C.witty_gg_metal_lock()
 	fn C.witty_gg_metal_unlock()
+	fn C.witty_gg_metal_drawable_texture(drawable voidptr, width uint, height uint) voidptr
 	fn C.witty_gg_metal_retain_import(object voidptr) bool
 	fn C.witty_gg_metal_pass_command_buffer() voidptr
 	fn C.sg_mtl_render_command_encoder() voidptr
@@ -148,7 +149,7 @@ $if macos && !renderer_opengl ? {
 		return target
 	}
 
-	// Release a hidden UI2 pane's render targets after the window's last read.
+	// Release a UI2 pane's offscreen render targets after the window's last read.
 	// UI2 draws each pane synchronously on the window thread.
 	pub fn (mut r Renderer) release_ui2_metal_targets() {
 		r.draw_mutex.lock()
@@ -158,6 +159,20 @@ $if macos && !renderer_opengl ? {
 			frame.target = MetalTarget{}
 		}
 		r.api.post_textures.deinit()
+	}
+
+	// The swapchain's cached drawable can still be from the previous layout.
+	pub fn ui2_metal_drawable_texture(swapchain gfx.Swapchain) voidptr {
+		return C.witty_gg_metal_drawable_texture(swapchain.metal.current_drawable,
+			uint(swapchain.width), uint(swapchain.height))
+	}
+
+	pub fn (mut r Renderer) draw_ui2_metal_window(texture voidptr, width u32, height u32) !bool {
+		return r.draw_frame_to_target(true, WindowRenderTarget{
+			texture: texture
+			width: width
+			height: height
+		})
 	}
 
 	fn gg_metal_begin() &GGMetalFrame {

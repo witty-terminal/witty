@@ -161,7 +161,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		self.frames = []MetalFrameState{}
 	}
 
-	fn (mut self Renderer) draw_frame_metal(sync_ bool) ! {
+	fn (mut self Renderer) draw_frame_metal(sync_ bool, window ?WindowRenderTarget) ! {
 		self.api.draw_frame_start()
 		defer {
 			self.api.draw_frame_end()
@@ -170,7 +170,10 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		mut surface_width, mut surface_height := self.api.surface_size()
 		// A MetalAPI created without a view is useful for off-screen rendering and
 		// tests. In that case the configured screen size is the render-target size.
-		if self.api.layer == none {
+		if target := window {
+			surface_width = target.width
+			surface_height = target.height
+		} else if self.api.layer == none {
 			surface_width = self.size.screen.width
 			surface_height = self.size.screen.height
 		}
@@ -235,8 +238,8 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			self.update_screen_size_uniforms()
 		}
 
-		if frame_state.target.width != surface_width || frame_state.target.height != surface_height
-			|| frame_state.target_config_modified != self.target_config_modified {
+		if window == none && (frame_state.target.width != surface_width || frame_state.target.height != surface_height
+			|| frame_state.target_config_modified != self.target_config_modified) {
 			frame_state.resize_target(&self.api, surface_width, surface_height)!
 			frame_state.target_config_modified = self.target_config_modified
 		}
@@ -273,7 +276,14 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			voidptr(renderer_metal_frame_completed_callback))!
 		defer { frame.cancel() }
 		mut terminal_target := MetalRenderAttachmentTarget(frame_state.target)
-		if post_passes > 0 {
+		if target := window {
+			terminal_target = MetalRenderAttachmentTarget(MetalTexture{
+				handle: target.texture
+				width: target.width
+				height: target.height
+				pixel_format: .bgra8unorm
+			})
+		} else if post_passes > 0 {
 			terminal_target = MetalRenderAttachmentTarget(self.api.post_textures.textures[0])
 		}
 		mut pass := frame.render_pass([

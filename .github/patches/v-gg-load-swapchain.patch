@@ -1,0 +1,15 @@
+diff --git a/vlib/gg/gg.c.v b/vlib/gg/gg.c.v
+--- a/vlib/gg/gg.c.v
++++ b/vlib/gg/gg.c.v
+@@ -862,0 +863 @@
++	load
+@@ -868,0 +870 @@
++	swapchain ?gfx.Swapchain
+@@ -946 +948,2 @@
+-	frame_ctx.prepare_end_pass(options, sapp.glue_swapchain())
++	swapchain := options.swapchain or { sapp.glue_swapchain() }
++	frame_ctx.prepare_end_pass(options, swapchain)
+@@ -981,0 +985,3 @@
++		}
++		.load {
++			load_pass
