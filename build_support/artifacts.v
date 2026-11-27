@@ -47,6 +47,10 @@ pub fn (d Driver) v_arguments(artifact Artifact, deps NativeDeps) ![]string {
 		args << ['-cflags', '-D__USE_MINGW_ANSI_STDIO=0', '-cflags', '-include stdatomic.h']
 		// V uses an int-pointer slot for optional pointers to narrower enums.
 		args << ['-cflags', '-Wno-error=incompatible-pointer-types']
+		if artifact == .exe && d.cfg.mode == .release_fast {
+			// Keep production assets and optimization. MinGW's linker cannot read Clang LTO bitcode.
+			args << ['-no-prod-options', '-cflags', '-O2']
+		}
 	}
 	args << d.cfg.options(artifact)!
 	for define in deps.defines {
