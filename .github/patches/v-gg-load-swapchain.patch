@@ -9,7 +9,7 @@ diff --git a/vlib/gg/gg.c.v b/vlib/gg/gg.c.v
 -	frame_ctx.prepare_end_pass(options, sapp.glue_swapchain())
 +	swapchain := options.swapchain or { sapp.glue_swapchain() }
 +	frame_ctx.prepare_end_pass(options, swapchain)
-@@ -981,0 +985,3 @@
+@@ -987,0 +991,3 @@
 +		}
 +		.load {
 +			load_pass

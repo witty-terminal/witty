@@ -23,7 +23,8 @@ pub fn prepare_app() {
 		// Collect earlier during terminal output bursts so the app carries
 		// less spare heap into idle time. Honor the collector's environment override.
 		if os.getenv_opt('GC_FREE_SPACE_DIVISOR') == none {
-			C.GC_set_free_space_divisor(8)
+			divisor := $if macos && app_runtime_ui2 ? { u32(24) } $else { u32(8) }
+			C.GC_set_free_space_divisor(divisor)
 		}
 	}
 }

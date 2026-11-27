@@ -29,6 +29,7 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 git -C "$v_root" apply "$script_dir/../patches/v-gg-render-buffers.patch"
 git -C "$v_root" apply "$script_dir/../patches/v-gg-grow-text-atlas.patch"
 git -C "$v_root" apply --unidiff-zero "$script_dir/../patches/v-gg-load-swapchain.patch"
+git -C "$v_root" apply --unidiff-zero "$script_dir/../patches/v-gg-defer-font-init.patch"
 git -C "$v_root" apply --unidiff-zero "$script_dir/../patches/v-sokol-macos-hidden-window.patch"
 if [[ "$RUNNER_OS" != Windows ]]; then
   # V emits some callback typedefs after their structs and can drop optional enum typedefs.

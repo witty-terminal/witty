@@ -122,8 +122,12 @@ mut:
 }
 
 pub fn U64CacheTable.init[T]() U64CacheTable[T] {
+	return U64CacheTable.init_with_buckets[T](cache_table_bucket_count)
+}
+
+pub fn U64CacheTable.init_with_buckets[T](bucket_count uint) U64CacheTable[T] {
 	return U64CacheTable[T]{
-		table: cache_table[u64, T, U64CacheContext](U64CacheContext{}, cache_table_bucket_count,
+		table: cache_table[u64, T, U64CacheContext](U64CacheContext{}, bucket_count,
 			cache_table_bucket_size)
 	}
 }

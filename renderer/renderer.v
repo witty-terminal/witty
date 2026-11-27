@@ -2233,8 +2233,10 @@ fn (mut self Renderer) shape_text_run(run font.TextRun) ![]font.ShapeCell {
 		return cached
 	}
 	cells := self.font_shaper.shape(run)!
-	self.font_shaper_cache.put(run, cells) or {
-		log.warn('error caching font shaping results err=${err}')
+	if self.font_shaper_cache.has_recent_run(run) {
+		self.font_shaper_cache.put(run, cells) or {
+			log.warn('error caching font shaping results err=${err}')
+		}
 	}
 	return cells
 }

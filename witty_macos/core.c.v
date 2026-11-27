@@ -1073,6 +1073,33 @@ $if macos || ios {
 		return int(C.CTRunGetGlyphCount(voidptr(r)))
 	}
 
+	// Scratch storage reused across CoreText runs shaped by a terminal.
+	pub struct CTRunGlyphData {
+	pub mut:
+		glyphs    []u16
+		advances  []CGSize
+		positions []CGPoint
+		indices   []i64
+	}
+
+	pub fn (r &CTRun) read_glyph_data(mut data CTRunGlyphData) int {
+		count := r.get_glyph_count()
+		if count <= 0 { return 0 }
+		if data.glyphs.len < count || data.advances.len < count || data.positions.len < count
+			|| data.indices.len < count {
+			capacity := if data.glyphs.len * 2 < count { count } else { data.glyphs.len * 2 }
+			data.glyphs = []u16{len: capacity}
+			data.advances = []CGSize{len: capacity}
+			data.positions = []CGPoint{len: capacity}
+			data.indices = []i64{len: capacity}
+		}
+		C.vt_ctrun_get_glyphs_all(voidptr(r), data.glyphs.data)
+		C.vt_ctrun_get_advances_all(voidptr(r), data.advances.data)
+		C.vt_ctrun_get_positions_all(voidptr(r), data.positions.data)
+		C.vt_ctrun_get_string_indices_all(voidptr(r), data.indices.data)
+		return count
+	}
+
 	pub struct CTRunStatus {
 	pub:
 		non_monotonic bool

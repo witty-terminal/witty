@@ -1527,17 +1527,20 @@ pub:
 // ShaperCache caches shaped text runs to avoid re-shaping.
 pub struct ShaperCache {
 mut:
-	entries datastruct.U64CacheTable[[]ShapeCell]
+	entries     datastruct.U64CacheTable[[]ShapeCell]
+	recent_runs [512]u64
 }
 
 pub fn ShaperCache.init() ShaperCache {
 	return ShaperCache{
-		entries: datastruct.U64CacheTable.init[[]ShapeCell]()
+		// Keep up to 256 reusable runs per renderer.
+		entries: datastruct.U64CacheTable.init_with_buckets[[]ShapeCell](32)
 	}
 }
 
 pub fn (mut c ShaperCache) deinit() {
 	c.entries.clear()
+	c.recent_runs = [512]u64{}
 }
 
 // Get cached shaping results for a run.
@@ -1545,9 +1548,22 @@ pub fn (mut c ShaperCache) get(run TextRun) ?[]ShapeCell {
 	return c.entries.get(run.hash)
 }
 
+// has_recent_run remembers cache misses so one-time runs do not evict
+// shaping results that have already been reused.
+pub fn (mut c ShaperCache) has_recent_run(run TextRun) bool {
+	index := int(run.hash % u64(c.recent_runs.len))
+	repeated := run.hash != 0 && c.recent_runs[index] == run.hash
+	c.recent_runs[index] = run.hash
+	return repeated
+}
+
 // Store shaping results for a run in the cache.
 pub fn (mut c ShaperCache) put(run TextRun, cells []ShapeCell) ! {
-	c.entries.put(run.hash, cells.clone())
+	// The shaper reuses a buffer sized for its largest run. Keep only the
+	// cells belonging to this run in the cache.
+	mut cached := []ShapeCell{len: cells.len}
+	copy(mut cached, cells)
+	c.entries.put(run.hash, cached)
 }
 
 // Return the number of cached entries.

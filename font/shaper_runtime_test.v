@@ -70,6 +70,18 @@ fn test_public_shaper_cache_evicts_least_recently_used_collision() {
 	assert cache.count() == 8
 }
 
+fn test_shaper_cache_remembers_repeated_misses() {
+	mut cache := ShaperCache.init()
+	defer { cache.deinit() }
+	run := TextRun{ hash: 1 }
+	collision := TextRun{ hash: 513 }
+	assert !cache.has_recent_run(run)
+	assert cache.has_recent_run(run)
+	assert !cache.has_recent_run(collision)
+	assert !cache.has_recent_run(run)
+	assert cache.has_recent_run(run)
+}
+
 fn test_public_shaper_identity_shape() {
 	mut shaper := Shaper.init(ShaperOptions{})!
 	defer { shaper.deinit() }

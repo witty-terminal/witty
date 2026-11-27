@@ -82,6 +82,7 @@ pub fn run(mut terminal core.App, path string, delay f64) ! {
 		fullscreen:          path == '' && config.fullscreen
 		borderless:          path != '' || config.window_decoration == .none_
 		macos_hidden_window: $if macos { path != '' } $else { false }
+		defer_font_init:     $if macos { true } $else { false }
 	}, build_screen, handle_control)
 	if err := app.failure { return err }
 	if !app.started { return error('UI2 could not open a terminal window') }

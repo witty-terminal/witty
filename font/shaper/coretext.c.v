@@ -33,6 +33,7 @@ $if macos || ios {
 		features_no_default &macos.CFDictionary = unsafe { nil }
 		// The shared memory used for shaping results.
 		cell_buf []font.ShapeCell
+		glyph_data macos.CTRunGlyphData
 		// Cached attributes dict for creating CTTypesetter objects.
 		// The values in this never change so we can avoid overhead
 		// by just creating it once and saving it for reuse.
@@ -437,16 +438,9 @@ $if macos || ios {
 				non_ltr = true
 			}
 
-			glyphs := ctrun.get_glyphs()
-			advances := ctrun.get_advances()
-			positions := ctrun.get_positions()
-			indices := ctrun.get_string_indices()
-			if glyphs.len != advances.len || glyphs.len != positions.len || glyphs.len != indices.len {
-				return error('CoreText returned inconsistent glyph run lengths')
-			}
-
-			for idx in 0 .. glyphs.len {
-				index := indices[idx]
+			count := ctrun.read_glyph_data(mut self.glyph_data)
+			for idx in 0 .. count {
+				index := int(self.glyph_data.indices[idx])
 				if index < 0 || index >= state.codepoints.len {
 					return error('CoreText returned an invalid string index')
 				}
@@ -474,15 +468,15 @@ $if macos || ios {
 					}
 				}
 
-				position := positions[idx]
+				position := self.glyph_data.positions[idx]
 				self.cell_buf << font.ShapeCell{
 					x:           cell_offset.cluster
 					x_offset:    i32(math.round(position.x - cell_offset.x))
 					y_offset:    i32(math.round(position.y))
-					glyph_index: glyphs[idx]
+					glyph_index: u32(self.glyph_data.glyphs[idx])
 				}
 
-				run_offset.x += advances[idx].width
+				run_offset.x += self.glyph_data.advances[idx].width
 				if cluster > run_offset.cluster {
 					run_offset.cluster = cluster
 				}
