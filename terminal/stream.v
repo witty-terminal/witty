@@ -632,7 +632,9 @@ pub fn (mut self Stream[H]) next_slice(input []u8) ! {
 	// This is the maximum number of codepoints we can decode
 	// at one time for this function call. This is somewhat arbitrary
 	// so if someone can demonstrate a better number then we can switch.
-	mut cp_buf := []u32{len: 4096}
+	mut codepoints := [4096]u32{}
+	mut cp_buf := lib_allocator.borrowed_array[u32](&codepoints[0], codepoints.len,
+		codepoints.len)
 
 	// Split the input into chunks that fit into cp_buf.
 	mut i := uint(0)

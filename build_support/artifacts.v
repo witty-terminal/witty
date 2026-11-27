@@ -221,6 +221,22 @@ pub fn (d Driver) build_executable(deps NativeDeps) !string {
 	if d.cfg.target.os == 'macos' {
 		args << macos_bundled_gc_options
 		args << ['-ldflags', '-Wl,-dead_strip_dylibs']
+		if d.cfg.mode in [.debug, .release_safe] {
+			args << ['-d', 'mapped_embedded_fonts']
+			// V reads font files into the heap in non-production builds.
+			// Link them into read-only executable pages instead.
+			for section, filename in {
+				'__font_mono':     'JetBrainsMono-Variable.ttf'
+				'__font_italic':   'JetBrainsMono-VariableItalic.ttf'
+				'__font_symbols':  'SymbolsNerdFont-Regular.ttf'
+				'__font_emoji':    'NotoColorEmoji.ttf'
+				'__font_emoji_tx': 'NotoEmoji-Regular.ttf'
+			} {
+				path := os.join_path(d.cfg.root, 'font', 'res', filename)
+				args << ['-ldflags', '-Xlinker -sectcreate -Xlinker __TEXT -Xlinker ${section} -Xlinker ' +
+					compiler_argument(path)]
+			}
+		}
 	} else if d.cfg.target.darwin() {
 		args << ['-cflags', compiler_argument('-Wl,' + d.runtime_archive()!), '-ldflags',
 			'-Wl,-dead_strip_dylibs']
