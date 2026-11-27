@@ -1,6 +1,19 @@
 #pragma once
 #include <AppKit/AppKit.h>
+#include <MetalKit/MetalKit.h>
 #include <dispatch/dispatch.h>
+
+static inline void witty_ui2_macos_use_transient_depth(void *window) {
+    NSView *content = ((NSWindow *)window).contentView;
+    if (![content isKindOfClass:[MTKView class]]) return;
+    MTKView *view = (MTKView *)content;
+    if (@available(macOS 13.0, *)) {
+        if ([view.device supportsFamily:MTLGPUFamilyApple7]) {
+            // The window pass clears depth and discards it when it ends.
+            view.depthStencilStorageMode = MTLStorageModeMemoryless;
+        }
+    }
+}
 
 static inline double witty_ui2_macos_scale(void *window) {
     NSWindow *view = (NSWindow *)window;

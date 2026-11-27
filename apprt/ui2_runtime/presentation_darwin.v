@@ -19,7 +19,9 @@ fn (p PanePresentation) deinit() {
 
 fn (mut pane Pane) enable_presentation() {}
 
-fn prepare_draw(_ apprt.SurfaceSize) ! {}
+fn prepare_draw(_ apprt.SurfaceSize) ! {
+	renderer.wait_for_ui2_metal_readers()
+}
 
 fn restore_ui_state() {}
 

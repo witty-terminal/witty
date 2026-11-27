@@ -94,6 +94,10 @@ fn config_load_failure(err IError) configpkg.Config {
 
 fn window_ready(_ voidptr) {
 	mut app := g_app
+	$if macos {
+		use_transient_window_depth()
+		renderer.start_ui2_metal_frame_tracking()
+	}
 	app.ready = true
 	app.started = true
 	app.core.focus_event(true)
@@ -125,6 +129,9 @@ fn config_diagnostics(config &configpkg.Config) ?string {
 fn window_cleanup() {
 	mut app := g_app
 	app.ready = false
+	$if macos {
+		renderer.stop_ui2_metal_frame_tracking()
+	}
 	for mut tab in app.tabs {
 		mut iterator := tab.tree.iterator()
 		for {

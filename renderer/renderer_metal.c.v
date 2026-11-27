@@ -50,8 +50,15 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			return err
 		}
 		has_custom_shaders := shaders.post_pipelines.len > 0
-		mut frames := []MetalFrameState{cap: metal_swap_chain_count}
-		for _ in 0 .. metal_swap_chain_count {
+		mut frame_count := metal_swap_chain_count
+		$if macos && app_runtime_ui2 ? {
+			// The window waits for its compositor before a pane is redrawn.
+			if opts.metal_shares_gg && C.witty_gg_ui2_tracks_frames() {
+				frame_count = 1
+			}
+		}
+		mut frames := []MetalFrameState{cap: frame_count}
+		for _ in 0 .. frame_count {
 			frame := MetalFrameState.init(&metal) or {
 				for mut initialized in frames {
 					initialized.deinit()
@@ -70,7 +77,8 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 
 		mut display_link := unsafe { &DisplayLink(nil) }
 		$if macos {
-			if opts.config.vsync {
+			// UI2 schedules its own window draws on the main thread.
+			if opts.config.vsync && !opts.metal_shares_gg {
 				display_link = macos.CVDisplayLink.create_with_active_cg_displays() or {
 					for mut frame in frames {
 						frame.deinit()
@@ -91,7 +99,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			images:                 ImageRenderState.empty()
 			shaders:                shaders
 			frames:                 frames
-			frame_sema:             sync.new_semaphore_init(u32(metal_swap_chain_count))
+			frame_sema:             sync.new_semaphore_init(u32(frame_count))
 			config:                 opts.config
 			grid_metrics:           metrics
 			size:                   opts.size
@@ -146,7 +154,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		if self.swap_chain_defunct {
 			return
 		}
-		self.drain_frame_semaphore(metal_swap_chain_count)
+		self.drain_frame_semaphore(self.frames.len)
 		for mut frame in self.frames {
 			frame.deinit()
 		}

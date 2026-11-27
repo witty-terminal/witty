@@ -43,6 +43,23 @@ $if macos && !renderer_opengl ? {
 	fn C.sg_mtl_render_command_encoder() voidptr
 	fn C.v_sokol_mtl_set_end_pass_hook(callback fn (voidptr, voidptr, voidptr), owner voidptr) bool
 
+	fn C.witty_gg_ui2_tracks_frames() bool
+	fn C.witty_gg_ui2_start_tracking()
+	fn C.witty_gg_ui2_wait_for_readers()
+	fn C.witty_gg_ui2_stop_tracking()
+
+	pub fn start_ui2_metal_frame_tracking() {
+		C.witty_gg_ui2_start_tracking()
+	}
+
+	pub fn stop_ui2_metal_frame_tracking() {
+		C.witty_gg_ui2_stop_tracking()
+	}
+
+	pub fn wait_for_ui2_metal_readers() {
+		C.witty_gg_ui2_wait_for_readers()
+	}
+
 	__global (
 		gg_metal_users  int
 		gg_metal_device voidptr
