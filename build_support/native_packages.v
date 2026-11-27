@@ -37,10 +37,13 @@ pub fn (d Driver) native_package(name string) !string {
 	path := d.cache_path('deps', name)
 	if !os.exists(os.join_path(path, '.source-checksum')) {
 		os.mkdir_all(path)!
-		// tar runs from the repo root; relative paths keep GNU tar (Git for
-		// Windows) from reading a `D:` drive prefix as a remote host.
-		checked_process(d.cfg.root, ['tar', 'xf', repo_relative(d.cfg.root, archive),
-			'--strip-components=1', '-C', repo_relative(d.cfg.root, path)])!
+		mut command := ['tar', 'xf', tar_path(d.cfg.root, archive), '--strip-components=1', '-C',
+			tar_path(d.cfg.root, path)]
+		if os.user_os() == 'windows' && name == 'libxml2' {
+			// MSYS tar can fail to create symlinks in the upstream test fixtures.
+			command << ['--exclude', '*/test/*']
+		}
+		checked_process(d.cfg.root, command)!
 		os.write_file(os.join_path(path, '.source-checksum'), spec.sha256)!
 	}
 	return path
@@ -312,7 +315,9 @@ pub fn (d Driver) build_fontconfig(options NativeCompileOptions) !string {
 	return d.compile_native('fontconfig', root, native_sources('fontconfig')!, options, flags)
 }
 
-fn repo_relative(root string, path string) string {
-	prefix := root.trim_right('/\\') + os.path_separator
-	return if path.starts_with(prefix) { path[prefix.len..] } else { path }
+// Git for Windows tar needs forward slashes and repo-relative paths.
+fn tar_path(root string, path string) string {
+	prefix := root.replace('\\', '/').trim_right('/') + '/'
+	normalized := path.replace('\\', '/')
+	return if normalized.starts_with(prefix) { normalized[prefix.len..] } else { normalized }
 }
