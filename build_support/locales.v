@@ -13,6 +13,7 @@ pub const locales = ['zh_CN.UTF-8', 'de_DE.UTF-8', 'fr_FR.UTF-8', 'ja_JP.UTF-8',
 // GhosttyI18n.init. Catalog compilation is a host operation, including when
 // the final binary targets another platform.
 pub fn (d Driver) install_locales() ! {
+	if !d.cfg.i18n { return }
 	for locale in locales {
 		text := checked_process(d.cfg.root, ['msgfmt', '-o', '-', os.join_path('po', '${locale}.po')])!
 		// Preserve the source's trimRight character-set operation on FreeBSD.
