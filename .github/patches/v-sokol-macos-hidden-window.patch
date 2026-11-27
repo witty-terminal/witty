@@ -1,0 +1,36 @@
+diff --git a/thirdparty/sokol/sokol_app.h b/thirdparty/sokol/sokol_app.h
+--- a/thirdparty/sokol/sokol_app.h
++++ b/thirdparty/sokol/sokol_app.h
+@@ -2272,0 +2273 @@
++  bool macos_hidden_window; // Drive frames without showing or activating the window
+@@ -6603,0 +6605,21 @@
++
++#if defined(SOKOL_METAL)
++  if (_sapp.desc.macos_hidden_window) {
++    NSApp.activationPolicy = NSApplicationActivationPolicyAccessory;
++    _sapp.macos.view.paused = YES;
++    // A hidden MTKView does not schedule drawRect callbacks. The offscreen
++    // renderer still needs the application's ordinary frame and resize events.
++    NSTimer *frame_timer = [NSTimer timerWithTimeInterval:1.0 / 60.0
++                                                repeats:YES
++                                                  block:^(NSTimer *timer) {
++      if (!_sapp.valid || _sapp.quit_ordered) {
++        [timer invalidate];
++        return;
++      }
++      _sapp_macos_update_dimensions();
++      _sapp_macos_frame();
++    }];
++    [[NSRunLoop mainRunLoop] addTimer:frame_timer forMode:NSRunLoopCommonModes];
++    return;
++  }
++#endif
+@@ -17530,0 +17553,3 @@
++  if (_sapp.desc.macos_hidden_window) {
++    return res;
++  }
+diff --git a/vlib/sokol/sapp/sapp_structs.c.v b/vlib/sokol/sapp/sapp_structs.c.v
+--- a/vlib/sokol/sapp/sapp_structs.c.v
++++ b/vlib/sokol/sapp/sapp_structs.c.v
+@@ -273,0 +274 @@
++	macos_hidden_window bool // Run Metal frames in a hidden macOS window

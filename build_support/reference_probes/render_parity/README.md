@@ -67,7 +67,11 @@ python3 build_support/reference_probes/render_parity/run_macos.py \
   ./Witty.app/Contents/MacOS/witty
 ```
 
-The probe runs Witty's screenshot command offscreen and compares the dimensions and SHA-256 of the decoded RGBA pixels. It saves screenshots, logs, the executable hash, and a comparison report under `.witty-build/render-parity/`. It accepts the same `--output`, `--fixture`, and `--settle-seconds` options.
+The probe runs Witty's screenshot command in a hidden window without taking keyboard focus. It compares the dimensions and SHA-256 of the decoded RGBA pixels and saves screenshots, logs, the executable hash, and a comparison report under `.witty-build/render-parity/`. It accepts the same `--output`, `--fixture`, and `--settle-seconds` options.
+
+Prefix the command with `nice -n 15` to run it at lower CPU priority.
+
+Run the foreground probes for link previews, splits, scrollbar dragging, Find, and window presentation in a separate macOS session or on a dedicated Mac. They open windows for the compositor to capture, and some make a test window active.
 
 The foreground link-preview probe runs in a macOS desktop session with the Xcode command-line tools and Pillow. Pass a standalone Witty build and the executable from the Ghostty app bundle.
 

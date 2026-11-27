@@ -79,8 +79,9 @@ pub fn run(mut terminal core.App, path string, delay f64) ! {
 			major_version: renderer.opengl_min_version_major
 			minor_version: renderer.opengl_min_version_minor
 		} }
-		fullscreen:   path == '' && config.fullscreen
-		borderless:   path != '' || config.window_decoration == .none_
+		fullscreen:          path == '' && config.fullscreen
+		borderless:          path != '' || config.window_decoration == .none_
+		macos_hidden_window: $if macos { path != '' } $else { false }
 	}, build_screen, handle_control)
 	if err := app.failure { return err }
 	if !app.started { return error('UI2 could not open a terminal window') }
