@@ -40,6 +40,9 @@ fi
 if [[ "$RUNNER_OS" == Linux ]]; then
   git -C "$v_root" apply "$script_dir/../patches/v-sokol-gl-contexts.patch"
 fi
+if [[ "$RUNNER_OS" == Windows ]]; then
+  git -C "$v_root" apply "$script_dir/../patches/v-windows-gui-stdio.patch"
+fi
 
 unset VEXE
 if [[ "$RUNNER_OS" == Windows ]]; then

@@ -174,11 +174,12 @@ jobs:
         run: bash .github/scripts/ci-build.sh install
       - name: Verify installed executable and library
         run: |
+          set -x
           exe="$RUNNER_TEMP/witty/bin/witty.exe"
           test -f "$exe"
           "$exe" --version > "$RUNNER_TEMP/witty-version"
           cat "$RUNNER_TEMP/witty-version"
-          grep -E 'app runtime +: ui2$' "$RUNNER_TEMP/witty-version"
+          tr -d '\r' < "$RUNNER_TEMP/witty-version" | grep -E 'app runtime +: ui2$'
           test -f "$RUNNER_TEMP/witty/lib/libwitty-vt.dll"
           test -z "$(find "$RUNNER_TEMP/witty" -iname '*ghostty*' -print -quit)"
       - name: Package release

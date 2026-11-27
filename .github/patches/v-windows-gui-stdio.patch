@@ -1,0 +1,29 @@
+diff --git a/vlib/v/gen/c/fn.v b/vlib/v/gen/c/fn.v
+index 2c18b80..93c93f5 100644
+--- a/vlib/v/gen/c/fn.v
++++ b/vlib/v/gen/c/fn.v
+@@ -738,7 +738,23 @@ fn windows_gui_stdio_setup(force_console bool) string {
+ 	} else {
+ 		'\tcon_valid = AttachConsole(ATTACH_PARENT_PROCESS);\n'
+ 	}
+-	return '\tBOOL con_valid = FALSE;\n' + console_setup + '\tFILE* res_fp = 0;\n' + '\terrno_t err;\n' + '\tif (con_valid) {\n' + '\t\terr = freopen_s(&res_fp, "CON", "w", stdout);\n' + '\t\terr = freopen_s(&res_fp, "CON", "w", stderr);\n' + '\t} else {\n' + '\t\terr = freopen_s(&res_fp, "NUL", "w", stdout);\n' + '\t\terr = freopen_s(&res_fp, "NUL", "w", stderr);\n' + '\t}\n' + '\t(void)err;'
++	// Keep the handles supplied by the parent when it redirects a GUI app.
++	return [
++		'\tHANDLE inherited_stdout = GetStdHandle(STD_OUTPUT_HANDLE);',
++		'\tHANDLE inherited_stderr = GetStdHandle(STD_ERROR_HANDLE);',
++		'\tBOOL keep_stdout = GetFileType(inherited_stdout) != FILE_TYPE_UNKNOWN;',
++		'\tBOOL keep_stderr = GetFileType(inherited_stderr) != FILE_TYPE_UNKNOWN;',
++		'\tif (!keep_stdout || !keep_stderr) {',
++		'\t\tBOOL con_valid = FALSE;',
++		'\t\t' + console_setup.trim_space(),
++		'\t\tFILE* res_fp = 0;',
++		'\t\tconst char* output_device = con_valid ? "CON" : "NUL";',
++		'\t\tif (keep_stdout) SetStdHandle(STD_OUTPUT_HANDLE, inherited_stdout);',
++		'\t\telse (void)freopen_s(&res_fp, output_device, "w", stdout);',
++		'\t\tif (keep_stderr) SetStdHandle(STD_ERROR_HANDLE, inherited_stderr);',
++		'\t\telse (void)freopen_s(&res_fp, output_device, "w", stderr);',
++		'\t}',
++	].join('\n')
+ }
+ 
+ fn (mut g FlatGen) c_main_declaration(force_main_console bool) string {
