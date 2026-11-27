@@ -126,10 +126,18 @@ static void resize_window(NSView *view, const char *size) {
     fprintf(stderr, "macOS render probe dispatched input\n");
 }
 
+typedef CGImageRef (*WindowImage)(CGRect, CGWindowListOption, CGWindowID, CGWindowImageOption);
+
+static bool write_window_image(CGImageRef image, NSString *prefix, NSString *state) {
+    if (!image) return false;
+    NSBitmapImageRep *pixels = [[NSBitmapImageRep alloc] initWithCGImage:image];
+    NSString *path = [NSString stringWithFormat:@"%@-%@.png", prefix, state];
+    return [[pixels representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:path atomically:YES];
+}
+
 static bool capture_window_frame(NSView *view, NSString *prefix, NSString *state) {
     // The window server image includes the terminal and composited overlays.
-    typedef CGImageRef (*WindowImage)(CGRect, CGWindowListOption, CGWindowID, CGWindowImageOption);
-    WindowImage snapshot = (WindowImage)dlsym(RTLD_DEFAULT, "CGWindowListCreateImage");
+    WindowImage snapshot = dlsym(RTLD_DEFAULT, "CGWindowListCreateImage");
     NSWindow *window = view.window;
     CGImageRef shot = snapshot ? snapshot(CGRectNull, kCGWindowListOptionIncludingWindow,
         (CGWindowID)window.windowNumber, kCGWindowImageBoundsIgnoreFraming | kCGWindowImageBestResolution) : NULL;
@@ -143,10 +151,50 @@ static bool capture_window_frame(NSView *view, NSString *prefix, NSString *state
     CGImageRef image = CGImageCreateWithImageInRect(shot, crop);
     CGImageRelease(shot);
     if (!image) return false;
-    NSBitmapImageRep *pixels = [[NSBitmapImageRep alloc] initWithCGImage:image];
+    bool written = write_window_image(image, prefix, state);
     CGImageRelease(image);
-    NSString *path = [NSString stringWithFormat:@"%@-%@.png", prefix, state];
-    return [[pixels representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:path atomically:YES];
+    return written;
+}
+
+@interface WittyProbeBackdrop : NSView
+@end
+
+@implementation WittyProbeBackdrop
+- (void)drawRect:(NSRect)dirtyRect {
+    for (int x = 0; x < NSWidth(self.bounds); x += 16) {
+        [((x / 16) % 2 ? NSColor.whiteColor : NSColor.blackColor) setFill];
+        NSRectFill(NSMakeRect(x, 0, 16, NSHeight(self.bounds)));
+    }
+}
+@end
+
+static void capture_window_with_backdrop(NSView *view, NSString *prefix) {
+    NSWindow *terminal = view.window;
+    NSRect viewport = [terminal convertRectToScreen:[view convertRect:view.bounds toView:nil]];
+    NSRect screen = NSScreen.screens.firstObject.frame;
+    NSPoint origin = terminal.frame.origin;
+    [terminal setFrameOrigin:NSMakePoint(origin.x + NSMinX(screen) + 150 - NSMinX(viewport),
+        origin.y + NSMaxY(screen) - 190 - NSMaxY(viewport))];
+    viewport = [terminal convertRectToScreen:[view convertRect:view.bounds toView:nil]];
+    // Extend the stripes beyond the area sampled by the largest fixture radius.
+    NSRect backing = NSInsetRect(viewport, -96, -96);
+    NSWindow *backdrop = [[NSWindow alloc] initWithContentRect:backing styleMask:NSWindowStyleMaskBorderless
+        backing:NSBackingStoreBuffered defer:NO];
+    backdrop.hasShadow = NO;
+    backdrop.contentView = [[WittyProbeBackdrop alloc] initWithFrame:NSMakeRect(0, 0, NSWidth(backing), NSHeight(backing))];
+    [backdrop orderWindow:NSWindowBelow relativeTo:terminal.windowNumber];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 430 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        WindowImage snapshot = dlsym(RTLD_DEFAULT, "CGWindowListCreateImage");
+        CGRect area = CGRectMake(NSMinX(viewport), NSMaxY(screen) - NSMaxY(viewport),
+            NSWidth(viewport), NSHeight(viewport));
+        CGImageRef image = snapshot && backdrop.isVisible ? snapshot(area,
+            kCGWindowListOptionOnScreenBelowWindow | kCGWindowListOptionIncludingWindow,
+            (CGWindowID)terminal.windowNumber, kCGWindowImageBoundsIgnoreFraming | kCGWindowImageBestResolution) : NULL;
+        bool written = write_window_image(image, prefix, @"window");
+        if (image) CGImageRelease(image);
+        if (!written) fprintf(stderr, "macOS render probe could not capture the terminal over its backdrop\n");
+        exit(written ? EXIT_SUCCESS : EXIT_FAILURE);
+    });
 }
 
 static NSEvent *move_pointer(NSView *view, double x, double y, NSEventModifierFlags modifiers) {
@@ -520,6 +568,10 @@ __attribute__((constructor)) static void install_probe_input(void) {
             NSString *prefix = [NSString stringWithUTF8String:presentation];
             NSString *marker = [NSString stringWithUTF8String:ready];
             wait_for_terminal(marker, 80, ghostty, true, ^(NSView *view) {
+                if (getenv("WITTY_VIEWPORT_PRESENTATION_BACKDROP")) {
+                    capture_window_with_backdrop(view, prefix);
+                    return;
+                }
                 bool captured = capture_window_frame(view, prefix, @"window");
                 if (!captured) fprintf(stderr, "macOS render probe could not capture the presented terminal\n");
                 exit(captured ? EXIT_SUCCESS : EXIT_FAILURE);

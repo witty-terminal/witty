@@ -1,6 +1,8 @@
 module ui2_runtime
 
+import configpkg
 import sokol.sapp
+import witty_macos as macos
 
 #flag darwin -DWITTY_UI2_USES_VLIB_OBJC_BRIDGE
 #include "@VMODROOT/apprt/ui2_runtime/window_darwin.h"
@@ -20,8 +22,13 @@ fn configure_window_colorspace() {
 	C.witty_ui2_macos_set_display_p3(sapp.macos_get_window())
 }
 
-fn configure_window_opacity(opacity f64) {
-	C.witty_ui2_macos_set_translucent(sapp.macos_get_window(), opacity < 1)
+fn configure_window_background(config &configpkg.Config) {
+	window := sapp.macos_get_window()
+	translucent := config.background_opacity < 1
+	C.witty_ui2_macos_set_translucent(window, translucent)
+	blur := config.background_blur.cval()
+	// Glass materials have their own backdrop. Only pass numeric radii to WindowServer.
+	macos.set_window_background_blur(window, if translucent && blur > 0 { blur } else { i16(0) })
 }
 
 fn configure_window_render_targets() {

@@ -136,7 +136,7 @@ fn (mut app App) app_action(event apprt.RuntimeAction) !bool {
 		.config_change {
 			$if macos {
 				if app.ready && event.target is apprt.AppTarget {
-					configure_window_opacity(app.runtime.config.background_opacity)
+					configure_window_background(&app.runtime.config)
 				}
 			}
 		}
