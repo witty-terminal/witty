@@ -33,6 +33,9 @@ pub fn (d Driver) v_arguments(artifact Artifact, deps NativeDeps) ![]string {
 	if artifact == .exe && d.cfg.app_runtime == 'ui2' {
 		// UI2 uses the GPU atlas. Terminal captures read the pane texture directly.
 		args << ['-d', 'gg_gpu_only_text_atlas']
+		if d.cfg.target.os == 'macos' {
+			args << ['-cflags', '-DV_SOKOL_MTL_INLINE_UNIFORMS']
+		}
 	}
 	if d.cfg.target.darwin() {
 		// Witty's Objective-C bridges manage ownership explicitly. Sokol's

@@ -1,0 +1,105 @@
+--- a/thirdparty/sokol/sokol_gfx.h
++++ b/thirdparty/sokol/sokol_gfx.h
+@@ -12390,6 +12390,18 @@
+ }
+ 
+ //-- main Metal backend state and functions ------------------------------------
++_SOKOL_PRIVATE id<MTLBuffer> _sg_mtl_alloc_uniform_buffer(int frame) {
++    id<MTLBuffer> buffer = [_sg.mtl.device
++        newBufferWithLength:(NSUInteger)_sg.mtl.ub_size
++        options:MTLResourceCPUCacheModeWriteCombined|MTLResourceStorageModeShared
++    ];
++    #if defined(SOKOL_DEBUG)
++        buffer.label = [NSString stringWithFormat:@"sg-uniform-buffer.%d", frame];
++    #endif
++    _sg.mtl.uniform_buffers[frame] = buffer;
++    return buffer;
++}
++
+ _SOKOL_PRIVATE void _sg_mtl_setup_backend(const sg_desc* desc) {
+     // assume already zero-initialized
+     SOKOL_ASSERT(desc);
+@@ -12403,15 +12415,11 @@
+     _sg.mtl.device = (__bridge id<MTLDevice>) desc->environment.metal.device;
+     _sg.mtl.cmd_queue = [_sg.mtl.device newCommandQueue];
+ 
++    #if !defined(V_SOKOL_MTL_INLINE_UNIFORMS)
+     for (int i = 0; i < SG_NUM_INFLIGHT_FRAMES; i++) {
+-        _sg.mtl.uniform_buffers[i] = [_sg.mtl.device
+-            newBufferWithLength:(NSUInteger)_sg.mtl.ub_size
+-            options:MTLResourceCPUCacheModeWriteCombined|MTLResourceStorageModeShared
+-        ];
+-        #if defined(SOKOL_DEBUG)
+-            _sg.mtl.uniform_buffers[i].label = [NSString stringWithFormat:@"sg-uniform-buffer.%d", i];
+-        #endif
++        _sg_mtl_alloc_uniform_buffer(i);
+     }
++    #endif
+ 
+     if (desc->mtl_force_managed_storage_mode) {
+         _sg.mtl.use_shared_storage_mode = false;
+@@ -12464,13 +12472,18 @@
+ 
+ _SOKOL_PRIVATE void _sg_mtl_bind_uniform_buffers(void) {
+     SOKOL_ASSERT(nil != _sg.mtl.cmd_encoder);
++    #if defined(V_SOKOL_MTL_INLINE_UNIFORMS)
++    id<MTLBuffer> buffer = nil; // Clear slots modified by native Metal callers.
++    #else
++    id<MTLBuffer> buffer = _sg.mtl.uniform_buffers[_sg.mtl.cur_frame_rotate_index];
++    #endif
+     for (int slot = 0; slot < SG_MAX_SHADERSTAGE_UBS; slot++) {
+         [_sg.mtl.cmd_encoder
+-            setVertexBuffer:_sg.mtl.uniform_buffers[_sg.mtl.cur_frame_rotate_index]
++            setVertexBuffer:buffer
+             offset:0
+             atIndex:(NSUInteger)slot];
+         [_sg.mtl.cmd_encoder
+-            setFragmentBuffer:_sg.mtl.uniform_buffers[_sg.mtl.cur_frame_rotate_index]
++            setFragmentBuffer:buffer
+             offset:0
+             atIndex:(NSUInteger)slot];
+     }
+@@ -13491,14 +13504,43 @@
+     SOKOL_ASSERT(ub_index < _sg.mtl.state_cache.cur_pipeline->shader->cmn.stage[stage_index].num_uniform_blocks);
+     SOKOL_ASSERT(data->size <= _sg.mtl.state_cache.cur_pipeline->shader->cmn.stage[stage_index].uniform_blocks[ub_index].size);
+ 
++    #if defined(V_SOKOL_MTL_INLINE_UNIFORMS)
++    const size_t block_size = _sg.mtl.state_cache.cur_pipeline->shader->cmn.stage[stage_index].uniform_blocks[ub_index].size;
++    // Partial uploads need the backing buffer to cover the full shader block.
++    if (data->size == block_size && block_size < 4096) {
++        // Metal copies small uniform blocks into the command stream.
++        if (stage_index == SG_SHADERSTAGE_VS) {
++            [_sg.mtl.cmd_encoder setVertexBytes:data->ptr length:data->size atIndex:(NSUInteger)ub_index];
++        } else {
++            [_sg.mtl.cmd_encoder setFragmentBytes:data->ptr length:data->size atIndex:(NSUInteger)ub_index];
++        }
++        return;
++    }
++    const int frame = _sg.mtl.cur_frame_rotate_index;
++    id<MTLBuffer> buffer = _sg.mtl.uniform_buffers[frame];
++    if (nil == buffer) {
++        buffer = _sg_mtl_alloc_uniform_buffer(frame);
++        SOKOL_ASSERT(nil != buffer);
++        _sg.mtl.cur_ub_base_ptr = (uint8_t*)[buffer contents];
++    }
++    #endif
++
+     // copy to global uniform buffer, record offset into cmd encoder, and advance offset
+     uint8_t* dst = &_sg.mtl.cur_ub_base_ptr[_sg.mtl.cur_ub_offset];
+     memcpy(dst, data->ptr, data->size);
+     if (stage_index == SG_SHADERSTAGE_VS) {
++        #if defined(V_SOKOL_MTL_INLINE_UNIFORMS)
++        [_sg.mtl.cmd_encoder setVertexBuffer:buffer offset:(NSUInteger)_sg.mtl.cur_ub_offset atIndex:(NSUInteger)ub_index];
++        #else
+         [_sg.mtl.cmd_encoder setVertexBufferOffset:(NSUInteger)_sg.mtl.cur_ub_offset atIndex:(NSUInteger)ub_index];
++        #endif
+         _sg_stats_add(metal.uniforms.num_set_vertex_buffer_offset, 1);
+     } else {
++        #if defined(V_SOKOL_MTL_INLINE_UNIFORMS)
++        [_sg.mtl.cmd_encoder setFragmentBuffer:buffer offset:(NSUInteger)_sg.mtl.cur_ub_offset atIndex:(NSUInteger)ub_index];
++        #else
+         [_sg.mtl.cmd_encoder setFragmentBufferOffset:(NSUInteger)_sg.mtl.cur_ub_offset atIndex:(NSUInteger)ub_index];
++        #endif
+         _sg_stats_add(metal.uniforms.num_set_fragment_buffer_offset, 1);
+     }
+     _sg.mtl.cur_ub_offset = _sg_roundup(_sg.mtl.cur_ub_offset + (int)data->size, _SG_MTL_UB_ALIGN);
