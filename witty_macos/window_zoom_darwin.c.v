@@ -5,7 +5,7 @@ import gg.canvas
 
 #insert "@VMODROOT/witty_macos/window_zoom_abi.h"
 fn C.witty_native_os_at_least(major i64,minor i64,patch i64) bool
-fn C.witty_zoom_canvas_template(bytes &u8, count usize, draw fn (ObjId, &ObjCRect) bool) ObjId
+fn C.witty_zoom_canvas_template(bytes &u8, count uint, draw fn (ObjId, &ObjCRect) bool) ObjId
 fn C.witty_zoom_accessory_tint(button ObjId, layer ObjId)
 
 const reset_zoom_pdf = $embed_file('@VMODROOT/build_assets/macos/Assets.xcassets/ResetZoom.imageset/ResetZoom.pdf').to_bytes()
@@ -32,7 +32,7 @@ fn draw_reset_zoom_template(source ObjId, glyph &ObjCRect) bool {
 
 fn reset_zoom_template() ObjId {
 	if is_nil(g_reset_zoom_template) {
-		image := C.witty_zoom_canvas_template(reset_zoom_pdf.data, usize(reset_zoom_pdf.len),
+		image := C.witty_zoom_canvas_template(reset_zoom_pdf.data, uint(reset_zoom_pdf.len),
 			draw_reset_zoom_template)
 		g_reset_zoom_template = msg_id(image, 'retain')
 	}

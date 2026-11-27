@@ -9,7 +9,7 @@ fn C.witty_key_indicator_width(text ObjId, keycap bool) f64
 fn C.witty_key_indicator_draw_text(context voidptr, text ObjId, keycap bool, clip &ObjCRect, bounds &ObjCRect, pixels &u32, width int, height int)
 fn C.witty_key_indicator_symbol(chevron bool, x f64, height f64, frame &ObjCRect) ObjId
 fn C.witty_key_indicator_clip_material(view ObjId, radius f64)
-fn C.CGBitmapContextGetBitsPerComponent(context voidptr) usize
+fn C.CGBitmapContextGetBitsPerComponent(context voidptr) uint
 
 enum KeyIndicatorPartKind {
 	keyboard

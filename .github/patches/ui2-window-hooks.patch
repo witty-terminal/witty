@@ -101,6 +101,12 @@ index bcec4da..a81141d 100644
 +		if g_window_event_filter != unsafe { nil } && g_window_event_filter(e) {
 +			return
 +		}
+@@ -2150 +2201 @@ fn handle_char_input(ch u32, modifiers u32) {
+-		if (g_text_readonly[g_focused_field] or { false }) { return }
++		if g_text_readonly[g_focused_field] or { false } { return }
+@@ -2266 +2317 @@ fn handle_key_down(key gg.KeyCode, modifiers u32) {
+-					if (g_text_readonly[g_focused_field] or { false }) { return }
++					if g_text_readonly[g_focused_field] or { false } { return }
 @@ -3788 +3839,2 @@ fn page_focused_text_area(direction int) {
 -			image:      gfx.make_image(&desc)
 +			borrowed:   request.image_id != 0

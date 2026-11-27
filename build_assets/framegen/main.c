@@ -19,6 +19,65 @@ static int compare_frames(const struct dirent **a, const struct dirent **b) {
     return strcmp((*a)->d_name, (*b)->d_name);
 }
 
+#ifdef _WIN32
+static int compare_frame_entries(const void *a, const void *b) {
+    const struct dirent *first = *(struct dirent *const *)a;
+    const struct dirent *second = *(struct dirent *const *)b;
+    return compare_frames(&first, &second);
+}
+#endif
+
+static int scan_frames(const char *path, struct dirent ***namelist) {
+#ifdef _WIN32
+    // MinGW provides readdir but omits scandir.
+    DIR *dir = opendir(path);
+    if (!dir) return -1;
+
+    struct dirent **entries = NULL;
+    size_t count = 0;
+    size_t capacity = 0;
+    int scan_error = 0;
+    for (;;) {
+        errno = 0;
+        struct dirent *entry = readdir(dir);
+        if (!entry) {
+            scan_error = errno;
+            break;
+        }
+        if (!filter_frames(entry)) continue;
+        if (count == capacity) {
+            size_t next_capacity = capacity ? capacity * 2 : 16;
+            struct dirent **next = realloc(entries, next_capacity * sizeof(*entries));
+            if (!next) {
+                scan_error = ENOMEM;
+                break;
+            }
+            entries = next;
+            capacity = next_capacity;
+        }
+        struct dirent *copy = malloc(sizeof(*copy));
+        if (!copy) {
+            scan_error = ENOMEM;
+            break;
+        }
+        *copy = *entry;
+        entries[count++] = copy;
+    }
+    closedir(dir);
+    if (scan_error) {
+        for (size_t i = 0; i < count; i++) free(entries[i]);
+        free(entries);
+        errno = scan_error;
+        return -1;
+    }
+    if (count > 1) qsort(entries, count, sizeof(*entries), compare_frame_entries);
+    *namelist = entries;
+    return (int)count;
+#else
+    return scandir(path, namelist, filter_frames, compare_frames);
+#endif
+}
+
 static char *read_file(const char *path, size_t *out_size) {
     FILE *f = fopen(path, "rb");
     if (!f) {
@@ -55,7 +114,7 @@ int main(int argc, char **argv) {
     const char *output_file = argv[2];
 
     struct dirent **namelist;
-    int n = scandir(frames_dir, &namelist, filter_frames, compare_frames);
+    int n = scan_frames(frames_dir, &namelist);
     if (n < 0) {
         fprintf(stderr, "Failed to scan directory %s: %s\n", frames_dir, strerror(errno));
         return 1;

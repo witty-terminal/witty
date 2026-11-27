@@ -45,6 +45,8 @@ pub fn (d Driver) v_arguments(artifact Artifact, deps NativeDeps) ![]string {
 	if d.cfg.target.os == 'windows' {
 		// V declares the CRT entry points and uses atomic_uintptr_t in channels.
 		args << ['-cflags', '-D__USE_MINGW_ANSI_STDIO=0', '-cflags', '-include stdatomic.h']
+		// V uses an int-pointer slot for optional pointers to narrower enums.
+		args << ['-cflags', '-Wno-error=incompatible-pointer-types']
 	}
 	args << d.cfg.options(artifact)!
 	for define in deps.defines {
