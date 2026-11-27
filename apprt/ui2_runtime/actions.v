@@ -109,10 +109,14 @@ fn (mut app App) app_action(event apprt.RuntimeAction) !bool {
 		}
 		.reload_config {
 			if data is apprt.ReloadConfig {
-				config := if data.soft {
+				mut config := if data.soft {
 					app.runtime.config.clone()
 				} else {
-					configpkg.Config.load()!
+					configpkg.Config.load_argv(internal_os.process_args())!
+				}
+				if app.screenshot != '' {
+					config.wait_after_command = true
+					config.window_show_tab_bar = .never
 				}
 				app.core.update_config(mut app.runtime, &config)!
 				if text := config_diagnostics(&config) {
