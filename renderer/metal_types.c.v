@@ -83,7 +83,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		if data.len > 0 {
 			ptr = voidptr(data.data)
 		}
-		self.sync_raw(ptr, uint(data.len), 1)!
+		self.sync_raw(ptr, uint(data.len))!
 	}
 
 	pub fn (mut self MetalBuffer) sync_values[T](values []T) ! {
@@ -91,7 +91,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		if values.len > 0 {
 			ptr = voidptr(values.data)
 		}
-		self.sync_raw(ptr, uint(values.len) * uint($sizeof(T)), uint($sizeof(T)))!
+		self.sync_raw(ptr, uint(values.len) * uint($sizeof(T)))!
 	}
 
 	// Like MetalBuffer.sync but takes data from an array of lists, rather than a
@@ -102,26 +102,11 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			total_len += uint(list.len)
 		}
 
-		// If we need more bytes than our buffer has, we need to reallocate.
 		req_bytes := total_len * uint($sizeof(T))
-		available_bytes := macos.metal_buffer_length(self.handle)
-		if req_bytes > available_bytes {
-			// Deallocate previous buffer.
-			macos.metal_release(self.handle)
-
-			// Allocate a new buffer with enough to hold double what we require.
-			// Preserve the pinned Buffer(T) expression: it doubles the required byte
-			// count and multiplies by the element size a second time.
-			new_len := req_bytes * 2 * uint($sizeof(T))
-			self.handle = macos.metal_new_buffer_length(self.opts.device, new_len,
-				self.opts.resource_options.int_val())
-			if self.handle == unsafe { nil } {
-				return error('Metal buffer reallocation failed')
-			}
-		}
 		if req_bytes == 0 {
 			return total_len
 		}
+		self.ensure_capacity(req_bytes)!
 
 		// We can fit within the buffer so we can just replace bytes.
 		dst := macos.metal_buffer_contents(self.handle)
@@ -149,21 +134,26 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		return total_len
 	}
 
-	fn (mut self MetalBuffer) sync_raw(data voidptr, req_bytes uint, element_size uint) ! {
+	fn (mut self MetalBuffer) ensure_capacity(req_bytes uint) ! {
 		available_bytes := macos.metal_buffer_length(self.handle)
-		if req_bytes > available_bytes {
-			macos.metal_release(self.handle)
-			// Preserve the pinned Buffer(T) expression, including its second
-			// multiplication by @sizeOf(T).
-			new_len := req_bytes * 2 * element_size
-			self.handle = macos.metal_new_buffer_length(self.opts.device, new_len, self.opts.resource_options.int_val())
-			if self.handle == unsafe { nil } {
-				return error('Metal buffer reallocation failed')
-			}
+		if req_bytes <= available_bytes {
+			return
 		}
+		// Both the native capacity and the required size are already in bytes.
+		replacement := macos.metal_new_buffer_length(self.opts.device, req_bytes * 2,
+			self.opts.resource_options.int_val())
+		if replacement == unsafe { nil } {
+			return error('Metal buffer reallocation failed')
+		}
+		macos.metal_release(self.handle)
+		self.handle = replacement
+	}
+
+	fn (mut self MetalBuffer) sync_raw(data voidptr, req_bytes uint) ! {
 		if req_bytes == 0 {
 			return
 		}
+		self.ensure_capacity(req_bytes)!
 		dst := macos.metal_buffer_contents(self.handle)
 		if dst == unsafe { nil } {
 			return error('Metal buffer contents pointer is null')
@@ -846,10 +836,10 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		target                   MetalTarget
 		target_config_modified   uint
 		bg_image_buffer_modified uint
-		custom_shader_state      ?MetalCustomShaderState
+		custom_shader_uniforms   MetalBuffer
 	}
 
-	pub fn MetalFrameState.init(api &MetalAPI, custom_shaders bool) !MetalFrameState {
+	pub fn MetalFrameState.init(api &MetalAPI) !MetalFrameState {
 		mut uniforms := MetalBuffer.init(api.buffer_options(), uint($sizeof(MetalUniforms)))!
 		mut cells := MetalBuffer.init(api.buffer_options(), uint($sizeof(CellText))) or {
 			uniforms.deinit()
@@ -887,23 +877,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			uniforms.deinit()
 			return err
 		}
-		mut custom_shader_state := if custom_shaders {
-			MetalCustomShaderState.init(api) or {
-				color.deinit()
-				grayscale.deinit()
-				bg_image_buffer.deinit()
-				cells_bg.deinit()
-				cells.deinit()
-				uniforms.deinit()
-				return err
-			}
-		} else {
-			none
-		}
 		target := api.init_target(1, 1) or {
-			if mut state := custom_shader_state {
-				state.deinit()
-			}
 			color.deinit()
 			grayscale.deinit()
 			bg_image_buffer.deinit()
@@ -920,7 +894,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			grayscale:           grayscale
 			color:               color
 			target:              target
-			custom_shader_state: custom_shader_state
+			custom_shader_uniforms: MetalBuffer{opts: api.buffer_options()}
 		}
 	}
 
@@ -932,80 +906,48 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		self.grayscale.deinit()
 		self.color.deinit()
 		self.bg_image_buffer.deinit()
-		if mut state := self.custom_shader_state {
-			state.deinit()
-		}
-		self.custom_shader_state = none
+		self.custom_shader_uniforms.deinit()
 	}
 
 	pub fn (mut self MetalFrameState) resize_target(api &MetalAPI, width uint, height uint) ! {
-		if mut state := self.custom_shader_state {
-			state.resize(api, width, height)!
-			self.custom_shader_state = state
-		}
 		target := api.init_target(width, height)!
 		self.target.deinit()
 		self.target = target
 	}
 
-	// MetalCustomShaderState is the per-frame ping-pong state used by Ghostty's
-	// custom shader chain.
-	pub struct MetalCustomShaderState {
-	pub mut:
-		front_texture MetalTexture
-		back_texture  MetalTexture
-		sampler       MetalSampler
-		uniforms      MetalBuffer
+	// These textures are shared across frames submitted to the same command
+	// queue. Each pass binds them directly, so Metal tracks reads and writes
+	// across command buffers. The CPU-updated uniforms remain per frame.
+	struct MetalShaderTextures {
+	mut:
+		textures [2]MetalTexture
+		sampler  MetalSampler
 	}
 
-	pub fn MetalCustomShaderState.init(api &MetalAPI) !MetalCustomShaderState {
-		mut uniforms := MetalBuffer.init(api.buffer_options(), uint($sizeof(CustomShaderUniforms)))!
-		mut front_texture := MetalTexture.init(api.texture_options(), 1, 1, none) or {
-			uniforms.deinit()
+	fn MetalShaderTextures.init(api &MetalAPI, width uint, height uint, ping_pong bool) !MetalShaderTextures {
+		opts := MetalTextureOptions{
+			...api.texture_options()
+			resource_options: MetalResourceOptions.init(.default, .private, .tracked)
+		}
+		mut state := MetalShaderTextures{}
+		state.textures[0] = MetalTexture.init(opts, width, height, none)!
+		if ping_pong {
+			state.textures[1] = MetalTexture.init(opts, width, height, none) or {
+				state.deinit()
+				return err
+			}
+		}
+		state.sampler = MetalSampler.init(api.sampler_options()) or {
+			state.deinit()
 			return err
 		}
-		mut back_texture := MetalTexture.init(api.texture_options(), 1, 1, none) or {
-			front_texture.deinit()
-			uniforms.deinit()
-			return err
-		}
-		sampler := MetalSampler.init(api.sampler_options()) or {
-			back_texture.deinit()
-			front_texture.deinit()
-			uniforms.deinit()
-			return err
-		}
-		return MetalCustomShaderState{
-			front_texture: front_texture
-			back_texture:  back_texture
-			sampler:       sampler
-			uniforms:      uniforms
-		}
+		return state
 	}
 
-	pub fn (mut self MetalCustomShaderState) deinit() {
-		self.front_texture.deinit()
-		self.back_texture.deinit()
+	fn (mut self MetalShaderTextures) deinit() {
+		self.textures[0].deinit()
+		self.textures[1].deinit()
 		self.sampler.deinit()
-		self.uniforms.deinit()
-	}
-
-	pub fn (mut self MetalCustomShaderState) swap() {
-		front := self.front_texture
-		self.front_texture = self.back_texture
-		self.back_texture = front
-	}
-
-	pub fn (mut self MetalCustomShaderState) resize(api &MetalAPI, width uint, height uint) ! {
-		mut front_texture := MetalTexture.init(api.texture_options(), width, height, none)!
-		back_texture := MetalTexture.init(api.texture_options(), width, height, none) or {
-			front_texture.deinit()
-			return err
-		}
-		self.front_texture.deinit()
-		self.back_texture.deinit()
-		self.front_texture = front_texture
-		self.back_texture = back_texture
 	}
 
 	$if compiled_metallib ? {

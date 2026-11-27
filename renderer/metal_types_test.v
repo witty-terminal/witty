@@ -611,7 +611,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		assert buffer.sync_from_array_lists([][]u8{})! == 0
 	}
 
-	fn test_metal_buffer_typed_growth_matches_source_expression() ! {
+	fn test_metal_buffer_typed_growth_uses_byte_count() ! {
 		mut api := MetalAPI.init()!
 		defer {
 			api.deinit()
@@ -622,16 +622,44 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			values_buffer.deinit()
 		}
 		values_buffer.sync_values([u32(1), 2])!
-		// req_bytes (8) * 2 * sizeof(u32) (4), exactly as Buffer(u32).sync.
-		assert macos.metal_buffer_length(values_buffer.handle) == 64
+		assert macos.metal_buffer_length(values_buffer.handle) == 16
 
 		mut lists_buffer := MetalBuffer.init(api.buffer_options(), uint($sizeof(u32)))!
 		defer {
 			lists_buffer.deinit()
 		}
 		assert lists_buffer.sync_from_array_lists([[u32(1)], [u32(2)]])! == 2
-		// syncFromArrayLists uses the same pinned growth expression.
-		assert macos.metal_buffer_length(lists_buffer.handle) == 64
+		assert macos.metal_buffer_length(lists_buffer.handle) == 16
+	}
+
+	fn test_metal_post_textures_follow_shader_chain_requirements() ! {
+		mut api := MetalAPI.init()!
+		defer { api.deinit() }
+
+		api.prepare_post_textures(8, 6, 1)!
+		first_handle := api.post_textures.textures[0].handle
+		assert first_handle != unsafe { nil }
+		assert api.post_textures.textures[1].handle == unsafe { nil }
+		api.prepare_post_textures(8, 6, 1)!
+		assert api.post_textures.textures[0].handle == first_handle
+
+		api.prepare_post_textures(8, 6, 3)!
+		second_handle := api.post_textures.textures[1].handle
+		assert second_handle != unsafe { nil }
+		assert second_handle != api.post_textures.textures[0].handle
+		api.prepare_post_textures(8, 6, 2)!
+		assert api.post_textures.textures[1].handle == second_handle
+
+		api.blending = .linear_corrected
+		api.prepare_post_textures(9, 7, 2)!
+		for texture in api.post_textures.textures {
+			assert texture.width == 9 && texture.height == 7
+			assert texture.pixel_format == .bgra8unorm_srgb
+		}
+
+		api.prepare_post_textures(9, 7, 0)!
+		assert api.post_textures.textures[0].handle == unsafe { nil }
+		assert api.post_textures.textures[1].handle == unsafe { nil }
 	}
 
 	fn test_metal_api_without_layer_cannot_present() ! {

@@ -34,6 +34,8 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 	mut:
 		// This surface shares Witty's GG submission backend.
 		gg_owned bool
+
+		post_textures MetalShaderTextures
 	}
 
 	// Storage mode for Metal resources.
@@ -166,6 +168,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 	}
 
 	pub fn (mut self MetalAPI) deinit() {
+		self.post_textures.deinit()
 		$if macos && !renderer_opengl ? {
 			if self.gg_owned {
 				gg_metal_release()
@@ -293,6 +296,25 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			// these will lead to metal validation errors in Xcode.
 			usage:            MetalTextureUsage.from_int(0x05)
 		}
+	}
+
+	fn (mut self MetalAPI) prepare_post_textures(width uint, height uint, passes int) ! {
+		first := self.post_textures.textures[0]
+		if passes == 0 {
+			if first.handle != unsafe { nil } {
+				self.post_textures.deinit()
+			}
+			return
+		}
+		ping_pong := passes > 1
+		has_second := self.post_textures.textures[1].handle != unsafe { nil }
+		if first.handle != unsafe { nil } && first.width == width && first.height == height
+			&& first.pixel_format == self.target_pixel_format() && has_second == ping_pong {
+			return
+		}
+		replacement := MetalShaderTextures.init(&self, width, height, ping_pong)!
+		self.post_textures.deinit()
+		self.post_textures = replacement
 	}
 
 	pub fn (self &MetalAPI) sampler_options() MetalSamplerOptions {

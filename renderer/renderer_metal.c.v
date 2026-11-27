@@ -52,7 +52,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		has_custom_shaders := shaders.post_pipelines.len > 0
 		mut frames := []MetalFrameState{cap: metal_swap_chain_count}
 		for _ in 0 .. metal_swap_chain_count {
-			frame := MetalFrameState.init(&metal, has_custom_shaders) or {
+			frame := MetalFrameState.init(&metal) or {
 				for mut initialized in frames {
 					initialized.deinit()
 				}
@@ -213,23 +213,11 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 				[]string{}
 			}
 			self.shaders = self.api.init_shaders(post_shaders)!
-		self.has_custom_shaders = self.shaders.post_pipelines.len > 0
+			self.has_custom_shaders = self.shaders.post_pipelines.len > 0
 		}
 
-		if self.has_custom_shaders {
-			if state := frame_state.custom_shader_state {
-				_ = state
-			} else {
-				mut state := MetalCustomShaderState.init(&self.api)!
-				state.resize(&self.api, surface_width, surface_height)!
-				frame_state.custom_shader_state = state
-			}
-		} else {
-			if mut state := frame_state.custom_shader_state {
-				state.deinit()
-				frame_state.custom_shader_state = none
-			}
-		}
+		post_passes := self.shaders.post_pipelines.len
+		self.api.prepare_post_textures(surface_width, surface_height, post_passes)!
 
 		if size_changed {
 			self.size.screen = ScreenSize{
@@ -253,9 +241,8 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		frame_state.uniforms.sync_values([gpu_uniforms])!
 		frame_state.cells_bg.sync_values(self.cells.bg_cells)!
 		fg_count := frame_state.cells.sync_from_array_lists(self.cells.fg_rows.lists)!
-		if mut state := frame_state.custom_shader_state {
-			state.uniforms.sync_values([self.custom_shader_uniforms])!
-			frame_state.custom_shader_state = state
+		if post_passes > 0 {
+			frame_state.custom_shader_uniforms.sync_values([self.custom_shader_uniforms])!
 		}
 
 		if frame_state.bg_image_buffer_modified != self.bg_image_buffer_modified {
@@ -278,8 +265,8 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			voidptr(renderer_metal_frame_completed_callback))!
 		defer { frame.cancel() }
 		mut terminal_target := MetalRenderAttachmentTarget(frame_state.target)
-		if state := frame_state.custom_shader_state {
-			terminal_target = MetalRenderAttachmentTarget(state.back_texture)
+		if post_passes > 0 {
+			terminal_target = MetalRenderAttachmentTarget(self.api.post_textures.textures[0])
 		}
 		mut pass := frame.render_pass([
 			MetalRenderPassAttachment{
@@ -339,32 +326,29 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		})
 		self.images.draw(&self.api, self.shaders.image, frame_state.uniforms, mut pass, .kitty_above_text)
 		self.images.draw(&self.api, self.shaders.image, frame_state.uniforms, mut pass, .overlay)
-		if mut state := frame_state.custom_shader_state {
-			for index, pipeline in self.shaders.post_pipelines {
-				pass.complete()
-				mut output_texture := MetalRenderAttachmentTarget(frame_state.target)
-				if index < self.shaders.post_pipelines.len - 1 {
-					output_texture = MetalRenderAttachmentTarget(state.front_texture)
-				}
-				pass = frame.render_pass([
-					MetalRenderPassAttachment{
-						target:      output_texture
-						clear_color: [f64(0), 0, 0, 0]!
-					},
-				])!
-				pass.step(MetalRenderStep{
-					pipeline: pipeline
-					uniforms: state.uniforms
-					textures: [?MetalTexture(state.back_texture)]
-					samplers: [?MetalSampler(state.sampler)]
-					draw:     MetalRenderDraw{
-						draw_type:    .triangle
-						vertex_count: 3
-					}
-				})
-				state.swap()
+		for index, pipeline in self.shaders.post_pipelines {
+			pass.complete()
+			input_index := index % 2
+			mut output_texture := MetalRenderAttachmentTarget(frame_state.target)
+			if index < post_passes - 1 {
+				output_texture = MetalRenderAttachmentTarget(self.api.post_textures.textures[1 - input_index])
 			}
-			frame_state.custom_shader_state = state
+			pass = frame.render_pass([
+				MetalRenderPassAttachment{
+					target:      output_texture
+					clear_color: [f64(0), 0, 0, 0]!
+				},
+			])!
+			pass.step(MetalRenderStep{
+				pipeline: pipeline
+				uniforms: frame_state.custom_shader_uniforms
+				textures: [?MetalTexture(self.api.post_textures.textures[input_index])]
+				samplers: [?MetalSampler(self.api.post_textures.sampler)]
+				draw:     MetalRenderDraw{
+					draw_type:    .triangle
+					vertex_count: 3
+				}
+			})
 		}
 
 		frame.submit(&pass, sync_)!
