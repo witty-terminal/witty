@@ -49,8 +49,10 @@ jobs:
         # Universal, and not tied to the CI runner's V install (libgc.dylib).
         run: |
           exe="$RUNNER_TEMP/witty/Witty.app/Contents/MacOS/witty"
+          app="${exe%/Contents/MacOS/*}"
           test -f "$RUNNER_TEMP/witty/Witty.app/Contents/Resources/Witty.icns"
           test -z "$(find "$RUNNER_TEMP/witty" -iname '*ghostty*' -print -quit)"
+          codesign --verify --deep --strict "$app"
           lipo -info "$exe"
           lipo "$exe" -verify_arch arm64
           lipo "$exe" -verify_arch x86_64
@@ -63,13 +65,18 @@ jobs:
           fi
           if [[ -n "$RELEASE_TAG" ]]; then
             smoke_dir=$(mktemp -d "$RUNNER_TEMP/witty-app-smoke.XXXXXX")
-            app="${exe%/Contents/MacOS/*}"
             ditto "$app" "$smoke_dir/${app##*/}"
             cd "$smoke_dir"
             # Debug builds can fall back to reading assets by absolute source path.
             trap 'if [[ -d "$smoke_dir/checkout" ]]; then mv "$smoke_dir/checkout" "$GITHUB_WORKSPACE"; fi' EXIT
             mv "$GITHUB_WORKSPACE" "$smoke_dir/checkout"
-            "./${app##*/}/Contents/MacOS/${exe##*/}" --version
+            smoke_exe="./${app##*/}/Contents/MacOS/${exe##*/}"
+            "$smoke_exe" --version
+            # Launch the signed app through its renderer and PTY startup paths.
+            python3 -c 'import subprocess, sys; subprocess.run(sys.argv[1:], check=True, timeout=30)' \
+              "$smoke_exe" --screenshot="$smoke_dir/terminal.png" \
+              -e /bin/sh -c 'printf "%s\n" "Witty release smoke test"; exec /bin/sleep 10'
+            sips -g format "$smoke_dir/terminal.png" | grep -E '^  format: png$'
           fi
       - name: Package release
         if: inputs.release_tag != ''

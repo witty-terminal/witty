@@ -100,7 +100,8 @@ fn (d Driver) build_macos_app_with_framework(native_only bool, framework_ready b
 	}
 	sparkle := d.build_sparkle()!
 	checked_process(d.cfg.root, ['cp', '-R', sparkle, os.join_path(contents, 'Frameworks')])!
-	checked_process(d.cfg.root, ['codesign', '--force', '--deep', '--sign', '-', '--options', 'runtime',
+	// Sparkle ships signed. Sign Witty separately so its entitlements apply only to Witty.
+	checked_process(d.cfg.root, ['codesign', '--force', '--sign', '-', '--options', 'runtime',
 		'--entitlements', os.join_path(asset_root, 'Witty${configuration}.entitlements'), app])!
 	checked_process(d.cfg.root, ['dsymutil', binary, '-o', app + '.dSYM'])!
 	return app
