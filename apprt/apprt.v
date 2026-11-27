@@ -128,6 +128,7 @@ pub mut:
 	// Native NSView/UIView used by the Metal renderer. The Linux runtime
 	// supplies an OpenGL context instead.
 	renderer_view         voidptr = unsafe { nil }
+	renderer_shares_gg    bool
 	user_data             voidptr = unsafe { nil }
 	close_fn              RuntimeSurfaceCloseFn = unsafe { nil }
 	content_scale_fn      RuntimeSurfaceContentScaleFn = unsafe { nil }

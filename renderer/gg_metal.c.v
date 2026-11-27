@@ -39,18 +39,30 @@ $if macos && !renderer_opengl ? {
 	fn C.witty_gg_metal_lock()
 	fn C.witty_gg_metal_unlock()
 	fn C.witty_gg_metal_retain_import(object voidptr) bool
+	fn C.witty_gg_metal_pass_command_buffer() voidptr
 	fn C.sg_mtl_render_command_encoder() voidptr
 	fn C.v_sokol_mtl_set_end_pass_hook(callback fn (voidptr, voidptr, voidptr), owner voidptr) bool
 
 	__global (
 		gg_metal_users  int
 		gg_metal_device voidptr
+		gg_metal_owned  bool
 	)
 
-	fn gg_metal_acquire(device voidptr) bool {
+	fn gg_metal_acquire(device voidptr, share_context bool) bool {
 		C.witty_gg_metal_lock()
 		defer { C.witty_gg_metal_unlock() }
-		if gg_metal_users == 0 {
+		if gg_metal_users > 0 {
+			if gg_metal_device != device || gg_metal_owned == share_context {
+				return false
+			}
+		} else if share_context {
+			if !gfx.is_valid() || gfx.query_backend() != .metal_macos
+				|| gfx.query_desc().environment.metal.device != device {
+				return false
+			}
+			gg_metal_device = device
+		} else {
 			// An embedding application may already own the global backend.
 			if gfx.is_valid() {
 				return false
@@ -75,9 +87,7 @@ $if macos && !renderer_opengl ? {
 			// Runtime custom shaders use Metal's default compile options.
 			gfx.mtl_set_shader_compile_options(0, 0, false)
 			gg_metal_device = device
-		}
-		if gg_metal_device != device {
-			return false
+			gg_metal_owned = true
 		}
 		gg_metal_users++
 		return true
@@ -88,12 +98,15 @@ $if macos && !renderer_opengl ? {
 		defer { C.witty_gg_metal_unlock() }
 		gg_metal_users--
 		if gg_metal_users == 0 {
-			gfx.shutdown()
+			if gg_metal_owned {
+				gfx.shutdown()
+				gg_metal_owned = false
+			}
 			gg_metal_device = unsafe { nil }
 		}
 	}
 
-	// UI2 owns the Sokol context. Import only the finished pane image into it.
+	// The UI2 scene samples a BGRA8 view of the finished pane.
 	pub fn import_ui2_metal_target(target MetalTarget) !gfx.Image {
 		retained := C.witty_gg_metal_retain_import(target.texture)
 		image := gfx.make_image(&gfx.ImageDesc{
@@ -316,10 +329,17 @@ $if macos && !renderer_opengl ? {
 			}
 		}
 		owner := voidptr(&completion)
-		installed := C.v_sokol_mtl_set_end_pass_hook(gg_metal_end_pass, owner)
-		pass.complete()
-		if installed {
-			C.v_sokol_mtl_set_end_pass_hook(unsafe { nil }, owner)
+		command_buffer := C.witty_gg_metal_pass_command_buffer()
+		if command_buffer != unsafe { nil } {
+			// UI2 can use the end-pass hook for its own window pass.
+			gg_metal_end_pass(command_buffer, unsafe { nil }, owner)
+			pass.complete()
+		} else {
+			installed := C.v_sokol_mtl_set_end_pass_hook(gg_metal_end_pass, owner)
+			pass.complete()
+			if installed {
+				C.v_sokol_mtl_set_end_pass_hook(unsafe { nil }, owner)
+			}
 		}
 		if !completion.registered {
 			return error('GG Metal frame completion could not be registered')

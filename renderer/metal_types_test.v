@@ -4,6 +4,7 @@ import configpkg
 import datastruct
 import font
 import witty_macos as macos
+import sokol.gfx
 import sync
 
 struct MetalFrameTestCapture {
@@ -26,6 +27,78 @@ fn metal_frame_test_completion(renderer_ptr voidptr, target_ptr voidptr, status 
 }
 
 $if macos && !renderer_opengl ? {
+	fn record_window_pass(_ voidptr, _ voidptr, owner voidptr) {
+		unsafe { *(&int(owner)) += 1 }
+	}
+
+	fn test_gg_metal_panes_share_the_window_context() ! {
+		mut pool := macos.AutoreleasePool.init()
+		defer { pool.deinit() }
+		device := macos.metal_system_default_device()
+		assert device != unsafe { nil }
+		defer { macos.metal_release(device) }
+
+		mut desc := gfx.Desc{}
+		desc.environment.metal.device = device
+		desc.environment.defaults.color_format = .bgra8
+		desc.environment.defaults.depth_format = .depth_stencil
+		C.witty_gg_metal_retain_import(device)
+		gfx.setup(&desc)
+		assert gfx.is_valid()
+		defer { gfx.shutdown() }
+
+		mut first := MetalAPI.init_offscreen(true)!
+		mut second := MetalAPI.init_offscreen(true) or {
+			first.deinit()
+			return err
+		}
+		assert first.gg_owned
+		assert second.gg_owned
+		first.deinit()
+		assert gfx.is_valid()
+		second.deinit()
+		assert gfx.is_valid()
+
+		// A new pane can open after the last borrower releases the context.
+		mut reopened := MetalAPI.init_offscreen(true)!
+		defer { reopened.deinit() }
+		mut target := reopened.init_target(4, 4)!
+		defer { target.deinit() }
+		mut capture := MetalFrameTestCapture{}
+		mut frame := MetalFrame.begin_for_device(&reopened, voidptr(&capture), voidptr(&target),
+			voidptr(metal_frame_test_completion))!
+		defer { frame.cancel() }
+		pass := frame.render_pass([MetalRenderPassAttachment{
+			target:      MetalRenderAttachmentTarget(target)
+			clear_color: [f64(1), 0, 0, 1]!
+		}])!
+		mut window_passes := 0
+		hook_owner := voidptr(&window_passes)
+		has_pass_buffer := C.witty_gg_metal_pass_command_buffer() != unsafe { nil }
+		if has_pass_buffer {
+			assert C.v_sokol_mtl_set_end_pass_hook(record_window_pass, hook_owner)
+		}
+		defer {
+			if has_pass_buffer {
+				C.v_sokol_mtl_set_end_pass_hook(unsafe { nil }, hook_owner)
+			}
+		}
+		frame.submit(&pass, true)!
+		assert capture.calls == 1
+		assert metal_command_buffer_status(capture.status) == .completed
+		assert window_passes == if has_pass_buffer { 1 } else { 0 }
+
+		$if compiled_metallib ? {
+			mut shaders := reopened.init_shaders([])!
+			defer { shaders.deinit() }
+			assert shaders.bg_color.gg.pipeline.id != 0
+			assert shaders.image.gg.pipeline.id != 0
+			if gg_metal_supports_packed_cells() {
+				assert shaders.cell_text.gg.pipeline.id != 0
+			}
+		}
+	}
+
 	fn test_gg_metal_iosurface_passes_and_completion() ! {
 		mut api := MetalAPI.init()!
 		defer { api.deinit() }

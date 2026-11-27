@@ -46,6 +46,14 @@ static inline bool witty_gg_metal_retain_import(void *object) {
 	return false;
 #endif
 }
+
+static inline void *witty_gg_metal_pass_command_buffer(void) {
+#if defined(V_SOKOL_MTL_PASS_COMMAND_BUFFER)
+	return (void *)sg_v_mtl_pass_command_buffer();
+#else
+	return NULL;
+#endif
+}
 #endif
 
 #endif

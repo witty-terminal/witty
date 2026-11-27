@@ -51,6 +51,7 @@ fn (mut app App) create_pane(parent ?&Pane) !&Pane {
 		host:    &apprt.RuntimeSurface{
 			content_scale:         apprt.ContentScale{ x: scale, y: scale }
 			size:                  size_in_pixels(frame, f64(scale))
+			renderer_shares_gg:    $if macos { true } $else { false }
 			close_fn:              close_surface
 			set_clipboard_fn:      set_clipboard
 			clipboard_request_fn:  clipboard_request

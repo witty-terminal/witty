@@ -2760,6 +2760,8 @@ pub:
 	// Native NSView/UIView used for IOSurface presentation. Nil creates an off-screen
 	// Metal renderer, which is also used by focused renderer tests.
 	metal_view voidptr = unsafe { nil }
+	// The window owns the GG context and calls the renderer before its own pass.
+	metal_shares_gg bool
 	// Horizontal scale factor of the surface that owns metal_view.
 	content_scale f64 = 1.0
 	// Font grid to use.

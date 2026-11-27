@@ -1,0 +1,25 @@
+--- a/thirdparty/sokol/sokol_gfx.h
++++ b/thirdparty/sokol/sokol_gfx.h
+@@ -4341,6 +4341,9 @@
+ SOKOL_GFX_API_DECL const void* sg_mtl_device(void);
+ // Metal: return __bridge-casted MTLRenderCommandEncoder in current pass (or zero if outside pass)
+ SOKOL_GFX_API_DECL const void* sg_mtl_render_command_encoder(void);
++// Borrowed while encoding this pass, for registering a completion handler.
++#define V_SOKOL_MTL_PASS_COMMAND_BUFFER (1)
++SOKOL_GFX_API_DECL const void* sg_v_mtl_pass_command_buffer(void);
+ // Metal: get internal __bridge-casted buffer resource objects
+ SOKOL_GFX_API_DECL sg_mtl_buffer_info sg_mtl_query_buffer_info(sg_buffer buf);
+ // Metal: get internal __bridge-casted image resource objects
+@@ -19427,3 +19430,12 @@
++SOKOL_API_IMPL const void* sg_v_mtl_pass_command_buffer(void) {
++    #if defined(SOKOL_METAL)
++        if (nil != _sg.mtl.cmd_encoder) {
++            return (__bridge const void*) _sg.mtl.cmd_buffer;
++        }
++    #endif
++    return 0;
++}
++
+ SOKOL_API_IMPL sg_mtl_buffer_info sg_mtl_query_buffer_info(sg_buffer buf_id) {
+     SOKOL_ASSERT(_sg.valid);
+     sg_mtl_buffer_info res;

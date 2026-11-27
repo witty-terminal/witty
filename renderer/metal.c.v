@@ -31,7 +31,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		// True when this instance created and therefore owns device and queue.
 		owns_handles bool
 	mut:
-		// This surface shares Witty's GG submission backend.
+		// This surface holds a reference to the GG submission backend.
 		gg_owned bool
 
 		post_textures MetalShaderTextures
@@ -140,20 +140,31 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			default_storage_mode: storage
 			max_texture_size:     max_tex
 			owns_handles:         true
-			gg_owned:             $if macos && !renderer_opengl ? { gg_metal_acquire(device) } $else { false }
+			gg_owned:             $if macos && !renderer_opengl ? { gg_metal_acquire(device, false) } $else { false }
 		}
 	}
 
 	// init creates an offscreen Metal API with a real device and command queue.
 	// The layer is absent because this entry point is used by renderer tests.
 	pub fn MetalAPI.init() !MetalAPI {
+		return MetalAPI.init_offscreen(false)
+	}
+
+	fn MetalAPI.init_offscreen(share_gg bool) !MetalAPI {
 		device := macos.metal_system_default_device()
 		if device == unsafe { nil } {
 			return error('Metal not available')
 		}
 		queue := macos.metal_new_command_queue(device)
 		if queue == unsafe { nil } {
+			macos.metal_release(device)
 			return error('Metal command queue unavailable')
+		}
+		gg_owned := $if macos && !renderer_opengl ? { gg_metal_acquire(device, share_gg) } $else { false }
+		if share_gg && !gg_owned {
+			macos.metal_release(queue)
+			macos.metal_release(device)
+			return error('Metal terminal could not share the window GG context')
 		}
 		return MetalAPI{
 			device:               device
@@ -162,7 +173,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			default_storage_mode: metal_default_storage_mode(device)
 			max_texture_size:     macos.metal_max_texture_size(device)
 			owns_handles:         true
-			gg_owned:             $if macos && !renderer_opengl ? { gg_metal_acquire(device) } $else { false }
+			gg_owned:             gg_owned
 		}
 	}
 

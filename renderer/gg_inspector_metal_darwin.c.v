@@ -61,7 +61,7 @@ fragment half4 shade(Varying in [[stage_in]], texture2d<half> atlas [[texture(0)
 '
 
 	pub fn GGInspectorMetal.acquire(device voidptr) GGInspectorMetal {
-		return GGInspectorMetal{ acquired: gg_metal_acquire(device) }
+		return GGInspectorMetal{ acquired: gg_metal_acquire(device, false) }
 	}
 
 	pub fn (mut gpu GGInspectorMetal) release() {

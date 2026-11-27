@@ -2179,6 +2179,7 @@ pub fn (mut self Surface) init_with_options(config_original &Config, mut app App
 	renderer_config := rendererpkg.DerivedConfig.init(config)!
 	self.renderer = Renderer.init(rendererpkg.RendererOpts{
 		metal_view:      rt_surface.renderer_view
+		metal_shares_gg: rt_surface.renderer_shares_gg
 		content_scale:   f64(content_scale.x)
 		font_grid:       font_grid
 		config:          renderer_config

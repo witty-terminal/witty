@@ -180,7 +180,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 	// ============================================================
 
 	// MetalFrame owns pass encoding and submission for a terminal frame.
-	// It uses GG's Metal backend when Witty owns that backend.
+	// It can encode terminal passes in its own or the window's GG context.
 	pub struct MetalFrame {
 	pub mut:
 		// The command buffer handle.

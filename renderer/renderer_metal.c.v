@@ -33,7 +33,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 				return err
 			}
 		} else {
-			MetalAPI.init() or {
+			MetalAPI.init_offscreen(opts.metal_shares_gg) or {
 				font_shaper.deinit()
 				return err
 			}
