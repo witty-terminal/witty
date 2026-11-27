@@ -15,13 +15,18 @@ fn (app &App) active_pane() ?&Pane {
 	return none
 }
 
+fn (tab &Tab) pane_by_id(id int) ?&Pane {
+	mut iterator := tab.tree.iterator()
+	for {
+		entry := iterator.next() or { break }
+		if entry.view.id == id { return entry.view }
+	}
+	return none
+}
+
 fn (app &App) pane_by_id(id int) ?&Pane {
 	for tab in app.tabs {
-		mut iterator := tab.tree.iterator()
-		for {
-			entry := iterator.next() or { break }
-			if entry.view.id == id { return entry.view }
-		}
+		if pane := tab.pane_by_id(id) { return pane }
 	}
 	return none
 }
@@ -77,6 +82,11 @@ fn (mut app App) select_pane(tab int, handle datastruct.Handle) {
 	if previous := app.active_pane() {
 		mut pane := unsafe { previous }
 		pane.surface.focus_callback(false) or { log.warn(err.msg()) }
+	}
+	$if macos {
+		if tab != app.active_tab {
+			app.tabs[app.active_tab].release_presentation()
+		}
 	}
 	app.active_tab = tab
 	app.tabs[tab].active = handle

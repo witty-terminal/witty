@@ -126,7 +126,9 @@ fn size_in_pixels(frame ui2.Rect, scale f64) apprt.SurfaceSize {
 
 fn render_pane(id string, _ ui2.Rect, scale f64, _ f64) {
 	mut app := g_app
-	mut pane := app.pane_by_id(id.all_after('terminal-').int()) or { return }
+	if app.tabs.len == 0 { return }
+	// UI2 can replay the previous layout's surface registrations after a tab switch.
+	mut pane := app.tabs[app.active_tab].pane_by_id(id.all_after('terminal-').int()) or { return }
 	app.draw(mut pane, scale) or {
 		app.failure = err
 		quit_window()

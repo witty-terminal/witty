@@ -19,6 +19,19 @@ fn (p PanePresentation) deinit() {
 
 fn (mut pane Pane) enable_presentation() {}
 
+fn (mut tab Tab) release_presentation() {
+	renderer.wait_for_ui2_metal_readers()
+	mut iterator := tab.tree.iterator()
+	for {
+		entry := iterator.next() or { break }
+		mut pane := unsafe { entry.view }
+		ui2.clear_surface_image(pane.element_id())
+		pane.presentation.deinit()
+		pane.presentation = PanePresentation{}
+		pane.surface.renderer.release_ui2_metal_targets()
+	}
+}
+
 fn prepare_draw(_ apprt.SurfaceSize) ! {
 	renderer.wait_for_ui2_metal_readers()
 }

@@ -27,7 +27,7 @@ index de1d6e6..91d0f58 100644
 +
 +fn surface_texture_updated() {
 diff --git a/ui/ui_immediate.c.v b/ui/ui_immediate.c.v
-index bcec4da..49f38fa 100644
+index bcec4da..a81141d 100644
 --- a/ui/ui_immediate.c.v
 +++ b/ui/ui_immediate.c.v
 @@ -9,0 +10 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
@@ -108,7 +108,18 @@ index bcec4da..49f38fa 100644
 @@ -3799 +3851 @@ fn page_focused_text_area(direction int) {
 -		gfx.destroy_image(tex.image)
 +		if !tex.borrowed { gfx.destroy_image(tex.image) }
-@@ -3818,0 +3871,7 @@ fn page_focused_text_area(direction int) {
+@@ -3802,0 +3855,10 @@ fn page_focused_text_area(direction int) {
++	// clear_surface_image drops the window's reference before the producer
++	// releases its image. Call on the window thread between render passes.
++	pub fn clear_surface_image(id string) {
++		g_gl_surface_requests.delete(id)
++		if texture := g_gl_surface_textures[id] {
++			release_gl_surface_texture(texture)
++			g_gl_surface_textures.delete(id)
++		}
++	}
++
+@@ -3818,0 +3881,7 @@ fn page_focused_text_area(direction int) {
 +			if request.image_id != 0 && g_gg_app.surface_copy_pipeline.id == 0 {
 +				// Borrowed surfaces contain the complete pixels for their pane.
 +				// Copy all four channels, including premultiplied alpha.
@@ -116,16 +127,16 @@ index bcec4da..49f38fa 100644
 +				desc.colors[0].write_mask = .rgba
 +				g_gg_app.surface_copy_pipeline = g_gg_app.ctx.r.make_pipeline(desc)
 +			}
-@@ -3820 +3879,2 @@ fn page_focused_text_area(direction int) {
+@@ -3820 +3889,2 @@ fn page_focused_text_area(direction int) {
 -				if current.gl_texture == request.gl_texture && current.width == request.width
 +				if current.gl_texture == request.gl_texture && current.borrowed == (request.image_id != 0)
 +					&& (!current.borrowed || current.image.id == request.image_id) && current.width == request.width
-@@ -3842,0 +3903,4 @@ fn page_focused_text_area(direction int) {
+@@ -3842,0 +3913,4 @@ fn page_focused_text_area(direction int) {
 +		if tex.borrowed {
 +			ctx.r.push_pipeline()
 +			ctx.r.load_pipeline(g_gg_app.surface_copy_pipeline)
 +		}
-@@ -3846,4 +3910,6 @@ fn page_focused_text_area(direction int) {
+@@ -3846,4 +3920,6 @@ fn page_focused_text_area(direction int) {
 -		ctx.r.v2f_t2f_c4f(f32(x0), f32(y0), 0, 1, 1, 1, 1, 1)
 -		ctx.r.v2f_t2f_c4f(f32(x1), f32(y0), 1, 1, 1, 1, 1, 1)
 -		ctx.r.v2f_t2f_c4f(f32(x1), f32(y1), 1, 0, 1, 1, 1, 1)
@@ -136,7 +147,7 @@ index bcec4da..49f38fa 100644
 +		ctx.r.v2f_t2f_c4f(f32(x1), f32(y0), 1, top, 1, 1, 1, 1)
 +		ctx.r.v2f_t2f_c4f(f32(x1), f32(y1), 1, bottom, 1, 1, 1, 1)
 +		ctx.r.v2f_t2f_c4f(f32(x0), f32(y1), 0, bottom, 1, 1, 1, 1)
-@@ -3851,0 +3918,3 @@ fn page_focused_text_area(direction int) {
+@@ -3851,0 +3928,3 @@ fn page_focused_text_area(direction int) {
 +		if tex.borrowed {
 +			ctx.r.pop_pipeline()
 +		}

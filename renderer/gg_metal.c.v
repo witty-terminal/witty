@@ -148,6 +148,18 @@ $if macos && !renderer_opengl ? {
 		return target
 	}
 
+	// Release a hidden UI2 pane's render targets after the window's last read.
+	// UI2 draws each pane synchronously on the window thread.
+	pub fn (mut r Renderer) release_ui2_metal_targets() {
+		r.draw_mutex.lock()
+		defer { r.draw_mutex.unlock() }
+		for mut frame in r.frames {
+			frame.target.deinit()
+			frame.target = MetalTarget{}
+		}
+		r.api.post_textures.deinit()
+	}
+
 	fn gg_metal_begin() &GGMetalFrame {
 		C.witty_gg_metal_lock()
 		return &GGMetalFrame{}

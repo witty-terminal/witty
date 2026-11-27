@@ -89,6 +89,10 @@ fn layout_panes(tree &datastruct.SplitTree[Pane], handle datastruct.Handle, fram
 			mut pane := unsafe { node.view }
 			pane.frame = frame
 			elements << ui2.opengl(pane.element_id(), frame)
+			$if macos {
+				// A newly visible pane can register before its texture is ready.
+				if pane.presentation.image.id == 0 { ui2.request_paint() }
+			}
 			scroll := pane.scrollbar
 			if show_scrollbar && scroll.total > scroll.len && scroll.len != 0 {
 				height := math.max(12, frame.height * f64(scroll.len) / f64(scroll.total))
