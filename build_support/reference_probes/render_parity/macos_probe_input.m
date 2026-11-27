@@ -503,6 +503,7 @@ __attribute__((constructor)) static void install_probe_input(void) {
     const char *split = getenv("WITTY_VIEWPORT_SPLIT_CAPTURE");
     const char *scrollbar = getenv("WITTY_VIEWPORT_SCROLLBAR_CAPTURE");
     const char *find = getenv("WITTY_VIEWPORT_FIND_CAPTURE");
+    const char *presentation = getenv("WITTY_VIEWPORT_PRESENTATION_CAPTURE");
     const bool ghostty = getenv("WITTY_VIEWPORT_HOVER_GHOSTTY") != NULL;
     const bool split_focus = getenv("WITTY_VIEWPORT_SPLIT_FOCUS") != NULL;
     const bool has_keys = sequence && *sequence;
@@ -512,7 +513,20 @@ __attribute__((constructor)) static void install_probe_input(void) {
     const bool has_split = split && *split;
     const bool has_scrollbar = scrollbar && *scrollbar;
     const bool has_find = find && *find;
-    if (!ready || has_keys + has_drag + has_resize + has_hover + has_split + has_scrollbar + has_find != 1) return;
+    const bool has_presentation = presentation && *presentation;
+    if (!ready || has_keys + has_drag + has_resize + has_hover + has_split + has_scrollbar + has_find + has_presentation != 1) return;
+    if (has_presentation) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSString *prefix = [NSString stringWithUTF8String:presentation];
+            NSString *marker = [NSString stringWithUTF8String:ready];
+            wait_for_terminal(marker, 80, ghostty, true, ^(NSView *view) {
+                bool captured = capture_window_frame(view, prefix, @"window");
+                if (!captured) fprintf(stderr, "macOS render probe could not capture the presented terminal\n");
+                exit(captured ? EXIT_SUCCESS : EXIT_FAILURE);
+            });
+        });
+        return;
+    }
     if (has_hover || has_split || has_scrollbar || has_find) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 160 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
             // A standalone Witty binary may never receive a LaunchServices activation.

@@ -96,6 +96,7 @@ fn window_ready(_ voidptr) {
 	mut app := g_app
 	$if macos {
 		configure_window_colorspace()
+		configure_window_opacity(app.runtime.config.background_opacity)
 		use_transient_window_depth()
 		renderer.start_ui2_metal_frame_tracking()
 	}

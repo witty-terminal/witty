@@ -133,7 +133,14 @@ fn (mut app App) app_action(event apprt.RuntimeAction) !bool {
 				ui2.focus('')
 			}
 		}
-		.config_change, .render {}
+		.config_change {
+			$if macos {
+				if app.ready && event.target is apprt.AppTarget {
+					configure_window_opacity(app.runtime.config.background_opacity)
+				}
+			}
+		}
+		.render {}
 		.open_url {
 			if data is apprt.OpenUrl { internal_os.open(data.kind, data.url)! }
 		}

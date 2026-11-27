@@ -37,6 +37,7 @@ if [[ "$RUNNER_OS" == macOS ]]; then
   git -C "$v_root" apply "$script_dir/../patches/v-sokol-metal-shader-stages.patch"
   git -C "$v_root" apply "$script_dir/../patches/v-sokol-metal-command-buffer.patch"
   git -C "$v_root" apply "$script_dir/../patches/v-sokol-metal-inline-uniforms.patch"
+  git -C "$v_root" apply "$script_dir/../patches/v-sokol-macos-view-opacity.patch"
 fi
 if [[ "$RUNNER_OS" == Linux ]]; then
   git -C "$v_root" apply "$script_dir/../patches/v-sokol-gl-contexts.patch"

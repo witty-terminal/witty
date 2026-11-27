@@ -26,6 +26,17 @@ static inline void witty_ui2_macos_set_display_p3(void *window) {
     CGColorSpaceRelease(space);
 }
 
+static inline void witty_ui2_macos_set_translucent(void *window, bool translucent) {
+    NSWindow *native = (NSWindow *)window;
+    CALayer *layer = native.contentView.layer;
+    if (![layer isKindOfClass:[CAMetalLayer class]]) return;
+    if (native.isOpaque == translucent) {
+        native.backgroundColor = translucent ? NSColor.clearColor : NSColor.windowBackgroundColor;
+        native.opaque = !translucent;
+    }
+    layer.opaque = !translucent;
+}
+
 static inline double witty_ui2_macos_scale(void *window) {
     NSWindow *view = (NSWindow *)window;
     return view ? view.backingScaleFactor : 1;

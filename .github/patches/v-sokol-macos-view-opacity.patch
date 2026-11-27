@@ -1,0 +1,8 @@
+--- a/thirdparty/sokol/sokol_app.h
++++ b/thirdparty/sokol/sokol_app.h
+@@ -6843,4 +6843,4 @@
+ - (BOOL)isOpaque {
+-  return YES;
++  return self.window.isOpaque;
+ }
+ - (BOOL)canBecomeKeyView {
