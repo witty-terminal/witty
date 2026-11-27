@@ -27,6 +27,7 @@ checkout_revision tccbin "$tcc_revision" "$v_root/thirdparty/tcc"
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 git -C "$v_root" apply "$script_dir/../patches/v-gg-render-buffers.patch"
+git -C "$v_root" apply "$script_dir/../patches/v-gg-grow-text-atlas.patch"
 if [[ "$RUNNER_OS" != Windows ]]; then
   # V emits some callback typedefs after their structs and can drop optional enum typedefs.
   git -C "$v_root" apply "$script_dir/../patches/v-c-declarations.patch"
