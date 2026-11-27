@@ -50,7 +50,6 @@ fn (mut app App) create_pane(parent ?&Pane) !&Pane {
 		surface: &core.Surface{}
 		host:    &apprt.RuntimeSurface{
 			content_scale:         apprt.ContentScale{ x: scale, y: scale }
-			size:                  size_in_pixels(frame, f64(scale))
 			renderer_shares_gg:    $if macos { true } $else { false }
 			close_fn:              close_surface
 			set_clipboard_fn:      set_clipboard
@@ -65,6 +64,16 @@ fn (mut app App) create_pane(parent ?&Pane) !&Pane {
 	app.initializing = pane
 	defer { app.initializing = unsafe { nil } }
 	mut config := app.runtime.config
+	// A configured initial grid on macOS is sized from the runtime's
+	// bootstrap viewport, like the embedded terminal.
+	use_layout_size := $if macos {
+		app.tabs.len > 0 || config.window_width == 0 || config.window_height == 0
+	} $else {
+		true
+	}
+	if use_layout_size {
+		pane.host.size = size_in_pixels(frame, f64(scale))
+	}
 	if old := parent {
 		if pwd := old.surface.pwd() {
 			config.working_directory = pwd
@@ -86,11 +95,15 @@ fn startup_size(data voidptr, size apprt.InitialSize, minimum apprt.SizeLimit) ?
 		width:  u32(math.min(65535, math.max(math.round(f64(size.width) * scale.x), minimum.min_width)))
 		height: u32(math.min(65535, math.max(math.round(f64(size.height) * scale.y), minimum.min_height)))
 	}
-	if app.screenshot != '' {
-		app.capture_size = requested
-	} else if !set_initial_window_size(requested.width, requested.height) {
-		return none
+	$if !macos {
+		if app.screenshot != '' {
+			app.capture_size = requested
+			pane.host.size = requested
+			return requested
+		}
 	}
+	// On macOS the capture follows the live pane size, including later resizes.
+	if !set_initial_window_size(requested.width, requested.height) { return none }
 	pane.host.size = requested
 	return requested
 }
@@ -111,18 +124,20 @@ fn size_in_pixels(frame ui2.Rect, scale f64) apprt.SurfaceSize {
 	}
 }
 
-fn render_pane(id string, frame ui2.Rect, scale f64, _ f64) {
+fn render_pane(id string, _ ui2.Rect, scale f64, _ f64) {
 	mut app := g_app
 	mut pane := app.pane_by_id(id.all_after('terminal-').int()) or { return }
-	app.draw(mut pane, frame, scale) or {
+	app.draw(mut pane, scale) or {
 		app.failure = err
 		quit_window()
 	}
 }
 
-fn (mut app App) draw(mut pane Pane, frame ui2.Rect, scale f64) ! {
+fn (mut app App) draw(mut pane Pane, scale f64) ! {
 	defer { restore_ui_state() }
-	size := if app.capture_size.width > 0 { app.capture_size } else { size_in_pixels(frame, scale) }
+	// The surface callback's rectangle comes from the previous paint. Use the
+	// dimensions the pane layout assigned for this frame.
+	size := if app.capture_size.width > 0 { app.capture_size } else { size_in_pixels(pane.frame, scale) }
 	if pane.host.content_scale.x != f32(scale) {
 		pane.host.content_scale = apprt.ContentScale{ x: f32(scale), y: f32(scale) }
 		pane.surface.content_scale_callback(pane.host.content_scale)!

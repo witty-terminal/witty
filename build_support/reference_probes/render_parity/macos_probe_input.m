@@ -237,10 +237,16 @@ static void capture_hover(NSView *view, NSString *prefix, BOOL ghostty, NSUInteg
         dispatch_get_main_queue(), ^{ capture_hover(view, prefix, ghostty, step + 1); });
 }
 
-static void wait_for_terminal(NSString *ready, int attempts, BOOL ghostty, void (^dispatch_input)(NSView *)) {
+static void wait_for_terminal(NSString *ready, int attempts, BOOL ghostty, bool allow_ui2,
+                              void (^dispatch_input)(NSView *)) {
     if (access(ready.fileSystemRepresentation, F_OK) == 0) {
         for (NSWindow *window in NSApplication.sharedApplication.windows) {
             NSView *view = terminal_view(window.contentView, ghostty);
+            // The UI2 viewport probes render a single pane across the content view.
+            if (!view && allow_ui2 &&
+                    [NSStringFromClass(window.contentView.class) isEqualToString:@"_sapp_macos_view"]) {
+                view = window.contentView;
+            }
             if (!view) continue;
             // The PTY may still be draining the bytes written before the marker.
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 160 * NSEC_PER_MSEC),
@@ -253,7 +259,7 @@ static void wait_for_terminal(NSString *ready, int attempts, BOOL ghostty, void 
         exit(EXIT_FAILURE);
     }
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC),
-        dispatch_get_main_queue(), ^{ wait_for_terminal(ready, attempts - 1, ghostty, dispatch_input); });
+        dispatch_get_main_queue(), ^{ wait_for_terminal(ready, attempts - 1, ghostty, allow_ui2, dispatch_input); });
 }
 
 static bool click_split_zoom_reset(NSWindow *window) {
@@ -521,7 +527,7 @@ __attribute__((constructor)) static void install_probe_input(void) {
             NSString *prefix = [NSString stringWithUTF8String:capture];
             NSString *ready_path = [NSString stringWithUTF8String:ready];
             NSString *marker = has_split ? [ready_path stringByAppendingPathComponent:@"pane1.ready"] : ready_path;
-            wait_for_terminal(marker, 80, ghostty, ^(NSView *view) {
+            wait_for_terminal(marker, 80, ghostty, false, ^(NSView *view) {
                 [view.window makeKeyAndOrderFront:nil];
                 [NSApp activateIgnoringOtherApps:YES];
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (has_split ? 450 : 400) * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
@@ -543,15 +549,15 @@ __attribute__((constructor)) static void install_probe_input(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         NSString *ready_path = [NSString stringWithUTF8String:ready];
         if (has_resize) {
-            wait_for_terminal(ready_path, 50, NO, ^(NSView *view) { resize_window(view, size); });
+            wait_for_terminal(ready_path, 50, NO, true, ^(NSView *view) { resize_window(view, size); });
         } else if (has_drag) {
             const NSEventModifierFlags modifiers = option && *option ? NSEventModifierFlagOption : 0;
-            wait_for_terminal(ready_path, 50, NO, ^(NSView *view) { send_mouse_drag(view, drag, modifiers); });
+            wait_for_terminal(ready_path, 50, NO, true, ^(NSView *view) { send_mouse_drag(view, drag, modifiers); });
         } else {
             NSArray<NSString *> *keys = [[NSString stringWithUTF8String:sequence] componentsSeparatedByString:@","];
             const char *path = getenv("WITTY_VIEWPORT_RELOAD_CONFIG");
             NSString *config_path = path && *path ? [NSString stringWithUTF8String:path] : nil;
-            wait_for_terminal(ready_path, 50, config_path != nil, ^(NSView *view) {
+            wait_for_terminal(ready_path, 50, config_path != nil, true, ^(NSView *view) {
                 send_key_sequence(view, keys, 0, config_path);
             });
         }
