@@ -1,8 +1,7 @@
 module main
 
 import apprt
-import macos
-
+import witty_macos as macos
 #insert "@VMODROOT/initial_size_darwin_test_abi.h"
 
 fn C.witty_initial_size_test_scale2(view voidptr) voidptr

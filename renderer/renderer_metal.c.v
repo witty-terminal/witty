@@ -7,7 +7,7 @@ import font
 import font.shaper as fontshaper
 import highlight
 import log
-import macos
+import witty_macos as macos
 import sync
 import terminal
 import xev

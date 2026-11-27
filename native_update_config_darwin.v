@@ -1,8 +1,7 @@
 module main
 
 import configpkg
-import macos
-
+import witty_macos as macos
 fn native_update_config(config &configpkg.Config) macos.NativeUpdateConfig {
 	mut policy := ?int(none)
 	if value := config.auto_update { policy = int(value) }

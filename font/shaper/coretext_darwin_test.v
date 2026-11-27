@@ -1,7 +1,7 @@
 module shaper
 
 import font
-import macos
+import witty_macos as macos
 import terminal
 
 // ============================================================

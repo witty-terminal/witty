@@ -1,8 +1,7 @@
 module main
 
 import configpkg
-import macos
-
+import witty_macos as macos
 fn native_window_config(config &configpkg.Config) macos.NativeWindowConfig {
 	c := config.background
 	// Ghostty.Config's title and windowTitleFontFamily getters use Swift's

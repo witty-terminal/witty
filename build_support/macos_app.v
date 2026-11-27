@@ -48,14 +48,16 @@ pub fn (d Driver) build_macos_app(native_only bool) !string {
 
 fn (d Driver) build_macos_app_with_framework(native_only bool, framework_ready bool) !string {
 	if d.cfg.target.os != 'macos' { return error('macOS app requires a macOS target') }
-	if !framework_ready { d.build_xcframework_slices(native_only, false)! }
+	if d.cfg.app_runtime == 'none' && !framework_ready {
+		d.build_xcframework_slices(native_only, false)!
+	}
 	d.install_resources()!
 	d.install_locales()!
 	// Xcodebuild always depends on the source placeholder, even when docs
 	// are emitted separately by the installation graph.
 	d.install_text('share/man/.placeholder', 'emit-docs not true so no man pages')!
 	configuration := d.macos_configuration()
-	app := os.join_path(d.cfg.root, 'macos', 'build', configuration, 'Witty.app')
+	app := os.join_path(d.cfg.root, 'witty_macos', 'build', configuration, 'Witty.app')
 	contents := os.join_path(app, 'Contents')
 	if os.exists(app) { os.rmdir_all(app)! }
 	for directory in ['MacOS', 'Resources', 'Frameworks'] { os.mkdir_all(os.join_path(contents, directory))! }

@@ -2,8 +2,7 @@ module main
 
 import apprt
 import configpkg
-import macos
-
+import witty_macos as macos
 fn native_quick_size(size ?configpkg.QuickTerminalSizeValue) macos.NativeQuickSize {
 	if value := size {
 		return match value {

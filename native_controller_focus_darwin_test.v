@@ -2,8 +2,7 @@ module main
 
 import apprt
 import configpkg
-import macos
-
+import witty_macos as macos
 #insert "@VMODROOT/native_controller_focus_darwin_test_abi.h"
 
 fn C.witty_controller_focus_test_launch()

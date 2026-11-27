@@ -1,6 +1,6 @@
 module internal_os
 
-import macos
+import witty_macos as macos
 import os
 
 $if macos || ios {

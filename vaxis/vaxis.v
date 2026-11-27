@@ -102,9 +102,9 @@ mut:
 	value u8
 }
 
-pub fn Modifiers.init(shift bool, alt bool, ctrl bool, super_ bool, hyper bool, meta bool, caps_lock bool, num_lock bool) Modifiers {
+pub fn Modifiers.init(shift bool, alt bool, ctrl bool, super_ bool, hyper_key bool, meta bool, caps_lock bool, num_lock bool) Modifiers {
 	return Modifiers{
-		value: u8(shift) | (u8(alt) << 1) | (u8(ctrl) << 2) | (u8(super_) << 3) | (u8(hyper) << 4) | (u8(meta) << 5) | (u8(caps_lock) << 6) | (u8(num_lock) << 7)
+		value: u8(shift) | (u8(alt) << 1) | (u8(ctrl) << 2) | (u8(super_) << 3) | (u8(hyper_key) << 4) | (u8(meta) << 5) | (u8(caps_lock) << 6) | (u8(num_lock) << 7)
 	}
 }
 

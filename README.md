@@ -24,10 +24,16 @@ VFLAGS='-cc clang' v -path "$PWD|@vlib|@vmodules" run tools/build install
 
 Run the installed application with `./v-out/bin/witty`.
 
+## Building on macOS and Windows
+
+The desktop app uses UI2 on macOS, Windows, and Linux. Run `make` with the pinned V compiler and build dependencies from the corresponding CI job. On Windows, use Git Bash with the MinGW toolchain and Clang on `PATH`. The Windows terminal window requires an OpenGL 4.3 driver.
+
+The macOS bundle installs to `v-out/Witty.app`. The Windows desktop executable installs to `v-out/bin/witty.exe`. The Windows release also provides a separate `libwitty-vt.dll` archive for embedders.
+
 ## Capturing the terminal
 
 Witty saves the rendered terminal viewport at backing-pixel resolution and exits.
-On macOS, capture writes a Display P3 PNG offscreen and works without Screen Recording permission.
+On macOS, the UI2 app opens a window and writes a Display P3 PNG without requesting Screen Recording permission.
 
 ```sh
 ./Witty.app/Contents/MacOS/witty --screenshot=/tmp/witty.png -e /bin/ls -G

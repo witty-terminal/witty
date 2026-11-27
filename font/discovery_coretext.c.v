@@ -4,7 +4,7 @@ module font
 // compiled only for Darwin where the CoreText font backend is selected.
 import ascii
 import log
-import macos
+import witty_macos as macos
 import opentype
 
 $if macos || ios {

@@ -1,7 +1,6 @@
 module internal_os
 
-import macos
-
+import witty_macos as macos
 // home_macos mirrors NSFileManager.defaultManager's
 // homeDirectoryForCurrentUser.path fallback from Ghostty's homedir.zig.
 fn home_macos() ?string {

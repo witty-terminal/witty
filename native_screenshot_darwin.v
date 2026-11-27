@@ -1,8 +1,7 @@
 module main
 
 import core
-import macos
-
+import witty_macos as macos
 fn begin_screenshot(_ voidptr) {
 	mut runtime := standalone_runtime()
 	macos.native_undo_disable()

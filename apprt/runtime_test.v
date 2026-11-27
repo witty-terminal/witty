@@ -5,7 +5,7 @@ fn test_runtime_enum() {
 	assert Runtime.none_ == .none_
 	assert Runtime.ui2 == .ui2
 	assert sizeof(Runtime) == 1
-	$if linux {
+	$if linux || macos || windows {
 		assert Runtime.default() == .ui2
 	} $else {
 		assert Runtime.default() == .none_

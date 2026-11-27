@@ -4,7 +4,7 @@ import datastruct
 import font
 import internal_os
 import log
-import macos
+import witty_macos as macos
 import math
 import unicode
 

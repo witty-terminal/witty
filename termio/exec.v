@@ -1189,7 +1189,7 @@ fn exec_command(command configpkg.Command) ![]string {
 				// We run our shell wrapped in `cmd.exe` so that we don't have
 				// to parse the command line ourselves if it has arguments.
 				windir := os.getenv_opt('WINDIR') or {
-					log.warn('failed to get WINDIR, cannot run shell command err=${err}')
+					log.warn('failed to get WINDIR, cannot run shell command')
 					return error('SystemError')
 				}
 				[

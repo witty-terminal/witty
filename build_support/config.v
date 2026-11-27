@@ -156,12 +156,17 @@ pub fn init_config(root string, args []string) !Config {
 	if target.darwin() && target.minimum == '' {
 		target = Target{...target, minimum: if target.os == 'macos' { '13.0' } else { '17.0' }}
 	}
-	runtime := options['app-runtime'] or { if target.os == 'linux' { 'ui2' } else { 'none' } }
-	if runtime !in ['ui2', 'none'] || (runtime == 'ui2' && target.os != 'linux') {
+	desktop := target.os in ['linux', 'macos', 'windows']
+	runtime := options['app-runtime'] or { if desktop { 'ui2' } else { 'none' } }
+	if runtime !in ['ui2', 'none'] || (runtime == 'ui2' && !desktop) {
 		return error('invalid app-runtime for ${target.os}')
 	}
-	renderer := options['renderer'] or { if target.arch == 'wasm32' { 'webgl' } else if target.darwin() { 'metal' } else { 'opengl' } }
+	default_renderer := if target.arch == 'wasm32' { 'webgl' } else if target.darwin() { 'metal' } else { 'opengl' }
+	renderer := options['renderer'] or { default_renderer }
 	if renderer !in ['metal', 'opengl', 'webgl'] { return error('invalid renderer') }
+	if runtime == 'ui2' && renderer != default_renderer {
+		return error('UI2 on ${target.os} requires the ${default_renderer} renderer')
+	}
 	font_backend := options['font-backend'] or { if target.arch == 'wasm32' { 'web_canvas' } else if target.darwin() { 'coretext' } else { 'fontconfig_freetype' } }
 	if font_backend !in ['freetype', 'fontconfig_freetype', 'coretext', 'coretext_freetype',
 		'coretext_harfbuzz', 'coretext_noshape', 'web_canvas'] { return error('invalid font-backend') }
@@ -171,6 +176,7 @@ pub fn init_config(root string, args []string) !Config {
 	other := emit_bench || emit_test || emit_help
 	pandoc := os.find_abs_path_of_executable('pandoc') or { '' }
 	xcframework := option_bool(options, 'emit-xcframework', host_target().darwin() && target.os == 'macos' && runtime == 'none' && !other)!
+	macos_app := target.os == 'macos' && host_target().darwin() && !other
 	version := options['version-string'] or { detect_version(root, '1.3.0')! }
 	semver.from(version)!
 	xc_target := options['xcframework-target'] or { 'universal' }
@@ -200,7 +206,7 @@ pub fn init_config(root string, args []string) !Config {
 		emit_terminfo: option_bool(options, 'emit-terminfo', target.os == 'windows' || mode == .debug)!,
 		emit_termcap: option_bool(options, 'emit-termcap', mode == .debug)!,
 		emit_themes: option_bool(options, 'emit-themes', true)!, emit_webdata: option_bool(options, 'emit-webdata', false)!,
-		emit_xcframework: xcframework, emit_macos_app: option_bool(options, 'emit-macos-app', xcframework)!,
+		emit_xcframework: xcframework, emit_macos_app: option_bool(options, 'emit-macos-app', macos_app)!,
 		emit_unicode_table_gen: option_bool(options, 'emit-unicode-table-gen', false)!,
 		system_package: system_package, system_libraries: system_libraries,
 		steps: if steps.len == 0 { ['install'] } else { steps }, run_args: run_args, test_filters: filters,

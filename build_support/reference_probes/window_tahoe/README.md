@@ -2,7 +2,7 @@
 unchanged view/window traversal helpers. A small native NSWindow base fixture
 supplies the inherited font/config/accessory boundary. The probe compares the
 source view model and real toolbar item contract with the translated AppKit
-consumer's JSON from `macos/window_tahoe_darwin_test.v`.
+consumer's JSON from `witty_macos/window_tahoe_darwin_test.v`.
 
 ```sh
 VEXE=/path/to/v WITTY_TAHOE_MODEL_OUTPUT=/tmp/witty-tahoe-model.json \

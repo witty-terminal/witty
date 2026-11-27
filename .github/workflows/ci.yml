@@ -34,8 +34,10 @@ jobs:
         run: xcrun -f metal || xcodebuild -downloadComponent MetalToolchain
       - name: Install V
         run: bash .github/scripts/install-v.sh
+      - name: Install UI2
+        run: bash .github/scripts/install-ui2.sh
       - name: Check
-        run: v -check .
+        run: v -path "$PWD|$PWD/.witty-build/ui2-modules|@vlib|@vmodules" -d app_runtime_ui2 -d ui2_custom_rendering -check .
       - name: Build
         # Universal (arm64 + x86_64) app, as released. The standalone XCFramework
         # is skipped: its iOS slices need a V whose iOS C output compiles.
@@ -52,6 +54,8 @@ jobs:
           lipo -info "$exe"
           lipo "$exe" -verify_arch arm64
           lipo "$exe" -verify_arch x86_64
+          "$exe" --version | tee "$RUNNER_TEMP/witty-version"
+          grep -E 'app runtime +: ui2$' "$RUNNER_TEMP/witty-version"
           libraries=$(otool -arch all -L "$exe")
           if [[ "$libraries" == *libgc* ]]; then
             printf '%s\n' "$libraries"
@@ -152,18 +156,37 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install V
         run: bash .github/scripts/install-v.sh
-      - name: Build libwitty-vt
-        run: bash .github/scripts/ci-build.sh lib-vt
-      - name: Verify installed library
+      - name: Install UI2
+        run: bash .github/scripts/install-ui2.sh
+      - name: Check Windows frontend
+        shell: bash
         run: |
+          root=$(cygpath -am "$PWD")
+          v -path "$root|$root/.witty-build/ui2-modules|@vlib|@vmodules" -d managed_native -d app_runtime_ui2 -d ui2_custom_rendering -check .
+      - name: Build Witty and libwitty-vt
+        run: bash .github/scripts/ci-build.sh install
+      - name: Verify installed executable and library
+        run: |
+          exe="$RUNNER_TEMP/witty/bin/witty.exe"
+          test -f "$exe"
+          "$exe" --version > "$RUNNER_TEMP/witty-version"
+          cat "$RUNNER_TEMP/witty-version"
+          grep -E 'app runtime +: ui2$' "$RUNNER_TEMP/witty-version"
           test -f "$RUNNER_TEMP/witty/lib/libwitty-vt.dll"
           test -z "$(find "$RUNNER_TEMP/witty" -iname '*ghostty*' -print -quit)"
       - name: Package release
         if: inputs.release_tag != ''
         shell: pwsh
-        run: Compress-Archive -Path "$env:RUNNER_TEMP/witty" -DestinationPath "$env:RUNNER_TEMP/witty-vt-windows-x86_64.zip"
+        run: |
+          $install = "$env:RUNNER_TEMP/witty"
+          $vt = "$env:RUNNER_TEMP/witty-vt"
+          New-Item -ItemType Directory -Path "$vt/share" -Force | Out-Null
+          Copy-Item -Recurse "$install/include", "$install/lib" $vt
+          Copy-Item -Recurse "$install/share/pkgconfig" "$vt/share"
+          Compress-Archive -Path $install -DestinationPath "$env:RUNNER_TEMP/witty-windows-x86_64.zip"
+          Compress-Archive -Path $vt -DestinationPath "$env:RUNNER_TEMP/witty-vt-windows-x86_64.zip"
       - uses: actions/upload-artifact@v7
         with:
-          name: witty-vt-windows
-          path: ${{ inputs.release_tag != '' && format('{0}/witty-vt-windows-x86_64.zip', runner.temp) || format('{0}/witty', runner.temp) }}
+          name: witty-windows
+          path: ${{ inputs.release_tag != '' && format('{0}/witty*-windows-x86_64.zip', runner.temp) || format('{0}/witty', runner.temp) }}
           if-no-files-found: ${{ inputs.release_tag != '' && 'error' || 'warn' }}

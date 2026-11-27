@@ -1,8 +1,7 @@
 module main
 
 import apprt
-import macos
-
+import witty_macos as macos
 enum ControllerUndoKind { tree tree_redo restore close focus new_close new_redo }
 struct ControllerUndoState {
 	tree macos.NativeSplitTree

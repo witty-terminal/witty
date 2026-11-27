@@ -1,8 +1,7 @@
 module main
 
 import apprt
-import macos
-
+import witty_macos as macos
 fn test_native_present_terminal_preserves_zoom_and_source_observer_guards() {
 	macos.app_init()
 	first := macos.create_window(640, 480, 'present')

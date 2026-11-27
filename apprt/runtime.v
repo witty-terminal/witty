@@ -17,7 +17,7 @@ pub enum Runtime as u8 {
 // std.Target explicitly; V's compile-time platform selection supplies the
 // equivalent target here.
 pub fn Runtime.default() Runtime {
-	$if linux {
+	$if linux || macos || windows {
 		return Runtime.ui2
 	} $else {
 		return Runtime.none_

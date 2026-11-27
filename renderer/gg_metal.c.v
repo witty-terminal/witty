@@ -1,7 +1,7 @@
 @[has_globals]
 module renderer
 
-import macos
+import witty_macos as macos
 import sokol.gfx
 import sync
 
@@ -91,6 +91,31 @@ $if macos && !renderer_opengl ? {
 			gfx.shutdown()
 			gg_metal_device = unsafe { nil }
 		}
+	}
+
+	// UI2 owns the Sokol context. Import only the finished pane image into it.
+	pub fn import_ui2_metal_target(target MetalTarget) !gfx.Image {
+		retained := C.witty_gg_metal_retain_import(target.texture)
+		image := gfx.make_image(&gfx.ImageDesc{
+			width: int(target.width)
+			height: int(target.height)
+			pixel_format: .bgra8
+			mtl_textures: [target.texture, unsafe { nil }]!
+		})
+		if gfx.query_image_state(image) == .valid { return image }
+		gfx.destroy_image(image)
+		if retained { macos.metal_release(target.texture) }
+		return error('UI2 could not import the Metal terminal frame')
+	}
+
+	pub fn (mut r Renderer) ui2_metal_target() MetalTarget {
+		r.draw_mutex.lock()
+		defer { r.draw_mutex.unlock() }
+		mut target := r.frames[r.frame_index].target
+		if target.ui2_texture != unsafe { nil } {
+			target.texture = target.ui2_texture
+		}
+		return target
 	}
 
 	fn gg_metal_begin() &GGMetalFrame {

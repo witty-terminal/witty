@@ -2,8 +2,7 @@ module main
 
 import apprt
 import configpkg
-import macos
-
+import witty_macos as macos
 struct NativeConfigChangeTask {
 mut:
 	config configpkg.Config

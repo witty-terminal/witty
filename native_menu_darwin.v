@@ -2,8 +2,7 @@ module main
 
 import configpkg
 import input
-import macos
-
+import witty_macos as macos
 fn sync_config_menu(config &configpkg.Config) {
 	macos.sync_native_updater_config(native_update_config(config))
 	for action_text in macos.menu_actions() {

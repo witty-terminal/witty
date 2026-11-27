@@ -8,7 +8,7 @@ module internal_os
 // renderer thread.
 import datastruct
 import log
-import macos
+import witty_macos as macos
 import xev
 
 $if macos || ios {

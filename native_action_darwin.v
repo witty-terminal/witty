@@ -3,7 +3,7 @@ module main
 import configpkg
 import apprt
 import input
-import macos
+import witty_macos as macos
 import osc
 import renderer
 import terminal

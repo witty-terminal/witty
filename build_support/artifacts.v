@@ -27,10 +27,17 @@ pub fn (d Driver) v_arguments(artifact Artifact, deps NativeDeps) ![]string {
 		// Only the UI2 executable needs the Sokol application loop.
 		args << ['-d', 'no_sokol_app']
 	}
+	if d.cfg.app_runtime == 'ui2' && d.cfg.target.os in ['macos', 'windows'] {
+		args << ['-d', 'ui2_custom_rendering']
+	}
 	if d.cfg.target.darwin() {
 		// Witty's Objective-C bridges manage ownership explicitly. Sokol's
 		// Metal backend supports manual reference counting in the same unit.
 		args << ['-cflags', '-fno-objc-arc']
+	}
+	if d.cfg.target.os == 'windows' {
+		// V declares the CRT entry points and uses atomic_uintptr_t in channels.
+		args << ['-cflags', '-D__USE_MINGW_ANSI_STDIO=0', '-cflags', '-include stdatomic.h']
 	}
 	args << d.cfg.options(artifact)!
 	for define in deps.defines {
@@ -248,7 +255,8 @@ pub fn (d Driver) build_executable(deps NativeDeps) !string {
 			'-I', os.join_path(d.cfg.root, 'build_assets', 'dist', 'windows'),
 			'-i', os.join_path(d.cfg.root, 'build_assets', 'dist', 'windows', 'witty.rc'),
 			'-o', resource])!
-		args << ['-ldflags', '-Xlinker ' + compiler_argument(resource), '-ldflags', '-Wl,--subsystem,windows']
+		args << ['-ldflags', '-Xlinker ' + compiler_argument(resource), '-ldflags',
+			'-Wl,--subsystem,windows', '-ldflags', '-static', '-ldflags', '-lwinpthread']
 	}
 	output := d.cache_path('artifacts', buildcfg.cli_command + if d.cfg.target.os == 'windows' { '.exe' } else { '' })
 	os.mkdir_all(os.dir(output))!

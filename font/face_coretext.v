@@ -2,7 +2,7 @@ module font
 
 import gg.canvas
 import log
-import macos
+import witty_macos as macos
 import math
 import opentype
 import quirks

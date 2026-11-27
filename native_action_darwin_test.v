@@ -2,8 +2,7 @@ module main
 
 import apprt
 import configpkg
-import macos
-
+import witty_macos as macos
 fn test_native_config_change_preserves_unresolved_surface_scope() {
 	// App.swift clones the supplied config, then its missing-surface guard
 	// prevents an app-wide notification or replacement of the app config.

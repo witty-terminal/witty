@@ -41,7 +41,7 @@ fn (d Driver) build_xcframework_slices(native_only bool, include_ios bool) !stri
 				abi: 'simulator', cpu: 'apple_a17'}, 'ios-simulator-arm64')!
 		}
 	}
-	output := os.join_path(d.cfg.root, 'macos', 'WittyKit.xcframework')
+	output := os.join_path(d.cfg.root, 'witty_macos', 'WittyKit.xcframework')
 	if os.exists(output) { os.rmdir_all(output)! }
 	mut command := ['xcodebuild', '-create-xcframework']
 	for library in libraries {

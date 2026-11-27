@@ -1,7 +1,7 @@
 module harfbuzz
 
 import freetype
-import macos
+import witty_macos as macos
 import os
 
 const test_font_path = os.join_path(@VMODROOT, 'font', 'res', 'JetBrainsMono-Regular.ttf')

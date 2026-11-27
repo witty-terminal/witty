@@ -23,7 +23,7 @@ pub fn (d Driver) install() ! {
 	if d.cfg.emit_unicode_table_gen { d.install_unicode_generators()! }
 	if d.cfg.emit_test_exe { d.run_tests(false, false, true)! }
 	if d.cfg.app_runtime != 'none' {
-		if d.cfg.emit_exe {
+		if d.cfg.emit_exe && !(d.cfg.target.os == 'macos' && d.cfg.emit_macos_app) {
 			deps := d.build_native_dependencies(false)!
 			executable := d.build_executable(deps)!
 			d.install_file(executable, 'bin/' + os.base(executable))!

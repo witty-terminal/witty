@@ -3,7 +3,7 @@ module renderer
 import configpkg
 import datastruct
 import font
-import macos
+import witty_macos as macos
 import sync
 
 struct MetalFrameTestCapture {

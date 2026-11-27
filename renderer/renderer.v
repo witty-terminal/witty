@@ -755,7 +755,7 @@ import datastruct
 import file_type
 import gg.canvas
 import highlight
-import macos
+import witty_macos as macos
 import log
 import math
 import mathutil

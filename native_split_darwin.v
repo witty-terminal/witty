@@ -1,8 +1,7 @@
 module main
 
 import apprt
-import macos
-
+import witty_macos as macos
 fn do_new_split(current &TermState, direction apprt.SplitDirection) bool {
 	if int(direction) !in [0, 1, 2, 3] { return false }
 	if current.controller == unsafe { nil } || current.closed { return false }

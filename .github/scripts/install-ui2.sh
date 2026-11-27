@@ -22,7 +22,7 @@ temporary=$(mktemp -d "$modules/ui2.XXXXXX")
 trap 'rm -rf "$temporary"' EXIT
 git init --quiet "$temporary"
 git -C "$temporary" fetch --quiet --depth 1 "${WITTY_UI2_SOURCE:-https://github.com/vlang/ui2.git}" "$revision"
-git -C "$temporary" checkout --quiet --detach FETCH_HEAD
+git -C "$temporary" -c core.autocrlf=false checkout --quiet --detach FETCH_HEAD
 git -C "$temporary" apply --unidiff-zero "$patch"
 printf '%s\n' "$receipt" > "$temporary/.witty-ui2"
 if [[ -f "$destination/.witty-ui2" ]]; then

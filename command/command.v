@@ -473,6 +473,7 @@ fn setup_fd(src int, target int) ! {
 pub fn (self Command) wait(block bool) !Exit {
 	pid := self.pid or { return error('process not started') }
 	$if windows {
+		_ = pid
 		_ = block
 		if self.process_handle == unsafe { nil } {
 			return error('process handle is unavailable')
@@ -485,31 +486,31 @@ pub fn (self Command) wait(block bool) !Exit {
 		return Exit(ExitNormal{
 			status: exit_code
 		})
-	}
-
-	mut status := 0
-	if block {
-		result := C.waitpid(pid, &status, 0)
-		if result < 0 {
-			return error('waitpid failed')
-		}
-	} else {
-		// We specify NOHANG because its not our fault if the process we launch
-		// for the tty doesn't properly waitpid its children. We don't want
-		// to hang the terminal over it.
-		for {
-			result := C.waitpid(pid, &status, wnohang)
+	} $else {
+		mut status := 0
+		if block {
+			result := C.waitpid(pid, &status, 0)
 			if result < 0 {
 				return error('waitpid failed')
 			}
-			if result != 0 {
-				break
+		} else {
+			// We specify NOHANG because its not our fault if the process we launch
+			// for the tty doesn't properly waitpid its children. We don't want
+			// to hang the terminal over it.
+			for {
+				result := C.waitpid(pid, &status, wnohang)
+				if result < 0 {
+					return error('waitpid failed')
+				}
+				if result != 0 {
+					break
+				}
+				// result == 0 means no status yet, keep polling
 			}
-			// result == 0 means no status yet, keep polling
 		}
-	}
 
-	return exit_from_status(status)
+		return exit_from_status(status)
+	}
 }
 
 // set_data sets the user data pointer on the command.

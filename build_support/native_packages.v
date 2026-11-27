@@ -268,7 +268,7 @@ pub fn (d Driver) build_fontconfig(options NativeCompileOptions) !string {
 		'-DFC_GPERF_SIZE_T=size_t']
 	for name in ['DIRENT_H', 'FCNTL_H', 'STDLIB_H', 'STRING_H', 'UNISTD_H', 'SYS_PARAM_H', 'MKSTEMP',
 		'RAND', 'VPRINTF', 'FT_GET_BDF_PROPERTY', 'FT_GET_PS_FONT_INFO', 'FT_HAS_PS_GLYPH_NAMES',
-		'FT_GET_X11_FONT_FORMAT', 'FT_DONE_MM_VAR', 'POSIX_FADVISE', 'STDATOMIC_PRIMITIVES'] {
+		'FT_GET_X11_FONT_FORMAT', 'FT_DONE_MM_VAR'] {
 		flags << '-DHAVE_${name}'
 	}
 	ptr_size := d.cfg.target.pointer_size()!
@@ -279,6 +279,7 @@ pub fn (d Driver) build_fontconfig(options NativeCompileOptions) !string {
 			'-DFC_DEFAULT_FONTS="\\t<dir>WINDOWSFONTDIR</dir>\\n\\t<dir>WINDOWSUSERFONTDIR</dir>\\n"',
 			'-Werror=implicit-function-declaration']
 	} else {
+		flags << ['-DHAVE_POSIX_FADVISE', '-DHAVE_STDATOMIC_PRIMITIVES']
 		for name in ['FSTATFS', 'FSTATVFS', 'GETOPT', 'GETOPT_LONG', 'LINK', 'LRAND48', 'LSTAT',
 			'MKDTEMP', 'MKOSTEMP', '_MKTEMP_S', 'MMAP', 'PTHREAD', 'RANDOM', 'RAND_R', 'READLINK',
 			'SYS_MOUNT_H', 'SYS_STATVFS_H'] {

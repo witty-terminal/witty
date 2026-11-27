@@ -4,7 +4,7 @@ import apprt
 import configpkg
 import font
 import input
-import macos
+import witty_macos as macos
 import os
 
 // Zig's start code ignores SIGPIPE in every program, tests included, and

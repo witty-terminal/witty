@@ -6,7 +6,7 @@ import cli
 import configpkg
 import global_state
 import input
-import macos
+import witty_macos as macos
 import source_startup
 
 // The macOS executable is a native host for Ghostty's translated embedded
@@ -614,7 +614,7 @@ fn runtime_action(app &apprt.App, target apprt.Target, action apprt.RuntimeActio
 	return runtime_native_action(app, target, state, action)
 }
 
-fn main() {
+fn run_native_app() {
 	source_startup.prepare_app()
 	args := if os.args.len > 1 { os.args[1..] } else { []string{} }
 	screenshot, config_args := parse_screenshot_launch(args) or {
@@ -868,5 +868,11 @@ fn on_pressure(userdata voidptr, stage u32, pressure f64) {
 	mut state := state_from_userdata(userdata) or { return }
 	if !state.closed && state.surface != unsafe { nil } {
 		apprt.ghostty_surface_mouse_pressure(mut state.surface, stage, pressure)
+	}
+}
+
+$if app_runtime_none ? {
+	fn main() {
+		run_native_app()
 	}
 }

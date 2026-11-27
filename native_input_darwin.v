@@ -2,8 +2,7 @@ module main
 
 import apprt
 import input
-import macos
-
+import witty_macos as macos
 fn install_native_input_callbacks() {
 	macos.set_input_client_callbacks(macos.InputClientCallbacks{
 		begin_key_down: native_begin_key_down

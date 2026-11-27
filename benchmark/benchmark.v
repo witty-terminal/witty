@@ -287,23 +287,28 @@ fn codepoint_width_step_noop(ptr voidptr) ! {
 }
 
 fn codepoint_width_step_wcwidth(ptr voidptr) ! {
-	mut self := unsafe { &CodepointWidth(ptr) }
-	if !self.data.present {
-		return
-	}
-
-	mut decoder := terminal.UTF8Decoder{}
-	mut buf := []u8{len: 4096}
-	for {
-		n := self.data.read(mut buf)!
-		if n == 0 {
-			break
+	$if windows {
+		_ = ptr
+		return error('wcwidth is unavailable on Windows')
+	} $else {
+		mut self := unsafe { &CodepointWidth(ptr) }
+		if !self.data.present {
+			return
 		}
-		for c in buf[..n] {
-			result := decoder.next(c)
-			assert result.consumed
-			if cp := result.codepoint {
-				C.witty_benchmark_do_not_optimize_u64(u64(C.witty_benchmark_wcwidth(cp)))
+
+		mut decoder := terminal.UTF8Decoder{}
+		mut buf := []u8{len: 4096}
+		for {
+			n := self.data.read(mut buf)!
+			if n == 0 {
+				break
+			}
+			for c in buf[..n] {
+				result := decoder.next(c)
+				assert result.consumed
+				if cp := result.codepoint {
+					C.witty_benchmark_do_not_optimize_u64(u64(C.witty_benchmark_wcwidth(cp)))
+				}
 			}
 		}
 	}

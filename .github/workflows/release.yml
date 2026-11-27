@@ -40,6 +40,7 @@ jobs:
           assets=(
             release-assets/witty-macos-universal.tar.gz
             release-assets/witty-linux-x86_64.tar.gz
+            release-assets/witty-windows-x86_64.zip
             release-assets/witty-vt-windows-x86_64.zip
           )
           for asset in "${assets[@]}"; do

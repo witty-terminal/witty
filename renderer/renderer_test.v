@@ -4,7 +4,7 @@ import font
 import terminal
 import configpkg
 import datastruct
-import macos
+import witty_macos as macos
 import os
 import sync
 import wuffs.png as wuffs_png

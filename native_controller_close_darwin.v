@@ -1,8 +1,7 @@
 module main
 
 import apprt
-import macos
-
+import witty_macos as macos
 @[heap]
 struct CloseControllerTask {
 	current &TermState = unsafe { nil }

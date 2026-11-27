@@ -3,5 +3,5 @@ Witty.exe
 !include/witty/
 
 .witty-build/
-macos/build/
-macos/WittyKit.xcframework/
+witty_macos/build/
+witty_macos/WittyKit.xcframework/

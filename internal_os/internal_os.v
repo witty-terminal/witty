@@ -830,28 +830,41 @@ pub fn free_tmp_dir(dir string) {
 
 // getrlimit_nofile queries the current NOFILE resource limit.
 fn getrlimit_nofile() ?Rlimit {
-	mut rl := C.rlimit{}
-	if C.getrlimit(C.RLIMIT_NOFILE, &rl) != 0 {
+	$if windows {
 		return none
-	}
-	return Rlimit{
-		cur: rl.rlim_cur
-		max: rl.rlim_max
+	} $else {
+		mut rl := C.rlimit{}
+		if C.getrlimit(C.RLIMIT_NOFILE, &rl) != 0 {
+			return none
+		}
+		return Rlimit{
+			cur: rl.rlim_cur
+			max: rl.rlim_max
+		}
 	}
 }
 
 // setrlimit_nofile sets the NOFILE resource limit, returning true on success.
 fn setrlimit_nofile(lim Rlimit) bool {
-	rl := C.rlimit{
-		rlim_cur: lim.cur
-		rlim_max: lim.max
+	$if windows {
+		_ = lim
+		return false
+	} $else {
+		rl := C.rlimit{
+			rlim_cur: lim.cur
+			rlim_max: lim.max
+		}
+		return C.setrlimit(C.RLIMIT_NOFILE, &rl) == 0
 	}
-	return C.setrlimit(C.RLIMIT_NOFILE, &rl) == 0
 }
 
 // rlim_infinity returns the RLIM_INFINITY sentinel value for this platform.
 fn rlim_infinity() u64 {
-	return u64(C.RLIM_INFINITY)
+	$if windows {
+		return max_u64
+	} $else {
+		return u64(C.RLIM_INFINITY)
+	}
 }
 
 // ShellCommandBuilder accumulates arguments to build a shell command string.

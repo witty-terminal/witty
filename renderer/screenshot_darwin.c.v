@@ -1,7 +1,6 @@
 module renderer
 
-import macos
-
+import witty_macos as macos
 // Capture at device resolution after the final pass, including any custom shader.
 // Hold the draw mutex through readback so the swap chain cannot reuse the target.
 pub fn (mut self Renderer) screenshot_png(path string) ! {

@@ -2,7 +2,7 @@ module main
 
 import apprt
 import input
-import macos
+import witty_macos as macos
 import renderer
 
 @[heap]

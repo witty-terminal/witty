@@ -83,7 +83,7 @@ pub fn (d Driver) run_tests(vt_only bool, valgrind bool, install_only bool) ! {
 	files := tests.test_files(vt_only)!
 	// The native updater tests construct the pinned framework's real objects.
 	// Other test selections do not need to download or load Sparkle.
-	if files.contains('macos/updater_darwin_test.v') {
+	if files.contains('witty_macos/updater_darwin_test.v') {
 		os.setenv('WITTY_SPARKLE_TEST_FRAMEWORK', tests.build_sparkle()!, true)
 	}
 	for file in files {

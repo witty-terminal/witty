@@ -1,7 +1,6 @@
 module renderer
 
-import macos
-
+import witty_macos as macos
 $if renderer_opengl ? && renderer_metal ? {
 	$compile_error('renderer configuration must select one backend')
 }

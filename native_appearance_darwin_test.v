@@ -3,8 +3,7 @@ module main
 
 import apprt
 import core
-import macos
-
+import witty_macos as macos
 #insert "@VMODROOT/native_config_scope_darwin_test_abi.h"
 
 fn C.witty_config_scope_drain_main()

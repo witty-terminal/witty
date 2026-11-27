@@ -183,7 +183,7 @@ import crash
 import datastruct
 import internal_os
 import log
-import macos
+import witty_macos as macos
 import time
 import xev
 
@@ -317,7 +317,7 @@ pub mut:
 	// this is a blocking queue so if it is full you will get errors (or block).
 	mailbox &datastruct.BlockingQueue[RendererMessage] = unsafe { nil }
 
-	// Mailbox to send messages to the app thread. The Linux runtime requires GPU work on the
+	// Mailbox to send messages to the app thread. The UI2 runtime requires GPU work on the
 	// application thread; this callback is the translated App.Mailbox
 	// redraw_surface push used there (must_draw_from_app_thread).
 	app_redraw           Wakeup
@@ -415,7 +415,7 @@ pub fn RendererThread.init(config &configpkg.Config, renderer_impl &Renderer, st
 		mailbox:    mailbox
 		app_redraw: app_redraw
 	}
-	$if linux {
+	$if linux || app_runtime_ui2 ? {
 		result.draw_from_app_thread = true
 	}
 	init_ok = true

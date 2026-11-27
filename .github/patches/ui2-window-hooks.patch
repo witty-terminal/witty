@@ -1,21 +1,53 @@
+diff --git a/ui/gl_surface.v b/ui/gl_surface.v
+index de1d6e6..91d0f58 100644
+--- a/ui/gl_surface.v
++++ b/ui/gl_surface.v
+@@ -8,3 +8,2 @@ module ui2
+-// sokol's OpenGL backends — Linux and Android; custom-rendered desktop builds run
+-// Metal or D3D11, which have no GL texture to wrap, so a texture handed over there
+-// draws as an empty quad.
++// sokol's OpenGL backends. Other custom-rendered backends can borrow an image
++// from the active Sokol context.
+@@ -16,0 +16 @@ pub:
++	image_id   u32
+@@ -53,0 +54,15 @@ pub fn set_gl_surface_texture(id string, gl_texture u32, width int, height int)
++	surface_texture_updated()
++}
++
++// set_surface_image supplies an application-owned Sokol image. Its top row is
++// the top of the surface. The producer must keep it alive through the UI pass.
++pub fn set_surface_image(id string, image_id u32, width int, height int) {
++	g_gl_surface_requests[id] = GlTextureRequest{
++		image_id: image_id
++		width: width
++		height: height
++	}
++	surface_texture_updated()
++}
++
++fn surface_texture_updated() {
+diff --git a/ui/ui_immediate.c.v b/ui/ui_immediate.c.v
+index bcec4da..052cfd2 100644
 --- a/ui/ui_immediate.c.v
 +++ b/ui/ui_immediate.c.v
-@@ -177,0 +178,5 @@
+@@ -81,0 +82 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
++		borrowed   bool
+@@ -177,0 +179,5 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +	type WindowEventFilter = fn (&gg.Event) bool
 +	type WindowCleanupFn = fn ()
 +	__global g_window_event_filter = WindowEventFilter(unsafe { nil })
 +	__global g_window_cleanup_handler = WindowCleanupFn(unsafe { nil })
 +	__global g_pending_field_focus = ''
-@@ -476,0 +482,3 @@
+@@ -476,0 +483,3 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +		gl sapp.GlDesc
 +		fullscreen bool
 +		borderless bool
-@@ -530,0 +539,2 @@
+@@ -530,0 +540,2 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +			fullscreen: opts.fullscreen
 +			borderless_window: opts.borderless
-@@ -540,0 +551 @@
+@@ -540,0 +552 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +		g_gg_app.ctx.window.gl = opts.gl
-@@ -691,0 +703,10 @@
+@@ -691,0 +704,10 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +	// A filter may handle a window event before widget dispatch.
 +	pub fn set_window_event_filter(handler fn (&gg.Event) bool) {
 +		g_window_event_filter = handler
@@ -26,29 +58,57 @@
 +		g_window_cleanup_handler = handler
 +	}
 +
-@@ -847,0 +869,6 @@
+@@ -847,0 +870,6 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +		if id == '' {
 +			g_pending_field_focus = ''
 +			g_focused_field = ''
 +			invalidate_custom_paint()
 +			return
 +		}
-@@ -856,2 +883,4 @@
--			return
--		}
+@@ -855,0 +884 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +			g_pending_field_focus = id
-+			return
-+		}
+@@ -857,0 +887 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +		g_pending_field_focus = ''
-@@ -1117,0 +1147,3 @@
+@@ -889 +919,2 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+-			g_gg_app.ctx.quit()
++			// The application has already decided to close.
++			sapp.quit()
+@@ -1117,0 +1149,8 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
++		for _, texture in g_gl_surface_textures {
++			release_gl_surface_texture(texture)
++		}
++		g_gl_surface_textures.clear()
++		g_gl_surface_requests.clear()
 +		if g_window_cleanup_handler != unsafe { nil } {
 +			g_window_cleanup_handler()
 +		}
-@@ -1292,0 +1325,3 @@
+@@ -1292,0 +1332,3 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +			if g_pending_field_focus != '' {
 +				focus(g_pending_field_focus)
 +			}
-@@ -1460,0 +1496,3 @@
+@@ -1460,0 +1503,3 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +		if g_window_event_filter != unsafe { nil } && g_window_event_filter(e) {
 +			return
 +		}
+@@ -3788 +3833,2 @@ fn page_focused_text_area(direction int) {
+-			image:      gfx.make_image(&desc)
++			borrowed:   request.image_id != 0
++			image:      if request.image_id == 0 { gfx.make_image(&desc) } else { gfx.Image{id: request.image_id} }
+@@ -3799 +3845 @@ fn page_focused_text_area(direction int) {
+-		gfx.destroy_image(tex.image)
++		if !tex.borrowed { gfx.destroy_image(tex.image) }
+@@ -3820 +3866,2 @@ fn page_focused_text_area(direction int) {
+-				if current.gl_texture == request.gl_texture && current.width == request.width
++				if current.gl_texture == request.gl_texture && current.borrowed == (request.image_id != 0)
++					&& (!current.borrowed || current.image.id == request.image_id) && current.width == request.width
+@@ -3846,4 +3893,6 @@ fn page_focused_text_area(direction int) {
+-		ctx.r.v2f_t2f_c4f(f32(x0), f32(y0), 0, 1, 1, 1, 1, 1)
+-		ctx.r.v2f_t2f_c4f(f32(x1), f32(y0), 1, 1, 1, 1, 1, 1)
+-		ctx.r.v2f_t2f_c4f(f32(x1), f32(y1), 1, 0, 1, 1, 1, 1)
+-		ctx.r.v2f_t2f_c4f(f32(x0), f32(y1), 0, 0, 1, 1, 1, 1)
++		top := if tex.borrowed { f32(0) } else { f32(1) }
++		bottom := 1 - top
++		ctx.r.v2f_t2f_c4f(f32(x0), f32(y0), 0, top, 1, 1, 1, 1)
++		ctx.r.v2f_t2f_c4f(f32(x1), f32(y0), 1, top, 1, 1, 1, 1)
++		ctx.r.v2f_t2f_c4f(f32(x1), f32(y1), 1, bottom, 1, 1, 1, 1)
++		ctx.r.v2f_t2f_c4f(f32(x0), f32(y1), 0, bottom, 1, 1, 1, 1)

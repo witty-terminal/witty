@@ -2,7 +2,7 @@ module renderer
 
 import cimgui
 import font
-import macos
+import witty_macos as macos
 import sokol.gfx
 
 $if macos && !renderer_opengl ? {

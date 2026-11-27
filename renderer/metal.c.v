@@ -2,8 +2,7 @@ module renderer
 
 import configpkg
 import font
-import macos
-
+import witty_macos as macos
 $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 
 	// MetalAPI wraps the Metal graphics API implementation.

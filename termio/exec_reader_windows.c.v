@@ -5,12 +5,12 @@ import internal_os
 import log
 import pty
 
-#include <windows.h>
+#insert "@VMODROOT/termio/exec_reader_windows.h"
 
 fn C.ReadFile(handle voidptr, buffer voidptr, size u32, count &u32, overlapped voidptr) bool
 fn C.WriteFile(handle voidptr, buffer voidptr, size u32, count &u32, overlapped voidptr) bool
 fn C.CancelIoEx(handle voidptr, overlapped voidptr) bool
-fn C.PeekNamedPipe(handle voidptr, buffer voidptr, size u32, read &u32, available &u32, remaining &u32) bool
+fn C.witty_pty_peek(handle voidptr, available &u32) bool
 fn C.TerminateProcess(handle voidptr, code u32) bool
 fn C.GetLastError() u32
 fn C.CloseHandle(handle voidptr) bool
@@ -38,16 +38,17 @@ pub fn thread_main_windows(fd pty.Fd, quit internal_os.PipeFd, io &Termio) {
 			if !C.ReadFile(fd, &buf[0], 1024, &n, unsafe { nil }) {
 				code := C.GetLastError()
 				if code == 995 { break } // ERROR_OPERATION_ABORTED
+				if code in [38, 109, 232] { return } // EOF or closed pipe
 				log.error('io reader error err=${code}')
 				panic('unexpected pty read error')
 			}
+			if n == 0 { return }
 			if tio != unsafe { nil } {
 				tio.process_output(unsafe { buf[..int(n)].clone() })
 			}
 		}
 		mut quit_bytes := u32(0)
-		if !C.PeekNamedPipe(quit, unsafe { nil }, 0, unsafe { nil }, &quit_bytes,
-			unsafe { nil }) {
+		if !C.witty_pty_peek(quit, &quit_bytes) {
 			log.error('quit pipe reader error err=${C.GetLastError()}')
 			panic('unexpected quit pipe read error')
 		}

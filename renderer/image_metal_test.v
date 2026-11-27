@@ -2,7 +2,7 @@ module renderer
 
 // Image upload and drawing tests that need a Metal device.
 import configpkg
-import macos
+import witty_macos as macos
 import sokol.gfx
 
 struct ImageMetalFrameCapture {

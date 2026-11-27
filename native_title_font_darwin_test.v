@@ -2,8 +2,7 @@ module main
 
 import apprt
 import configpkg
-import macos
-
+import witty_macos as macos
 #insert "@VMODROOT/native_config_scope_darwin_test_abi.h"
 #insert "@VMODROOT/native_title_font_darwin_test_abi.h"
 

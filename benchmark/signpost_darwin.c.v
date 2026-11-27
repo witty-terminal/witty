@@ -1,7 +1,6 @@
 module benchmark
 
-import macos
-
+import witty_macos as macos
 fn benchmark_signpost_begin(ptr voidptr) BenchmarkSignpost {
 	macos.signpost_init()
 	log := macos.OSLog.create('com.alexander.witty', macos.signpost_category_points_of_interest)

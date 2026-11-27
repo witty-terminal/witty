@@ -1,6 +1,6 @@
 module renderer
 
-import macos
+import witty_macos as macos
 import sokol.gfx
 
 enum GGMetalDrawKind {

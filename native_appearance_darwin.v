@@ -1,8 +1,7 @@
 module main
 
 import apprt
-import macos
-
+import witty_macos as macos
 // AppDelegate observes NSApplication.effectiveAppearance with .new/.initial
 // after the optional libwitty application has been initialized.
 fn native_application_appearance_changed(dark bool) {

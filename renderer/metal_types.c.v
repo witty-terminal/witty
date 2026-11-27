@@ -2,7 +2,7 @@ module renderer
 
 import font
 import log
-import macos
+import witty_macos as macos
 import time
 
 $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
@@ -529,6 +529,7 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		surface &macos.IOSurface = unsafe { nil }
 		// The texture handle.
 		texture voidptr = unsafe { nil }
+		ui2_texture voidptr = unsafe { nil }
 		// Width and height of the target.
 		width        uint
 		height       uint
@@ -562,15 +563,31 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			colorspace:        colorspace
 		})!
 		resource_options := MetalResourceOptions.init(.write_combined, opts.storage_mode, .default)
-		usage := MetalTextureUsage.from_int(0x04)
+		// UI2 samples the completed render target directly.
+		usage := MetalTextureUsage.from_int(0x05)
 		texture := macos.metal_new_iosurface_texture(opts.device, voidptr(surface), u64(opts.pixel_format), opts.width, opts.height, resource_options.int_val(), usage.int_val())
 		if texture == unsafe { nil } {
 			surface.deinit()
 			return error('Metal target texture allocation failed')
 		}
+		mut ui2_texture := unsafe { voidptr(nil) }
+		$if app_runtime_ui2 ? {
+			if opts.pixel_format == .bgra8unorm_srgb {
+				// The UI2 pass expects encoded color values. Read the same IOSurface
+				// through a non-sRGB view to avoid decoding a second time.
+				ui2_texture = macos.metal_new_iosurface_texture(opts.device, voidptr(surface),
+					u64(MetalPixelFormat.bgra8unorm), opts.width, opts.height, resource_options.int_val(), 1)
+				if ui2_texture == unsafe { nil } {
+					macos.metal_release(texture)
+					surface.deinit()
+					return error('Metal UI2 texture allocation failed')
+				}
+			}
+		}
 		return MetalTarget{
 			surface:      surface
 			texture:      texture
+			ui2_texture:  ui2_texture
 			width:        opts.width
 			height:       opts.height
 			pixel_format: opts.pixel_format
@@ -582,8 +599,10 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			self.surface.deinit()
 		}
 		macos.metal_release(self.texture)
+		macos.metal_release(self.ui2_texture)
 		self.surface = unsafe { nil }
 		self.texture = unsafe { nil }
+		self.ui2_texture = unsafe { nil }
 	}
 
 	// ============================================================

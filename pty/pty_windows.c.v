@@ -18,8 +18,8 @@ mut:
 }
 
 @[typedef]
-struct C.COORD {
-mut:
+pub struct C.COORD {
+pub mut:
 	X i16
 	Y i16
 }
