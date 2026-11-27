@@ -95,6 +95,7 @@ fn config_load_failure(err IError) configpkg.Config {
 fn window_ready(_ voidptr) {
 	mut app := g_app
 	$if macos {
+		configure_window_colorspace()
 		use_transient_window_depth()
 		renderer.start_ui2_metal_frame_tracking()
 	}

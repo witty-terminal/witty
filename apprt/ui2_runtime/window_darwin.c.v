@@ -8,11 +8,16 @@ import sokol.sapp
 fn C.witty_ui2_macos_resize(window voidptr, width f64, height f64) bool
 fn C.witty_ui2_macos_scale(window voidptr) f64
 fn C.witty_ui2_macos_quit()
+fn C.witty_ui2_macos_set_display_p3(window voidptr)
 fn C.witty_ui2_macos_use_transient_depth(window voidptr)
 
 fn identify_window(_ string) {}
 
 fn quit_window() { C.witty_ui2_macos_quit() }
+
+fn configure_window_colorspace() {
+	C.witty_ui2_macos_set_display_p3(sapp.macos_get_window())
+}
 
 fn use_transient_window_depth() {
 	C.witty_ui2_macos_use_transient_depth(sapp.macos_get_window())

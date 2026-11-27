@@ -1,5 +1,6 @@
 #pragma once
 #include <AppKit/AppKit.h>
+#include <QuartzCore/CAMetalLayer.h>
 #include <MetalKit/MetalKit.h>
 #include <dispatch/dispatch.h>
 
@@ -13,6 +14,16 @@ static inline void witty_ui2_macos_use_transient_depth(void *window) {
             view.depthStencilStorageMode = MTLStorageModeMemoryless;
         }
     }
+}
+
+static inline void witty_ui2_macos_set_display_p3(void *window) {
+    CALayer *layer = ((NSWindow *)window).contentView.layer;
+    if (![layer isKindOfClass:[CAMetalLayer class]]) return;
+    // Both terminal color modes produce Display P3 pixels.
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3);
+    if (!space) return;
+    ((CAMetalLayer *)layer).colorspace = space;
+    CGColorSpaceRelease(space);
 }
 
 static inline double witty_ui2_macos_scale(void *window) {
