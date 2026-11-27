@@ -10,7 +10,7 @@ fn C.witty_ui2_macos_scale(window voidptr) f64
 fn C.witty_ui2_macos_quit()
 fn C.witty_ui2_macos_set_display_p3(window voidptr)
 fn C.witty_ui2_macos_set_translucent(window voidptr, translucent bool)
-fn C.witty_ui2_macos_use_transient_depth(window voidptr)
+fn C.witty_ui2_macos_configure_render_targets(window voidptr)
 
 fn identify_window(_ string) {}
 
@@ -24,8 +24,8 @@ fn configure_window_opacity(opacity f64) {
 	C.witty_ui2_macos_set_translucent(sapp.macos_get_window(), opacity < 1)
 }
 
-fn use_transient_window_depth() {
-	C.witty_ui2_macos_use_transient_depth(sapp.macos_get_window())
+fn configure_window_render_targets() {
+	C.witty_ui2_macos_configure_render_targets(sapp.macos_get_window())
 }
 
 fn initial_window_scale() f64 {

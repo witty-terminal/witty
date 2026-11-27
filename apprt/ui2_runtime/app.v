@@ -97,7 +97,7 @@ fn window_ready(_ voidptr) {
 	$if macos {
 		configure_window_colorspace()
 		configure_window_opacity(app.runtime.config.background_opacity)
-		use_transient_window_depth()
+		configure_window_render_targets()
 		renderer.start_ui2_metal_frame_tracking()
 	}
 	app.ready = true
