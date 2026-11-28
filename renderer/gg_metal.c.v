@@ -167,12 +167,19 @@ $if macos && !renderer_opengl ? {
 			uint(swapchain.width), uint(swapchain.height))
 	}
 
-	pub fn (mut r Renderer) draw_ui2_metal_window(texture voidptr, width u32, height u32) !bool {
-		return r.draw_frame_to_target(true, WindowRenderTarget{
+	pub fn (mut r Renderer) draw_ui2_metal_window(texture voidptr, width u32, height u32,
+		drawable voidptr, overlay ?WindowComputeOverlay) !WindowMetalDraw {
+		mut request := WindowComputeRequest{
+			drawable: drawable
+			overlay: overlay or { WindowComputeOverlay{} }
+		}
+		drawn := r.draw_frame_to_target(true, WindowRenderTarget{
 			texture: texture
 			width: width
 			height: height
-		})
+			compute: if overlay != none { &request } else { unsafe { nil } }
+		})!
+		return if drawn { request.result } else { .unhandled }
 	}
 
 	fn gg_metal_begin() &GGMetalFrame {

@@ -448,12 +448,9 @@ fragment float4 bg_image_fragment(
 //-------------------------------------------------------------------
 #pragma mark - Cell BG Shader
 
-fragment float4 cell_bg_fragment(
-  FullScreenVertexOut in [[stage_in]],
-  constant Uniforms& uniforms [[buffer(1)]],
-  constant uchar4 *cells [[buffer(2)]]
-) {
-  int2 grid_pos = int2(floor((in.position.xy - uniforms.grid_padding.wx) / uniforms.cell_size));
+template <typename Colors>
+float4 cell_background_color(float2 position, constant Uniforms& uniforms, Colors cells) {
+  int2 grid_pos = int2(floor((position - uniforms.grid_padding.wx) / uniforms.cell_size));
 
   float4 bg = float4(0.0);
 
@@ -504,6 +501,14 @@ fragment float4 cell_bg_fragment(
   );
 }
 
+fragment float4 cell_bg_fragment(
+  FullScreenVertexOut in [[stage_in]],
+  constant Uniforms& uniforms [[buffer(1)]],
+  constant uchar4 *cells [[buffer(2)]]
+) {
+  return cell_background_color(in.position.xy, uniforms, cells);
+}
+
 //-------------------------------------------------------------------
 // Cell Text Shader
 //-------------------------------------------------------------------
@@ -552,6 +557,58 @@ struct CellTextVertexOut {
   float4 bg_color [[flat]];
   float2 tex_coord;
 };
+
+template <typename Colors>
+void text_colors(thread CellTextVertexOut& out, ushort2 grid_pos, uchar4 color, uchar bools,
+  constant Uniforms& uniforms, Colors bg_colors) {
+  // Get our color. We always fetch a linearized version to
+  // make it easier to handle minimum contrast calculations.
+  out.color = load_color(
+    color,
+    uniforms.use_display_p3,
+    true
+  );
+
+  // Get the BG color
+  out.bg_color = load_color(
+    bg_colors[grid_pos.y * uniforms.grid_size.x + grid_pos.x],
+    uniforms.use_display_p3,
+    true
+  );
+  // Blend it with the global bg color
+  float4 global_bg = load_color(
+    uniforms.bg_color,
+    uniforms.use_display_p3,
+    true
+  );
+  out.bg_color += global_bg * (1.0 - out.bg_color.a);
+
+  // If we have a minimum contrast, we need to check if we need to
+  // change the color of the text to ensure it has enough contrast
+  // with the background.
+  if (uniforms.min_contrast > 1.0f && (bools & NO_MIN_CONTRAST) == 0) {
+    // Ensure our minimum contrast
+    out.color = contrasted_color(uniforms.min_contrast, out.color, out.bg_color);
+  }
+
+  // Check if current position is under cursor (including wide cursor)
+  bool is_cursor_pos = (
+      grid_pos.x == uniforms.cursor_pos.x ||
+      uniforms.cursor_wide &&
+        grid_pos.x == uniforms.cursor_pos.x + 1
+    ) && grid_pos.y == uniforms.cursor_pos.y;
+
+  // If this cell is the cursor cell, but we're not processing
+  // the cursor glyph itself, then we need to change the color.
+  if ((bools & IS_CURSOR_GLYPH) == 0 && is_cursor_pos) {
+    out.color = load_color(
+      uniforms.cursor_color,
+      uniforms.use_display_p3,
+      true
+    );
+  }
+
+}
 
 vertex CellTextVertexOut cell_text_vertex(
   uint vid [[vertex_id]],
@@ -625,62 +682,13 @@ vertex CellTextVertexOut cell_text_vertex(
   // be sampled with pixel coordinate mode.
   out.tex_coord = float2(in.glyph_pos) + float2(in.glyph_size) * corner;
 
-  // Get our color. We always fetch a linearized version to
-  // make it easier to handle minimum contrast calculations.
-  out.color = load_color(
-    in.color,
-    uniforms.use_display_p3,
-    true
-  );
-
-  // Get the BG color
-  out.bg_color = load_color(
-    bg_colors[in.grid_pos.y * uniforms.grid_size.x + in.grid_pos.x],
-    uniforms.use_display_p3,
-    true
-  );
-  // Blend it with the global bg color
-  float4 global_bg = load_color(
-    uniforms.bg_color,
-    uniforms.use_display_p3,
-    true
-  );
-  out.bg_color += global_bg * (1.0 - out.bg_color.a);
-
-  // If we have a minimum contrast, we need to check if we need to
-  // change the color of the text to ensure it has enough contrast
-  // with the background.
-  if (uniforms.min_contrast > 1.0f && (in.bools & NO_MIN_CONTRAST) == 0) {
-    // Ensure our minimum contrast
-    out.color = contrasted_color(uniforms.min_contrast, out.color, out.bg_color);
-  }
-
-  // Check if current position is under cursor (including wide cursor)
-  bool is_cursor_pos = (
-      in.grid_pos.x == uniforms.cursor_pos.x ||
-      uniforms.cursor_wide &&
-        in.grid_pos.x == uniforms.cursor_pos.x + 1
-    ) && in.grid_pos.y == uniforms.cursor_pos.y;
-
-  // If this cell is the cursor cell, but we're not processing
-  // the cursor glyph itself, then we need to change the color.
-  if ((in.bools & IS_CURSOR_GLYPH) == 0 && is_cursor_pos) {
-    out.color = load_color(
-      uniforms.cursor_color,
-      uniforms.use_display_p3,
-      true
-    );
-  }
+  text_colors(out, in.grid_pos, in.color, in.bools, uniforms, bg_colors);
 
   return out;
 }
 
-fragment float4 cell_text_fragment(
-  CellTextVertexOut in [[stage_in]],
-  texture2d<float> textureGrayscale [[texture(0)]],
-  texture2d<float> textureColor [[texture(1)]],
-  constant Uniforms& uniforms [[buffer(1)]]
-) {
+float4 glyph_color(CellTextVertexOut in, texture2d<float> textureGrayscale,
+  texture2d<float> textureColor, constant Uniforms& uniforms) {
   constexpr sampler textureSampler(
     coord::pixel,
     address::clamp_to_edge,
@@ -692,6 +700,7 @@ fragment float4 cell_text_fragment(
     case ATLAS_GRAYSCALE: {
       // Our input color is always linear.
       float4 color = in.color;
+      if (color.a == 0.0f) return float4(0.0f);
 
       // If we're not doing linear blending, then we need to
       // re-apply the gamma encoding to our color manually.
@@ -743,6 +752,7 @@ fragment float4 cell_text_fragment(
       // For now, we assume that color glyphs
       // are already premultiplied linear colors.
       float4 color = textureColor.sample(textureSampler, in.tex_coord);
+      if (color.a == 0.0f) return float4(0.0f);
 
       // If we're doing linear blending, we can return this right away.
       if (uniforms.use_linear_blending) {
@@ -759,6 +769,15 @@ fragment float4 cell_text_fragment(
     }
   }
 }
+fragment float4 cell_text_fragment(
+  CellTextVertexOut in [[stage_in]],
+  texture2d<float> textureGrayscale [[texture(0)]],
+  texture2d<float> textureColor [[texture(1)]],
+  constant Uniforms& uniforms [[buffer(1)]]
+) {
+  return glyph_color(in, textureGrayscale, textureColor, uniforms);
+}
+
 //-------------------------------------------------------------------
 // Image Shader
 //-------------------------------------------------------------------
@@ -851,3 +870,91 @@ fragment float4 image_fragment(
   return rgba;
 }
 
+
+//-------------------------------------------------------------------
+// Compute presentation for the opaque single-pane window
+//-------------------------------------------------------------------
+#pragma mark - Window Compute Shader
+
+struct ComputeGlyph {
+  uint2 glyph_pos;
+  uint2 glyph_size;
+  short2 bearings;
+  ushort2 grid_pos;
+  uchar4 color;
+  uchar atlas;
+  uchar bools;
+};
+
+struct WindowComputeParams {
+  uint2 padding;
+  uint tile_columns;
+  uint point_count;
+  float4 overlay_color;
+  float4 overlay_bounds;
+  float2 overlay[68];
+};
+
+float4 window_unorm(float4 color) {
+  return rint(saturate(color) * 255.0f) * (1.0f / 255.0f);
+}
+
+float4 window_blend(float4 destination, float4 source) {
+  return window_unorm(source + destination * (1.0f - source.a));
+}
+
+kernel void terminal_window_compute(
+  texture2d<float, access::write> target [[texture(0)]],
+  texture2d<float> grayscale [[texture(1)]],
+  texture2d<float> color [[texture(2)]],
+  constant Uniforms& uniforms [[buffer(0)]],
+  const device uchar4* background [[buffer(1)]],
+  const device ComputeGlyph* glyphs [[buffer(2)]],
+  const device uint* offsets [[buffer(3)]],
+  const device uint* indices [[buffer(4)]],
+  constant WindowComputeParams& params [[buffer(5)]],
+  uint2 pixel [[thread_position_in_grid]]
+) {
+  float2 position = float2(pixel) + 0.5f;
+  if (params.point_count >= 3 && all(position >= params.overlay_bounds.xy)
+      && all(position < params.overlay_bounds.zw)) {
+    // All solid overlay outlines use clockwise, convex polygons.
+    bool inside = true;
+    float2 start = params.overlay[params.point_count - 1];
+    for (uint i = 0; i < params.point_count; ++i) {
+      float2 end = params.overlay[i];
+      float2 edge = end - start;
+      float2 to_pixel = position - start;
+      inside &= edge.x * to_pixel.y >= edge.y * to_pixel.x;
+      start = end;
+    }
+    if (inside) {
+      target.write(params.overlay_color, pixel);
+      return;
+    }
+  }
+
+  float4 result = window_unorm(load_color(uniforms.bg_color, uniforms.use_display_p3, false));
+  if (uniforms.grid_size.x > 0 && uniforms.grid_size.y > 0) {
+    result = window_blend(result, cell_background_color(position, uniforms, background));
+  }
+
+  uint tile = (pixel.y / 16) * params.tile_columns + pixel.x / 16;
+  for (uint i = offsets[tile]; i < offsets[tile + 1]; ++i) {
+    ComputeGlyph glyph = glyphs[indices[i]];
+    int2 base = int2(params.padding) + int2(uniforms.cell_size) * int2(glyph.grid_pos);
+    base += int2(glyph.bearings.x, int(uniforms.cell_size.y) - glyph.bearings.y);
+    int2 local = int2(pixel) - base;
+    if (any(local < 0) || any(uint2(local) >= glyph.glyph_size)) {
+      continue;
+    }
+    CellTextVertexOut in;
+    in.atlas = glyph.atlas;
+    in.tex_coord = float2(glyph.glyph_pos + uint2(local)) + 0.5f;
+    if (glyph.atlas == ATLAS_GRAYSCALE) {
+      text_colors(in, glyph.grid_pos, glyph.color, glyph.bools, uniforms, background);
+    }
+    result = window_blend(result, glyph_color(in, grayscale, color, uniforms));
+  }
+  target.write(result, pixel);
+}

@@ -27,7 +27,7 @@ index de1d6e6..91d0f58 100644
 +
 +fn surface_texture_updated() {
 diff --git a/ui/ui_immediate.c.v b/ui/ui_immediate.c.v
-index bcec4da..1fefc61 100644
+index bcec4da..eb68eb9 100644
 --- a/ui/ui_immediate.c.v
 +++ b/ui/ui_immediate.c.v
 @@ -9,0 +10 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
@@ -36,12 +36,13 @@ index bcec4da..1fefc61 100644
 +		borrowed   bool
 @@ -90,0 +93 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +		surface_copy_pipeline render.Pipeline
-@@ -177,0 +181,12 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -177,0 +181,13 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +	type WindowEventFilter = fn (&gg.Event) bool
 +	type WindowCleanupFn = fn ()
 +	pub enum WindowSurfaceResult {
 +		unhandled
 +		drawn
++		presented
 +		retry
 +	}
 +	type WindowSurfaceRenderer = fn (string, f64, gfx.Swapchain) WindowSurfaceResult
@@ -49,24 +50,24 @@ index bcec4da..1fefc61 100644
 +	__global g_window_event_filter = WindowEventFilter(unsafe { nil })
 +	__global g_window_cleanup_handler = WindowCleanupFn(unsafe { nil })
 +	__global g_pending_field_focus = ''
-@@ -476,0 +492,5 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -476,0 +493,5 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +		gl sapp.GlDesc
 +		fullscreen bool
 +		borderless bool
 +		macos_hidden_window bool
 +		defer_font_init bool
-@@ -511 +531 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -511 +532 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 -		font_regular, font_bold := font_paths()
 +		font_regular, font_bold := if opts.defer_font_init { '', '' } else { font_paths() }
-@@ -518,0 +539 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -518,0 +540 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +			defer_font_init: opts.defer_font_init
-@@ -530,0 +552,2 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -530,0 +553,2 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +			fullscreen: opts.fullscreen
 +			borderless_window: opts.borderless
-@@ -540,0 +564,2 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -540,0 +565,2 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +		g_gg_app.ctx.window.gl = opts.gl
 +		g_gg_app.ctx.window.macos_hidden_window = opts.macos_hidden_window
-@@ -691,0 +717,16 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -691,0 +718,16 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +	// A filter may handle a window event before widget dispatch.
 +	pub fn set_window_event_filter(handler fn (&gg.Event) bool) {
 +		g_window_event_filter = handler
@@ -83,22 +84,22 @@ index bcec4da..1fefc61 100644
 +		g_window_surface_renderer = renderer
 +	}
 +
-@@ -847,0 +889,6 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -847,0 +890,6 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +		if id == '' {
 +			g_pending_field_focus = ''
 +			g_focused_field = ''
 +			invalidate_custom_paint()
 +			return
 +		}
-@@ -855,0 +903 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -855,0 +904 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +			g_pending_field_focus = id
-@@ -857,0 +906 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -857,0 +907 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +		g_pending_field_focus = ''
-@@ -889 +938,2 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -889 +939,2 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 -			g_gg_app.ctx.quit()
 +			// The application has already decided to close.
 +			sapp.quit()
-@@ -1117,0 +1168,13 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -1117,0 +1169,13 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +		for _, texture in g_gl_surface_textures {
 +			release_gl_surface_texture(texture)
 +		}
@@ -112,24 +113,27 @@ index bcec4da..1fefc61 100644
 +		if g_window_cleanup_handler != unsafe { nil } {
 +			g_window_cleanup_handler()
 +		}
-@@ -1120 +1182,0 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -1120 +1183,0 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 -		mut state := unsafe { app }
-@@ -1229 +1291 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -1229 +1292 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 -		if !text_measurement_exact() && ctx.font_inited {
 +		if !text_measurement_exact() && (ctx.font_inited || ctx.config.defer_font_init) {
-@@ -1254 +1316 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -1254 +1317 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 -		root := apply_custom_widget_animations(app.declared_root)
 +		mut root := apply_custom_widget_animations(app.declared_root)
-@@ -1261 +1323,20 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -1261 +1324,23 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 -		if voidptr(g_gl_surface_renderer) != unsafe { nil } {
 +		mut window_pass := gg.EndOptions{}
++		mut presented := false
 +		if g_window_surface_renderer != unsafe { nil } && !app.iconified
 +			&& root.kind == .screen && root.children.len > 0 && menu_bar_height() == 0 {
 +			first := root.children[0]
 +			if first.kind == .opengl && first.frame == rect(0, 0, f64(ctx.width), f64(ctx.height)) {
 +				swapchain := sapp.glue_swapchain()
-+				match g_window_surface_renderer(first.id, f64(ctx.scale), swapchain) {
-+					.drawn {
++				result := g_window_surface_renderer(first.id, f64(ctx.scale), swapchain)
++				match result {
++					.drawn, .presented {
++						presented = result == .presented
 +						window_pass = gg.EndOptions{ how: .load, swapchain: swapchain }
 +						root = Element{ ...root, box: BoxStyle{ ...root.box, transparent: true } }
 +					}
@@ -142,31 +146,35 @@ index bcec4da..1fefc61 100644
 +			}
 +		}
 +		if window_pass.how != .load && voidptr(g_gl_surface_renderer) != unsafe { nil } {
-@@ -1292,0 +1374,3 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -1292,0 +1378,3 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +			if g_pending_field_focus != '' {
 +				focus(g_pending_field_focus)
 +			}
-@@ -1311 +1395,7 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -1311 +1399,11 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 -		ctx.end()
-+		if ctx.window.macos_hidden_window {
++		if presented {
++			ctx.r.rewind()
++			// Advance Sokol's resource retirement even when the host submitted the frame.
++			gfx.commit()
++		} else if ctx.window.macos_hidden_window {
 +			// Keep layout and input registrations for the capture without
 +			// submitting a window pass for a hidden Metal view.
 +			ctx.r.rewind()
 +		} else {
 +			ctx.end(window_pass)
 +		}
-@@ -1460,0 +1551,3 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
+@@ -1460,0 +1559,3 @@ $if (android || linux || freebsd || openbsd || netbsd || dragonfly || solaris ||
 +		if g_window_event_filter != unsafe { nil } && g_window_event_filter(e) {
 +			return
 +		}
-@@ -3788 +3881,2 @@ fn page_focused_text_area(direction int) {
+@@ -3788 +3889,2 @@ fn page_focused_text_area(direction int) {
 -			image:      gfx.make_image(&desc)
 +			borrowed:   request.image_id != 0
 +			image:      if request.image_id == 0 { gfx.make_image(&desc) } else { gfx.Image{id: request.image_id} }
-@@ -3799 +3893 @@ fn page_focused_text_area(direction int) {
+@@ -3799 +3901 @@ fn page_focused_text_area(direction int) {
 -		gfx.destroy_image(tex.image)
 +		if !tex.borrowed { gfx.destroy_image(tex.image) }
-@@ -3802,0 +3897,10 @@ fn page_focused_text_area(direction int) {
+@@ -3802,0 +3905,10 @@ fn page_focused_text_area(direction int) {
 +	// clear_surface_image drops the window's reference before the producer
 +	// releases its image. Call on the window thread between render passes.
 +	pub fn clear_surface_image(id string) {
@@ -177,7 +185,7 @@ index bcec4da..1fefc61 100644
 +		}
 +	}
 +
-@@ -3818,0 +3923,7 @@ fn page_focused_text_area(direction int) {
+@@ -3818,0 +3931,7 @@ fn page_focused_text_area(direction int) {
 +			if request.image_id != 0 && g_gg_app.surface_copy_pipeline.id == 0 {
 +				// Borrowed surfaces contain the complete pixels for their pane.
 +				// Copy all four channels, including premultiplied alpha.
@@ -185,16 +193,16 @@ index bcec4da..1fefc61 100644
 +				desc.colors[0].write_mask = .rgba
 +				g_gg_app.surface_copy_pipeline = g_gg_app.ctx.r.make_pipeline(desc)
 +			}
-@@ -3820 +3931,2 @@ fn page_focused_text_area(direction int) {
+@@ -3820 +3939,2 @@ fn page_focused_text_area(direction int) {
 -				if current.gl_texture == request.gl_texture && current.width == request.width
 +				if current.gl_texture == request.gl_texture && current.borrowed == (request.image_id != 0)
 +					&& (!current.borrowed || current.image.id == request.image_id) && current.width == request.width
-@@ -3842,0 +3955,4 @@ fn page_focused_text_area(direction int) {
+@@ -3842,0 +3963,4 @@ fn page_focused_text_area(direction int) {
 +		if tex.borrowed {
 +			ctx.r.push_pipeline()
 +			ctx.r.load_pipeline(g_gg_app.surface_copy_pipeline)
 +		}
-@@ -3846,4 +3962,6 @@ fn page_focused_text_area(direction int) {
+@@ -3846,4 +3970,6 @@ fn page_focused_text_area(direction int) {
 -		ctx.r.v2f_t2f_c4f(f32(x0), f32(y0), 0, 1, 1, 1, 1, 1)
 -		ctx.r.v2f_t2f_c4f(f32(x1), f32(y0), 1, 1, 1, 1, 1, 1)
 -		ctx.r.v2f_t2f_c4f(f32(x1), f32(y1), 1, 0, 1, 1, 1, 1)
@@ -205,11 +213,26 @@ index bcec4da..1fefc61 100644
 +		ctx.r.v2f_t2f_c4f(f32(x1), f32(y0), 1, top, 1, 1, 1, 1)
 +		ctx.r.v2f_t2f_c4f(f32(x1), f32(y1), 1, bottom, 1, 1, 1, 1)
 +		ctx.r.v2f_t2f_c4f(f32(x0), f32(y1), 0, bottom, 1, 1, 1, 1)
-@@ -3851,0 +3970,3 @@ fn page_focused_text_area(direction int) {
+@@ -3851,0 +3978,3 @@ fn page_focused_text_area(direction int) {
 +		if tex.borrowed {
 +			ctx.r.pop_pipeline()
 +		}
-@@ -4446,0 +4568,12 @@ fn page_focused_text_area(direction int) {
+@@ -4027 +4155,0 @@ fn page_focused_text_area(direction int) {
+-		r := math.max(0, math.min(radius, math.min(w, h) / 2))
+@@ -4029 +4156,0 @@ fn page_focused_text_area(direction int) {
+-		segments := int(math.min(math.max(math.sqrt(r * scale) * 1.5, 2), 16))
+@@ -4032 +4159 @@ fn page_focused_text_area(direction int) {
+-		rounded_outline(mut points, x, y, w, h, r, segments)
++		window_solid_outline(mut points, rect(x, y, w, h), radius, scale)
+@@ -4288,0 +4416,7 @@ fn page_focused_text_area(direction int) {
++	// window_solid_outline appends the points used to paint a solid round box.
++	pub fn window_solid_outline(mut points []f64, frame Rect, radius f64, scale f64) {
++		r := math.max(0, math.min(radius, math.min(frame.width, frame.height) / 2))
++		segments := int(math.min(math.max(math.sqrt(r * scale) * 1.5, 2), 16))
++		rounded_outline(mut points, frame.x, frame.y, frame.width, frame.height, r, segments)
++	}
++
+@@ -4446,0 +4581,12 @@ fn page_focused_text_area(direction int) {
 +	fn initialize_window_fonts() {
 +		mut ctx := g_gg_app.ctx
 +		if ctx == unsafe { nil } || ctx.font_inited || !ctx.config.defer_font_init { return }
@@ -222,5 +245,5 @@ index bcec4da..1fefc61 100644
 +		ensure_symbol_fallbacks(ctx)
 +	}
 +
-@@ -4452,0 +4586 @@ fn page_focused_text_area(direction int) {
+@@ -4452,0 +4599 @@ fn page_focused_text_area(direction int) {
 +		initialize_window_fonts()

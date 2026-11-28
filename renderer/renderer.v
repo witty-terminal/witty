@@ -1480,6 +1480,29 @@ struct WindowRenderTarget {
 	texture voidptr
 	width   u32
 	height  u32
+	compute &WindowComputeRequest = unsafe { nil }
+}
+
+pub struct WindowComputeOverlay {
+pub mut:
+	count  u32
+	color  [4]f32
+	bounds [4]f32
+	points [68][2]f32
+}
+
+pub enum WindowMetalDraw {
+	unhandled
+	drawn
+	presented
+	retry
+}
+
+struct WindowComputeRequest {
+	drawable voidptr
+	overlay WindowComputeOverlay
+mut:
+	result WindowMetalDraw = .drawn
 }
 
 fn (mut self Renderer) draw_frame_to_target(sync_ bool, window ?WindowRenderTarget) !bool {

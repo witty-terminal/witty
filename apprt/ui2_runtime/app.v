@@ -103,6 +103,7 @@ fn window_ready(_ voidptr) {
 		configure_window_colorspace()
 		configure_window_background(&app.runtime.config)
 		configure_window_render_targets()
+		if app.screenshot == '' { renderer.configure_ui2_window_compute(sapp.macos_get_window()) }
 		renderer.start_ui2_metal_frame_tracking()
 	}
 	app.ready = true

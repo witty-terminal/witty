@@ -9,6 +9,7 @@ import math
 import ui2
 
 const bar_height = 34.0
+const scrollbar_box = ui2.BoxStyle{ bg: 0x686b71, radius: 2 }
 const foreground = ui2.TextStyle{ color: 0xe8e9ec, size: 13 }
 const panel = ui2.BoxStyle{ bg: 0x25272b, radius: 6 }
 const control = ui2.BoxStyle{ bg: 0x393c42, radius: 4 }
@@ -93,12 +94,10 @@ fn layout_panes(tree &datastruct.SplitTree[Pane], handle datastruct.Handle, fram
 				// A newly visible pane can register before its texture is ready.
 				if !pane.presentation.direct && pane.presentation.image.id == 0 { ui2.request_paint() }
 			}
-			scroll := pane.scrollbar
-			if show_scrollbar && scroll.total > scroll.len && scroll.len != 0 {
-				height := math.max(12, frame.height * f64(scroll.len) / f64(scroll.total))
-				offset := (frame.height - height) * f64(scroll.offset) / f64(scroll.total - scroll.len)
-				elements << ui2.view('', ui2.rect(frame.x + frame.width - 6, frame.y + offset, 5, height),
-					ui2.BoxStyle{ bg: 0x686b71, radius: 2 }, [])
+			if show_scrollbar {
+				if rect := pane.scrollbar_frame() {
+					elements << ui2.view('', rect, scrollbar_box, [])
+				}
 			}
 			if pane.readonly {
 				elements << ui2.view('', ui2.rect(frame.x + 8, frame.y + 8, 82, 24), panel,
@@ -126,6 +125,15 @@ fn layout_panes(tree &datastruct.SplitTree[Pane], handle datastruct.Handle, fram
 			}
 		}
 	}
+}
+
+fn (pane &Pane) scrollbar_frame() ?ui2.Rect {
+	scroll := pane.scrollbar
+	if scroll.total <= scroll.len || scroll.len == 0 { return none }
+	frame := pane.frame
+	height := math.max(12, frame.height * f64(scroll.len) / f64(scroll.total))
+	offset := (frame.height - height) * f64(scroll.offset) / f64(scroll.total - scroll.len)
+	return ui2.rect(frame.x + frame.width - 6, frame.y + offset, 5, height)
 }
 
 fn (pane &Pane) find_rect() ui2.Rect {

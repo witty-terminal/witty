@@ -856,6 +856,18 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		target_config_modified   uint
 		bg_image_buffer_modified uint
 		custom_shader_uniforms   MetalBuffer
+	mut:
+		window_compute WindowComputeState
+	}
+
+	struct WindowComputeState {
+	mut:
+		pipeline voidptr
+		offsets MetalBuffer
+		indices MetalBuffer
+		tile_offsets []u32
+		tile_indices []u32
+		failed bool
 	}
 
 	pub fn MetalFrameState.init(api &MetalAPI) !MetalFrameState {
@@ -914,10 +926,15 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			color:               color
 			target:              target
 			custom_shader_uniforms: MetalBuffer{opts: api.buffer_options()}
+			window_compute: WindowComputeState{
+				offsets: MetalBuffer{opts: api.buffer_options()}
+				indices: MetalBuffer{opts: api.buffer_options()}
+			}
 		}
 	}
 
 	pub fn (mut self MetalFrameState) deinit() {
+		$if macos && !renderer_opengl ? { self.window_compute.deinit() }
 		self.target.deinit()
 		self.uniforms.deinit()
 		self.cells.deinit()

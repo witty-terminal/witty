@@ -64,18 +64,48 @@ fn render_window_pane(id string, scale f64, swapchain gfx.Swapchain) ui2.WindowS
 		return .retry
 	}
 	renderer.wait_for_ui2_metal_readers()
-	drawn := pane.surface.renderer.draw_ui2_metal_window(texture, size.width, size.height) or {
+	drawn := pane.surface.renderer.draw_ui2_metal_window(texture, size.width, size.height,
+		swapchain.metal.current_drawable, app.window_compute_overlay(pane, scale)) or {
 		app.failure = err
 		quit_window()
 		return .retry
 	}
-	if !drawn { return .unhandled }
+	if drawn == .unhandled { return .unhandled }
+	if drawn == .retry { return .retry }
 	if !pane.presentation.direct {
 		pane.release_presentation()
 		pane.presentation.direct = true
 	}
-	return .drawn
+	return if drawn == .presented { .presented } else { .drawn }
 }
+
+// Render the optional scroll thumb with the terminal. Widget scenes use UI2's regular pass.
+fn (app &App) window_compute_overlay(pane &Pane, scale f64) ?renderer.WindowComputeOverlay {
+	$if show_fps ? { return none }
+	if app.dialog != none || app.context_menu != none || app.palette || app.toast != ''
+		|| pane.readonly || pane.progress != none || pane.search {
+		return none
+	}
+	mut overlay := renderer.WindowComputeOverlay{}
+	if app.runtime.config.scrollbar != .never {
+		if rect := pane.scrollbar_frame() {
+			mut points := []f64{cap: 32}
+			ui2.window_solid_outline(mut points, rect, scrollbar_box.radius, scale)
+			overlay.count = u32(points.len / 2)
+			if overlay.count > u32(overlay.points.len) { return none }
+			color := scrollbar_box.bg
+			overlay.color = [f32((color >> 16) & 0xff) / 255, f32((color >> 8) & 0xff) / 255,
+				f32(color & 0xff) / 255, f32(1)]!
+			overlay.bounds = [f32(rect.x * scale), f32(rect.y * scale),
+				f32((rect.x + rect.width) * scale), f32((rect.y + rect.height) * scale)]!
+			for i in 0 .. int(overlay.count) {
+				overlay.points[i] = [f32(points[i * 2] * scale), f32(points[i * 2 + 1] * scale)]!
+			}
+		}
+	}
+	return overlay
+}
+
 
 fn prepare_draw(_ apprt.SurfaceSize) ! {
 	renderer.wait_for_ui2_metal_readers()

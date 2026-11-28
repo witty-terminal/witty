@@ -272,6 +272,23 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 			frame_state.color_modified = self.font_grid.atlas_color.modified.load()
 		}
 
+		$if macos && !renderer_opengl ? {
+			if target := window {
+				mut request := target.compute
+				if request != unsafe { nil } && C.witty_window_compute_can_write(target.texture)
+					&& self.images.kitty_placements.len == 0 && self.images.overlay_placements.len == 0 {
+					request.result = frame_state.window_compute.draw(&self.api, self.shaders.library,
+						frame_state, self.size, self.cells.fg_rows.lists, request) or {
+						log.warn('Metal compute presentation unavailable: ${err}')
+						frame_state.window_compute.deinit()
+						frame_state.window_compute.failed = true
+						WindowMetalDraw.drawn
+					}
+					if request.result != .drawn { return }
+				}
+			}
+		}
+
 		mut frame := MetalFrame.begin_for_device(&self.api, voidptr(self), voidptr(&frame_state.target),
 			voidptr(renderer_metal_frame_completed_callback))!
 		defer { frame.cancel() }
