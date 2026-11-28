@@ -49,7 +49,16 @@ pub fn build(repo_root string, options Options) ![]string {
 		mut flags := options.compiler_args.clone()
 		flags << ['-std=c++17', '-fno-sanitize=undefined', '-fno-sanitize-trap=undefined',
 			'-I' + root]
-		if library == 'glslang' { flags << '-I' + os.join_path(root, 'override') }
+		if library == 'glslang' {
+			flags << '-I' + os.join_path(root, 'override')
+			// SpvBuilder.h uses uint32_t without including <cstdint>,
+			// relying on transitive includes that current standard
+			// libraries no longer provide. Upstream headers stay
+			// untouched, so force the include from the build interface.
+			// (Two argv elements: process args are passed verbatim,
+			// never re-split.)
+			flags << ['-include', 'cstdint']
+		}
 		if library == 'spirv_cross' { flags << ['-DSPIRV_CROSS_C_API_GLSL=1',
 				'-DSPIRV_CROSS_C_API_MSL=1'] }
 		if options.os_tag == 'freebsd' || options.musl { flags << '-fPIC' }
