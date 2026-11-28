@@ -71,12 +71,26 @@ fn (app &App) show_tabs() bool {
 fn (app &App) tab_bar(width f64) ui2.Element {
 	mut items := []ui2.Element{}
 	tab_width := math.min(200, math.max(1, (width - 32) / f64(app.tabs.len)))
+	item_width := math.max(1, tab_width - 2)
+	height := bar_height - 4
+	close_width := math.min(26, item_width / 2)
+	title_width := item_width - close_width
+	transparent := ui2.BoxStyle{ transparent: true }
+	close_style := ui2.BoxStyle{ bg: 0x52565e, radius: 4, transparent: true }
+	close_tooltip := internal_os.translate('Close Tab')
 	for i, tab in app.tabs {
 		node := tab.tree.nodes[tab.active.idx()]
 		if node is datastruct.Leaf[Pane] {
 			style := if i == app.active_tab { control } else { panel }
-			items << ui2.button('select-tab-${i}', node.view.title,
-				ui2.rect(f64(i) * tab_width, 2, math.max(1, tab_width - 2), bar_height - 4), style, foreground)
+			close_frame := ui2.rect(title_width, 0, close_width, height)
+			close_button := ui2.with_native_style(ui2.button('close-tab-${tab.id}', '×', close_frame,
+				close_style, ui2.TextStyle{ ...foreground, size: 16 }))
+			items << ui2.view('tab-${tab.id}', ui2.rect(f64(i) * tab_width, 2, item_width, height),
+				style, [
+					ui2.button('select-tab-${tab.id}', node.view.title,
+						ui2.rect(0, 0, title_width, height), transparent, foreground),
+					ui2.with_tooltip(close_button, close_tooltip),
+				])
 		}
 	}
 	items << ui2.button('new-tab', '+', ui2.rect(width - 30, 2, 28, bar_height - 4), control, foreground)
@@ -90,10 +104,6 @@ fn layout_panes(tree &datastruct.SplitTree[Pane], handle datastruct.Handle, fram
 			mut pane := unsafe { node.view }
 			pane.frame = frame
 			elements << ui2.opengl(pane.element_id(), frame)
-			$if macos {
-				// A newly visible pane can register before its texture is ready.
-				if !pane.presentation.direct && pane.presentation.image.id == 0 { ui2.request_paint() }
-			}
 			if show_scrollbar {
 				if rect := pane.scrollbar_frame() {
 					elements << ui2.view('', rect, scrollbar_box, [])
@@ -224,9 +234,18 @@ fn handle_control(id string) {
 		app.select_context_item(id)
 		return
 	}
-	if id.starts_with('select-tab-') {
-		index := id.all_after('select-tab-').int()
-		if index < app.tabs.len { app.select_pane(index, app.tabs[index].active) }
+	close_tab := id.starts_with('close-tab-')
+	if close_tab || id.starts_with('select-tab-') {
+		tab_id := id.all_after('tab-').int()
+		for index, tab in app.tabs {
+			if tab.id != tab_id { continue }
+			if close_tab {
+				app.close_tab(index, .this)
+			} else if index != app.active_tab {
+				app.select_pane(index, tab.active)
+			}
+			break
+		}
 		return
 	}
 	if id == 'new-tab' {

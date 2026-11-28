@@ -37,7 +37,7 @@ fn (mut app App) new_tab(parent ?&Pane) ! {
 	} else {
 		none
 	})!
-	app.tabs << Tab{ tree: datastruct.SplitTree.new[Pane](pane) }
+	app.tabs << Tab{ id: pane.id, tree: datastruct.SplitTree.new[Pane](pane) }
 	app.select_pane(app.tabs.len - 1, datastruct.handle_root)
 }
 
@@ -220,12 +220,13 @@ fn (mut app App) close_tab(index int, mode apprt.CloseTabMode) {
 		pane := app.pane_by_id(id) or { continue }
 		if pane.surface.needs_confirm_quit() {
 			app.dialog = Dialog{
-				title:   'Close tabs?'
+				title:   if mode == .this { 'Close tab?' } else { 'Close tabs?' }
 				message: 'A terminal process is still running.'
-				button:  'Close tabs'
+				button:  if mode == .this { 'Close tab' } else { 'Close tabs' }
 				action:  .close_tabs
 				panes:   ids
 			}
+			ui2.request_refresh()
 			return
 		}
 	}

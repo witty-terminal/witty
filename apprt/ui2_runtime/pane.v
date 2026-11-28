@@ -29,6 +29,7 @@ mut:
 }
 
 struct Tab {
+	id int
 mut:
 	tree   datastruct.SplitTree[Pane]
 	active datastruct.Handle
@@ -127,7 +128,7 @@ fn size_in_pixels(frame ui2.Rect, scale f64) apprt.SurfaceSize {
 fn render_pane(id string, _ ui2.Rect, scale f64, _ f64) {
 	mut app := g_app
 	if app.tabs.len == 0 { return }
-	// UI2 can replay the previous layout's surface registrations after a tab switch.
+	// Backends using the previous layout may still report the old tab's panes.
 	mut pane := app.tabs[app.active_tab].pane_by_id(id.all_after('terminal-').int()) or { return }
 	app.draw(mut pane, scale) or {
 		app.failure = err
@@ -137,8 +138,8 @@ fn render_pane(id string, _ ui2.Rect, scale f64, _ f64) {
 
 fn (mut app App) draw(mut pane Pane, scale f64) ! {
 	defer { restore_ui_state() }
-	// The surface callback's rectangle comes from the previous paint. Use the
-	// dimensions the pane layout assigned for this frame.
+	// Use the pane layout's current dimensions even if the callback reports
+	// last frame's rectangle.
 	size := if app.capture_size.width > 0 { app.capture_size } else { size_in_pixels(pane.frame, scale) }
 	prepare_pane_size(mut pane, size, scale)!
 	prepare_draw(size)!
