@@ -157,6 +157,7 @@ $if macos && !renderer_opengl ? {
 		for mut frame in r.frames {
 			frame.target.deinit()
 			frame.target = MetalTarget{}
+			frame.window_raster.deinit()
 		}
 		r.api.post_textures.deinit()
 	}

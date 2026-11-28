@@ -249,6 +249,20 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		self.update_custom_shader_uniforms_for_frame()!
 
 		gpu_uniforms := metal_uniforms(self.uniforms)
+		mut window_request := unsafe { &WindowComputeRequest(nil) }
+		$if macos && !renderer_opengl ? {
+			if target := window {
+				if target.compute != unsafe { nil } && C.witty_window_compute_can_write(target.texture)
+					&& self.images.kitty_placements.len == 0 && self.images.overlay_placements.len == 0 {
+					window_request = target.compute
+					if C.witty_window_raster_cpu_writable(target.texture) {
+						window_request.result = self.draw_window_raster(mut frame_state.window_raster,
+							&gpu_uniforms, window_request)
+						if window_request.result != .drawn { return }
+					}
+				}
+			}
+		}
 		frame_state.uniforms.sync_values([gpu_uniforms])!
 		frame_state.cells_bg.sync_values(self.cells.bg_cells)!
 		fg_count := frame_state.cells.sync_from_array_lists(self.cells.fg_rows.lists)!
@@ -273,19 +287,15 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		}
 
 		$if macos && !renderer_opengl ? {
-			if target := window {
-				mut request := target.compute
-				if request != unsafe { nil } && C.witty_window_compute_can_write(target.texture)
-					&& self.images.kitty_placements.len == 0 && self.images.overlay_placements.len == 0 {
-					request.result = frame_state.window_compute.draw(&self.api, self.shaders.library,
-						frame_state, self.size, self.cells.fg_rows.lists, request) or {
-						log.warn('Metal compute presentation unavailable: ${err}')
-						frame_state.window_compute.deinit()
-						frame_state.window_compute.failed = true
-						WindowMetalDraw.drawn
-					}
-					if request.result != .drawn { return }
+			if window_request != unsafe { nil } {
+				window_request.result = frame_state.window_compute.draw(&self.api, self.shaders.library,
+					frame_state, self.size, self.cells.fg_rows.lists, window_request) or {
+					log.warn('Metal compute presentation unavailable: ${err}')
+					frame_state.window_compute.deinit()
+					frame_state.window_compute.failed = true
+					WindowMetalDraw.drawn
 				}
+				if window_request.result != .drawn { return }
 			}
 		}
 

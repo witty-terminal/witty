@@ -858,6 +858,14 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 		custom_shader_uniforms   MetalBuffer
 	mut:
 		window_compute WindowComputeState
+		window_raster WindowRasterBuffer
+	}
+
+	struct WindowRasterBuffer {
+	mut:
+		pixels   voidptr
+		capacity usize
+		failed   bool
 	}
 
 	struct WindowComputeState {
@@ -934,7 +942,10 @@ $if renderer_metal ?|| ( ( macos || ios ) && !renderer_opengl ?) {
 	}
 
 	pub fn (mut self MetalFrameState) deinit() {
-		$if macos && !renderer_opengl ? { self.window_compute.deinit() }
+		$if macos && !renderer_opengl ? {
+			self.window_compute.deinit()
+			self.window_raster.deinit()
+		}
 		self.target.deinit()
 		self.uniforms.deinit()
 		self.cells.deinit()

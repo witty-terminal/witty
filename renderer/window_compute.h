@@ -25,6 +25,27 @@ static inline bool witty_window_compute_can_write(void *handle) {
     return texture && (texture.usage & MTLTextureUsageShaderWrite);
 }
 
+static inline bool witty_window_raster_cpu_writable(void *handle) {
+    id<MTLTexture> texture = (__bridge id<MTLTexture>)handle;
+    return texture && !texture.isFramebufferOnly && texture.pixelFormat == MTLPixelFormatBGRA8Unorm
+        && (texture.storageMode == MTLStorageModeShared || texture.storageMode == MTLStorageModeManaged);
+}
+
+// The drawable can be uploaded from system memory without encoding GPU work.
+static inline int witty_window_raster_present(void *drawable_ref, const void *pixels) {
+    id<CAMetalDrawable> drawable = (__bridge id<CAMetalDrawable>)drawable_ref;
+    id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)sg_v_mtl_command_queue();
+    id<MTLCommandBuffer> command = [queue commandBufferWithUnretainedReferences];
+    if (!command) return 0;
+    id<MTLTexture> texture = drawable.texture;
+    [texture replaceRegion:MTLRegionMake2D(0, 0, texture.width, texture.height)
+        mipmapLevel:0 withBytes:pixels bytesPerRow:texture.width * sizeof(uint32_t)];
+    [command presentDrawable:drawable];
+    [command commit];
+    [command waitUntilCompleted];
+    return command.status == MTLCommandBufferStatusCompleted ? 1 : -1;
+}
+
 static inline void *witty_window_compute_make_pipeline(void *device_ref, void *library_ref) {
     id<MTLDevice> device = (__bridge id<MTLDevice>)device_ref;
     id<MTLLibrary> library = (__bridge id<MTLLibrary>)library_ref;
@@ -74,6 +95,10 @@ static inline int witty_window_compute_present(
 #else
 static inline void witty_window_compute_configure(void *handle) { (void)handle; }
 static inline bool witty_window_compute_can_write(void *texture) { (void)texture; return false; }
+static inline bool witty_window_raster_cpu_writable(void *texture) { (void)texture; return false; }
+static inline int witty_window_raster_present(void *drawable, const void *pixels) {
+    (void)drawable; (void)pixels; return 0;
+}
 static inline void *witty_window_compute_make_pipeline(void *device, void *library) {
     (void)device; (void)library; return NULL;
 }
